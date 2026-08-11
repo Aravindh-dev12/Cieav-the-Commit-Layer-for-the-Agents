@@ -1,0 +1,23 @@
+{
+  "name": "latch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A semantic commit layer for consequential actions on the web.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @latch/contracts && npm run build -w @latch/core && npm run build -w @latch/sdk && npm run build -w @latch/api && npm run build -w @latch/extension && npm run build -w @latch/dashboard",
+    "test": "npm run test -w @latch/core && npm run test -w @latch/api",
+    "typecheck": "npm run typecheck -w @latch/contracts && npm run typecheck -w @latch/core && npm run typecheck -w @latch/sdk && npm run typecheck -w @latch/api && npm run typecheck -w @latch/extension && npm run typecheck -w @latch/dashboard",
+    "dev:api": "npm run dev -w @latch/api",
+    "dev:dashboard": "npm run dev -w @latch/dashboard",
+    "build:extension": "npm run build -w @latch/extension",
+    "selftest:noinstall": "node scripts/noinstall-selftest.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "Apache-2.0"
+}
