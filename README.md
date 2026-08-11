@@ -13,7 +13,7 @@ The model is **an interpreter, not the security authority**. Deterministic polic
 - `apps/extension` — Chrome Manifest V3 extension; global DOM interception, redaction, preview UI, local fallback, receipt cache.
 - `apps/api` — HTTP API, anonymous device authentication, structured model analysis, signed receipts, Postgres persistence.
 - `apps/dashboard` — action timeline and receipt inspector.
-- `packages/contracts` — Zod schemas shared across every component.
+- `packages/contracts` — shared action/receipt schemas.
 - `packages/core` — deterministic risk/reversibility policy and redaction utilities.
 - `packages/sdk` — API client plus native website action declarations.
 
@@ -21,18 +21,18 @@ The model is **an interpreter, not the security authority**. Deterministic polic
 
 - Runs on arbitrary `http`/`https` pages through a Manifest V3 content script, including matching child/related frames.
 - Detects candidate actions using DOM semantics and form characteristics.
-- Never transmits raw form values; passwords/card values are not read into the semantic snapshot.
+- Never sends raw form values for semantic analysis; passwords/card values are not intentionally collected into the semantic snapshot.
 - Redacts common emails, phones, card-like strings, OTP-like values and secret patterns from nearby text.
 - Builds deterministic action semantics on-device.
-- Optionally enriches classification with an OpenAI Responses API call constrained by a strict JSON schema.
+- Optionally enriches classification through an OpenAI Responses API call constrained by a strict JSON schema.
 - Prevents model output from downgrading deterministic risk.
-- Uses a balanced intervention policy by default: low-impact interactions can pass silently, while high-risk, access, publishing, upload, deletion and financial actions receive stronger friction. Strict and high-risk-only modes are available.
-- Records committed and cancelled action receipts; signed connected receipts are re-signed when their undo status changes.
+- Uses a balanced intervention policy by default; strict and high-risk-only modes are available.
+- Records committed and cancelled action receipts and re-signs connected receipts when status changes.
 - Falls back to local-only operation when the backend is unavailable.
 - Stores receipts in Postgres when configured.
-- Signs receipts server-side with HMAC-SHA256.
-- Provides both a zero-dependency local timeline and a React dashboard for filtering/inspecting receipts.
-- Detects a narrow class of unambiguous live-page inverse controls and can route an undo back to the correct tab/frame; ambiguous or unverifiable inverses are refused.
+- Signs server receipts with HMAC-SHA256.
+- Provides a standalone local timeline and a React dashboard.
+- Detects a narrow class of unambiguous live-page inverse controls and can route an undo back to the exact tab/frame; ambiguous inverses are refused.
 - Allows websites to declare native action semantics through `data-latch-*` attributes or `declareWebAction()`.
 
 ## What no browser extension can guarantee
@@ -49,72 +49,67 @@ Native site adapters can provide stronger guarantees where a service exposes a r
 
 ## Quick start
 
-### Fastest path: no dependency install
-
-The repository includes a zero-dependency Node runtime for product evaluation:
-
-```bash
-cp .env.example .env   # optional; export values into your shell if desired
-node apps/api/standalone.mjs
-```
-
-A prebuilt extension is committed in `apps/extension/dist`, so no package installation is required for evaluation. Load that directory as an unpacked Chrome extension. The standalone API serves the action timeline at `http://127.0.0.1:8787/dashboard`; the extension's **Timeline** button pairs it using the anonymous device token in the URL fragment.
-
-Run the full no-install behavioral test with:
-
-```bash
-npm run selftest:noinstall
-# or, without npm:
-node scripts/noinstall-selftest.mjs
-```
-
-### Scalable TypeScript/Postgres path
-
-#### 1. Install dependencies
+### 1. Install dependencies
 
 ```bash
 npm install
 ```
 
-#### 2. Configure backend
-
-```bash
-cp .env.example .env
-```
-
-For AI-enhanced semantic interpretation, set `OPENAI_API_KEY`. Without it, the product still runs using deterministic local/server policy.
-
-#### 3. Start Postgres + API
-
-```bash
-docker compose up --build
-```
-
-Or run without Postgres (in-memory receipt persistence):
-
-```bash
-npm run dev:api
-```
-
-#### 4. Build extension
+### 2. Build the Chrome extension
 
 ```bash
 npm run build:extension
 ```
 
-Open Chrome → `chrome://extensions` → enable Developer mode → **Load unpacked** → select:
+Then open Chrome → `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select:
 
 ```text
 apps/extension/dist
 ```
 
-#### 5. Dashboard
+### 3. Run the lightweight local backend
+
+```bash
+node apps/api/standalone.mjs
+```
+
+It serves the API at `http://127.0.0.1:8787` and the standalone action timeline at:
+
+```text
+http://127.0.0.1:8787/dashboard
+```
+
+The extension's **Timeline** button passes its anonymous device token through the URL fragment; the dashboard immediately removes the fragment from browser history.
+
+### 4. Optional AI-enhanced interpretation
+
+Set `OPENAI_API_KEY` in the backend environment. Without it, LATCH continues using deterministic semantic policy.
+
+```bash
+export OPENAI_API_KEY="..."
+node apps/api/standalone.mjs
+```
+
+### 5. Scalable Postgres/API path
+
+```bash
+cp .env.example .env
+# replace development secrets in .env
+
+docker compose up --build
+```
+
+Or run the TypeScript API without Postgres (in-memory receipt persistence):
+
+```bash
+npm run dev:api
+```
+
+### 6. React dashboard
 
 ```bash
 npm run dev:dashboard
 ```
-
-The extension obtains an anonymous device token automatically. For the standalone dashboard, use the same token if you want to inspect the server-side timeline directly. During development it is easiest to inspect the extension's local timeline from the popup.
 
 ## Native website integration
 
@@ -161,7 +156,7 @@ See [`docs/action-manifest.md`](docs/action-manifest.md) for the protocol.
 3. Structured model output only.
 4. Deterministic policy is the minimum risk floor.
 5. Model confidence never creates authorization.
-6. User consent remains explicit for blocked/intercepted actions.
+6. User consent remains explicit for intercepted actions.
 7. Local-only operation must remain possible.
 8. Receipts describe what LATCH observed; they are not proof that a third-party server honored an action.
 
@@ -170,10 +165,12 @@ See [`SECURITY.md`](SECURITY.md) and [`PRIVACY.md`](PRIVACY.md).
 ## Development
 
 ```bash
+npm run build
 npm run typecheck
 npm test
-npm run build
 ```
+
+The repository also contains standalone/self-test scripts under `scripts/`; the normal source checkout path is to install dependencies and build the extension before running those checks.
 
 ## License
 
