@@ -1,29 +1,25 @@
-# Privacy architecture
+# LATCH privacy architecture
 
-LATCH is designed around data minimization.
+LATCH minimizes data before model/API access.
 
-## Browser-side data reduction
+## Action analysis can include
 
-For protected actions the extension can collect:
+URL/origin, page title, clicked element text/ARIA label, nearby redacted text, form field names/labels/types, inferred categories such as credential/identity/financial/health/biometric/file, and generic file descriptors.
 
-- URL and origin
-- page title
-- clicked element text/ARIA metadata
-- nearby redacted text
-- form field names, labels and input types
-- inferred categories such as identity/financial/credential/file
-- generic file descriptors
+## Intentionally excluded
 
-It intentionally does **not** collect raw values from form inputs for semantic analysis.
+LATCH does not send raw form input values for semantic classification. Passwords, card numbers, OTPs, uploaded file contents, and ordinary typed values are not part of the `ActionContext`.
 
-## Local-only mode
+## Local browser state
 
-Local-only mode disables backend/model analysis and stores action receipts only in browser extension storage.
+The dedicated Chromium profile, anonymous device identity, and attention-learning state live under `.latch/` (or `LATCH_STATE_DIR`) and are separate from the user's ordinary Chrome profile.
 
-## Connected mode
+## Optional model use
 
-Connected mode sends the reduced `ActionContext` to the configured LATCH API. If an OpenAI key is configured on that server, the server may send the reduced context to the model API for structured semantic classification.
+LATCH works deterministically without a model. If `OPENAI_API_KEY` is configured, only the reduced action context is sent for structured semantic classification.
 
-## Receipt data
+## Receipts
 
-Receipts may include the source URL, page title, semantic effects, risk, reversibility and timestamps. A future consumer release should add configurable URL minimization and per-site retention controls before broad public deployment.
+Receipts can contain source URL/origin/title, semantic action/effects, risk, reversibility, timestamps, and status. They therefore reveal action history and should be treated as sensitive data.
+
+Before broad consumer distribution, add configurable URL minimization, retention/auto-delete, encrypted at-rest storage, per-site exclusions, account/device key management, and explicit telemetry controls.

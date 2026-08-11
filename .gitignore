@@ -1,7 +1,5 @@
 node_modules/
 dist/
-!apps/extension/dist/
-!apps/extension/dist/**
 .vite/
 .env
 .env.local
@@ -9,4 +7,5 @@ dist/
 .DS_Store
 coverage/
 apps/api/.data/
+.latch/
 *.tsbuildinfo

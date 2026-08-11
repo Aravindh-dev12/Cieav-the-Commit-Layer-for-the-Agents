@@ -1,0 +1,13 @@
+{
+  "name": "@latch/browser",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node main.mjs",
+    "test:e2e": "node ../../scripts/browser-e2e.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

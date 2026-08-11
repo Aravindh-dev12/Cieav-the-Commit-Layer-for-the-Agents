@@ -10,9 +10,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: package.json
+      - name: Verify browser runtime without dependencies
+        run: |
+          google-chrome --version || chromium --version
+          node scripts/browser-e2e.mjs
+          node scripts/noinstall-selftest.mjs
       - run: npm install
       - run: npm run build
       - run: npm run typecheck
-      - run: npm test
+      - run: npm run test:core
