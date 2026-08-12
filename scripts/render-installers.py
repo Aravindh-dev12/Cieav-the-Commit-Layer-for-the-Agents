@@ -4,16 +4,15 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-PLACEHOLDER = "__LATCH_DOWNLOAD_BASE_URL__"
+PLACEHOLDER = "__CIEAV_DOWNLOAD_BASE_URL__"
 
 
 def render(src: Path, dst: Path, base_url: str) -> None:
     text = src.read_text("utf-8")
     if PLACEHOLDER not in text:
         raise SystemExit(f"installer placeholder missing from {src}")
-    rendered = text.replace(PLACEHOLDER, base_url)
     dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_text(rendered, "utf-8")
+    dst.write_text(text.replace(PLACEHOLDER, base_url), "utf-8")
 
 
 def main() -> None:
