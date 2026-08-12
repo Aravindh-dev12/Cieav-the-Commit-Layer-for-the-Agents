@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from latch_platform.config import Settings
-from latch_platform.secret_store import SecretStore, _Backend
+from latch_platform.secret_store import SecretStore, SecretStoreError, _Backend
 
 
 class MemorySecureBackend(_Backend):
@@ -44,7 +44,17 @@ def main()->int:
             if os.name!="nt": assert p.stat().st_mode & 0o077 == 0
         s.write_hf_token("hf_"+"z"*40);assert s.read_hf_token()=="hf_"+"z"*40;assert s.delete_hf_token() is True;assert s.read_hf_token() is None
 
-    print("CIEAV secret-store smoke passed: verified secure migration + explicit file fallback")
+    with tempfile.TemporaryDirectory(prefix="cieav-secure-policy-") as td, patch.dict(os.environ,{"CIEAV_SECRET_BACKEND":"secure"},clear=False), patch("latch_platform.secret_store.sys.platform","linux"), patch("latch_platform.secret_store.shutil.which",return_value=None):
+        try: SecretStore(Path(td))
+        except SecretStoreError as exc: assert "Secret Service" in str(exc)
+        else: raise AssertionError("secure production policy must reject plaintext fallback")
+
+    with tempfile.TemporaryDirectory(prefix="cieav-frozen-policy-") as td, patch.dict(os.environ,{"CIEAV_SECRET_BACKEND":"file"},clear=False), patch.object(__import__("latch_platform.secret_store",fromlist=["sys"]).sys,"frozen",True,create=True):
+        try: SecretStore(Path(td))
+        except SecretStoreError as exc: assert "refuses plaintext" in str(exc)
+        else: raise AssertionError("frozen production runtime must reject file backend without explicit diagnostic override")
+
+    print("CIEAV secret-store smoke passed: verified secure migration + explicit file fallback + production fail-closed policy")
     return 0
 
 
