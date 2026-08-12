@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import {readFile} from "node:fs/promises";
 const injected=await readFile(new URL("../apps/browser/injected.js",import.meta.url),"utf8");
+const browser=await readFile(new URL("../apps/browser/main.mjs",import.meta.url),"utf8");
+const adapters=await readFile(new URL("../apps/browser/adapters.mjs",import.meta.url),"utf8");
 const server=await readFile(new URL("../apps/api/src/server.ts",import.meta.url),"utf8");
 const config=await readFile(new URL("../apps/api/src/config.ts",import.meta.url),"utf8");
 const receipt=await readFile(new URL("../apps/api/src/receipt.ts",import.meta.url),"utf8");
@@ -10,6 +12,10 @@ if(!injected.includes("action not executed"))throw new Error("fail-closed user f
 if(!injected.includes("Commit control unavailable"))throw new Error("commit-control failure is not fail-closed");
 if(!injected.includes("async function register(e,m,rid){if(!AUTO)return;"))throw new Error("generic DOM-label inverse discovery is enabled outside explicit test mode");
 if(!injected.includes("No trusted live-page inverse adapter is available"))throw new Error("production Undo trust-boundary message missing");
+if(!browser.includes('verifyAdapterProposal({')||!browser.includes('m.kind==="UNDO_READY"')||!browser.includes("liveAdapter(u)"))throw new Error("browser host does not validate trusted adapter proposals and expiry");
+if(!browser.includes('current.outcome?.status!=="OBSERVED_SUCCESS"'))throw new Error("host Undo path does not independently require observed success");
+if(!adapters.includes('error:"ambiguous_trusted_adapter"')||!adapters.includes('error:"no_trusted_adapter_match"'))throw new Error("adapter registry does not fail closed on zero/ambiguous matches");
+if(!adapters.includes('testOnly:true'))throw new Error("test adapters are not explicitly marked test-only");
 if(!injected.includes('if(!["HIGH","CRITICAL"].includes(risk))'))throw new Error("HIGH/CRITICAL actions may still accept DOM-only success evidence");
 if(/t==="financial\.commit"\?\/\(payment successful/.test(injected))throw new Error("financial success text is still treated as sufficient DOM proof");
 if(!server.includes("new FileReceiptStore")||!server.includes('"local-durable"'))throw new Error("managed API is not configured for durable local receipts");
@@ -18,4 +24,4 @@ if(!server.includes("loadDeviceReceiptSigner")||!server.includes('algorithm:"Ed2
 if(!receipt.includes("verifyReceiptPublic")||!receipt.includes('signatureAlgorithm:"Ed25519"'))throw new Error("independent receipt signature verification is missing");
 if(!deviceSigning.includes('generateKeyPairSync("ed25519")')||!deviceSigning.includes("receipt-ed25519-private.pem"))throw new Error("persistent per-user Ed25519 key lifecycle is missing");
 if(!config.includes("!localAuthority&&process.env.DATABASE_URL"))throw new Error("local authority may inherit DATABASE_URL");
-console.log("CIEAV browser/control fail-closed, trusted-Undo, outcome-evidence, and receipt-identity checks passed");
+console.log("CIEAV browser/control fail-closed, trusted-adapter, outcome-evidence, and receipt-identity checks passed");
