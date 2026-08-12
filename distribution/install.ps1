@@ -6,6 +6,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+$PinnedCloudUrl = "__CIEAV_CLOUD_URL__"
+$PinnedReleaseVersion = "__CIEAV_RELEASE_VERSION__"
 $PinnedWindowsSigner = "__CIEAV_WINDOWS_SIGNER_THUMBPRINT__"
 $PinnedMacSigner = "__CIEAV_MACOS_SIGNING_IDENTITY__"
 function Fail([string]$Message) { throw "CIEAV install failed: $Message" }
@@ -46,10 +48,15 @@ function Assert-RuntimePublisher([string]$Executable) {
 }
 
 if (-not $BaseUrl -or $BaseUrl -eq "__CIEAV_DOWNLOAD_BASE_URL__") { Fail "installer was not rendered with an official download endpoint. Pass -BaseUrl or set CIEAV_DOWNLOAD_BASE_URL." }
+if ($PinnedCloudUrl -eq "__CIEAV_CLOUD_URL__" -or $PinnedReleaseVersion -eq "__CIEAV_RELEASE_VERSION__") { Fail "installer is missing pinned release metadata" }
+if ($PinnedReleaseVersion -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') { Fail "installer has an invalid pinned release version" }
 try { $baseUri=[Uri]$BaseUrl } catch { Fail "download endpoint is not a valid URI" }
 if ($baseUri.Scheme -ne "https" -or -not $baseUri.Host) { Fail "download endpoint must use HTTPS" }
 if ($baseUri.UserInfo -or $baseUri.Query -or $baseUri.Fragment -or ($baseUri.AbsolutePath -ne "/" -and $baseUri.AbsolutePath -ne "")) { Fail "download endpoint must be a clean HTTPS origin with no credentials, path, query, or fragment" }
 $BaseUrl=("https://"+$baseUri.Authority).TrimEnd('/')
+try { $pinnedCloudUri=[Uri]$PinnedCloudUrl } catch { Fail "pinned Cloud endpoint is invalid" }
+if ($pinnedCloudUri.Scheme -ne "https" -or -not $pinnedCloudUri.Host -or $pinnedCloudUri.UserInfo -or $pinnedCloudUri.Query -or $pinnedCloudUri.Fragment -or ($pinnedCloudUri.AbsolutePath -ne "/" -and $pinnedCloudUri.AbsolutePath -ne "")) { Fail "pinned Cloud endpoint must be a clean HTTPS origin" }
+$PinnedCloudUrl=("https://"+$pinnedCloudUri.Authority).TrimEnd('/')
 if ($Channel -notmatch '^[A-Za-z0-9._-]+$') { Fail "invalid release channel" }
 $platform=Get-PlatformKey; $installRoot=Get-InstallRoot; $binRoot=Get-BinRoot $installRoot; $backup="$installRoot.previous"
 $tempRoot=Join-Path ([System.IO.Path]::GetTempPath()) ("cieav-install-"+[guid]::NewGuid().ToString("N")); New-Item -ItemType Directory -Force -Path $tempRoot|Out-Null
@@ -60,9 +67,12 @@ try {
   $manifest=Get-Content $manifestPath -Raw|ConvertFrom-Json
   if ($manifest.brand -and $manifest.brand -ne "CIEAV") { Fail "release manifest brand mismatch" }
   if (-not $manifest.version -or ([string]$manifest.version) -notmatch '^[A-Za-z0-9._-]+$') { Fail "release manifest has invalid version" }
+  if ([string]$manifest.version -ne $PinnedReleaseVersion) { Fail "release manifest version does not match the installer-pinned release" }
   if (-not $manifest.cloudUrl) { Fail "release manifest has no Cloud Intelligence URL" }
   try { $cloudUri=[Uri]([string]$manifest.cloudUrl) } catch { Fail "Cloud Intelligence URL is invalid" }
-  if ($cloudUri.Scheme -ne "https" -or -not $cloudUri.Host -or $cloudUri.UserInfo) { Fail "Cloud Intelligence URL must be a credential-free HTTPS URL" }
+  if ($cloudUri.Scheme -ne "https" -or -not $cloudUri.Host -or $cloudUri.UserInfo -or $cloudUri.Query -or $cloudUri.Fragment -or ($cloudUri.AbsolutePath -ne "/" -and $cloudUri.AbsolutePath -ne "")) { Fail "Cloud Intelligence URL must be a clean credential-free HTTPS origin" }
+  $manifestCloud=("https://"+$cloudUri.Authority).TrimEnd('/')
+  if ($manifestCloud -ne $PinnedCloudUrl) { Fail "release manifest Cloud endpoint does not match the installer-pinned endpoint" }
   $artifact=$manifest.artifacts.$platform; if (-not $artifact) { Fail "no CIEAV runtime published for $platform" }; if (-not $artifact.url -or -not $artifact.sha256) { Fail "artifact metadata is incomplete" }
   if (([string]$artifact.sha256) -notmatch '^[0-9A-Fa-f]{64}$') { Fail "artifact SHA-256 metadata is invalid" }
   $artifactPath=[string]$artifact.url
@@ -92,14 +102,14 @@ try {
   } else {
     foreach ($name in @("cieav","latch")) { $shim=Join-Path $binRoot $name; $script="#!/bin/sh`nexec `"$runtimeCieav`" `"`$@`"`n"; Set-Content -Path $shim -Encoding UTF8 -NoNewline -Value $script; & chmod 0755 $shim }; & chmod 0755 $runtimeCieav $runtimeNode; $env:PATH="$(Join-Path $installRoot 'runtime'):$binRoot:$env:PATH"
   }
-  $env:CIEAV_HOME=$installRoot; $env:CIEAV_CLOUD_URL=[string]$manifest.cloudUrl; $env:CIEAV_VERSION=[string]$manifest.version
-  $env:LATCH_HOME=$installRoot; $env:LATCH_CLOUD_URL=[string]$manifest.cloudUrl; $env:LATCH_VERSION=[string]$manifest.version
+  $env:CIEAV_HOME=$installRoot; $env:CIEAV_CLOUD_URL=$PinnedCloudUrl; $env:CIEAV_VERSION=$PinnedReleaseVersion
+  $env:LATCH_HOME=$installRoot; $env:LATCH_CLOUD_URL=$PinnedCloudUrl; $env:LATCH_VERSION=$PinnedReleaseVersion
   Write-Host "CIEAV · running runtime self-check"; & $runtimeCieav doctor; if ($LASTEXITCODE -ne 0) { Fail "runtime self-check failed" }
   Write-Host "CIEAV · enrolling with Cloud Intelligence"; & $runtimeCieav cloud enroll; if ($LASTEXITCODE -ne 0) { Fail "Cloud Intelligence enrollment failed" }
   Write-Host "CIEAV · running cloud safety probe"; & $runtimeCieav cloud probe; if ($LASTEXITCODE -ne 0) { Fail "Cloud Intelligence safety probe failed" }
   if (-not $NoService) { Write-Host "CIEAV · installing always-on Gateway"; & $runtimeCieav gateway install; if ($LASTEXITCODE -ne 0) { Fail "Gateway service installation failed" } }
   $success=$true
-  Write-Host ""; Write-Host "CIEAV installed successfully."; Write-Host "Version: $($manifest.version)"; Write-Host "Runtime: $installRoot"; Write-Host "Privacy: durable user state remains local"; Write-Host ""; Write-Host "Run: cieav gateway status"; Write-Host "Run: cieav cloud status"; Write-Host "Run: cieav test-lab"
+  Write-Host ""; Write-Host "CIEAV installed successfully."; Write-Host "Version: $PinnedReleaseVersion"; Write-Host "Runtime: $installRoot"; Write-Host "Privacy: durable user state remains local"; Write-Host ""; Write-Host "Run: cieav gateway status"; Write-Host "Run: cieav cloud status"; Write-Host "Run: cieav test-lab"
 }
 catch { Write-Error $_; exit 1 }
 finally {
