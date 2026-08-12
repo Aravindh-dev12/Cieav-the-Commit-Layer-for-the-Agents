@@ -24,10 +24,11 @@ def _request_json(url: str, *, method: str = "GET", payload: dict | None = None,
 
 
 class Gateway:
-    """Always-on Python control plane for LATCH.
+    """Always-on Python control plane for CIEAV.
 
-    Python owns process lifecycle, secrets, Hugging Face inference, health and
-    privileged local control. Browser/Node adapters never receive HF_TOKEN.
+    Python owns process lifecycle, local signing secrets, Hugging Face inference,
+    health and privileged local control. Chromium never receives provider tokens
+    or local API/receipt signing keys.
     """
 
     def __init__(self, settings: Settings):
@@ -76,31 +77,43 @@ class Gateway:
         line = f"{time.strftime('%Y-%m-%dT%H:%M:%S%z')} {message}\n"
         with self.s.log_file.open("a", encoding="utf-8") as f:
             f.write(line)
-        print(f"LATCH Gateway · {message}", flush=True)
+        print(f"CIEAV Gateway · {message}", flush=True)
 
     def _base_env(self) -> dict[str, str]:
         env = dict(os.environ)
         # Secrets owned by Python must not be inherited by Node or Chromium.
-        for key in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
+        for key in (
+            "HF_TOKEN",
+            "HUGGING_FACE_HUB_TOKEN",
+            "JWT_SECRET",
+            "RECEIPT_SIGNING_SECRET",
+            "CIEAV_GATEWAY_TOKEN",
+            "LATCH_GATEWAY_TOKEN",
+        ):
             env.pop(key, None)
-        env.setdefault("LATCH_STATE_DIR", str(self.s.state_dir))
-        env.setdefault("LATCH_CONTROL_PORT", str(self.s.control_port))
-        env.setdefault("LATCH_API_PORT", str(self.s.api_port))
-        env.setdefault("LATCH_GATEWAY_PORT", str(self.s.gateway_port))
+        env.setdefault("CIEAV_STATE_DIR", str(self.s.state_dir))
+        env.setdefault("CIEAV_CONTROL_PORT", str(self.s.control_port))
+        env.setdefault("CIEAV_API_PORT", str(self.s.api_port))
+        env.setdefault("CIEAV_GATEWAY_PORT", str(self.s.gateway_port))
         return env
 
     def _semantic_env(self) -> dict[str, str]:
         env = self._base_env()
         env["PORT"] = str(self.s.api_port)
-        env["LATCH_GATEWAY_URL"] = f"http://127.0.0.1:{self.s.gateway_port}"
-        env["LATCH_GATEWAY_TOKEN"] = self.token
-        env["LATCH_HF_ENABLED"] = "1" if self.hf.configured else "0"
+        env["JWT_SECRET"] = self.s.local_api_secret()
+        env["RECEIPT_SIGNING_SECRET"] = self.s.receipt_signing_secret()
+        env["CIEAV_GATEWAY_URL"] = f"http://127.0.0.1:{self.s.gateway_port}"
+        env["CIEAV_GATEWAY_TOKEN"] = self.token
+        env["CIEAV_HF_ENABLED"] = "1" if self.hf.configured else "0"
         return env
 
     def _surface_env(self) -> dict[str, str]:
         env = self._base_env()
-        env.pop("LATCH_GATEWAY_TOKEN", None)
-        env["LATCH_REQUIRE_PRODUCTION_API"] = "1"
+        # Defense in depth: the protected browser process receives neither
+        # signing keys nor the privileged Gateway bearer token.
+        for key in ("JWT_SECRET", "RECEIPT_SIGNING_SECRET", "CIEAV_GATEWAY_TOKEN", "LATCH_GATEWAY_TOKEN"):
+            env.pop(key, None)
+        env["CIEAV_REQUIRE_PRODUCTION_API"] = "1"
         return env
 
     def _terminate(self, child: subprocess.Popen | None, label: str) -> int | None:
@@ -197,7 +210,7 @@ class Gateway:
 
     def open_surface_url(self, url: str) -> dict:
         if self.paused:
-            raise RuntimeError("LATCH protection is paused")
+            raise RuntimeError("CIEAV protection is paused")
         if not (url.startswith("http://") or url.startswith("https://")):
             raise RuntimeError("Only http/https URLs can be opened in the protected surface")
         browser = self._browser_health()
@@ -232,7 +245,7 @@ class Gateway:
         with self._lock:
             return {
                 "ok": True,
-                "platform": "LATCH Gateway",
+                "platform": "CIEAV Gateway",
                 "gatewayPid": os.getpid(),
                 "paused": self.paused,
                 "semanticRunning": bool(self.semantic and self.semantic.poll() is None),
@@ -254,7 +267,7 @@ class Gateway:
         semantic_health = self._semantic_health() if semantic_running else {"ok": False}
         return {
             "ok": True,
-            "platform": "LATCH Gateway",
+            "platform": "CIEAV Gateway",
             "runtime": "python",
             "gatewayPid": os.getpid(),
             "paused": self.paused,
@@ -466,7 +479,7 @@ def run_gateway(settings: Settings | None = None) -> int:
     gateway = Gateway(s)
     ControlHandler.gateway = gateway
     server = ThreadingHTTPServer(("127.0.0.1", s.gateway_port), ControlHandler)
-    thread = threading.Thread(target=gateway.supervise, name="latch-supervisor", daemon=True)
+    thread = threading.Thread(target=gateway.supervise, name="cieav-supervisor", daemon=True)
 
     def stop(*_args):
         gateway.stop_event.set()
