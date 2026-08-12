@@ -97,6 +97,15 @@ def main() -> int:
         assert health["paused"] is False
         assert health["surfaceRunning"] is False
 
+        with patch.dict(os.environ,{"CIEAV_TEST_AUTO_APPROVE":"1","LATCH_TEST_AUTO_APPROVE":"1"},clear=False):
+            base_env=g._base_env()
+            surface_env=g._surface_env()
+            assert "CIEAV_TEST_AUTO_APPROVE" not in base_env
+            assert "LATCH_TEST_AUTO_APPROVE" not in base_env
+            assert surface_env["CIEAV_TEST_AUTO_APPROVE"] == "0"
+            assert "LATCH_TEST_AUTO_APPROVE" not in surface_env
+            assert surface_env["CIEAV_REQUIRE_PRODUCTION_API"] == "1"
+
         with patch.object(g, "open_surface_url", return_value={"ok": True, "url": g.test_lab_url}) as open_url:
             result = g.open_test_lab()
             assert result["ok"] is True
@@ -113,6 +122,7 @@ def main() -> int:
 
     print("CIEAV Python Gateway smoke test passed")
     print("CIEAV per-user local authority isolation passed")
+    print("CIEAV production test-auto suppression passed")
     print("CIEAV audit verification command is available")
     return 0
 
