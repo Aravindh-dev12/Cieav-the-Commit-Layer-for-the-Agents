@@ -28,6 +28,7 @@ function allowedOrigin(o?:string){if(!o)return undefined;if(config.allowedOrigin
 function json(res:http.ServerResponse,status:number,bodyValue:unknown,origin?:string){const allow=allowedOrigin(origin);res.statusCode=status;res.setHeader("content-type","application/json; charset=utf-8");res.setHeader("cache-control","no-store");res.setHeader("x-content-type-options","nosniff");res.setHeader("referrer-policy","no-referrer");if(allow)res.setHeader("access-control-allow-origin",allow);res.end(JSON.stringify(bodyValue))}
 async function body(req:http.IncomingMessage){const chunks:Buffer[]=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>256000)throw new Error("body_too_large");chunks.push(b)}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{} }
 function auth(req:http.IncomingMessage){const h=req.headers.authorization;return h?.startsWith("Bearer ")?verifyToken(h.slice(7),config.jwtSecret):null}
+function gatewayAuth(req:http.IncomingMessage){return Boolean(config.localAuthority&&config.gatewayToken&&req.headers.authorization===`Bearer ${config.gatewayToken}`)}
 
 const server=http.createServer(async(req,res)=>{
   const origin=typeof req.headers.origin==="string"?req.headers.origin:undefined;
@@ -44,12 +45,19 @@ const server=http.createServer(async(req,res)=>{
   try{
     if(req.method==="GET"&&url.pathname==="/health")return json(res,200,config.cloudServer?
       {ok:true,service,model:config.cloudModel,privacyMode:"transient-minimized",durableUserState:false}:
-      {ok:true,service,localAuthority:config.localAuthority,receiptPersistence:persistence,receiptSigning:typeof receiptSigner==="string"?{algorithm:"HMAC-SHA256",version:"2"}:{algorithm:"Ed25519",version:"3",keyId:receiptSigner.keyId,publicKey:receiptSigner.publicKeyEncoded},modelEnabled:Boolean(config.hfEnabled||config.openaiApiKey),aiProfile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel},providers:{semanticRouter:{enabled:config.hfEnabled,role:"first-tier"},frontier:{enabled:Boolean(config.openaiApiKey),profile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel}}},realityRuntime:{enabled:Boolean(realityApi),version:"2",intentContracts:true,scopedPermits:true,oneUseConsumption:true,openLoops:true}},origin);
+      {ok:true,service,localAuthority:config.localAuthority,receiptPersistence:persistence,receiptSigning:typeof receiptSigner==="string"?{algorithm:"HMAC-SHA256",version:"2"}:{algorithm:"Ed25519",version:"3",keyId:receiptSigner.keyId,publicKey:receiptSigner.publicKeyEncoded},modelEnabled:Boolean(config.hfEnabled||config.openaiApiKey),aiProfile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel},providers:{semanticRouter:{enabled:config.hfEnabled,role:"first-tier"},frontier:{enabled:Boolean(config.openaiApiKey),profile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel}}},realityRuntime:{enabled:Boolean(realityApi),version:"2",intentContracts:true,scopedPermits:true,oneUseConsumption:true,openLoops:true,trustedApprovalGateway:true}},origin);
 
     if(req.method==="POST"&&url.pathname==="/v1/devices/register"){
       if(!rateLimit(`register:${ip}`,30))return json(res,429,{error:"rate_limited"},origin);
       const raw=await body(req),input=DeviceRegisterSchema.parse(raw),deviceId=deviceIdFor(input.installId,config.jwtSecret),issued=issueToken({sub:deviceId,installId:input.installId},config.jwtSecret);
       return json(res,200,{deviceId,token:issued.token,expiresAt:issued.expiresAt},origin);
+    }
+
+    const gatewayApprovalPath=url.pathname.startsWith("/v1/reality/approvals");
+    if(config.cloudServer&&gatewayApprovalPath)return json(res,404,{error:"local_only_resource"},origin);
+    if(realityApi&&gatewayApprovalPath&&gatewayAuth(req)){
+      if(!rateLimit("gateway-approval",240))return json(res,429,{error:"rate_limited"},origin);
+      const handled=await realityApi.handleGateway(req,url.pathname);if(handled)return json(res,handled.status,handled.body,origin);
     }
 
     const identity=auth(req);if(!identity)return json(res,401,{error:"unauthorized"},origin);
