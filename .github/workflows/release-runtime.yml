@@ -208,15 +208,25 @@ jobs:
           mapfile -t META < <(find release-out -maxdepth 1 -type f \( -name 'manifest.json' -o -name 'bootstrap-*.txt' \) -print | sort)
           node scripts/release-sign.mjs sign --private-key "$RUNNER_TEMP/cieav-release-private.pem" --public-key release-out/release-public-key.pem --output-dir release-out/signatures "${META[@]}" > "$RUNNER_TEMP/sign-result.json"
           node scripts/release-sign.mjs verify --public-key release-out/release-public-key.pem --output-dir release-out/signatures "${META[@]}"
-          ACTUAL_KEY_ID=$(node -e 'const fs=require("fs"),c=require("crypto");const k=c.createPublicKey(fs.readFileSync(process.argv[1]));process.stdout.write(c.createHash("sha256").update(k.export({type:"spki",format:"der"})).digest("hex"))' release-out/release-public-key.pem)
+          node scripts/release-sign.mjs params --public-key release-out/release-public-key.pem > "$RUNNER_TEMP/release-public-params.json"
+          ACTUAL_KEY_ID=$(node -e 'const x=require(process.argv[1]);process.stdout.write(x.keyId)' "$RUNNER_TEMP/release-public-params.json")
+          RELEASE_RSA_MODULUS_B64=$(node -e 'const x=require(process.argv[1]);process.stdout.write(x.modulus)' "$RUNNER_TEMP/release-public-params.json")
+          RELEASE_RSA_EXPONENT_B64=$(node -e 'const x=require(process.argv[1]);process.stdout.write(x.exponent)' "$RUNNER_TEMP/release-public-params.json")
+          RELEASE_PUBLIC_KEY_PEM_B64=$(node -e 'const x=require(process.argv[1]);process.stdout.write(x.publicKeyPemBase64)' "$RUNNER_TEMP/release-public-params.json")
           test -n "$RELEASE_SIGNING_KEY_ID" || { echo 'Missing variable CIEAV_RELEASE_SIGNING_KEY_ID'; exit 2; }
           test "$ACTUAL_KEY_ID" = "$RELEASE_SIGNING_KEY_ID" || { echo 'Configured release signing key ID does not match public key'; exit 2; }
+          {
+            echo "RELEASE_KEY_ID=$ACTUAL_KEY_ID"
+            echo "RELEASE_RSA_MODULUS_B64=$RELEASE_RSA_MODULUS_B64"
+            echo "RELEASE_RSA_EXPONENT_B64=$RELEASE_RSA_EXPONENT_B64"
+            echo "RELEASE_PUBLIC_KEY_PEM_B64=$RELEASE_PUBLIC_KEY_PEM_B64"
+          } >> "$GITHUB_ENV"
           rm -f "$RUNNER_TEMP/cieav-release-private.pem"
       - name: Build CDN publish layout
         shell: bash
         run: |
           mkdir -p "publish/$CHANNEL/signatures"
-          python scripts/render-installers.py --download-base-url "$DOWNLOAD_BASE_URL" --cloud-url "$CLOUD_URL" --release-version "$VERSION" --windows-signer-thumbprint "$WINDOWS_SIGNER_THUMBPRINT" --macos-signing-identity "$MACOS_SIGNING_IDENTITY" --output-dir publish
+          python scripts/render-installers.py --download-base-url "$DOWNLOAD_BASE_URL" --cloud-url "$CLOUD_URL" --release-version "$VERSION" --windows-signer-thumbprint "$WINDOWS_SIGNER_THUMBPRINT" --macos-signing-identity "$MACOS_SIGNING_IDENTITY" --release-key-id "$RELEASE_KEY_ID" --release-rsa-modulus-b64 "$RELEASE_RSA_MODULUS_B64" --release-rsa-exponent-b64 "$RELEASE_RSA_EXPONENT_B64" --release-public-key-pem-b64 "$RELEASE_PUBLIC_KEY_PEM_B64" --output-dir publish
           cp release-out/manifest.json "publish/$CHANNEL/manifest.json"
           cp release-out/bootstrap-*.txt "publish/$CHANNEL/"
           cp release-out/cieav-runtime-*.zip "publish/$CHANNEL/"
