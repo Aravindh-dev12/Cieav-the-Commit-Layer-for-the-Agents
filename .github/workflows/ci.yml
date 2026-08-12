@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Verify platform authority boundaries
+        run: node scripts/platform-boundary-static.mjs
       - name: Verify Python platform package
         run: |
           python -m pip install -e .
@@ -23,6 +25,9 @@ jobs:
           cieav model --help
           cieav audit --help
           cieav audit tail --limit 5
+          cieav companion --help
+          cieav lab --help
+          cieav a2a --help
           # Temporary backwards-compatibility alias during the LATCH -> CIEAV migration.
           latch --help
           python scripts/platform-gateway-smoke.py
@@ -46,7 +51,11 @@ jobs:
           node --check apps/browser/main.mjs
           node --check apps/browser/injected.js
           node --check apps/browser/audit.mjs
+          node --check apps/a2a/src/index.mjs
           node --check apps/api/standalone.mjs
+          node --check scripts/a2a-e2e.mjs
+          node --check scripts/platform-boundary-static.mjs
+          node --check scripts/release-gate.mjs
           node --check scripts/browser-e2e.mjs
           sh -n distribution/install.sh
           if grep -q 'command -v python3\|python3 -' distribution/install.sh; then echo 'Unix consumer installer must not require Python'; exit 1; fi
@@ -55,6 +64,8 @@ jobs:
           node -e "const x=require('./evals/cases.v1.json'); if(!Array.isArray(x.cases)||x.cases.length<30) process.exit(1); const ids=x.cases.map(c=>c.id); if(new Set(ids).size!==ids.length) process.exit(2); console.log('eval cases:',x.cases.length)"
           node --check scripts/latch-eval.mjs
           node --check scripts/compare-evals.mjs
+      - name: Verify A2A governance boundary
+        run: node scripts/a2a-e2e.mjs
       - name: Verify cognitive debt invariants
         run: node scripts/cognitive-debt-e2e.mjs
       - name: Verify Attention Health dashboard
