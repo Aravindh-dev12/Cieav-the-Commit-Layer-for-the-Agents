@@ -11,17 +11,25 @@ from latch_platform.config import Settings
 from latch_platform.gateway import Gateway
 
 
-def settings_for(root: Path, state: Path) -> Settings:
+def settings_for(root: Path, state: Path, offset: int = 0) -> Settings:
     return Settings(
         root=root,
         state_dir=state,
-        gateway_port=18791,
-        control_port=18790,
-        api_port=18787,
+        gateway_port=18791 + offset,
+        control_port=18790 + offset,
+        api_port=18787 + offset,
         token_file=state / "gateway-token",
+        local_api_secret_file=state / "local-api-signing-secret",
+        receipt_signing_secret_file=state / "receipt-signing-secret",
+        hf_token_file=state / "hf-token",
         runtime_file=state / "gateway-runtime.json",
         log_file=state / "gateway.log",
     )
+
+
+def assert_private(path: Path) -> None:
+    if os.name != "nt":
+        assert (path.stat().st_mode & 0o077) == 0, f"{path} must not be group/world accessible"
 
 
 def main() -> int:
@@ -44,23 +52,48 @@ def main() -> int:
         ["doctor"],
         ["dashboard"],
         ["test-lab"],
+        ["audit", "tail"],
     ]:
         parsed = parser.parse_args(argv)
         assert parsed.command
 
-    with tempfile.TemporaryDirectory(prefix="latch-platform-") as td:
-        state = Path(td)
-        s = settings_for(root, state)
-        token = s.token()
-        assert len(token) >= 32
-        assert s.token() == token
-        if os.name != "nt":
-            assert (s.token_file.stat().st_mode & 0o077) == 0
+    with tempfile.TemporaryDirectory(prefix="cieav-platform-") as td:
+        base = Path(td)
+        a = settings_for(root, base / "user-a", 0)
+        b = settings_for(root, base / "user-b", 20)
 
-        g = Gateway(s)
+        a_token = a.token()
+        a_api = a.local_api_secret()
+        a_receipt = a.receipt_signing_secret()
+        b_token = b.token()
+        b_api = b.local_api_secret()
+        b_receipt = b.receipt_signing_secret()
+
+        assert len(a_token) >= 32
+        assert len(a_api) >= 32
+        assert len(a_receipt) >= 32
+        assert a.token() == a_token
+        assert a.local_api_secret() == a_api
+        assert a.receipt_signing_secret() == a_receipt
+
+        # Each local user/install owns independent authority.
+        assert a.state_dir != b.state_dir
+        assert a_token != b_token
+        assert a_api != b_api
+        assert a_receipt != b_receipt
+        assert a_api != a_receipt
+        assert b_api != b_receipt
+
+        for s in (a, b):
+            assert_private(s.state_dir)
+            assert_private(s.token_file)
+            assert_private(s.local_api_secret_file)
+            assert_private(s.receipt_signing_secret_file)
+
+        g = Gateway(a)
         assert g.test_lab_url == "http://127.0.0.1:18791/test-lab"
         health = g.public_health()
-        assert health["platform"] == "LATCH Gateway"
+        assert health["platform"] in {"CIEAV Gateway", "LATCH Gateway"}
         assert health["paused"] is False
         assert health["surfaceRunning"] is False
 
@@ -78,7 +111,8 @@ def main() -> int:
             else:
                 raise AssertionError("paused Gateway must not open protected URLs")
 
-    print("LATCH Python Gateway smoke test passed")
+    print("CIEAV Python Gateway smoke test passed")
+    print("CIEAV per-user local authority isolation passed")
     return 0
 
 
