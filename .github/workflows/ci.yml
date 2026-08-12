@@ -10,6 +10,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Validate evaluation corpus and runners
+        run: |
+          node -e "const x=require('./evals/cases.v1.json'); if(!Array.isArray(x.cases)||x.cases.length<30) process.exit(1); const ids=x.cases.map(c=>c.id); if(new Set(ids).size!==ids.length) process.exit(2); console.log('eval cases:',x.cases.length)"
+          node --check scripts/latch-eval.mjs
+          node --check scripts/compare-evals.mjs
       - name: Verify no-install browser safety path
         run: |
           google-chrome --version || chromium --version
