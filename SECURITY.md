@@ -1,35 +1,66 @@
-# LATCH security model
+# CIEAV security model
 
-LATCH mediates consequential browser actions and must treat both page content and model output as untrusted inputs.
+CIEAV mediates consequential browser actions and treats page content, model output, inferred outcomes, and undo candidates as untrusted inputs until deterministic checks accept them.
 
 ## Deterministic safety floor
 
-The model cannot downgrade deterministic risk or make reversibility more optimistic. Financial commitments, credentials, sensitive identity data, destructive operations, and other hard-policy classes remain protected even if every model call fails.
+The model cannot downgrade deterministic risk or make reversibility more optimistic. Financial commitments, credentials, sensitive identity data, destructive operations, and other hard-policy classes remain protected even if every semantic model call fails.
 
-## Multi-stage AI verification
+Cloud inference has interpretation authority only. It never receives the browser replay/commit capability. The local Gateway remains the authority that can allow, replay, record, pause, or stop protected execution.
 
-Production AI uses an independent fast gate, primary semantic interpreter, and verifier for high-risk/ambiguous/adversarial actions. Disagreement resolves toward the stricter result and lowers confidence. Failed verification on high-risk actions is surfaced rather than treated as success.
+## Multi-stage semantic verification
+
+Production semantic routing uses deterministic policy first, cloud/local semantic interpretation where configured, and stricter merging at the local boundary. Disagreement resolves toward the stricter risk/reversibility result. Model failure or low confidence never silently lowers protection.
 
 ## Prompt injection
 
-DOM text, attributes, and site-declared semantics are hostile. LATCH strips/limits context, locally detects common injection patterns, labels the supplied snapshot as untrusted data, constrains outputs with strict schemas, and forces independent verification when injection is suspected. Page text cannot grant authorization.
+DOM text, attributes, and site-declared semantics are hostile. CIEAV strips/limits context, detects common injection patterns, labels snapshots as untrusted data, constrains structured output, and retains the deterministic minimum. Page text cannot grant authorization or instruct CIEAV to weaken its policy.
 
-## Browser isolation
+## Browser isolation and trusted replay
 
-LATCH uses a dedicated Chromium profile and localhost-only CDP. Mediation logic runs in an isolated JavaScript world. Websites do not receive LATCH device tokens or model credentials.
+CIEAV uses a dedicated Chromium profile and localhost-only CDP. Mediation logic runs in an isolated JavaScript world. Websites do not receive CIEAV device tokens, Gateway credentials, model credentials, JWT signing keys, or receipt-signing keys.
 
-## Trusted replay
+Approved top-frame clicks use Chrome input replay. The bypass guard is coordinate-bound (±4 px), single-use, and expires quickly; an unrelated click cannot inherit the approval.
 
-Approved top-frame clicks use Chrome input replay. The bypass is coordinate-bound, single-use, and short-lived; unrelated clicks cannot inherit approval.
+## Commit is not success
+
+A receipt with status `COMMITTED` means the approved action entered the commit/replay path. It does **not** prove that an arbitrary remote server accepted or completed the action.
+
+Receipt v2 stores a separate immutable signed outcome:
+
+- `OBSERVED_SUCCESS` — CIEAV observed evidence strong enough for the supported action class.
+- `OBSERVED_FAILURE` — CIEAV observed a failure signal.
+- `UNKNOWN` — evidence was insufficient, the page closed, or the verification window expired.
+
+For consequential actions, navigation/redirect alone is evidence but is not treated as proof of payment, deletion, sharing, permission grant, publication, or upload success. Ordinary navigation actions may use a successful top-frame navigation as their outcome.
+
+DOM outcome matching is failure-first and compares before/after state so a pre-existing success banner is not sufficient. Raw DOM snapshots used for comparison remain local and are not persisted as receipt evidence.
 
 ## Undo
 
-Undo is offered only when exactly one credible live inverse is found. Revocation is not represented as full reversal when external parties could already have copied data.
+Undo is available only when **both** conditions hold:
 
-## Model operations
+1. the signed action outcome is `OBSERVED_SUCCESS`; and
+2. exactly one credible live inverse is available for the current page/action.
 
-API requests have bounded timeouts, transient retry limits, unique client request IDs, `store:false`, strict structured outputs, per-stage telemetry, and model-profile controls. Production model snapshots must pass an eval gate before promotion.
+The browser host keeps discovered inverse controls as candidates until success is verified. The local receipt API independently refuses an `UNDONE` transition unless the receipt has an observed-success outcome. Failed or unknown outcomes therefore cannot expose Undo.
 
-## Local control plane
+Revocation/compensation is not represented as full reversal when external parties may already have copied data or when a server-side effect cannot be proven reversible.
 
-The controller and semantic service bind to localhost in the browser product. Remote/server deployments require TLS, authenticated devices/users, secret rotation, infrastructure rate limits, encrypted databases, audit logging, and monitored key management.
+## Receipt integrity and local secrets
+
+The Python Gateway generates separate high-entropy per-install secrets for local API token signing and receipt HMAC signing. They are stored in the local CIEAV state directory with restrictive filesystem permissions where supported and are passed only to the semantic/API process, not Chromium.
+
+CIEAV Cloud refuses to start with the built-in development secrets or secrets shorter than the configured minimum. Cloud deployment therefore fails closed on this class of misconfiguration.
+
+Current receipt integrity uses HMAC-SHA256. This provides strong local integrity when the per-install secret remains protected, but it is not an independently verifiable hardware-backed device signature. Per-device asymmetric signing and OS secure-key storage remain future hardening work and must not be implied by current product claims.
+
+## Local audit trail
+
+CIEAV writes a bounded, rotated local audit log for action lifecycle events such as detection, commit/cancel, and Undo results. Audit records are metadata-oriented and intentionally exclude raw form values and raw page text. This log remains local by default and is not cloud telemetry.
+
+## Cloud and remote deployment
+
+The local controller and semantic service bind to loopback. CIEAV Cloud requires TLS termination, authenticated device enrollment, strong server secrets, rate limiting, monitored infrastructure, and private model endpoints. Cloud receipt routes are disabled as local-only resources.
+
+A public CIEAV download/CDN domain is not part of the code-level security boundary until an actual deployment is configured. Installers require HTTPS and release SHA-256 verification before installing a runtime.
