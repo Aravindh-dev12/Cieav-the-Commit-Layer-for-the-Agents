@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from unittest.mock import patch
 
 from latch_platform.config import Settings
 from latch_platform.gateway import ControlHandler, Gateway, _redacted_url
@@ -67,14 +69,24 @@ def main() -> int:
             assert _redacted_url("https://example.test/pay?token=secret#private") == "https://example.test/pay"
             assert "secret" not in _redacted_url("https://example.test/pay?token=secret")
 
-            # The browser child must receive neither privileged bearer token nor signing keys.
-            surface_env = gateway._surface_env()
+            with patch.dict(os.environ,{"CIEAV_BROWSER_CONTROL_TOKEN":"inherited-secret","LATCH_BROWSER_CONTROL_TOKEN":"legacy-secret"},clear=False):
+                base_env=gateway._base_env()
+                assert "CIEAV_BROWSER_CONTROL_TOKEN" not in base_env
+                assert "LATCH_BROWSER_CONTROL_TOKEN" not in base_env
+
+            # The Node mediator receives one dedicated capability, but not Gateway/API/receipt secrets.
+            dedicated="B"*64
+            surface_env = gateway._surface_env(dedicated)
             for key in ("JWT_SECRET", "RECEIPT_SIGNING_SECRET", "CIEAV_GATEWAY_TOKEN", "LATCH_GATEWAY_TOKEN"):
                 assert key not in surface_env
+            assert surface_env["CIEAV_BROWSER_CONTROL_TOKEN"] == dedicated
+            assert surface_env["CIEAV_BROWSER_CONTROL_TOKEN"] != gateway.token
             assert surface_env["CIEAV_REQUIRE_PRODUCTION_API"] == "1"
+            assert surface_env["CIEAV_TEST_AUTO_APPROVE"] == "0"
 
             semantic_env = gateway._semantic_env()
             assert semantic_env["CIEAV_GATEWAY_TOKEN"] == gateway.token
+            assert "CIEAV_BROWSER_CONTROL_TOKEN" not in semantic_env
             assert semantic_env["JWT_SECRET"] != semantic_env["RECEIPT_SIGNING_SECRET"]
             assert len(semantic_env["JWT_SECRET"]) >= 32
             assert len(semantic_env["RECEIPT_SIGNING_SECRET"]) >= 32
@@ -84,6 +96,7 @@ def main() -> int:
             thread.join(timeout=3)
 
     print("CIEAV control-plane smoke passed")
+    print("CIEAV Gateway/browser control authorities are separated")
     return 0
 
 
