@@ -1,0 +1,10 @@
+{
+  "name":"@cieav/mcp",
+  "version":"0.1.0",
+  "private":true,
+  "type":"module",
+  "main":"dist/index.js",
+  "scripts":{"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit","start":"node dist/index.js"},
+  "dependencies":{"@modelcontextprotocol/server":"^2.0.0","zod":"^4.0.0"},
+  "devDependencies":{"@types/node":"^22.10.0","typescript":"^5.7.0"}
+}
