@@ -11,8 +11,12 @@ const receipt=await readFile(new URL("../apps/api/src/receipt.ts",import.meta.ur
 const deviceSigning=await readFile(new URL("../apps/api/src/device-signing.ts",import.meta.url),"utf8");
 const privacy=await readFile(new URL("../apps/api/src/model/privacy.ts",import.meta.url),"utf8");
 const cloudProvider=await readFile(new URL("../python/latch_platform/cloud_provider.py",import.meta.url),"utf8");
+const secretStore=await readFile(new URL("../python/latch_platform/secret_store.py",import.meta.url),"utf8");
+const platformConfig=await readFile(new URL("../python/latch_platform/config.py",import.meta.url),"utf8");
 const gateway=await readFile(new URL("../python/latch_platform/gateway.py",import.meta.url),"utf8");
 const cli=await readFile(new URL("../python/latch_platform/cli.py",import.meta.url),"utf8");
+const releaseSign=await readFile(new URL("./release-sign.mjs",import.meta.url),"utf8");
+const releaseWorkflow=await readFile(new URL("../.github/workflows/release-runtime.yml",import.meta.url),"utf8");
 if(/p\.fallback[^\n;]*t\.click\(|p\.fallback[^\n;]*requestSubmit/.test(injected))throw new Error("consequential action still contains fail-open fallback");
 if(!injected.includes("action not executed"))throw new Error("fail-closed user feedback missing");
 if(!injected.includes("Commit control unavailable"))throw new Error("commit-control failure is not fail-closed");
@@ -41,9 +45,14 @@ if(!server.includes("new FileReceiptStore")||!server.includes('"local-durable"')
 if(!server.includes('"cieav-dev-api"'))throw new Error("managed/dev API service identity is not separated");
 if(!server.includes("loadDeviceReceiptSigner")||!server.includes('algorithm:"Ed25519"'))throw new Error("managed local receipts are not using Ed25519 device identity");
 if(!receipt.includes("verifyReceiptPublic")||!receipt.includes('signatureAlgorithm:"Ed25519"'))throw new Error("independent receipt signature verification is missing");
-if(!deviceSigning.includes('generateKeyPairSync("ed25519")')||!deviceSigning.includes("receipt-ed25519-private.pem"))throw new Error("persistent per-user Ed25519 key lifecycle is missing");
+for(const token of ["receipt-ed25519-private.enc.json","AES-256-GCM","scryptSync","setAAD","getAuthTag","atomicEncryptedWrite","unlink(legacyPrivateFile)"]){if(!deviceSigning.includes(token))throw new Error(`encrypted receipt identity invariant missing: ${token}`)}
+if(deviceSigning.includes('writeFile(privateFile')||deviceSigning.includes('receipt-ed25519-private.pem\",privateKey.export'))throw new Error("receipt private key may still be written as plaintext");
+for(const token of ["CryptProtectData","CryptUnprotectData","SecKeychainFindGenericPassword","SecKeychainAddGenericPassword","secret-tool","encrypted_at_rest=True","secret migration verification failed"]){if(!secretStore.includes(token))throw new Error(`OS secret-storage invariant missing: ${token}`)}
+if(!platformConfig.includes("SecretStore")||!platformConfig.includes("secret_storage_status")||!platformConfig.includes("store.status.encrypted_at_rest"))throw new Error("Gateway secrets are not routed through explicit OS secret storage/fallback policy");
 if(!config.includes("!localAuthority&&process.env.DATABASE_URL"))throw new Error("local authority may inherit DATABASE_URL");
 for(const token of ["privacyReduceContext","assertCloudPrivacyIngress","assertCloudPrivacyBaseline","privacy_page_text_forbidden","privacy_raw_filename_forbidden"]){if(!privacy.includes(token))throw new Error(`model privacy invariant missing: ${token}`)}
 if(!server.includes("assertCloudPrivacyIngress(raw?.context)")||!server.includes("assertCloudPrivacyBaseline(raw?.baseline"))throw new Error("CIEAV Cloud server trusts client privacy declarations without ingress validation");
 for(const token of ["_privacy_reduce_context","_privacy_reduce_baseline","_NoRedirect","must use HTTPS except for loopback tests"]){if(!cloudProvider.includes(token))throw new Error(`CIEAV Cloud egress invariant missing: ${token}`)}
-console.log("CIEAV browser/private-pipe/control-auth, privacy, trusted-adapter, outcome-evidence, and receipt-identity checks passed");
+for(const token of ["generateKeyPairSync(\"ed25519\")","crypto.sign(null","crypto.verify(null","keyId","sha256"]){if(!releaseSign.includes(token))throw new Error(`release provenance signing invariant missing: ${token}`)}
+for(const token of ["CIEAV_RELEASE_SIGNING_PRIVATE_KEY_B64","CIEAV_RELEASE_SIGNING_PUBLIC_KEY_B64","CIEAV_RELEASE_SIGNING_KEY_ID","release-sign.mjs sign","release-sign.mjs verify","signatures/*.sig.json"]){if(!releaseWorkflow.includes(token))throw new Error(`release workflow provenance invariant missing: ${token}`)}
+console.log("CIEAV production security checks passed: private-pipe + authenticated control + privacy + encrypted authority + signed provenance");
