@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import hashlib
 import json
 import os
 import shutil
@@ -59,6 +60,44 @@ def _audit_tail(settings: Settings, limit: int) -> dict:
     return {"ok":True,"localOnly":True,"stateDir":str(settings.state_dir),"events":events[-n:]}
 
 
+def _audit_sha(text: str) -> str: return hashlib.sha256(text.encode("utf-8")).hexdigest()
+def _audit_field(value) -> str:
+    text="" if value is None else str(value)
+    return f"{len(text.encode('utf-8'))}:{text}"
+def _audit_payload(value: dict) -> str:
+    fields=("version","eventId","type","at","requestId","receiptId","origin","actionType","risk","outcomeStatus","detail")
+    return "|".join(_audit_field(value.get(k)) for k in fields)
+
+def _audit_verify_file(path: Path) -> dict:
+    zero="0"*64
+    try: raw=path.read_text("utf-8")
+    except FileNotFoundError: return {"file":path.name,"present":False,"events":0,"lastHash":zero}
+    previous=zero; count=0
+    for number,line in enumerate(raw.splitlines(),1):
+        if not line: continue
+        try: value=json.loads(line)
+        except json.JSONDecodeError as exc: raise RuntimeError(f"audit JSON is corrupt in {path.name} line {number}") from exc
+        if not isinstance(value,dict): raise RuntimeError(f"audit event is not an object in {path.name} line {number}")
+        if value.get("version")==2:
+            prev_hash=value.get("prevHash"); event_hash=value.get("hash")
+            if not isinstance(prev_hash,str) or len(prev_hash)!=64 or any(c not in "0123456789abcdef" for c in prev_hash): raise RuntimeError(f"invalid prevHash in {path.name} line {number}")
+            if not isinstance(event_hash,str) or len(event_hash)!=64 or any(c not in "0123456789abcdef" for c in event_hash): raise RuntimeError(f"invalid hash in {path.name} line {number}")
+            if prev_hash!=previous: raise RuntimeError(f"audit chain mismatch in {path.name} line {number}")
+            expected=_audit_sha(f"{prev_hash}\n{_audit_payload(value)}")
+            if expected!=event_hash: raise RuntimeError(f"audit event hash mismatch in {path.name} line {number}")
+            previous=event_hash
+        else:
+            previous=_audit_sha(f"LEGACY\n{previous}\n{line}")
+        count+=1
+    return {"file":path.name,"present":True,"events":count,"lastHash":previous}
+
+
+def _audit_verify(settings: Settings) -> dict:
+    previous=_audit_verify_file(settings.state_dir/"audit-events.previous.jsonl")
+    current=_audit_verify_file(settings.state_dir/"audit-events.jsonl")
+    return {"ok":True,"localOnly":True,"format":"sha256-chain-v2","stateDir":str(settings.state_dir),"previous":previous,"current":current}
+
+
 def _router_direct(settings: Settings) -> HuggingFaceSemanticProvider:
     cfg = HFConfig.load()
     if not cfg.token: cfg = HFConfig(settings.read_hf_token(), cfg.model, cfg.provider, cfg.endpoint_url, cfg.timeout_seconds)
@@ -100,7 +139,10 @@ def _doctor(settings: Settings) -> dict:
     try:
         service=service_status(settings); add("OS startup service",bool(service.get("installed")),f"{service.get('platform')}: {service.get('detail')}")
     except Exception as exc: add("OS startup service",False,str(exc))
-    return {"ok":all(c["ok"] for c in checks[:6]),"brand":"CIEAV","checks":checks}
+    try:
+        audit=_audit_verify(settings); add("Local audit integrity",True,f"current={audit['current']['events']} previous={audit['previous']['events']} format={audit['format']}")
+    except Exception as exc: add("Local audit integrity",False,str(exc))
+    return {"ok":all(c["ok"] for c in checks[:6]) and all(c["ok"] for c in checks if c["name"]=="Local audit integrity"),"brand":"CIEAV","checks":checks}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -112,7 +154,7 @@ def build_parser() -> argparse.ArgumentParser:
     cs.add_parser("status",help="Show CIEAV Cloud connectivity and enrollment status"); cs.add_parser("enroll",help="Enroll this CIEAV installation with the configured cloud endpoint"); cs.add_parser("probe",help="Run the synthetic critical-payment safety probe through CIEAV Cloud")
     m=sub.add_parser("model",help="Manage optional/diagnostic semantic model providers"); ms=m.add_subparsers(dest="model_command",required=True)
     for name,help_text in [("local-status","Check an optional local OpenAI-compatible model server"),("local-probe","Probe the optional local model"),("hf-login","Securely store a direct Hugging Face fallback token"),("hf-logout","Delete the locally stored Hugging Face fallback token"),("hf-status","Show low-level semantic router status"),("hf-probe","Probe the complete semantic router")]: ms.add_parser(name,help=help_text)
-    a=sub.add_parser("audit",help="Inspect the local-only CIEAV lifecycle audit log"); ass=a.add_subparsers(dest="audit_command",required=True); at=ass.add_parser("tail",help="Show recent local audit events"); at.add_argument("--limit",type=int,default=25,help="Number of events to show (1-500)")
+    a=sub.add_parser("audit",help="Inspect and verify the local-only CIEAV lifecycle audit log"); ass=a.add_subparsers(dest="audit_command",required=True); at=ass.add_parser("tail",help="Show recent local audit events"); at.add_argument("--limit",type=int,default=25,help="Number of events to show (1-500)"); ass.add_parser("verify",help="Verify local audit JSON and the tamper-evident SHA-256 chain")
     sub.add_parser("doctor",help="Check runtime, browser, cloud, Gateway and service health"); sub.add_parser("dashboard",help="Open the local CIEAV Control Center"); sub.add_parser("test-lab",help="Open synthetic scenarios inside the protected CIEAV browser")
     return p
 
@@ -157,6 +199,7 @@ def main(argv:list[str]|None=None)->int:
                 _print(result); return 0 if result.get("probePassed") else 2
         if args.command=="audit":
             if args.audit_command=="tail": _print(_audit_tail(settings,args.limit)); return 0
+            if args.audit_command=="verify": _print(_audit_verify(settings)); return 0
         if args.command=="doctor": report=_doctor(settings); _print(report); return 0 if report["ok"] else 1
         if args.command=="dashboard": return _open_url(f"http://127.0.0.1:{settings.control_port}")
         if args.command=="test-lab": result=_gateway_request(settings,"/v1/open-test-lab","POST"); print("Opened CIEAV Test Lab inside the protected browser surface."); _print(result); return 0
