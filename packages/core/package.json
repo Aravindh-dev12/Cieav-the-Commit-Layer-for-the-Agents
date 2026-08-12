@@ -1,12 +1,14 @@
 {
   "name": "@latch/core",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
-    "./reality": {"types": "./dist/reality.d.ts", "import": "./dist/reality.js"}
+    "./reality": {"types": "./dist/reality.d.ts", "import": "./dist/reality.js"},
+    "./proof": {"types": "./dist/proof.d.ts", "import": "./dist/proof.js"},
+    "./reconciliation": {"types": "./dist/reconciliation.d.ts", "import": "./dist/reconciliation.js"}
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
