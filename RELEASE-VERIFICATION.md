@@ -28,6 +28,28 @@ npm run release:verify:plan
 
 Prints the verification plan without executing the heavyweight test/build commands. A plan result is not release evidence and must never be treated as a passing production gate.
 
+```bash
+npm run release:qualify
+```
+
+Aggregates PASS reports from the required target operating systems. By default it requires:
+
+```text
+windows-x64
+macos-arm64
+linux-x64
+```
+
+Override the required shipping matrix when necessary:
+
+```bash
+node scripts/qualify-release.mjs --require windows-x64,macos-arm64,macos-x64,linux-x64
+```
+
+or set `CIEAV_RELEASE_TARGETS` to the same comma-separated format.
+
+Qualification fails if any required platform is missing, or if the selected PASS reports do not refer to the same CIEAV version and the same Git commit.
+
 ## What the local gate verifies
 
 The gate currently checks:
@@ -64,6 +86,15 @@ The report contains the CIEAV version, Git commit, dirty-tree state, host OS/arc
 `release/reports/` is intentionally ignored by Git. Reports are local/private unless an operator deliberately archives or exports them.
 
 A failed stage still produces a report. This is intentional: failure evidence is useful for diagnosis and prevents "the command stopped before the report existed" ambiguity.
+
+`npm run release:qualify` writes:
+
+```text
+release/reports/latest-qualification.json
+release/reports/latest-qualification.txt
+```
+
+Those files provide the combined target-matrix verdict and identify which per-platform report qualified each target.
 
 ## Platform qualification
 
@@ -118,11 +149,14 @@ feature development
 → npm run release:verify on developer machine
 → fix all failures
 → clean-machine verification on every shipped OS
+→ collect the local PASS reports
+→ npm run release:qualify
 → package/installer install + upgrade/rollback verification
 → configure production CIEAV Cloud and download/CDN domains
 → rename remaining public repository/brand identifiers to CIEAV
 → fresh checkout/build
 → npm run release:verify:publish on each required release host
+→ run release:qualify again against the final publish reports
 → publish signed/verified artifacts
 ```
 
