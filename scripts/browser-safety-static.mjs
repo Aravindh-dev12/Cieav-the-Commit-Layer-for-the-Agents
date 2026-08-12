@@ -16,6 +16,8 @@ if(!browser.includes('verifyAdapterProposal({')||!browser.includes('m.kind==="UN
 if(!browser.includes('current.outcome?.status!=="OBSERVED_SUCCESS"'))throw new Error("host Undo path does not independently require observed success");
 if(!adapters.includes('error:"ambiguous_trusted_adapter"')||!adapters.includes('error:"no_trusted_adapter_match"'))throw new Error("adapter registry does not fail closed on zero/ambiguous matches");
 if(!adapters.includes('testOnly:true'))throw new Error("test adapters are not explicitly marked test-only");
+if(!adapters.includes('kind:"ADAPTER_RESOURCE"')||!adapters.includes("resourceKey")||!adapters.includes("sameAdapterCapability"))throw new Error("trusted adapter capabilities are not bound to exact resource fingerprints");
+if(!adapters.includes('fingerprint:hash([adapter.id,String(adapter.version),actionType,resourceKey].join("\\n"))'))throw new Error("resource fingerprint is not bound to adapter ID/version/action/resource");
 if(!injected.includes('if(!["HIGH","CRITICAL"].includes(risk))'))throw new Error("HIGH/CRITICAL actions may still accept DOM-only success evidence");
 if(/t==="financial\.commit"\?\/\(payment successful/.test(injected))throw new Error("financial success text is still treated as sufficient DOM proof");
 if(!server.includes("new FileReceiptStore")||!server.includes('"local-durable"'))throw new Error("managed API is not configured for durable local receipts");
@@ -24,4 +26,4 @@ if(!server.includes("loadDeviceReceiptSigner")||!server.includes('algorithm:"Ed2
 if(!receipt.includes("verifyReceiptPublic")||!receipt.includes('signatureAlgorithm:"Ed25519"'))throw new Error("independent receipt signature verification is missing");
 if(!deviceSigning.includes('generateKeyPairSync("ed25519")')||!deviceSigning.includes("receipt-ed25519-private.pem"))throw new Error("persistent per-user Ed25519 key lifecycle is missing");
 if(!config.includes("!localAuthority&&process.env.DATABASE_URL"))throw new Error("local authority may inherit DATABASE_URL");
-console.log("CIEAV browser/control fail-closed, trusted-adapter, outcome-evidence, and receipt-identity checks passed");
+console.log("CIEAV browser/control fail-closed, resource-bound adapter, outcome-evidence, and receipt-identity checks passed");
