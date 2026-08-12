@@ -10,10 +10,12 @@ if(!injected.includes("action not executed"))throw new Error("fail-closed user f
 if(!injected.includes("Commit control unavailable"))throw new Error("commit-control failure is not fail-closed");
 if(!injected.includes("async function register(e,m,rid){if(!AUTO)return;"))throw new Error("generic DOM-label inverse discovery is enabled outside explicit test mode");
 if(!injected.includes("No trusted live-page inverse adapter is available"))throw new Error("production Undo trust-boundary message missing");
+if(!injected.includes('if(!["HIGH","CRITICAL"].includes(risk))'))throw new Error("HIGH/CRITICAL actions may still accept DOM-only success evidence");
+if(/t==="financial\.commit"\?\/\(payment successful/.test(injected))throw new Error("financial success text is still treated as sufficient DOM proof");
 if(!server.includes("new FileReceiptStore")||!server.includes('"local-durable"'))throw new Error("managed API is not configured for durable local receipts");
 if(!server.includes('"cieav-dev-api"'))throw new Error("managed/dev API service identity is not separated");
 if(!server.includes("loadDeviceReceiptSigner")||!server.includes('algorithm:"Ed25519"'))throw new Error("managed local receipts are not using Ed25519 device identity");
 if(!receipt.includes("verifyReceiptPublic")||!receipt.includes('signatureAlgorithm:"Ed25519"'))throw new Error("independent receipt signature verification is missing");
 if(!deviceSigning.includes('generateKeyPairSync("ed25519")')||!deviceSigning.includes("receipt-ed25519-private.pem"))throw new Error("persistent per-user Ed25519 key lifecycle is missing");
 if(!config.includes("!localAuthority&&process.env.DATABASE_URL"))throw new Error("local authority may inherit DATABASE_URL");
-console.log("CIEAV browser/control fail-closed, trusted-Undo, and receipt-identity checks passed");
+console.log("CIEAV browser/control fail-closed, trusted-Undo, outcome-evidence, and receipt-identity checks passed");
