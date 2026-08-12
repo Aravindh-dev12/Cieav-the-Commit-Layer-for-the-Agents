@@ -57,10 +57,10 @@ class Handler(BaseHTTPRequestHandler):
             assert ctx.get("element", {}).get("href") == "https://example.test/pay"
             assert ctx.get("form", {}).get("action") == "https://example.test/pay"
             assert ctx.get("form", {}).get("fileNames") == ["[selected-file.pdf]"]
+            assert ctx.get("form", {}).get("fields", [{}])[0].get("name") == "password_value"
             assert ctx.get("form", {}).get("fields", [{}])[0].get("redacted") is True
             raw = json.dumps(payload).lower()
             for forbidden in [
-                "password_value",
                 "super-secret",
                 "otp_value",
                 "123456",
