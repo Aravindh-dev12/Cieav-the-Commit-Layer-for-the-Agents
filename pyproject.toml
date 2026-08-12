@@ -4,12 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "latch-platform"
-version = "0.5.0"
+version = "0.6.0"
 description = "Always-on local commit infrastructure for consequential digital actions."
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
 authors = [{name = "LATCH"}]
-dependencies = []
+dependencies = [
+  "huggingface_hub>=0.34,<2",
+]
 
 [project.scripts]
 latch = "latch_platform.cli:main"
