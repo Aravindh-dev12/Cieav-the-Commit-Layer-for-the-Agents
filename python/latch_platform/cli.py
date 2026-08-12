@@ -184,7 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
     m=sub.add_parser("model",help="Manage optional/diagnostic semantic model providers"); ms=m.add_subparsers(dest="model_command",required=True)
     for name,help_text in [("local-status","Check an optional local OpenAI-compatible model server"),("local-probe","Probe the optional local model"),("hf-login","Securely store a direct Hugging Face fallback token"),("hf-logout","Delete the locally stored Hugging Face fallback token"),("hf-status","Show low-level semantic router status"),("hf-probe","Probe the complete semantic router")]: ms.add_parser(name,help=help_text)
     a=sub.add_parser("audit",help="Inspect and verify the local-only CIEAV lifecycle audit log"); ass=a.add_subparsers(dest="audit_command",required=True); at=ass.add_parser("tail",help="Show recent local audit events"); at.add_argument("--limit",type=int,default=25,help="Number of events to show (1-500)"); ass.add_parser("verify",help="Verify local audit JSON and the keyed tamper-evident chain")
-    sub.add_parser("doctor",help="Check runtime, browser, cloud, Gateway and service health"); sub.add_parser("dashboard",help="Open the local CIEAV Control Center"); sub.add_parser("test-lab",help="Open synthetic scenarios inside the protected CIEAV browser")
+    sub.add_parser("doctor",help="Check runtime, browser, cloud, Gateway and service health"); sub.add_parser("dashboard",help="Open the authenticated local CIEAV Control Center"); sub.add_parser("test-lab",help="Open synthetic scenarios inside the protected CIEAV browser")
     return p
 
 
@@ -230,7 +230,10 @@ def main(argv:list[str]|None=None)->int:
             if args.audit_command=="tail": _print(_audit_tail(settings,args.limit)); return 0
             if args.audit_command=="verify": _print(_audit_verify(settings)); return 0
         if args.command=="doctor": report=_doctor(settings); _print(report); return 0 if report["ok"] else 1
-        if args.command=="dashboard": return _open_url(f"http://127.0.0.1:{settings.control_port}")
+        if args.command=="dashboard":
+            result=_gateway_request(settings,"/v1/dashboard","POST"); url=result.get("url")
+            if not isinstance(url,str) or not url.startswith(f"http://127.0.0.1:{settings.control_port}/?bootstrap="): raise RuntimeError("Gateway returned an invalid Control Center bootstrap URL")
+            webbrowser.open(url); print("Opened authenticated CIEAV Control Center."); return 0
         if args.command=="test-lab": result=_gateway_request(settings,"/v1/open-test-lab","POST"); print("Opened CIEAV Test Lab inside the protected browser surface."); _print(result); return 0
     except KeyboardInterrupt: return 130
     except Exception as exc: print(f"CIEAV error: {exc}",file=sys.stderr); return 1
