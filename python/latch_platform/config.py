@@ -26,6 +26,13 @@ def _state_dir() -> Path:
     return (Path.home() / ".latch").resolve()
 
 
+def _chmod_private(path: Path, mode: int) -> None:
+    try:
+        os.chmod(path, mode)
+    except OSError:
+        pass
+
+
 @dataclass(frozen=True)
 class Settings:
     root: Path
@@ -34,6 +41,7 @@ class Settings:
     control_port: int
     api_port: int
     token_file: Path
+    hf_token_file: Path
     runtime_file: Path
     log_file: Path
 
@@ -47,16 +55,14 @@ class Settings:
             control_port=int(os.environ.get("LATCH_CONTROL_PORT", "8790")),
             api_port=int(os.environ.get("LATCH_API_PORT", "8787")),
             token_file=state / "gateway-token",
+            hf_token_file=state / "hf-token",
             runtime_file=state / "gateway-runtime.json",
             log_file=state / "gateway.log",
         )
 
     def ensure(self) -> None:
         self.state_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            os.chmod(self.state_dir, 0o700)
-        except OSError:
-            pass
+        _chmod_private(self.state_dir, 0o700)
 
     def token(self) -> str:
         self.ensure()
@@ -68,16 +74,35 @@ class Settings:
             pass
         value = secrets.token_urlsafe(32)
         self.token_file.write_text(value, "utf-8")
-        try:
-            os.chmod(self.token_file, 0o600)
-        except OSError:
-            pass
+        _chmod_private(self.token_file, 0o600)
         return value
+
+    def read_hf_token(self) -> str | None:
+        value = os.environ.get("HF_TOKEN", "").strip()
+        if value:
+            return value
+        try:
+            value = self.hf_token_file.read_text("utf-8").strip()
+            return value or None
+        except FileNotFoundError:
+            return None
+
+    def write_hf_token(self, value: str) -> None:
+        token = value.strip()
+        if not token.startswith("hf_") or len(token) < 20:
+            raise ValueError("This does not look like a Hugging Face access token")
+        self.ensure()
+        self.hf_token_file.write_text(token, "utf-8")
+        _chmod_private(self.hf_token_file, 0o600)
+
+    def delete_hf_token(self) -> bool:
+        try:
+            self.hf_token_file.unlink()
+            return True
+        except FileNotFoundError:
+            return False
 
     def write_runtime(self, payload: dict) -> None:
         self.ensure()
         self.runtime_file.write_text(json.dumps(payload, indent=2), "utf-8")
-        try:
-            os.chmod(self.runtime_file, 0o600)
-        except OSError:
-            pass
+        _chmod_private(self.runtime_file, 0o600)
