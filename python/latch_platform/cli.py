@@ -7,6 +7,7 @@ import os
 import shutil
 import sys
 import webbrowser
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -59,29 +60,48 @@ def _router_direct(settings: Settings) -> HuggingFaceSemanticProvider:
     return HuggingFaceSemanticProvider(cfg)
 
 
+def _node_path(settings: Settings) -> str | None:
+    bundled = settings.root / "runtime" / ("node.exe" if os.name == "nt" else "node")
+    if bundled.exists():
+        return str(bundled)
+    return shutil.which("node")
+
+
+def _chromium_path() -> str | None:
+    candidates: list[str | None] = [
+        os.environ.get("LATCH_CHROMIUM"),
+        shutil.which("google-chrome"),
+        shutil.which("google-chrome-stable"),
+        shutil.which("chromium"),
+        shutil.which("chromium-browser"),
+    ]
+    if sys.platform == "darwin":
+        candidates.extend([
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            str(Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+        ])
+    if os.name == "nt":
+        for base in [os.environ.get("PROGRAMFILES"), os.environ.get("PROGRAMFILES(X86)"), os.environ.get("LOCALAPPDATA")]:
+            if base:
+                candidates.append(str(Path(base) / "Google/Chrome/Application/chrome.exe"))
+                candidates.append(str(Path(base) / "Chromium/Application/chrome.exe"))
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return str(Path(candidate))
+    return None
+
+
 def _doctor(settings: Settings) -> dict:
     checks = []
 
     def add(name: str, ok: bool, detail: str):
         checks.append({"name": name, "ok": ok, "detail": detail})
 
-    add("Python", sys.version_info >= (3, 11), sys.version.split()[0])
-    node = shutil.which("node")
-    add("Node", bool(node), node or "not found")
-    chrome = os.environ.get("LATCH_CHROMIUM") or next(
-        (
-            p
-            for p in [
-                shutil.which("google-chrome"),
-                shutil.which("google-chrome-stable"),
-                shutil.which("chromium"),
-                shutil.which("chromium-browser"),
-            ]
-            if p
-        ),
-        None,
-    )
-    add("Chromium", bool(chrome), chrome or "not found; set LATCH_CHROMIUM if installed elsewhere")
+    add("Python runtime", sys.version_info >= (3, 11), sys.version.split()[0])
+    node = _node_path(settings)
+    add("Node runtime", bool(node), node or "not found")
+    chrome = _chromium_path()
+    add("Chromium", bool(chrome), chrome or "not found; install Google Chrome/Chromium or set LATCH_CHROMIUM")
     api_build = settings.root / "apps" / "api" / "dist" / "server.js"
     add("Production semantic bridge", api_build.exists(), str(api_build))
     entry = settings.root / "apps" / "browser" / "main.mjs"
@@ -112,9 +132,6 @@ def _doctor(settings: Settings) -> dict:
         add("OS startup service", bool(service.get("installed")), f"{service.get('platform')}: {service.get('detail')}")
     except Exception as exc:
         add("OS startup service", False, str(exc))
-    # Runtime prerequisites/build are hard requirements. Cloud/service readiness
-    # is reported separately because foreground development may intentionally
-    # run without an installed startup service.
     return {"ok": all(c["ok"] for c in checks[:6]), "checks": checks}
 
 
