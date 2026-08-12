@@ -36,6 +36,16 @@ def copy_tree(src: Path, dst: Path) -> None:
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("node_modules", "*.log", ".DS_Store", "cdp-win-bridge.exe"))
 
 
+def verify_platform_boundaries(root: Path) -> None:
+    script=root/"scripts/platform-boundary-static.mjs"
+    if not script.exists():raise SystemExit("Missing CIEAV platform-boundary verifier")
+    node=shutil.which("node.exe" if platform.system()=="Windows" else "node") or shutil.which("node")
+    if not node:raise SystemExit("Node is required to verify CIEAV release boundaries")
+    env=dict(__import__("os").environ)
+    for key in ("CIEAV_AGENT_TOKEN","LATCH_AGENT_TOKEN","CIEAV_A2A_CLIENT_TOKEN","LATCH_A2A_CLIENT_TOKEN","CIEAV_MCP_CLIENT_TOKEN","LATCH_MCP_CLIENT_TOKEN","CIEAV_AGENT_SESSION_TOKEN","LATCH_AGENT_SESSION_TOKEN"):env.pop(key,None)
+    subprocess.run([node,str(script)],cwd=root,env=env,check=True)
+
+
 def bundle_mcp(root: Path) -> Path:
     source=root/"apps/mcp/src/index.ts";output=root/"apps/mcp/dist/index.js"
     if not source.exists():raise SystemExit("Missing CIEAV MCP source")
@@ -64,6 +74,7 @@ def main() -> None:
     args = ap.parse_args()
 
     root = Path.cwd().resolve()
+    verify_platform_boundaries(root)
     cieav_exe = Path(args.cieav_exe).resolve()
     node_exe = Path(args.node_exe).resolve()
     out = Path(args.output_dir).resolve(); out.mkdir(parents=True, exist_ok=True)
@@ -90,7 +101,7 @@ def main() -> None:
         for name in ("package.json", "PRIVACY.md", "SECURITY.md", "README.md"):
             src = root / name
             if src.exists(): shutil.copy2(src, stage / name)
-        runtime_meta = {"brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":5,"legacyBrand":"LATCH","privateCdpTransport":"windows-handle-pipe" if key.startswith("windows-") else "posix-fd-pipe","agentProtocols":{"mcp":"2026-07-28","a2a":"1.0"},"a2aExposure":"loopback-authenticated"}
+        runtime_meta = {"brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":5,"legacyBrand":"LATCH","privateCdpTransport":"windows-handle-pipe" if key.startswith("windows-") else "posix-fd-pipe","agentProtocols":{"mcp":"2026-07-28","a2a":"1.0"},"a2aExposure":"loopback-authenticated","platformBoundaryVerified":True}
         (stage / "runtime.json").write_text(json.dumps(runtime_meta, indent=2) + "\n", "utf-8")
         archive = out / f"cieav-runtime-{args.version}-{key}.zip"
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
@@ -98,7 +109,7 @@ def main() -> None:
                 if file.is_dir(): continue
                 arc = Path("cieav-runtime") / file.relative_to(stage);info = zipfile.ZipInfo.from_file(file, arc.as_posix()); info.date_time=(2026,1,1,0,0,0)
                 with file.open("rb") as f: zf.writestr(info, f.read(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
-    metadata={"brand":"CIEAV","platform":key,"filename":archive.name,"sha256":sha256(archive),"size":archive.stat().st_size,"version":args.version}
+    metadata={"brand":"CIEAV","platform":key,"filename":archive.name,"sha256":sha256(archive),"size":archive.stat().st_size,"version":args.version,"platformBoundaryVerified":True}
     (out / f"metadata-{key}.json").write_text(json.dumps(metadata, indent=2) + "\n", "utf-8");print(json.dumps(metadata))
 
 
