@@ -98,7 +98,7 @@ check("Control Center scoped reality surface",()=>{
 check("release bundle covers agent protocols",()=>{
   const build=requireFile("scripts/build-release-runtime.py"),pkg=JSON.parse(requireFile("package.json"));
   has(build,["verify_release_boundaries","releaseBoundaryVerified","canonicalNamespaceVerified","controlCenterRealityBoundaryVerified","apps/mcp/dist/index.js","apps/a2a/src/index.mjs","agentProtocols","bundleFormat\":6"],"release runtime");
-  for(const script of ["test:a2a","test:dashboard-reality","build","typecheck","release:smoke:runtime"])if(!pkg.scripts?.[script])throw new Error(`package script missing: ${script}`);
+  for(const script of ["test:a2a","test:dashboard-reality","build","typecheck","release:smoke:runtime","release:smoke:service"])if(!pkg.scripts?.[script])throw new Error(`package script missing: ${script}`);
   return "MCP, A2A, Control Center and canonical namespace boundaries participate in runtime packaging";
 });
 
@@ -108,6 +108,14 @@ check("clean runtime qualification is mandatory",()=>{
   has(qualify,["missing_matching_clean_runtime_smoke","runtimeSmokeSchema:1","rejectedRuntimeSmokes","windowsAuthenticode","macosCodeSign"],"cross-platform qualification");
   has(docs,["release:smoke:runtime","release:qualify","same version and Git commit"],"local qualification runbook");
   return "source PASS cannot qualify without matching clean extracted runtime evidence";
+});
+
+check("OS service lifecycle qualification is mandatory",()=>{
+  const service=requireFile("scripts/service-lifecycle-smoke.py"),qualify=requireFile("scripts/qualify-release.mjs"),docs=requireFile("docs/release-qualification.md");
+  has(service,["--confirm-service-mutation","Refusing to overwrite an existing CIEAV Gateway service","gateway\",\"install","gateway\",\"stop","gateway\",\"start","gateway\",\"restart","gateway\",\"uninstall","finally","cleanup","cieav-service-lifecycle-"],"service lifecycle smoke");
+  has(qualify,["missing_matching_service_lifecycle_smoke","serviceLifecycleSchema:1","rejectedServiceLifecycles","serviceLifecycle"],"cross-platform service qualification");
+  has(docs,["release:smoke:service","release:qualify:current","install → status → stop → start → restart → uninstall → cleanup"],"service lifecycle runbook");
+  return "release qualification requires real per-user service install/start/restart/stop/uninstall evidence";
 });
 
 check("new secrets excluded from release evidence",()=>{
