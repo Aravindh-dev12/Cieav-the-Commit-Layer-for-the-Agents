@@ -3,18 +3,19 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "latch-platform"
+name = "cieav-platform"
 version = "0.7.0"
-description = "Always-on local commit infrastructure for consequential digital actions."
+description = "CIEAV always-on commit infrastructure for consequential digital actions."
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
-authors = [{name = "LATCH"}]
+authors = [{name = "CIEAV"}]
 dependencies = []
 
 [project.optional-dependencies]
 hf = ["huggingface_hub>=0.34,<2"]
 
 [project.scripts]
+cieav = "latch_platform.cli:main"
 latch = "latch_platform.cli:main"
 
 [tool.setuptools]
