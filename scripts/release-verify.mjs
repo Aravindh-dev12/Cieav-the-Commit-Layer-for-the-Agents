@@ -10,6 +10,7 @@ const HERE=path.dirname(fileURLToPath(import.meta.url));
 const ROOT=path.resolve(HERE,"..");
 const PUBLISH=process.argv.includes("--publish");
 const PLAN_ONLY=process.argv.includes("--plan");
+const MODE=PLAN_ONLY?"plan":PUBLISH?"publish":"local";
 const npm=process.platform==="win32"?"npm.cmd":"npm";
 const python=process.env.CIEAV_PYTHON||process.env.PYTHON||"python";
 const MAX_LOG=24_000;
@@ -24,13 +25,12 @@ const requireText=file=>readFileSync(file,"utf8");
 function addResult({id,label,status,required=true,durationMs=0,command=null,stdout="",stderr="",detail=""}){
   const item={id,label,status,required,durationMs,command,detail,stdout:tail(stdout),stderr:tail(stderr)};
   results.push(item);
-  const mark=status==="PASS"?"PASS":status==="WARN"?"WARN":"FAIL";
-  console.log(`${mark.padEnd(4)}  ${label}${detail?` · ${detail}`:""}`);
+  console.log(`${status.padEnd(4)}  ${label}${detail?` · ${detail}`:""}`);
   return item;
 }
 
 function commandStage(id,label,cmd,args,{required=true,env}={}){
-  if(PLAN_ONLY){addResult({id,label,status:"PASS",required,detail:`plan: ${cmd} ${args.join(' ')}`});return true}
+  if(PLAN_ONLY){addResult({id,label,status:"PLAN",required,command:[cmd,...args],detail:`would run: ${cmd} ${args.join(' ')}`});return true}
   const t=Date.now();
   const r=run(cmd,args,{env});
   const ok=r.status===0&&!r.error;
@@ -39,7 +39,7 @@ function commandStage(id,label,cmd,args,{required=true,env}={}){
 }
 
 function staticStage(id,label,fn,{required=true}={}){
-  if(PLAN_ONLY){addResult({id,label,status:"PASS",required,detail:"plan: static verification"});return true}
+  if(PLAN_ONLY){addResult({id,label,status:"PLAN",required,detail:"would run static verification"});return true}
   const t=Date.now();
   try{const detail=fn();addResult({id,label,status:"PASS",required,durationMs:Date.now()-t,detail:detail??""});return true}
   catch(err){addResult({id,label,status:"FAIL",required,durationMs:Date.now()-t,detail:String(err?.message??err)});return false}
@@ -55,12 +55,12 @@ const remote=(()=>{const r=run("git",["remote","get-url","origin"]);return r.sta
 const timestamp=startedAt.toISOString().replace(/[:.]/g,"-");
 const reportDir=path.join(ROOT,"release","reports");
 
-console.log(`\nCIEAV ${PUBLISH?"Production Publish":"Local Release-Candidate"} Verification`);
+console.log(`\nCIEAV ${PLAN_ONLY?"Verification Plan":PUBLISH?"Production Publish":"Local Release-Candidate"} Verification`);
 console.log("=".repeat(62));
 console.log(`Version: ${version}`);
 console.log(`Commit:  ${gitCommit}`);
 console.log(`Host:    ${process.platform}/${process.arch}`);
-console.log(`Mode:    ${PUBLISH?"publish":"local"}\n`);
+console.log(`Mode:    ${MODE}\n`);
 
 staticStage("identity","Product identity and version consistency",()=>{
   if(pkg.name!=="cieav")throw new Error(`package name is ${pkg.name}, expected cieav`);
@@ -153,49 +153,57 @@ if(PUBLISH){
 
 const requiredFailures=results.filter(x=>x.required&&x.status==="FAIL");
 const warnings=results.filter(x=>x.status==="WARN");
-const verdict=requiredFailures.length?"FAIL":"PASS";
+const verdict=PLAN_ONLY?"PLAN":requiredFailures.length?"FAIL":"PASS";
+const qualifying=!PLAN_ONLY&&verdict==="PASS";
 const finishedAt=new Date();
 const report={
   schemaVersion:1,
   product:"CIEAV",
   version,
-  mode:PUBLISH?"publish":"local",
+  mode:MODE,
   verdict,
+  qualifying,
   startedAt:startedAt.toISOString(),
   finishedAt:finishedAt.toISOString(),
   durationMs:finishedAt-startedAt,
   source:{commit:gitCommit,dirty:gitStatus!==""&&gitStatus!=="unknown",remote},
   host:{platform:process.platform,arch:process.arch,hostname:os.hostname(),node:process.version},
-  summary:{total:results.length,passed:results.filter(x=>x.status==="PASS").length,failed:requiredFailures.length,warnings:warnings.length},
+  summary:{total:results.length,passed:results.filter(x=>x.status==="PASS").length,planned:results.filter(x=>x.status==="PLAN").length,failed:requiredFailures.length,warnings:warnings.length},
   results
 };
 
 await mkdir(reportDir,{recursive:true});
-const stem=`cieav-${version}-${PUBLISH?'publish':'local'}-${timestamp}`;
+const stem=`cieav-${version}-${MODE}-${timestamp}`;
 const jsonPath=path.join(reportDir,`${stem}.json`),txtPath=path.join(reportDir,`${stem}.txt`);
 await writeFile(jsonPath,JSON.stringify(report,null,2)+"\n","utf8");
+const gateName=PLAN_ONLY?"VERIFICATION PLAN":PUBLISH?"PRODUCTION PUBLISH GATE":"LOCAL RELEASE-CANDIDATE GATE";
 const textLines=[
-  `CIEAV ${PUBLISH?"Production Publish":"Local Release-Candidate"} Verification`,
+  `CIEAV ${PLAN_ONLY?"Verification Plan":PUBLISH?"Production Publish":"Local Release-Candidate"} Verification`,
   "=".repeat(62),
   `Version: ${version}`,
   `Commit: ${gitCommit}`,
   `Mode: ${report.mode}`,
+  `Qualifying evidence: ${qualifying?'YES':'NO'}`,
   `Host: ${process.platform}/${process.arch}`,
   `Started: ${report.startedAt}`,
   `Finished: ${report.finishedAt}`,
   "",
   ...results.map(r=>`${r.status.padEnd(4)}  ${r.label}${r.detail?` · ${r.detail}`:""}`),
   "",
-  `${PUBLISH?"PRODUCTION PUBLISH GATE":"LOCAL RELEASE-CANDIDATE GATE"}: ${verdict}`,
+  `${gateName}: ${verdict}`,
   `Passed: ${report.summary.passed}/${report.summary.total}`,
+  `Planned: ${report.summary.planned}`,
   `Failed: ${report.summary.failed}`,
   `Report JSON: ${path.relative(ROOT,jsonPath)}`
 ];
 await writeFile(txtPath,textLines.join("\n")+"\n","utf8");
-await writeFile(path.join(reportDir,"latest-verification.json"),JSON.stringify(report,null,2)+"\n","utf8");
-await writeFile(path.join(reportDir,"latest-verification.txt"),textLines.join("\n")+"\n","utf8");
+if(!PLAN_ONLY){
+  await writeFile(path.join(reportDir,"latest-verification.json"),JSON.stringify(report,null,2)+"\n","utf8");
+  await writeFile(path.join(reportDir,"latest-verification.txt"),textLines.join("\n")+"\n","utf8");
+}
 
 console.log("\n"+"-".repeat(62));
-console.log(`${PUBLISH?"PRODUCTION PUBLISH GATE":"LOCAL RELEASE-CANDIDATE GATE"}: ${verdict}`);
+console.log(`${gateName}: ${verdict}`);
+console.log(`Qualifying evidence: ${qualifying?'YES':'NO'}`);
 console.log(`Report: ${path.relative(ROOT,txtPath)}`);
-if(requiredFailures.length){console.log(`Failed stages: ${requiredFailures.map(x=>x.id).join(', ')}`);process.exitCode=1}
+if(requiredFailures.length&&!PLAN_ONLY){console.log(`Failed stages: ${requiredFailures.map(x=>x.id).join(', ')}`);process.exitCode=1}
