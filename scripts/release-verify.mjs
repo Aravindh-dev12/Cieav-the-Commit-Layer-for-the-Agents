@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import {spawnSync} from "node:child_process";
-import {mkdir,readFile,writeFile,access} from "node:fs/promises";
+import {existsSync,readFileSync} from "node:fs";
+import {mkdir,readFile,writeFile} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
@@ -15,10 +16,10 @@ const MAX_LOG=24_000;
 const startedAt=new Date();
 const results=[];
 
-const exists=async p=>{try{await access(p);return true}catch{return false}};
 const tail=(s,n=MAX_LOG)=>{const x=String(s??"");return x.length<=n?x:`…[truncated ${x.length-n} chars]\n${x.slice(-n)}`};
 const safeUrl=v=>{try{const u=new URL(v);return u.protocol==="https:"&&!['localhost','127.0.0.1','0.0.0.0'].includes(u.hostname)&&!/[<>]/.test(v)}catch{return false}};
 const run=(cmd,args=[],opts={})=>spawnSync(cmd,args,{cwd:ROOT,encoding:"utf8",env:{...process.env,PYTHONPATH:[path.join(ROOT,"python"),process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),...(opts.env??{})},shell:false,maxBuffer:32*1024*1024});
+const requireText=file=>readFileSync(file,"utf8");
 
 function addResult({id,label,status,required=true,durationMs=0,command=null,stdout="",stderr="",detail=""}){
   const item={id,label,status,required,durationMs,command,detail,stdout:tail(stdout),stderr:tail(stderr)};
@@ -75,15 +76,13 @@ staticStage("required-files","Production boundary files exist",()=>{
     "distribution/install.sh","distribution/install.ps1","scripts/release-metadata-smoke.py",
     "SECURITY.md","PRIVACY.md"
   ];
-  const missing=[];
-  for(const p of required){try{await access(path.join(ROOT,p))}catch{missing.push(p)}}
+  const missing=required.filter(p=>!existsSync(path.join(ROOT,p)));
   if(missing.length)throw new Error(`missing: ${missing.join(', ')}`);
   return `${required.length} critical files present`;
 });
 
 staticStage("privacy-contract","Cloud privacy contract remains fail-minimized",()=>{
-  const cloudPath=path.join(ROOT,"python/latch_platform/cloud_provider.py");
-  const source=requireText(cloudPath);
+  const source=requireText(path.join(ROOT,"python/latch_platform/cloud_provider.py"));
   for(const token of ["rawFormValuesIncluded","rawSecretsIncluded","fullPageTextIncluded","durableStorageRequested"]){if(!source.includes(token))throw new Error(`missing privacy declaration ${token}`)}
   if(!/rawFormValuesIncluded["']?\s*:\s*False/.test(source)||!/rawSecretsIncluded["']?\s*:\s*False/.test(source)||!/fullPageTextIncluded["']?\s*:\s*False/.test(source)||!/durableStorageRequested["']?\s*:\s*False/.test(source))throw new Error("cloud privacy declaration is not explicitly false");
   return "raw secrets/form values/full-page text excluded; no durable cloud storage requested";
@@ -200,10 +199,3 @@ console.log("\n"+"-".repeat(62));
 console.log(`${PUBLISH?"PRODUCTION PUBLISH GATE":"LOCAL RELEASE-CANDIDATE GATE"}: ${verdict}`);
 console.log(`Report: ${path.relative(ROOT,txtPath)}`);
 if(requiredFailures.length){console.log(`Failed stages: ${requiredFailures.map(x=>x.id).join(', ')}`);process.exitCode=1}
-
-function requireText(file){
-  // All static source files are loaded synchronously so stage callbacks stay deterministic.
-  const r=run(process.execPath,["-e",`process.stdout.write(require('fs').readFileSync(${JSON.stringify(file)},'utf8'))`]);
-  if(r.status!==0)throw new Error(`cannot read ${path.relative(ROOT,file)}`);
-  return r.stdout;
-}
