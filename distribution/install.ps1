@@ -6,6 +6,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+$PinnedWindowsSigner = "__CIEAV_WINDOWS_SIGNER_THUMBPRINT__"
+$PinnedMacSigner = "__CIEAV_MACOS_SIGNING_IDENTITY__"
 function Fail([string]$Message) { throw "CIEAV install failed: $Message" }
 function Get-PlatformKey {
   $os = if ($IsWindows -or $env:OS -eq "Windows_NT") { "windows" } elseif ($IsMacOS) { "macos" } elseif ($IsLinux) { "linux" } else { Fail "unsupported operating system" }
@@ -21,9 +23,26 @@ function Get-BinRoot([string]$InstallRoot) { if ($IsWindows -or $env:OS -eq "Win
 function Get-CieavFile([string]$Uri,[string]$OutFile) {
   $u=[Uri]$Uri
   if ($u.Scheme -ne "https") { Fail "download URL must use HTTPS" }
-  # Do not follow redirects. Every bootstrap/release object must be served
-  # directly by the CIEAV-controlled origin embedded in this installer.
   Invoke-WebRequest -Uri $u -OutFile $OutFile -UseBasicParsing -MaximumRedirection 0
+}
+function Assert-RuntimePublisher([string]$Executable) {
+  if ($IsWindows -or $env:OS -eq "Windows_NT") {
+    if ($PinnedWindowsSigner -eq "__CIEAV_WINDOWS_SIGNER_THUMBPRINT__" -or $PinnedWindowsSigner -notmatch '^[0-9A-F]{40,128}$') { Fail "installer has no pinned Windows signer" }
+    $sig=Get-AuthenticodeSignature -FilePath $Executable
+    if ($sig.Status -ne "Valid" -or -not $sig.SignerCertificate) { Fail "CIEAV executable does not have a valid Authenticode signature" }
+    $actual=([string]$sig.SignerCertificate.Thumbprint -replace '\s','').ToUpperInvariant()
+    if ($actual -ne $PinnedWindowsSigner) { Fail "CIEAV executable signer does not match the pinned publisher" }
+    Write-Host "CIEAV · Authenticode publisher verified"
+    return
+  }
+  if ($IsMacOS) {
+    if ($PinnedMacSigner -eq "__CIEAV_MACOS_SIGNING_IDENTITY__") { Fail "installer has no pinned macOS signer" }
+    & /usr/bin/codesign --verify --strict --verbose=2 $Executable 2>$null
+    if ($LASTEXITCODE -ne 0) { Fail "CIEAV executable failed macOS code-signature verification" }
+    $detail=(& /usr/bin/codesign -dv --verbose=4 $Executable 2>&1 | Out-String)
+    if ($detail -notmatch [regex]::Escape("Authority=$PinnedMacSigner")) { Fail "CIEAV executable signer does not match the pinned Developer ID" }
+    Write-Host "CIEAV · macOS Developer ID verified"
+  }
 }
 
 if (-not $BaseUrl -or $BaseUrl -eq "__CIEAV_DOWNLOAD_BASE_URL__") { Fail "installer was not rendered with an official download endpoint. Pass -BaseUrl or set CIEAV_DOWNLOAD_BASE_URL." }
@@ -54,10 +73,14 @@ try {
   $actual=(Get-FileHash -Algorithm SHA256 -Path $archive).Hash.ToLowerInvariant(); $expected=([string]$artifact.sha256).ToLowerInvariant(); if ($actual -ne $expected) { Fail "runtime checksum mismatch" }; Write-Host "CIEAV · checksum verified"
   $staging=Join-Path $tempRoot "runtime"; Expand-Archive -Path $archive -DestinationPath $staging -Force
   $payload=Join-Path $staging "cieav-runtime"; if (-not (Test-Path $payload)) { $payload=Join-Path $staging "latch-runtime" }; if (-not (Test-Path $payload)) { Fail "runtime archive is missing cieav-runtime/" }
+  $isWin=($IsWindows -or $env:OS -eq "Windows_NT")
+  $stagedCieav=if ($isWin) { Join-Path $payload "bin/cieav.exe" } else { Join-Path $payload "bin/cieav" }
+  if (-not (Test-Path $stagedCieav)) { $legacy=if ($isWin) { Join-Path $payload "bin/latch.exe" } else { Join-Path $payload "bin/latch" }; if (Test-Path $legacy) { $stagedCieav=$legacy } }
+  if (-not (Test-Path $stagedCieav)) { Fail "runtime archive does not contain the CIEAV executable" }
+  Assert-RuntimePublisher $stagedCieav
   if (Test-Path $backup) { Remove-Item -Recurse -Force $backup }
   if (Test-Path $installRoot) { Move-Item -Path $installRoot -Destination $backup }
   New-Item -ItemType Directory -Force -Path (Split-Path $installRoot -Parent)|Out-Null; Move-Item -Path $payload -Destination $installRoot; $runtimeReplaced=$true; New-Item -ItemType Directory -Force -Path $binRoot|Out-Null
-  $isWin=($IsWindows -or $env:OS -eq "Windows_NT")
   $runtimeCieav=if ($isWin) { Join-Path $installRoot "bin/cieav.exe" } else { Join-Path $installRoot "bin/cieav" }
   if (-not (Test-Path $runtimeCieav)) { $legacy=if ($isWin) { Join-Path $installRoot "bin/latch.exe" } else { Join-Path $installRoot "bin/latch" }; if (Test-Path $legacy) { $runtimeCieav=$legacy } }
   $runtimeNode=if ($isWin) { Join-Path $installRoot "runtime/node.exe" } else { Join-Path $installRoot "runtime/node" }
