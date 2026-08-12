@@ -10,6 +10,7 @@ import webbrowser
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .cloud_provider import CloudSemanticProvider
 from .config import Settings
 from .gateway import run_gateway
 from .hf_provider import HFConfig, HuggingFaceSemanticProvider
@@ -51,7 +52,7 @@ def _open_url(url: str) -> int:
     return 0
 
 
-def _hf_direct(settings: Settings) -> HuggingFaceSemanticProvider:
+def _router_direct(settings: Settings) -> HuggingFaceSemanticProvider:
     cfg = HFConfig.load()
     if not cfg.token:
         cfg = HFConfig(settings.read_hf_token(), cfg.model, cfg.provider, cfg.endpoint_url, cfg.timeout_seconds)
@@ -82,24 +83,24 @@ def _doctor(settings: Settings) -> dict:
     )
     add("Chromium", bool(chrome), chrome or "not found; set LATCH_CHROMIUM if installed elsewhere")
     api_build = settings.root / "apps" / "api" / "dist" / "server.js"
-    add("Production semantic API build", api_build.exists(), str(api_build))
+    add("Production semantic bridge", api_build.exists(), str(api_build))
     entry = settings.root / "apps" / "browser" / "main.mjs"
-    add("Browser mediator entry", entry.exists(), str(entry))
+    add("Browser mediator", entry.exists(), str(entry))
     test_lab = settings.root / "apps" / "browser" / "test-lab.html"
     add("Protected Test Lab", test_lab.exists(), str(test_lab))
 
-    semantic = _hf_direct(settings).status()
-    local = semantic.get("local", {})
-    hosted = semantic.get("hosted", {})
+    router = _router_direct(settings).status()
+    cloud = router.get("cloud", {})
     add(
-        "Local Granite model",
-        bool(local.get("healthy")),
-        f"model={local.get('model')} url={local.get('baseUrl')} active={semantic.get('activeTier')}",
+        "LATCH Cloud Intelligence",
+        bool(cloud.get("healthy")),
+        f"configured={cloud.get('configured')} enrolled={cloud.get('enrolled')} model={cloud.get('model')} url={cloud.get('baseUrl')}",
     )
+    local = router.get("local", {})
     add(
-        "Hugging Face fallback",
-        bool(hosted.get("configured")),
-        f"configured={hosted.get('configured')} mode={hosted.get('mode')}",
+        "Optional local model",
+        bool(local.get("healthy")) if local.get("configured") else True,
+        f"configured={local.get('configured')} healthy={local.get('healthy')}",
     )
     try:
         status = _gateway_request(settings, "/health")
@@ -111,12 +112,16 @@ def _doctor(settings: Settings) -> dict:
         add("OS startup service", bool(service.get("installed")), f"{service.get('platform')}: {service.get('detail')}")
     except Exception as exc:
         add("OS startup service", False, str(exc))
+    # Runtime prerequisites/build are hard requirements. Cloud/service readiness
+    # is reported separately because foreground development may intentionally
+    # run without an installed startup service.
     return {"ok": all(c["ok"] for c in checks[:6]), "checks": checks}
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="latch", description="LATCH always-on commit platform")
     sub = p.add_subparsers(dest="command", required=True)
+
     g = sub.add_parser("gateway", help="Manage the always-on Gateway")
     gs = g.add_subparsers(dest="gateway_command", required=True)
     for name, help_text in [
@@ -133,15 +138,22 @@ def build_parser() -> argparse.ArgumentParser:
     ]:
         gs.add_parser(name, help=help_text)
 
-    m = sub.add_parser("model", help="Manage LATCH semantic model providers")
+    c = sub.add_parser("cloud", help="Manage LATCH Cloud Intelligence")
+    cs = c.add_subparsers(dest="cloud_command", required=True)
+    cs.add_parser("status", help="Show LATCH Cloud connectivity and enrollment status")
+    cs.add_parser("enroll", help="Enroll this LATCH installation with the configured cloud endpoint")
+    cs.add_parser("probe", help="Run the synthetic critical-payment safety probe through LATCH Cloud")
+
+    m = sub.add_parser("model", help="Manage optional/diagnostic semantic model providers")
     ms = m.add_subparsers(dest="model_command", required=True)
-    ms.add_parser("local-status", help="Check the local Granite OpenAI-compatible server")
-    ms.add_parser("local-probe", help="Run the synthetic LATCH safety probe against local Granite")
-    ms.add_parser("hf-login", help="Securely store a Hugging Face token in local LATCH state")
-    ms.add_parser("hf-logout", help="Delete the locally stored Hugging Face token")
-    ms.add_parser("hf-status", help="Show local-first/Hugging Face model-router status without exposing credentials")
-    ms.add_parser("hf-probe", help="Probe the local-first semantic router, with hosted HF fallback when configured")
-    sub.add_parser("doctor", help="Check runtime, browser, models, Gateway and service health")
+    ms.add_parser("local-status", help="Check an optional local OpenAI-compatible model server")
+    ms.add_parser("local-probe", help="Probe the optional local model")
+    ms.add_parser("hf-login", help="Securely store a direct Hugging Face fallback token")
+    ms.add_parser("hf-logout", help="Delete the locally stored Hugging Face fallback token")
+    ms.add_parser("hf-status", help="Show low-level semantic router status")
+    ms.add_parser("hf-probe", help="Probe the complete semantic router")
+
+    sub.add_parser("doctor", help="Check runtime, browser, cloud, Gateway and service health")
     sub.add_parser("dashboard", help="Open the local LATCH Control Center")
     sub.add_parser("test-lab", help="Open synthetic scenarios inside the protected LATCH browser")
     return p
@@ -179,6 +191,21 @@ def main(argv: list[str] | None = None) -> int:
             if cmd == "restart-surface":
                 _print(_gateway_request(settings, "/v1/restart-surface", "POST")); return 0
 
+        if args.command == "cloud":
+            cloud = CloudSemanticProvider()
+            if args.cloud_command == "status":
+                status = cloud.status()
+                _print({"ok": bool(status.get("healthy")), "cloud": status})
+                return 0 if status.get("healthy") else 2
+            if args.cloud_command == "enroll":
+                result = cloud.enroll(force=True)
+                _print(result)
+                return 0 if result.get("ok") else 2
+            if args.cloud_command == "probe":
+                result = cloud.probe()
+                _print(result)
+                return 0 if result.get("probePassed") else 2
+
         if args.command == "model":
             cmd = args.model_command
             if cmd == "local-status":
@@ -192,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
             if cmd == "hf-login":
                 token = getpass.getpass("Hugging Face token (input hidden): ").strip()
                 settings.write_hf_token(token)
-                print("Hugging Face token stored locally with restricted permissions. Restart the Gateway to activate it.")
+                print("Hugging Face fallback token stored locally. Restart the Gateway to activate it.")
                 return 0
             if cmd == "hf-logout":
                 removed = settings.delete_hf_token()
@@ -202,13 +229,13 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     _print(_gateway_request(settings, "/v1/hf/status"))
                 except Exception:
-                    _print({"ok": True, "gateway": "offline", "semanticRouter": _hf_direct(settings).status()})
+                    _print({"ok": True, "gateway": "offline", "semanticRouter": _router_direct(settings).status()})
                 return 0
             if cmd == "hf-probe":
                 try:
                     result = _gateway_request(settings, "/v1/hf/probe", "POST")
                 except Exception:
-                    result = _hf_direct(settings).probe()
+                    result = _router_direct(settings).probe()
                 _print(result)
                 return 0 if result.get("probePassed") else 2
 
