@@ -7,6 +7,7 @@ import secrets
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -137,10 +138,7 @@ class CloudSemanticProvider:
             return {"ok": True, "enrolled": True, "tokenStored": True}
         payload = {
             "installId": self._install_id(),
-            "platform": platform.system().lower(),
-            "architecture": platform.machine().lower(),
-            "clientVersion": self.config.client_version,
-            "nonce": secrets.token_urlsafe(16),
+            "deviceName": f"LATCH {platform.system()} {platform.machine()}",
         }
         result = self._request("/v1/devices/register", payload=payload)
         token = result.get("token")
@@ -254,11 +252,14 @@ class CloudSemanticProvider:
 
     def probe(self) -> dict[str, Any]:
         context = {
+            "requestId": f"cloud-probe-{uuid.uuid4()}",
             "origin": "https://latch.test",
             "url": "https://latch.test/checkout",
             "title": "Synthetic LATCH cloud probe",
             "element": {"tag": "button", "text": "Pay ₹50,000"},
             "nearbyText": "Transfer ₹50,000 now. Synthetic, non-refundable, and cannot be reversed.",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "clientVersion": self.config.client_version,
         }
         baseline = {
             "actionType": "financial.commit",
