@@ -19,7 +19,9 @@ jobs:
           python -m compileall -q python
           latch --help
           latch gateway --help
+          latch model --help
           python scripts/platform-gateway-smoke.py
+          python scripts/hf-provider-smoke.py
           python - <<'PY'
           from pathlib import Path
           from latch_platform.config import Settings
