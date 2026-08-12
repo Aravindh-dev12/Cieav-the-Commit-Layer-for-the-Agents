@@ -21,7 +21,10 @@ def _python() -> str:
 
 
 def _module_command(settings: Settings) -> list[str]:
-    return [_python(), "-m", "latch_platform.cli", "gateway", "run"]
+    executable = _python()
+    if getattr(sys, "frozen", False):
+        return [executable, "gateway", "run"]
+    return [executable, "-m", "latch_platform.cli", "gateway", "run"]
 
 
 def _env(settings: Settings) -> dict[str, str]:
