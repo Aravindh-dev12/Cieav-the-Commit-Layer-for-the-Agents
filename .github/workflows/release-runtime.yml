@@ -7,6 +7,10 @@ on:
         description: HTTPS LATCH Cloud Intelligence base URL
         required: false
         type: string
+      download_base_url:
+        description: HTTPS public LATCH download/CDN base URL
+        required: false
+        type: string
       channel:
         description: Release channel
         required: true
@@ -93,6 +97,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CLOUD_URL: ${{ inputs.cloud_url || vars.LATCH_CLOUD_URL }}
+      DOWNLOAD_BASE_URL: ${{ inputs.download_base_url || vars.LATCH_DOWNLOAD_BASE_URL }}
       CHANNEL: ${{ inputs.channel || 'stable' }}
     steps:
       - uses: actions/checkout@v4
@@ -108,7 +113,10 @@ jobs:
       - name: Generate verified installer manifest
         shell: bash
         run: |
-          test -n "$CLOUD_URL" || { echo 'Set workflow input cloud_url or repository variable LATCH_CLOUD_URL'; exit 2; }
+          test -n "$CLOUD_URL" || { echo 'Set cloud_url or repository variable LATCH_CLOUD_URL'; exit 2; }
+          test -n "$DOWNLOAD_BASE_URL" || { echo 'Set download_base_url or repository variable LATCH_DOWNLOAD_BASE_URL'; exit 2; }
+          case "$CLOUD_URL" in https://*) ;; *) echo 'Cloud URL must use HTTPS'; exit 2;; esac
+          case "$DOWNLOAD_BASE_URL" in https://*) ;; *) echo 'Download base URL must use HTTPS'; exit 2;; esac
           VERSION=$(python -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
           python scripts/make-release-manifest.py \
             --input-dir release-out \
@@ -121,9 +129,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p "publish/$CHANNEL"
-          cp distribution/install.ps1 publish/install.ps1
+          python scripts/render-installers.py --download-base-url "$DOWNLOAD_BASE_URL" --output-dir publish
           cp release-out/manifest.json "publish/$CHANNEL/manifest.json"
           cp release-out/latch-runtime-*.zip "publish/$CHANNEL/"
+          chmod 0755 publish/install.sh
 
       - uses: actions/upload-artifact@v4
         with:
@@ -139,4 +148,4 @@ jobs:
         run: |
           TAG="$GITHUB_REF_NAME"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "LATCH $TAG" --notes "LATCH runtime release. Public installer distribution should be served from the configured LATCH download CDN."
-          gh release upload "$TAG" publish/install.ps1 "publish/$CHANNEL/manifest.json" publish/$CHANNEL/latch-runtime-*.zip --clobber
+          gh release upload "$TAG" publish/install.ps1 publish/install.sh "publish/$CHANNEL/manifest.json" publish/$CHANNEL/latch-runtime-*.zip --clobber
