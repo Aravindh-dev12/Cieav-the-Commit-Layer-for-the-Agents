@@ -6,6 +6,8 @@ import secrets
 from dataclasses import dataclass
 from pathlib import Path
 
+from .secret_store import SecretStore
+
 
 def _env(primary: str, legacy: str | None = None) -> str | None:
     value = os.environ.get(primary, "").strip()
@@ -52,19 +54,19 @@ def _chmod_private(path: Path, mode: int) -> None:
         pass
 
 
-def _private_secret(path: Path, *, bytes_count: int = 48) -> str:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    _chmod_private(path.parent, 0o700)
+def _read_private(path: Path) -> str | None:
     try:
-        value = path.read_text("utf-8").strip()
-        if len(value) >= 32:
-            return value
+        value=path.read_text("utf-8").strip()
+        return value or None
     except FileNotFoundError:
-        pass
-    value = secrets.token_urlsafe(bytes_count)
-    path.write_text(value, "utf-8")
-    _chmod_private(path, 0o600)
-    return value
+        return None
+
+
+def _write_private(path: Path, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _chmod_private(path.parent,0o700)
+    path.write_text(value,"utf-8")
+    _chmod_private(path,0o600)
 
 
 @dataclass(frozen=True)
@@ -102,51 +104,58 @@ class Settings:
         self.state_dir.mkdir(parents=True, exist_ok=True)
         _chmod_private(self.state_dir, 0o700)
 
-    def token(self) -> str:
+    def _store(self) -> SecretStore:
         self.ensure()
-        try:
-            value = self.token_file.read_text("utf-8").strip()
-            if len(value) >= 32:
-                return value
-        except FileNotFoundError:
-            pass
-        value = secrets.token_urlsafe(32)
-        self.token_file.write_text(value, "utf-8")
-        _chmod_private(self.token_file, 0o600)
-        return value
+        return SecretStore(self.state_dir)
+
+    def secret_storage_status(self) -> dict:
+        status=self._store().status
+        return {"backend":status.backend,"encryptedAtRest":status.encrypted_at_rest,"fallback":status.fallback}
+
+    def _get_or_create_secret(self, account: str, legacy_file: Path, *, bytes_count: int = 48) -> str:
+        store=self._store()
+        if store.status.encrypted_at_rest:
+            value=store.get(account,legacy_file)
+            if value and len(value)>=32:return value
+            value=secrets.token_urlsafe(bytes_count);store.set(account,value);return value
+        value=_read_private(legacy_file)
+        if value and len(value)>=32:return value
+        value=secrets.token_urlsafe(bytes_count);_write_private(legacy_file,value);return value
+
+    def token(self) -> str:
+        return self._get_or_create_secret("gateway-token",self.token_file,bytes_count=32)
 
     def local_api_secret(self) -> str:
-        self.ensure()
-        return _private_secret(self.local_api_secret_file)
+        return self._get_or_create_secret("local-api-signing-secret",self.local_api_secret_file)
 
     def receipt_signing_secret(self) -> str:
-        self.ensure()
-        return _private_secret(self.receipt_signing_secret_file)
+        return self._get_or_create_secret("receipt-signing-secret",self.receipt_signing_secret_file)
 
     def read_hf_token(self) -> str | None:
         value = os.environ.get("HF_TOKEN", "").strip()
         if value:
             return value
-        try:
-            value = self.hf_token_file.read_text("utf-8").strip()
-            return value or None
-        except FileNotFoundError:
-            return None
+        store=self._store()
+        if store.status.encrypted_at_rest:
+            return store.get("hf-token",self.hf_token_file)
+        return _read_private(self.hf_token_file)
 
     def write_hf_token(self, value: str) -> None:
         token = value.strip()
         if not token.startswith("hf_") or len(token) < 20:
             raise ValueError("This does not look like a Hugging Face access token")
-        self.ensure()
-        self.hf_token_file.write_text(token, "utf-8")
-        _chmod_private(self.hf_token_file, 0o600)
+        store=self._store()
+        if store.status.encrypted_at_rest:
+            store.set("hf-token",token)
+            try:self.hf_token_file.unlink()
+            except FileNotFoundError:pass
+        else:_write_private(self.hf_token_file,token)
 
     def delete_hf_token(self) -> bool:
-        try:
-            self.hf_token_file.unlink()
-            return True
-        except FileNotFoundError:
-            return False
+        store=self._store()
+        if store.status.encrypted_at_rest:return store.delete("hf-token",self.hf_token_file)
+        try:self.hf_token_file.unlink();return True
+        except FileNotFoundError:return False
 
     def write_runtime(self, payload: dict) -> None:
         self.ensure()
