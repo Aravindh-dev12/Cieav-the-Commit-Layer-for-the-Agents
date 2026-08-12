@@ -32,9 +32,7 @@ class _FileBackend(_Backend):
     name = "file-0600"
     encrypted_at_rest = False
 
-    def __init__(self, state_dir: Path):
-        self.root = state_dir / "secrets"
-
+    def __init__(self, state_dir: Path): self.root = state_dir / "secrets"
     def _path(self, account: str) -> Path: return self.root / account
     def get(self, account: str) -> str | None:
         try: return self._path(account).read_text("utf-8").strip() or None
@@ -58,7 +56,8 @@ if sys.platform == "win32":
     class _DPAPIBackend(_Backend):
         name="windows-dpapi-current-user"; encrypted_at_rest=True
         _UI_FORBIDDEN=0x1
-        def __init__(self,state_dir:Path): self.root=state_dir/"secrets-dpapi"; self.crypt32=ctypes.windll.crypt32; self.kernel32=ctypes.windll.kernel32
+        def __init__(self,state_dir:Path):
+            self.root=state_dir/"secrets-dpapi"; self.crypt32=ctypes.windll.crypt32; self.kernel32=ctypes.windll.kernel32
         def _path(self,account:str)->Path:return self.root/f"{account}.blob"
         @staticmethod
         def _blob(data:bytes):
@@ -66,13 +65,13 @@ if sys.platform == "win32":
         def _protect(self,data:bytes)->bytes:
             inp,keep=self._blob(data); out=_DATA_BLOB()
             ok=self.crypt32.CryptProtectData(ctypes.byref(inp),"CIEAV per-user secret",None,None,None,self._UI_FORBIDDEN,ctypes.byref(out))
-            if not ok: raise SecretStoreError(f"CryptProtectData failed: {ctypes.GetLastError()}")
+            if not ok: raise SecretStoreError(f"CryptProtectData failed: {ctypes.get_last_error()}")
             try:return ctypes.string_at(out.pbData,out.cbData)
             finally:self.kernel32.LocalFree(out.pbData)
         def _unprotect(self,data:bytes)->bytes:
             inp,keep=self._blob(data); out=_DATA_BLOB()
             ok=self.crypt32.CryptUnprotectData(ctypes.byref(inp),None,None,None,None,self._UI_FORBIDDEN,ctypes.byref(out))
-            if not ok: raise SecretStoreError(f"CryptUnprotectData failed: {ctypes.GetLastError()}")
+            if not ok: raise SecretStoreError(f"CryptUnprotectData failed: {ctypes.get_last_error()}")
             try:return ctypes.string_at(out.pbData,out.cbData)
             finally:self.kernel32.LocalFree(out.pbData)
         def get(self,account:str)->str|None:
@@ -81,7 +80,12 @@ if sys.platform == "win32":
             except Exception as exc: raise SecretStoreError(f"invalid DPAPI secret blob for {account}") from exc
             return self._unprotect(raw).decode("utf-8")
         def set(self,account:str,value:str)->None:
-            self.root.mkdir(parents=True,exist_ok=True); p=self._path(account); p.write_bytes(base64.b64encode(self._protect(value.encode("utf-8"))))
+            self.root.mkdir(parents=True,exist_ok=True)
+            try:os.chmod(self.root,0o700)
+            except OSError:pass
+            p=self._path(account); p.write_bytes(base64.b64encode(self._protect(value.encode("utf-8"))))
+            try:os.chmod(p,0o600)
+            except OSError:pass
         def delete(self,account:str)->bool:
             try:self._path(account).unlink();return True
             except FileNotFoundError:return False
@@ -93,11 +97,14 @@ class _MacKeychainBackend(_Backend):
     name="macos-keychain"; encrypted_at_rest=True
     def __init__(self,state_dir:Path):
         self.security=ctypes.cdll.LoadLibrary("/System/Library/Frameworks/Security.framework/Security")
-        self.security.SecKeychainFindGenericPassword.restype=ctypes.c_int32
-        self.security.SecKeychainAddGenericPassword.restype=ctypes.c_int32
-        self.security.SecKeychainItemModifyAttributesAndData.restype=ctypes.c_int32
-        self.security.SecKeychainItemDelete.restype=ctypes.c_int32
-        self.security.SecKeychainItemFreeContent.restype=ctypes.c_int32
+        self.cf=ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+        self.cf.CFRelease.argtypes=[ctypes.c_void_p]
+        for fn in ("SecKeychainFindGenericPassword","SecKeychainAddGenericPassword","SecKeychainItemModifyAttributesAndData","SecKeychainItemDelete","SecKeychainItemFreeContent"):
+            getattr(self.security,fn).restype=ctypes.c_int32
+    def _release_item(self,item)->None:
+        if item and item.value:
+            try:self.cf.CFRelease(item)
+            except Exception:pass
     def _find(self,account:str):
         service=SERVICE.encode(); acct=account.encode(); length=ctypes.c_uint32(); data=ctypes.c_void_p(); item=ctypes.c_void_p()
         status=self.security.SecKeychainFindGenericPassword(None,len(service),service,len(acct),acct,ctypes.byref(length),ctypes.byref(data),ctypes.byref(item))
@@ -107,14 +114,16 @@ class _MacKeychainBackend(_Backend):
         if status==_NOT_FOUND:return None
         if status!=0:raise SecretStoreError(f"Keychain read failed: {status}")
         try:return ctypes.string_at(data,length.value).decode("utf-8")
-        finally:self.security.SecKeychainItemFreeContent(None,data)
+        finally:
+            self.security.SecKeychainItemFreeContent(None,data);self._release_item(item)
     def set(self,account:str,value:str)->None:
         raw=value.encode(); status,length,data,item=self._find(account)
         if status==0:
             try:
                 rc=self.security.SecKeychainItemModifyAttributesAndData(item,None,len(raw),raw)
                 if rc!=0:raise SecretStoreError(f"Keychain update failed: {rc}")
-            finally:self.security.SecKeychainItemFreeContent(None,data)
+            finally:
+                self.security.SecKeychainItemFreeContent(None,data);self._release_item(item)
             return
         if status!=_NOT_FOUND:raise SecretStoreError(f"Keychain lookup failed: {status}")
         service=SERVICE.encode();acct=account.encode();rc=self.security.SecKeychainAddGenericPassword(None,len(service),service,len(acct),acct,len(raw),raw,None)
@@ -127,7 +136,8 @@ class _MacKeychainBackend(_Backend):
             rc=self.security.SecKeychainItemDelete(item)
             if rc!=0:raise SecretStoreError(f"Keychain delete failed: {rc}")
             return True
-        finally:self.security.SecKeychainItemFreeContent(None,data)
+        finally:
+            self.security.SecKeychainItemFreeContent(None,data);self._release_item(item)
 
 
 class _SecretServiceBackend(_Backend):
@@ -136,10 +146,13 @@ class _SecretServiceBackend(_Backend):
         tool=shutil.which("secret-tool")
         if not tool: raise SecretStoreError("secret-tool not available")
         self.tool=tool
+        probe=subprocess.run([self.tool,"lookup","service",SERVICE,"account","__cieav_capability_probe__"],capture_output=True,text=True,timeout=5)
+        if probe.returncode not in (0,1) or probe.stderr.strip():raise SecretStoreError((probe.stderr or "Secret Service unavailable").strip())
     def _attrs(self,account:str)->list[str]:return["service",SERVICE,"account",account]
     def get(self,account:str)->str|None:
         p=subprocess.run([self.tool,"lookup",*self._attrs(account)],capture_output=True,text=True,timeout=8)
-        if p.returncode!=0:return None
+        if p.returncode==1 and not p.stderr.strip():return None
+        if p.returncode!=0:raise SecretStoreError((p.stderr or "Secret Service read failed").strip())
         return p.stdout.rstrip("\n") or None
     def set(self,account:str,value:str)->None:
         p=subprocess.run([self.tool,"store",f"--label=CIEAV {account}",*self._attrs(account)],input=value,text=True,capture_output=True,timeout=12)
@@ -183,12 +196,11 @@ class SecretStore:
             try: legacy=legacy_file.read_text("utf-8").strip()
             except FileNotFoundError: legacy=""
             if legacy:
-                self.set(account,legacy)
-                confirmed=self.backend.get(account)
+                if not self.backend.encrypted_at_rest:return legacy
+                self.set(account,legacy);confirmed=self.backend.get(account)
                 if confirmed!=legacy:raise SecretStoreError(f"secret migration verification failed for {account}")
-                if self.backend.encrypted_at_rest:
-                    try:legacy_file.unlink()
-                    except FileNotFoundError:pass
+                try:legacy_file.unlink()
+                except FileNotFoundError:pass
                 return confirmed
         return None
     def set(self,account:str,value:str)->None:
