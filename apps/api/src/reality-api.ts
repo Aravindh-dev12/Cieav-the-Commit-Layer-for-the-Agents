@@ -40,13 +40,14 @@ export class CieavRealityApi{
     const intentMatch=pathname.match(/^\/v1\/intents\/([0-9a-f-]+)$/i);
     if(req.method==="GET"&&intentMatch?.[1]){const intent=await this.store.getIntent(deviceId,intentMatch[1]);return intent?{status:200,body:{intent}}:{status:404,body:{error:"not_found"}}}
     if(req.method==="POST"&&pathname==="/v1/reality/evaluate"){
-      const raw=await parseBody(req),base=RealityEvaluateRequestSchema.parse(raw),manifest=ActionManifestSchema.parse((raw as any).manifest),intent=await this.store.getIntent(deviceId,base.intentId);if(!intent)return{status:404,body:{error:"intent_not_found"}};
-      const proposal=proposalFromManifest(intent.id,base.actor,manifest,base.delegationChain,base.amount),assessment=assessConsequences(proposal),authority=evaluateAuthority(intent,proposal),humanApproved=(raw as any).humanApproved===true;
-      const permit=(authority.decision==="ALLOW"||(authority.decision==="ASK"&&humanApproved))?issueCommitPermit(proposal,this.permitSecret,90):undefined;
+      const raw=await parseBody(req),base=RealityEvaluateRequestSchema.parse({intentId:raw?.intentId,actor:raw?.actor,delegationChain:raw?.delegationChain??[],amount:raw?.amount}),manifest=ActionManifestSchema.parse(raw?.manifest),intent=await this.store.getIntent(deviceId,base.intentId);if(!intent)return{status:404,body:{error:"intent_not_found"}};
+      const proposal=proposalFromManifest(intent.id,base.actor,manifest,base.delegationChain,base.amount),assessment=assessConsequences(proposal),authority=evaluateAuthority(intent,proposal);
+      // General agent/device API callers cannot assert human approval. ASK is intentionally non-minting.
+      const permit=authority.decision==="ALLOW"?issueCommitPermit(proposal,this.permitSecret,90):undefined;
       return{status:200,body:{intent,proposal,assessment,authority,...(permit?{permit}:{})}};
     }
     if(req.method==="POST"&&pathname==="/v1/reality/consume"){
-      const raw=await parseBody(req),permit=CommitPermitSchema.parse((raw as any).permit),proposal=ActionProposalSchema.parse((raw as any).proposal);if(!await this.store.getIntent(deviceId,permit.intentId))return{status:404,body:{error:"intent_not_found"}};if(!verifyCommitPermit(permit,proposal,this.permitSecret))return{status:403,body:{error:"invalid_or_expired_permit"}};if(!await this.store.consumePermit(deviceId,permit.id))return{status:409,body:{error:"permit_already_consumed"}};return{status:200,body:{ok:true,permitId:permit.id,consumedAt:new Date().toISOString()}};
+      const raw=await parseBody(req),permit=CommitPermitSchema.parse(raw?.permit),proposal=ActionProposalSchema.parse(raw?.proposal);if(!await this.store.getIntent(deviceId,permit.intentId))return{status:404,body:{error:"intent_not_found"}};if(!verifyCommitPermit(permit,proposal,this.permitSecret))return{status:403,body:{error:"invalid_or_expired_permit"}};if(!await this.store.consumePermit(deviceId,permit.id))return{status:409,body:{error:"permit_already_consumed"}};return{status:200,body:{ok:true,permitId:permit.id,consumedAt:new Date().toISOString()}};
     }
     if(req.method==="POST"&&pathname==="/v1/open-loops"){const input=OpenLoopCreateRequestSchema.parse(await parseBody(req)),intent=await this.store.getIntent(deviceId,input.intentId);if(!intent)return{status:404,body:{error:"intent_not_found"}};const loop:OpenLoop=OpenLoopSchema.parse({id:crypto.randomUUID(),...input,status:"OPEN",createdAt:new Date().toISOString()});return{status:201,body:{openLoop:await this.store.saveLoop(deviceId,loop)}}}
     if(req.method==="GET"&&pathname==="/v1/open-loops")return{status:200,body:{openLoops:await this.store.listLoops(deviceId)}};
