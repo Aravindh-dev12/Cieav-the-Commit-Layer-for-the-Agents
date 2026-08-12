@@ -8,7 +8,6 @@ import os
 import platform
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -77,9 +76,12 @@ def installer_command(installer:Path)->list[str]:
     return [shutil.which("sh") or "/bin/sh",str(installer)]
 
 
+def default_installer()->Path:return ROOT/"publish"/("install.ps1" if os.name=="nt" else "install.sh")
+
+
 def main()->None:
     ap=argparse.ArgumentParser(description="Exercise a rendered signed CIEAV installer against a real HTTPS release distribution")
-    ap.add_argument("--installer",required=True,type=Path,help="Rendered install.sh or install.ps1")
+    ap.add_argument("--installer",type=Path,default=default_installer(),help="Rendered installer; defaults to publish/install.ps1 or publish/install.sh")
     ap.add_argument("--scenario",required=True,choices=("success","rollback"))
     ap.add_argument("--mode",choices=("local","publish"),default="publish")
     ap.add_argument("--confirm-install-mutation",action="store_true",help="Required: acknowledges mutation of the current user's CIEAV install paths")
