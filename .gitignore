@@ -10,4 +10,8 @@ apps/api/.data/
 .latch/
 .cieav/
 release/reports/
+release-out/
+publish/
+build/
+*.spec
 *.tsbuildinfo
