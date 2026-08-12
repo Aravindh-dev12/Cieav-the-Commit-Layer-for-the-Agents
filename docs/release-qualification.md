@@ -14,11 +14,12 @@ The final gate is:
 npm run release:qualify
 ```
 
-It only passes when each required target has all three matching evidence records:
+It only passes when each required target has all four matching evidence records:
 
 1. a qualifying source/release report from `npm run release:verify` (or `release:verify:publish`),
 2. an expanded platform-boundary attestation emitted automatically by the release gate,
-3. a clean, freshly extracted runtime archive smoke from `npm run release:smoke:runtime`.
+3. a clean, freshly extracted runtime archive smoke from `npm run release:smoke:runtime`,
+4. an OS startup-service lifecycle smoke from `npm run release:smoke:service`.
 
 ## Prerequisites on every machine
 
@@ -32,7 +33,7 @@ node --version
 python --version
 ```
 
-`git status --porcelain` must be empty. Node 22+ and Python 3.11+ are required.
+`git status --porcelain` must be empty. Node 22+ and Python 3.11+ are required. Use a clean test user/machine with no existing CIEAV Gateway service for the service lifecycle step. Google Chrome or Chromium must be available when exercising the real Gateway startup surface.
 
 Install development/build dependencies:
 
@@ -150,7 +151,7 @@ python scripts/clean-runtime-smoke.py --archive release-out/<archive>.zip
 On Windows, the smoke verifies Authenticode and optionally pins the configured thumbprint. On macOS it verifies the Developer ID code signature and optionally pins the configured signing identity. On every OS it also verifies:
 
 - archive secret hygiene,
-- runtime metadata and platform-boundary marker,
+- expanded release-boundary runtime metadata,
 - bundled Node execution,
 - standalone CIEAV CLI execution,
 - Companion, Action Lab, MCP, A2A and Gateway CLI surfaces,
@@ -161,7 +162,39 @@ On Windows, the smoke verifies Authenticode and optionally pins the configured t
 
 The smoke writes a digest-protected evidence record under `release/reports/`.
 
-## 4. Combine evidence from all machines
+## 4. Exercise the real per-user OS service lifecycle
+
+This step intentionally changes the current user's systemd/launchd/Task Scheduler state. Run it on a clean test account or machine with no existing CIEAV Gateway installation.
+
+Local candidate:
+
+```bash
+npm run release:smoke:service
+```
+
+Production/publish evidence:
+
+```bash
+npm run release:smoke:service:publish
+```
+
+The underlying command requires the explicit `--confirm-service-mutation` acknowledgement. It refuses to overwrite an existing CIEAV service, installs the Gateway from the extracted candidate runtime, checks status, exercises stop/start/restart, uninstalls it, and performs cleanup again in a `finally` path.
+
+Expected lifecycle checks:
+
+```text
+install → status → stop → start → restart → uninstall → cleanup
+```
+
+A failed cleanup is a release failure. The service smoke writes its own digest-protected evidence file under `release/reports/`.
+
+After the runtime and service smokes pass on a machine, verify that target independently:
+
+```bash
+npm run release:qualify:current
+```
+
+## 5. Combine evidence from all machines
 
 Copy the generated JSON evidence files from each machine into the same `release/reports/` directory. Do not rename or edit their contents.
 
@@ -185,9 +218,11 @@ The qualifier rejects:
 - legacy report schemas,
 - source reports without matching expanded platform attestations,
 - source reports without matching clean-runtime evidence,
-- modified/tampered attestation digests,
+- source reports without matching OS service-lifecycle evidence,
+- modified/tampered evidence digests,
 - Windows runtime evidence without valid Authenticode checks,
 - macOS runtime evidence without code-sign verification,
+- incomplete install/status/stop/start/restart/uninstall/cleanup lifecycle evidence,
 - missing required targets.
 
 To qualify a different explicit set of targets:
@@ -196,7 +231,7 @@ To qualify a different explicit set of targets:
 node scripts/qualify-release.mjs --require windows-x64,macos-arm64,linux-x64
 ```
 
-## 5. Production publication gates
+## 6. Production publication gates
 
 A production release is not complete until all of these are true:
 
@@ -206,6 +241,7 @@ A production release is not complete until all of these are true:
 - release manifest/bootstrap metadata is signed with the configured offline release trust root,
 - generated installer metadata uses real non-local HTTPS endpoints,
 - installer checksum/signature/signer pinning succeeds,
+- a real clean-machine installer install/upgrade is exercised against the rendered production/staging HTTPS distribution,
 - branch/repository protection requires the qualifying CI/release checks before release changes can merge.
 
-The final item is repository administration, not application code. Configure it in GitHub repository rules/branch protection once Actions execution is available; do not weaken application gates to compensate for unavailable CI.
+The last two items depend on external deployment/repository administration rather than application code. Do not weaken application gates to compensate for unavailable CI or unavailable production credentials.
