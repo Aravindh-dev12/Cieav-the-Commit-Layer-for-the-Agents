@@ -1,6 +1,6 @@
 param(
   [string]$Channel = "stable",
-  [string]$BaseUrl = $env:LATCH_DOWNLOAD_BASE_URL,
+  [string]$BaseUrl = $(if ($env:LATCH_DOWNLOAD_BASE_URL) { $env:LATCH_DOWNLOAD_BASE_URL } else { "__LATCH_DOWNLOAD_BASE_URL__" }),
   [switch]$NoService
 )
 
@@ -36,8 +36,8 @@ function Get-BinRoot([string]$InstallRoot) {
   return (Join-Path $HOME ".local/bin")
 }
 
-if (-not $BaseUrl) {
-  Fail "no official download endpoint configured. Pass -BaseUrl or set LATCH_DOWNLOAD_BASE_URL."
+if (-not $BaseUrl -or $BaseUrl -eq "__LATCH_DOWNLOAD_BASE_URL__") {
+  Fail "installer was not rendered with an official download endpoint. Pass -BaseUrl or set LATCH_DOWNLOAD_BASE_URL."
 }
 $BaseUrl = $BaseUrl.TrimEnd('/')
 if ($BaseUrl -notmatch '^https://') { Fail "the download endpoint must use HTTPS" }
