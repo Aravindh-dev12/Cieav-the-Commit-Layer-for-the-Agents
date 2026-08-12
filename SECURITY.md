@@ -36,16 +36,18 @@ Receipts store a separate immutable signed outcome:
 
 For consequential actions, navigation/redirect alone is evidence but is not treated as proof of payment, deletion, sharing, permission grant, publication, or upload success. Ordinary navigation actions may use a successful top-frame navigation as their outcome.
 
-DOM outcome matching is failure-first and compares before/after state so a pre-existing success banner is not sufficient. Raw DOM snapshots used for comparison remain local and are not persisted as receipt evidence.
+DOM outcome matching is failure-first and compares before/after state so a pre-existing success banner is not sufficient. Raw DOM snapshots used for comparison remain local and are not persisted as receipt evidence. HIGH and CRITICAL actions do not become `OBSERVED_SUCCESS` from page text alone; a page can still contribute failure evidence, but success remains unresolved until a stronger supported signal exists.
 
 ## Undo
 
 Undo is available only when **both** conditions hold:
 
 1. the signed action outcome is `OBSERVED_SUCCESS`; and
-2. exactly one credible live inverse is available for the current page/action.
+2. a trusted inverse implementation is available for the exact committed action.
 
-The browser host keeps discovered inverse controls as candidates until success is verified. The local receipt API independently refuses an `UNDONE` transition unless the receipt has an observed-success outcome. Failed or unknown outcomes therefore cannot expose Undo.
+Generic page-label matching such as finding a button named `Disconnect`, `Restore`, or `Remove` is **not** a production trust mechanism and cannot unlock one-click Undo on arbitrary websites. The label-based inverse discovery used by the synthetic browser E2E is restricted to explicit test-auto mode. Production one-click Undo requires a trusted CIEAV/site adapter; until such an adapter exists, CIEAV does not claim a verified inverse.
+
+The local receipt API independently refuses an `UNDONE` transition unless the receipt has an observed-success outcome. Failed or unknown outcomes therefore cannot expose Undo.
 
 Revocation/compensation is not represented as full reversal when external parties may already have copied data or when a server-side effect cannot be proven reversible.
 
