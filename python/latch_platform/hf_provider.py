@@ -61,10 +61,10 @@ def _safe_error(exc: BaseException, token: str | None) -> str:
 
 def _validate_gate(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise ValueError("Hugging Face output was not a JSON object")
+        raise ValueError("model output was not a JSON object")
     missing = sorted(set(GATE_SCHEMA["required"]).difference(value))
     if missing:
-        raise ValueError(f"Hugging Face output missing fields: {', '.join(missing)}")
+        raise ValueError(f"model output missing fields: {', '.join(missing)}")
     if value["risk"] not in RISK:
         raise ValueError("invalid risk")
     if value["reversibility"] not in REVERSIBILITY:
@@ -109,25 +109,60 @@ class HFConfig:
 
 
 class HuggingFaceSemanticProvider:
+    """LATCH first-tier semantic router.
+
+    Priority:
+      1. local OpenAI-compatible Granite server (default http://127.0.0.1:8000/v1)
+      2. hosted Hugging Face Inference Providers / dedicated endpoint
+
+    The public class name is retained for compatibility with the existing
+    Gateway and tests while local inference becomes the preferred path.
+    """
+
     def __init__(self, config: HFConfig | None = None, client_factory: Callable[..., Any] | None = None):
         self.config = config or HFConfig.load()
         self._client_factory = client_factory or InferenceClient
         self.last_success_at: float | None = None
         self.last_latency_ms: int | None = None
         self.last_error: str | None = None
+        self.local = None
+        if os.environ.get("LATCH_LOCAL_MODEL_ENABLED", "1") != "0":
+            try:
+                from .local_model import LocalSemanticProvider
+                self.local = LocalSemanticProvider()
+            except Exception as exc:
+                self.last_error = f"local model initialization failed: {type(exc).__name__}: {exc}"[:500]
+
+    @property
+    def hosted_configured(self) -> bool:
+        return self._client_factory is not None and bool(self.config.token)
+
+    @property
+    def local_configured(self) -> bool:
+        return self.local is not None
 
     @property
     def configured(self) -> bool:
-        return self._client_factory is not None and bool(self.config.token)
+        # Local provider is intentionally considered configured even when its
+        # server is temporarily offline; inference then fails safely and may
+        # fall back to hosted HF/frontier or deterministic policy.
+        return self.local_configured or self.hosted_configured
 
     def status(self) -> dict[str, Any]:
+        local_status = self.local.status() if self.local is not None else {"configured": False, "healthy": False}
+        active = "local" if local_status.get("healthy") else ("hosted-hf" if self.hosted_configured else "deterministic")
         return {
             "configured": self.configured,
+            "activeTier": active,
             "model": self.config.model,
-            "mode": "endpoint" if self.config.endpoint_url else "inference-providers",
-            "provider": None if self.config.endpoint_url else self.config.provider,
-            "endpointConfigured": bool(self.config.endpoint_url),
-            "tokenPresent": bool(self.config.token),
+            "local": local_status,
+            "hosted": {
+                "configured": self.hosted_configured,
+                "mode": "endpoint" if self.config.endpoint_url else "inference-providers",
+                "provider": None if self.config.endpoint_url else self.config.provider,
+                "endpointConfigured": bool(self.config.endpoint_url),
+                "tokenPresent": bool(self.config.token),
+            },
             "lastSuccessAt": self.last_success_at,
             "lastLatencyMs": self.last_latency_ms,
             "lastError": self.last_error,
@@ -143,7 +178,7 @@ class HuggingFaceSemanticProvider:
             return self._client_factory(base_url=self.config.endpoint_url, **common)
         return self._client_factory(provider=self.config.provider, **common)
 
-    def analyze(self, context: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
+    def _hosted_analyze(self, context: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
         started = time.perf_counter()
         snapshot = json.dumps({"context": context, "deterministicBaseline": base}, ensure_ascii=False, separators=(",", ":"))
         messages = [
@@ -164,12 +199,35 @@ class HuggingFaceSemanticProvider:
             self.last_success_at = time.time()
             self.last_latency_ms = latency
             self.last_error = None
-            return {"ok": True, "result": result, "meta": {"model": self.config.model, "mode": "endpoint" if self.config.endpoint_url else "inference-providers", "provider": None if self.config.endpoint_url else self.config.provider, "latencyMs": latency}}
+            return {"ok": True, "result": result, "meta": {"model": self.config.model, "mode": "endpoint" if self.config.endpoint_url else "inference-providers", "provider": None if self.config.endpoint_url else self.config.provider, "latencyMs": latency, "tier": "hosted-hf"}}
         except Exception as exc:
             latency = int((time.perf_counter() - started) * 1000)
             self.last_latency_ms = latency
             self.last_error = _safe_error(exc, self.config.token)
-            return {"ok": False, "error": self.last_error, "meta": {"model": self.config.model, "mode": "endpoint" if self.config.endpoint_url else "inference-providers", "provider": None if self.config.endpoint_url else self.config.provider, "latencyMs": latency}}
+            return {"ok": False, "error": self.last_error, "meta": {"model": self.config.model, "mode": "endpoint" if self.config.endpoint_url else "inference-providers", "provider": None if self.config.endpoint_url else self.config.provider, "latencyMs": latency, "tier": "hosted-hf"}}
+
+    def analyze(self, context: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
+        if self.local is not None:
+            local_result = self.local.analyze(context, base)
+            if local_result.get("ok"):
+                self.last_success_at = self.local.last_success_at
+                self.last_latency_ms = self.local.last_latency_ms
+                self.last_error = None
+                return local_result
+            self.last_error = f"local: {local_result.get('error', 'unavailable')}"[:800]
+        if self.hosted_configured:
+            hosted_result = self._hosted_analyze(context, base)
+            if hosted_result.get("ok"):
+                return hosted_result
+            local_error = self.last_error
+            self.last_error = f"{local_error or 'local unavailable'}; hosted: {hosted_result.get('error', 'unavailable')}"[:800]
+            hosted_result["error"] = self.last_error
+            return hosted_result
+        return {
+            "ok": False,
+            "error": self.last_error or "local semantic model is offline and no hosted Hugging Face fallback is configured",
+            "meta": {"model": self.config.model, "mode": "local-first", "provider": "local", "latencyMs": self.last_latency_ms or 0, "tier": "local"},
+        }
 
     def probe(self) -> dict[str, Any]:
         context = {
