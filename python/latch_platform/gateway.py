@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 from .config import Settings
+from .hf_provider import HFConfig, HuggingFaceSemanticProvider
 
 
 def _request_json(url: str, *, method: str = "GET", payload: dict | None = None, timeout: float = 1.5) -> dict:
@@ -25,14 +26,23 @@ def _request_json(url: str, *, method: str = "GET", payload: dict | None = None,
 class Gateway:
     """Always-on Python control plane for LATCH.
 
-    Python owns lifecycle, supervision and privileged local control. Node remains
-    an implementation detail for the compiled semantic service and Chromium
-    surface until those components are progressively migrated behind adapters.
+    Python owns process lifecycle, secrets, Hugging Face inference, health and
+    privileged local control. Browser/Node adapters never receive HF_TOKEN.
     """
 
     def __init__(self, settings: Settings):
         self.s = settings
         self.token = settings.token()
+        hf_cfg = HFConfig.load()
+        if not hf_cfg.token:
+            hf_cfg = HFConfig(
+                token=settings.read_hf_token(),
+                model=hf_cfg.model,
+                provider=hf_cfg.provider,
+                endpoint_url=hf_cfg.endpoint_url,
+                timeout_seconds=hf_cfg.timeout_seconds,
+            )
+        self.hf = HuggingFaceSemanticProvider(hf_cfg)
         self.stop_event = threading.Event()
         self.paused = False
         self.semantic: subprocess.Popen | None = None
@@ -70,6 +80,9 @@ class Gateway:
 
     def _base_env(self) -> dict[str, str]:
         env = dict(os.environ)
+        # Secrets owned by Python must not be inherited by Node or Chromium.
+        for key in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
+            env.pop(key, None)
         env.setdefault("LATCH_STATE_DIR", str(self.s.state_dir))
         env.setdefault("LATCH_CONTROL_PORT", str(self.s.control_port))
         env.setdefault("LATCH_API_PORT", str(self.s.api_port))
@@ -79,10 +92,14 @@ class Gateway:
     def _semantic_env(self) -> dict[str, str]:
         env = self._base_env()
         env["PORT"] = str(self.s.api_port)
+        env["LATCH_GATEWAY_URL"] = f"http://127.0.0.1:{self.s.gateway_port}"
+        env["LATCH_GATEWAY_TOKEN"] = self.token
+        env["LATCH_HF_ENABLED"] = "1" if self.hf.configured else "0"
         return env
 
     def _surface_env(self) -> dict[str, str]:
         env = self._base_env()
+        env.pop("LATCH_GATEWAY_TOKEN", None)
         env["LATCH_REQUIRE_PRODUCTION_API"] = "1"
         return env
 
@@ -114,9 +131,7 @@ class Gateway:
 
     def start_semantic(self) -> None:
         with self._lock:
-            if self.stop_event.is_set():
-                return
-            if self.semantic and self.semantic.poll() is None:
+            if self.stop_event.is_set() or (self.semantic and self.semantic.poll() is None):
                 return
             if not self.semantic_entry.exists():
                 raise RuntimeError("Production semantic API is not built. Run npm run build:api first.")
@@ -140,9 +155,7 @@ class Gateway:
 
     def start_surface(self) -> None:
         with self._lock:
-            if self.paused or self.stop_event.is_set():
-                return
-            if self.surface and self.surface.poll() is None:
+            if self.paused or self.stop_event.is_set() or (self.surface and self.surface.poll() is None):
                 return
             if not self.browser_entry.exists():
                 raise RuntimeError("Browser mediator entry is missing")
@@ -185,7 +198,7 @@ class Gateway:
     def open_surface_url(self, url: str) -> dict:
         if self.paused:
             raise RuntimeError("LATCH protection is paused")
-        if not (url.startswith("http://127.0.0.1:") or url.startswith("http://localhost:") or url.startswith("https://") or url.startswith("http://")):
+        if not (url.startswith("http://") or url.startswith("https://")):
             raise RuntimeError("Only http/https URLs can be opened in the protected surface")
         browser = self._browser_health()
         if not browser.get("ok"):
@@ -217,16 +230,16 @@ class Gateway:
     def public_health(self) -> dict:
         semantic = self._semantic_health()
         with self._lock:
-            surface_running = bool(self.surface and self.surface.poll() is None)
-            semantic_running = bool(self.semantic and self.semantic.poll() is None)
             return {
                 "ok": True,
                 "platform": "LATCH Gateway",
                 "gatewayPid": os.getpid(),
                 "paused": self.paused,
-                "semanticRunning": semantic_running,
+                "semanticRunning": bool(self.semantic and self.semantic.poll() is None),
                 "semanticHealthy": bool(semantic.get("ok")),
-                "surfaceRunning": surface_running,
+                "surfaceRunning": bool(self.surface and self.surface.poll() is None),
+                "huggingFaceConfigured": self.hf.configured,
+                "huggingFaceModel": self.hf.config.model,
             }
 
     def status(self) -> dict:
@@ -258,7 +271,8 @@ class Gateway:
             "surfaceLastExitCode": self.surface_last_exit,
             "browserConnected": bool(browser.get("browserConnected")),
             "protectedPages": int(browser.get("protectedPages") or 0),
-            "modelEnabled": bool(browser.get("modelEnabled") or semantic_health.get("modelEnabled")),
+            "modelEnabled": bool(self.hf.configured or browser.get("modelEnabled") or semantic_health.get("modelEnabled")),
+            "huggingFace": self.hf.status(),
             "attention": browser.get("attention", {}),
             "controlUrl": f"http://127.0.0.1:{self.s.control_port}",
             "testLabUrl": self.test_lab_url,
@@ -284,7 +298,6 @@ class Gateway:
             with self._lock:
                 semantic = self.semantic
                 surface = self.surface
-
             semantic_alive = bool(semantic and semantic.poll() is None)
             if not semantic_alive:
                 if semantic:
@@ -307,16 +320,13 @@ class Gateway:
                     self._log(f"semantic restart failed: {exc}")
                     semantic_backoff = min(semantic_backoff * 2, 20.0)
                 continue
-
             if self.semantic_started_at and time.time() - self.semantic_started_at > 30:
                 semantic_backoff = 1.0
-
             if self.paused:
                 if surface and surface.poll() is None:
                     self.stop_surface()
                 surface_backoff = 1.0
                 continue
-
             surface_alive = bool(surface and surface.poll() is None)
             if not surface_alive:
                 if surface:
@@ -373,6 +383,19 @@ class ControlHandler(BaseHTTPRequestHandler):
     def _authorized(self) -> bool:
         return self.headers.get("authorization") == f"Bearer {self.gateway.token}"
 
+    def _read_json(self) -> dict:
+        try:
+            length = int(self.headers.get("content-length", "0"))
+        except ValueError:
+            raise ValueError("invalid content-length")
+        if length < 0 or length > 262_144:
+            raise ValueError("request body too large")
+        raw = self.rfile.read(length) if length else b"{}"
+        value = json.loads(raw.decode("utf-8") or "{}")
+        if not isinstance(value, dict):
+            raise ValueError("JSON body must be an object")
+        return value
+
     def do_GET(self) -> None:
         path = self.path.split("?", 1)[0]
         if path == "/health":
@@ -391,6 +414,9 @@ class ControlHandler(BaseHTTPRequestHandler):
             return
         if path == "/v1/status":
             self._send(200, self.gateway.status())
+            return
+        if path == "/v1/hf/status":
+            self._send(200, {"ok": True, "huggingFace": self.gateway.hf.status()})
             return
         self._send(404, {"error": "not_found"})
 
@@ -415,7 +441,20 @@ class ControlHandler(BaseHTTPRequestHandler):
             if path == "/v1/open-test-lab":
                 self._send(200, self.gateway.open_test_lab())
                 return
-        except RuntimeError as exc:
+            if path == "/v1/hf/probe":
+                self._send(200, self.gateway.hf.probe())
+                return
+            if path == "/v1/hf/analyze":
+                body = self._read_json()
+                context = body.get("context")
+                base = body.get("base")
+                if not isinstance(context, dict) or not isinstance(base, dict):
+                    self._send(400, {"ok": False, "error": "context_and_base_required"})
+                    return
+                result = self.gateway.hf.analyze(context, base)
+                self._send(200, result)
+                return
+        except (RuntimeError, ValueError) as exc:
             self._send(409, {"error": str(exc)})
             return
         self._send(404, {"error": "not_found"})
@@ -439,7 +478,7 @@ def run_gateway(settings: Settings | None = None) -> int:
         except (ValueError, OSError):
             pass
 
-    gateway._log(f"listening on 127.0.0.1:{s.gateway_port}")
+    gateway._log(f"listening on 127.0.0.1:{s.gateway_port} · hf={gateway.hf.config.model} configured={gateway.hf.configured}")
     thread.start()
     try:
         server.serve_forever(poll_interval=.5)
