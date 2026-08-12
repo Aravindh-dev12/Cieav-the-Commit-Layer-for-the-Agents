@@ -21,6 +21,8 @@ jobs:
           cieav gateway --help
           cieav cloud --help
           cieav model --help
+          cieav audit --help
+          cieav audit tail --limit 5
           # Temporary backwards-compatibility alias during the LATCH -> CIEAV migration.
           latch --help
           python scripts/platform-gateway-smoke.py
@@ -42,6 +44,7 @@ jobs:
         run: |
           node --check apps/browser/main.mjs
           node --check apps/browser/injected.js
+          node --check apps/browser/audit.mjs
           node --check apps/api/standalone.mjs
           node --check scripts/browser-e2e.mjs
       - name: Validate evaluation corpus and runners
