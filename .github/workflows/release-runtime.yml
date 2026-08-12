@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       cloud_url:
-        description: HTTPS LATCH Cloud Intelligence base URL
+        description: HTTPS CIEAV Cloud Intelligence base URL
         required: false
         type: string
       download_base_url:
-        description: HTTPS public LATCH download/CDN base URL
+        description: HTTPS public CIEAV download/CDN base URL
         required: false
         type: string
       channel:
@@ -38,7 +38,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install build dependencies
         shell: bash
         run: |
@@ -46,24 +45,15 @@ jobs:
           npm install --no-save esbuild
           python -m pip install --upgrade pip
           python -m pip install -e . pyinstaller
-
       - name: Bundle semantic bridge
         shell: bash
         run: |
           mkdir -p apps/api/dist
-          npx esbuild apps/api/src/server.ts \
-            --bundle \
-            --platform=node \
-            --format=esm \
-            --target=node22 \
-            --external:pg-native \
-            --outfile=apps/api/dist/server.js
-
-      - name: Build standalone LATCH executable
+          npx esbuild apps/api/src/server.ts --bundle --platform=node --format=esm --target=node22 --external:pg-native --outfile=apps/api/dist/server.js
+      - name: Build standalone CIEAV executable
         shell: bash
         run: |
-          pyinstaller --noconfirm --clean --onefile --name latch --paths python python/latch_platform/__main__.py
-
+          pyinstaller --noconfirm --clean --onefile --name cieav --paths python python/latch_platform/__main__.py
       - name: Resolve release identity
         id: identity
         shell: bash
@@ -71,21 +61,15 @@ jobs:
           VERSION=$(python -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
           KEY=$(python -c 'import platform; s={"Darwin":"macos","Windows":"windows","Linux":"linux"}[platform.system()]; m=platform.machine().lower(); a="arm64" if m in {"arm64","aarch64"} else "x64" if m in {"x86_64","amd64"} else m; print(f"{s}-{a}")')
           NODE_EXE=$(node -p 'process.execPath')
-          if [ -f dist/latch.exe ]; then LATCH_EXE=dist/latch.exe; else LATCH_EXE=dist/latch; fi
+          if [ -f dist/cieav.exe ]; then CIEAV_EXE=dist/cieav.exe; else CIEAV_EXE=dist/cieav; fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "key=$KEY" >> "$GITHUB_OUTPUT"
           echo "node_exe=$NODE_EXE" >> "$GITHUB_OUTPUT"
-          echo "latch_exe=$LATCH_EXE" >> "$GITHUB_OUTPUT"
-
+          echo "cieav_exe=$CIEAV_EXE" >> "$GITHUB_OUTPUT"
       - name: Assemble runtime archive
         shell: bash
         run: |
-          python scripts/build-release-runtime.py \
-            --latch-exe '${{ steps.identity.outputs.latch_exe }}' \
-            --node-exe '${{ steps.identity.outputs.node_exe }}' \
-            --version '${{ steps.identity.outputs.version }}' \
-            --output-dir release-out
-
+          python scripts/build-release-runtime.py --cieav-exe '${{ steps.identity.outputs.cieav_exe }}' --node-exe '${{ steps.identity.outputs.node_exe }}' --version '${{ steps.identity.outputs.version }}' --output-dir release-out
       - uses: actions/upload-artifact@v4
         with:
           name: runtime-${{ steps.identity.outputs.key }}
@@ -96,8 +80,8 @@ jobs:
     needs: build-runtime
     runs-on: ubuntu-latest
     env:
-      CLOUD_URL: ${{ inputs.cloud_url || vars.LATCH_CLOUD_URL }}
-      DOWNLOAD_BASE_URL: ${{ inputs.download_base_url || vars.LATCH_DOWNLOAD_BASE_URL }}
+      CLOUD_URL: ${{ inputs.cloud_url || vars.CIEAV_CLOUD_URL || vars.LATCH_CLOUD_URL }}
+      DOWNLOAD_BASE_URL: ${{ inputs.download_base_url || vars.CIEAV_DOWNLOAD_BASE_URL || vars.LATCH_DOWNLOAD_BASE_URL }}
       CHANNEL: ${{ inputs.channel || 'stable' }}
     steps:
       - uses: actions/checkout@v4
@@ -109,37 +93,28 @@ jobs:
           pattern: runtime-*
           path: release-out
           merge-multiple: true
-
       - name: Generate verified installer manifest
         shell: bash
         run: |
-          test -n "$CLOUD_URL" || { echo 'Set cloud_url or repository variable LATCH_CLOUD_URL'; exit 2; }
-          test -n "$DOWNLOAD_BASE_URL" || { echo 'Set download_base_url or repository variable LATCH_DOWNLOAD_BASE_URL'; exit 2; }
+          test -n "$CLOUD_URL" || { echo 'Set cloud_url or repository variable CIEAV_CLOUD_URL'; exit 2; }
+          test -n "$DOWNLOAD_BASE_URL" || { echo 'Set download_base_url or repository variable CIEAV_DOWNLOAD_BASE_URL'; exit 2; }
           case "$CLOUD_URL" in https://*) ;; *) echo 'Cloud URL must use HTTPS'; exit 2;; esac
           case "$DOWNLOAD_BASE_URL" in https://*) ;; *) echo 'Download base URL must use HTTPS'; exit 2;; esac
           VERSION=$(python -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
-          python scripts/make-release-manifest.py \
-            --input-dir release-out \
-            --output release-out/manifest.json \
-            --version "$VERSION" \
-            --cloud-url "$CLOUD_URL" \
-            --channel "$CHANNEL"
-
+          python scripts/make-release-manifest.py --input-dir release-out --output release-out/manifest.json --version "$VERSION" --cloud-url "$CLOUD_URL" --channel "$CHANNEL"
       - name: Build CDN publish layout
         shell: bash
         run: |
           mkdir -p "publish/$CHANNEL"
           python scripts/render-installers.py --download-base-url "$DOWNLOAD_BASE_URL" --output-dir publish
           cp release-out/manifest.json "publish/$CHANNEL/manifest.json"
-          cp release-out/latch-runtime-*.zip "publish/$CHANNEL/"
+          cp release-out/cieav-runtime-*.zip "publish/$CHANNEL/"
           chmod 0755 publish/install.sh
-
       - uses: actions/upload-artifact@v4
         with:
-          name: latch-cdn-publish-layout
+          name: cieav-cdn-publish-layout
           path: publish/**
           if-no-files-found: error
-
       - name: Attach assets to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -147,5 +122,5 @@ jobs:
         shell: bash
         run: |
           TAG="$GITHUB_REF_NAME"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "LATCH $TAG" --notes "LATCH runtime release. Public installer distribution should be served from the configured LATCH download CDN."
-          gh release upload "$TAG" publish/install.ps1 publish/install.sh "publish/$CHANNEL/manifest.json" publish/$CHANNEL/latch-runtime-*.zip --clobber
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "CIEAV $TAG" --notes "CIEAV runtime release. Public installer distribution should be served from the configured CIEAV download CDN."
+          gh release upload "$TAG" publish/install.ps1 publish/install.sh "publish/$CHANNEL/manifest.json" publish/$CHANNEL/cieav-runtime-*.zip --clobber
