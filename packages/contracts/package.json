@@ -10,7 +10,8 @@
     "./approval": {"types": "./dist/approval.d.ts", "import": "./dist/approval.js"},
     "./proof": {"types": "./dist/proof.d.ts", "import": "./dist/proof.js"},
     "./business": {"types": "./dist/business.d.ts", "import": "./dist/business.js"},
-    "./policy": {"types": "./dist/policy.d.ts", "import": "./dist/policy.js"}
+    "./policy": {"types": "./dist/policy.d.ts", "import": "./dist/policy.js"},
+    "./recovery": {"types": "./dist/recovery.d.ts", "import": "./dist/recovery.js"}
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
