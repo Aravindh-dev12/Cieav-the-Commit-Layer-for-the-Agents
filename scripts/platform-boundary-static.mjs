@@ -23,7 +23,7 @@ check("agent-session isolation",()=>{
 
 check("proof trust boundary",()=>{
   const proof=requireFile("apps/api/src/proof-api.ts"),agent=requireFile("apps/api/src/agent-api.ts");
-  has(agent,["AGENT_REPORT","report_proof_observation".replace("report_proof_observation","/report")],"agent proof ingress");
+  has(agent,["AGENT_REPORT","/report"],"agent proof ingress");
   has(proof,["AGENT_REPORT","HUMAN_ATTESTATION","PROVEN"],"proof provenance");
   if(/AGENT_REPORT[\s\S]{0,250}RESOLVED/.test(proof))throw new Error("agent report appears able to settle a proof/open loop directly");
   return "agent observations cannot independently become trusted settlement evidence";
@@ -84,18 +84,30 @@ check("Action Lab cannot mint",()=>{
   return "simulation shares policy evaluation but never issues executable authority";
 });
 
+check("Control Center scoped reality surface",()=>{
+  const wrapper=requireFile("apps/browser/main.mjs"),core=requireFile("apps/browser/main-core.mjs"),dashboard=requireFile("apps/browser/dashboard.html"),reality=requireFile("apps/api/src/reality-api.ts"),smoke=requireFile("scripts/dashboard-reality-smoke.mjs");
+  has(wrapper,["CORE_INVARIANTS","CORE_FORBIDDEN","/api/reality","/api/lab/evaluate","authorized(req)","/v1/reality/approvals","permitIssued!==false","approvalCreated!==false","await import(\"./main-core.mjs\")"],"Control Center wrapper");
+  has(core,['"--remote-debugging-pipe"',"Target.attachToTarget","verifyAdapterProposal({","persistOutcome"],"preserved browser core");
+  has(dashboard,["Intent Contracts","Approvals","Open Loops & Recovery","Proof Mesh","Company Twin","Action Lab","/api/reality","/api/lab/evaluate"],"Control Center UI");
+  lacks(dashboard,["/approve","/deny"],"browser approval mutation");
+  has(reality,["listApprovals(deviceId:string)","readOnly:true"],"device-scoped approvals");
+  has(smoke,["scoped visibility","read-only approvals","non-minting Action Lab"],"Control Center regression");
+  return "browser UI observes scoped reality and simulates policy without gaining trusted approval authority";
+});
+
 check("release bundle covers agent protocols",()=>{
   const build=requireFile("scripts/build-release-runtime.py"),pkg=JSON.parse(requireFile("package.json"));
-  has(build,["apps/mcp/dist/index.js","apps/a2a/src/index.mjs","agentProtocols","a2a","mcp","bundleFormat"],"release runtime");
-  for(const script of ["test:a2a","build","typecheck"])if(!pkg.scripts?.[script])throw new Error(`package script missing: ${script}`);
-  return "MCP and A2A are packaged and participate in build/typecheck/test surfaces";
+  has(build,["verify_platform_boundaries","platformBoundaryVerified","apps/mcp/dist/index.js","apps/a2a/src/index.mjs","agentProtocols","a2a","mcp","bundleFormat"],"release runtime");
+  for(const script of ["test:a2a","test:dashboard-reality","build","typecheck"])if(!pkg.scripts?.[script])throw new Error(`package script missing: ${script}`);
+  return "MCP, A2A, Control Center boundaries and protocol metadata participate in release qualification";
 });
 
 check("new secrets excluded from release evidence",()=>{
-  const verify=requireFile("scripts/release-verify.mjs"),launchers=requireFile("python/latch_platform/a2a_launcher.py")+requireFile("python/latch_platform/mcp_launcher.py");
+  const verify=requireFile("scripts/release-verify.mjs"),gate=requireFile("scripts/release-gate.mjs"),launchers=requireFile("python/latch_platform/a2a_launcher.py")+requireFile("python/latch_platform/mcp_launcher.py");
   has(launchers,["CIEAV_AGENT_TOKEN","CIEAV_A2A_CLIENT_TOKEN"],"ephemeral protocol secrets");
+  has(gate,["CIEAV_AGENT_TOKEN","CIEAV_A2A_CLIENT_TOKEN","delete env[key]"],"release gate secret scrubbing");
   if(!verify.includes("sensitiveEnvKeys"))throw new Error("release verifier has no secret redaction list");
-  return "release verification maintains an explicit secret-redaction boundary";
+  return "release verification strips ephemeral protocol authority before spawning evidence commands";
 });
 
 const failed=checks.filter(x=>!x.ok);
