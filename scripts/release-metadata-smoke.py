@@ -40,22 +40,23 @@ def manifest_case(*,filename:str="cieav-runtime-0.7.0-linux-x64.zip",cloud:str=C
         assert parsed=={"BRAND":"CIEAV","VERSION":VERSION,"CLOUD_URL":cloud.rstrip('/'),"ARTIFACT_PATH":f"{channel}/{filename}","SHA256":"a"*64}
 
 
-def render_case(base:str,expect_ok:bool,*,windows_signer:str=WINDOWS_SIGNER,macos_signer:str=MACOS_SIGNER)->None:
+def render_case(base:str,expect_ok:bool,*,cloud:str=CLOUD,version:str=VERSION,windows_signer:str=WINDOWS_SIGNER,macos_signer:str=MACOS_SIGNER)->None:
     with tempfile.TemporaryDirectory(prefix="cieav-render-") as td:
         out=Path(td)/"publish"
-        proc=subprocess.run([sys.executable,str(RENDER),"--download-base-url",base,"--windows-signer-thumbprint",windows_signer,"--macos-signing-identity",macos_signer,"--output-dir",str(out)],cwd=ROOT,capture_output=True,text=True)
+        proc=subprocess.run([sys.executable,str(RENDER),"--download-base-url",base,"--cloud-url",cloud,"--release-version",version,"--windows-signer-thumbprint",windows_signer,"--macos-signing-identity",macos_signer,"--output-dir",str(out)],cwd=ROOT,capture_output=True,text=True)
         if expect_ok and proc.returncode!=0: raise AssertionError(proc.stderr or proc.stdout)
-        if not expect_ok and proc.returncode==0: raise AssertionError(f"invalid installer trust input was accepted: base={base!r} windows_signer={windows_signer!r} macos_signer={macos_signer!r}")
+        if not expect_ok and proc.returncode==0: raise AssertionError(f"invalid installer trust input was accepted: base={base!r} cloud={cloud!r} version={version!r} windows_signer={windows_signer!r} macos_signer={macos_signer!r}")
         if not expect_ok:return
-        ps=(out/"install.ps1").read_text("utf-8");sh=(out/"install.sh").read_text("utf-8")
-        combined=ps+sh
-        for placeholder in ("__CIEAV_DOWNLOAD_BASE_URL__","__CIEAV_WINDOWS_SIGNER_THUMBPRINT__","__CIEAV_MACOS_SIGNING_IDENTITY__"):
+        ps=(out/"install.ps1").read_text("utf-8");sh=(out/"install.sh").read_text("utf-8");combined=ps+sh
+        for placeholder in ("__CIEAV_DOWNLOAD_BASE_URL__","__CIEAV_CLOUD_URL__","__CIEAV_RELEASE_VERSION__","__CIEAV_WINDOWS_SIGNER_THUMBPRINT__","__CIEAV_MACOS_SIGNING_IDENTITY__"):
             assert placeholder not in combined
-        assert base.rstrip('/') in ps and base.rstrip('/') in sh
-        assert windows_signer.upper() in ps and windows_signer.upper() in sh
-        assert macos_signer in ps and macos_signer in sh
-        assert "MaximumRedirection 0" in ps
-        assert "--max-redirs 0" in sh
+        for source in (ps,sh):
+            assert base.rstrip('/') in source and cloud.rstrip('/') in source and version in source
+            assert windows_signer.upper() in source and macos_signer in source
+        assert "release manifest version does not match the installer-pinned release" in ps
+        assert "release metadata version does not match the installer-pinned release" in sh
+        assert "does not match the installer-pinned endpoint" in ps and "does not match the installer-pinned endpoint" in sh
+        assert "MaximumRedirection 0" in ps and "--max-redirs 0" in sh
         assert "Get-AuthenticodeSignature" in ps and "SignerCertificate.Thumbprint" in ps
         assert "codesign --verify --strict" in sh
 
@@ -72,6 +73,10 @@ def main()->None:
     render_case("https://downloads.example.test",True)
     for bad in ("http://downloads.example.test","https://user:pass@downloads.example.test","https://downloads.example.test/path","https://downloads.example.test/?token=x","https://downloads.example.test/#frag"):
         render_case(bad,False)
+    for bad in ("http://cloud.example.test","https://user:pass@cloud.example.test","https://cloud.example.test/path","https://cloud.example.test/?token=x","https://cloud.example.test/#frag"):
+        render_case("https://downloads.example.test",False,cloud=bad)
+    for bad in ("", "../0.7.0", "0.7.0;touch", "0.7.0\nX=1", "x"*65):
+        render_case("https://downloads.example.test",False,version=bad)
     for bad in ("", "not-a-thumbprint", "AA:BB:CC", "a"*39, "f"*129):
         render_case("https://downloads.example.test",False,windows_signer=bad)
     for bad in (
@@ -83,7 +88,7 @@ def main()->None:
         "Developer ID Application: CIEAV\\evil",
     ):
         render_case("https://downloads.example.test",False,macos_signer=bad)
-    print("CIEAV release metadata/origin/publisher-pin injection smoke passed")
+    print("CIEAV release metadata/origin/version/cloud/publisher-pin injection smoke passed")
 
 
 if __name__=="__main__": main()
