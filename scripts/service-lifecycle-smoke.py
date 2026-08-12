@@ -65,6 +65,23 @@ def executable(path:Path):
     if os.name!="nt":path.chmod(path.stat().st_mode|stat.S_IXUSR)
 
 
+def status_payload(exe:Path,runtime:Path,env:dict[str,str])->dict:
+    p=run([str(exe),"gateway","status"],cwd=runtime,env=env)
+    try:return json.loads(p.stdout)
+    except Exception as exc:raise RuntimeError(f"Gateway status did not return JSON: {p.stdout[-2000:]}") from exc
+
+
+def wait_active(exe:Path,runtime:Path,env:dict[str,str],expected:bool,timeout:float=12.0)->dict:
+    deadline=time.time()+timeout;last={}
+    while time.time()<deadline:
+        last=status_payload(exe,runtime,env);active=bool(last.get("service",{}).get("active"))
+        if active is expected:
+            if expected and last.get("gateway")=="offline":time.sleep(.25);continue
+            return last
+        time.sleep(.25)
+    raise RuntimeError(f"Gateway service active={expected} was not observed before timeout; last={json.dumps(last)[:1800]}")
+
+
 def main()->None:
     ap=argparse.ArgumentParser(description="Exercise the packaged CIEAV per-user OS service lifecycle on a clean test account")
     ap.add_argument("--archive",type=Path)
@@ -89,17 +106,18 @@ def main()->None:
         executable(exe)
         env=dict(os.environ);env.update({"CIEAV_HOME":str(runtime),"LATCH_HOME":str(runtime),"CIEAV_STATE_DIR":str(state),"LATCH_STATE_DIR":str(state),"CIEAV_CLOUD_URL":"https://example.invalid","LATCH_CLOUD_URL":"https://example.invalid"})
         try:
-            pre=run([str(exe),"gateway","status"],cwd=runtime,env=env);checks["preInstallStatus"]="not installed" in (pre.stdout+pre.stderr).lower() or not service_present()
-            run([str(exe),"gateway","install"],cwd=runtime,env=env);installed=True;time.sleep(.8)
+            pre=status_payload(exe,runtime,env);checks["preInstallStatus"]=not bool(pre.get("service",{}).get("installed")) and not service_present()
+            if not checks["preInstallStatus"]:raise RuntimeError("pre-install service status is not clean")
+            run([str(exe),"gateway","install"],cwd=runtime,env=env);installed=True
             if not service_present():raise RuntimeError("Gateway service was not installed")
-            checks["install"]=True
-            status=run([str(exe),"gateway","status"],cwd=runtime,env=env);checks["status"]="service" in status.stdout.lower() or service_present()
-            run([str(exe),"gateway","stop"],cwd=runtime,env=env);checks["stop"]=True
-            run([str(exe),"gateway","start"],cwd=runtime,env=env);checks["start"]=True
-            run([str(exe),"gateway","restart"],cwd=runtime,env=env);checks["restart"]=True
+            live=wait_active(exe,runtime,env,True);checks["install"]=True;checks["status"]=bool(live.get("service",{}).get("installed")) and bool(live.get("service",{}).get("active")) and live.get("gateway")!="offline"
+            if not checks["status"]:raise RuntimeError("installed service did not expose a live Gateway")
+            run([str(exe),"gateway","stop"],cwd=runtime,env=env);wait_active(exe,runtime,env,False);checks["stop"]=True
+            run([str(exe),"gateway","start"],cwd=runtime,env=env);wait_active(exe,runtime,env,True);checks["start"]=True
+            run([str(exe),"gateway","restart"],cwd=runtime,env=env);wait_active(exe,runtime,env,True);checks["restart"]=True
             run([str(exe),"gateway","uninstall"],cwd=runtime,env=env);installed=False;time.sleep(.3)
             if service_present():raise RuntimeError("Gateway service still exists after uninstall")
-            checks["uninstall"]=True
+            post=status_payload(exe,runtime,env);checks["uninstall"]=not bool(post.get("service",{}).get("installed"))
         finally:
             if installed or service_present():subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=30)
         if service_present():raise RuntimeError("cleanup failed: CIEAV service still present")
