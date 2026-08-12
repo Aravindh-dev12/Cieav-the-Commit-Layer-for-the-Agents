@@ -84,7 +84,10 @@ class Gateway:
 
     def _base_env(self) -> dict[str, str]:
         env = dict(os.environ)
-        for key in ("HF_TOKEN","HUGGING_FACE_HUB_TOKEN","JWT_SECRET","RECEIPT_SIGNING_SECRET","CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN"):
+        for key in (
+            "HF_TOKEN","HUGGING_FACE_HUB_TOKEN","JWT_SECRET","RECEIPT_SIGNING_SECRET",
+            "CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN","CIEAV_TEST_AUTO_APPROVE","LATCH_TEST_AUTO_APPROVE"
+        ):
             env.pop(key, None)
         env["CIEAV_STATE_DIR"] = str(self.s.state_dir)
         env["CIEAV_CONTROL_PORT"] = str(self.s.control_port)
@@ -107,6 +110,7 @@ class Gateway:
         for key in ("JWT_SECRET","RECEIPT_SIGNING_SECRET","CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN"):
             env.pop(key, None)
         env["CIEAV_REQUIRE_PRODUCTION_API"] = "1"
+        env["CIEAV_TEST_AUTO_APPROVE"] = "0"
         return env
 
     def _terminate(self, child: subprocess.Popen | None, label: str) -> int | None:
