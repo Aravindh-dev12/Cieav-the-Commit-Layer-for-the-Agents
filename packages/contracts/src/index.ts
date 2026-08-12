@@ -131,8 +131,10 @@ export const ReceiptSchema = z.object({
   manifest: ActionManifestSchema,
   source: z.object({url: z.string().url(), origin: z.string(), title: z.string().optional()}),
   outcome: ActionOutcomeSchema.optional(),
-  signature: z.string().optional(),
-  signatureAlgorithm: z.string().optional(),
+  signature: z.string().max(1024).optional(),
+  signatureAlgorithm: z.string().max(80).optional(),
+  signatureKeyId: z.string().max(160).optional(),
+  signingPublicKey: z.string().max(512).optional(),
   receiptVersion: z.string()
 });
 export type Receipt = z.infer<typeof ReceiptSchema>;
