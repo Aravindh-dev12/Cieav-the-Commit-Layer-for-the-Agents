@@ -41,6 +41,7 @@
     "release:verify:plan":"node scripts/release-gate.mjs --plan",
     "release:smoke:runtime":"python scripts/clean-runtime-smoke.py",
     "release:smoke:runtime:publish":"python scripts/clean-runtime-smoke.py --mode publish",
+    "release:qualify:current":"node scripts/qualify-current-platform.mjs",
     "release:qualify":"node scripts/qualify-release.mjs"
   },
   "engines":{"node":">=22"},"license":"Apache-2.0"
