@@ -1,9 +1,11 @@
 {
-  "name":"latch","version":"0.4.0","private":true,"description":"A browser-native semantic commit layer for consequential actions on the internet.","workspaces":["apps/*","packages/*"],
+  "name":"latch","version":"0.5.0","private":true,"description":"Always-on commit infrastructure for consequential digital actions.","workspaces":["apps/*","packages/*"],
   "scripts":{
     "start":"npm run build:api && node scripts/start-production.mjs",
     "start:browser":"node apps/browser/main.mjs",
     "start:noinstall":"node apps/browser/main.mjs",
+    "platform:install":"python -m pip install -e .",
+    "platform:check":"python -m compileall -q python && python -m latch_platform.cli --help",
     "build:api":"npm run build -w @latch/contracts && npm run build -w @latch/core && npm run build -w @latch/api",
     "build":"npm run build -w @latch/contracts && npm run build -w @latch/core && npm run build -w @latch/sdk && npm run build -w @latch/api && npm run build -w @latch/dashboard",
     "test:core":"npm run test -w @latch/core && npm run test -w @latch/api",
