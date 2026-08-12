@@ -37,9 +37,10 @@ function Get-BinRoot([string]$InstallRoot) {
 }
 
 if (-not $BaseUrl) {
-  Fail "no download endpoint configured. Set LATCH_DOWNLOAD_BASE_URL or pass -BaseUrl to the official LATCH download host."
+  Fail "no official download endpoint configured. Pass -BaseUrl or set LATCH_DOWNLOAD_BASE_URL."
 }
 $BaseUrl = $BaseUrl.TrimEnd('/')
+if ($BaseUrl -notmatch '^https://') { Fail "the download endpoint must use HTTPS" }
 
 $platform = Get-PlatformKey
 $installRoot = Get-InstallRoot
@@ -55,6 +56,7 @@ try {
   $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
 
   if (-not $manifest.version) { Fail "release manifest has no version" }
+  if (-not $manifest.cloudUrl -or ([string]$manifest.cloudUrl) -notmatch '^https://') { Fail "release manifest has no valid HTTPS Cloud Intelligence URL" }
   if (-not $manifest.artifacts) { Fail "release manifest has no artifacts" }
   $artifact = $manifest.artifacts.$platform
   if (-not $artifact) { Fail "no LATCH runtime published for $platform" }
@@ -68,8 +70,7 @@ try {
   Invoke-WebRequest -Uri $artifactUrl -OutFile $archive -UseBasicParsing
 
   $actual = (Get-FileHash -Algorithm SHA256 -Path $archive).Hash.ToLowerInvariant()
-  $expected = [string]$artifact.sha256
-  $expected = $expected.ToLowerInvariant()
+  $expected = ([string]$artifact.sha256).ToLowerInvariant()
   if ($actual -ne $expected) {
     Fail "runtime checksum mismatch; expected $expected but received $actual"
   }
@@ -90,28 +91,43 @@ try {
 
   New-Item -ItemType Directory -Force -Path $binRoot | Out-Null
   $runtimeLatch = if ($IsWindows) { Join-Path $installRoot "bin/latch.exe" } else { Join-Path $installRoot "bin/latch" }
+  $runtimeNode = if ($IsWindows) { Join-Path $installRoot "runtime/node.exe" } else { Join-Path $installRoot "runtime/node" }
   if (-not (Test-Path $runtimeLatch)) { Fail "installed runtime does not contain the LATCH executable" }
+  if (-not (Test-Path $runtimeNode)) { Fail "installed runtime does not contain the bundled Node runtime" }
 
   if ($IsWindows) {
     $shim = Join-Path $binRoot "latch.cmd"
-    Set-Content -Path $shim -Encoding ASCII -Value "@echo off`r`n\"$runtimeLatch\" %*`r`n"
+    $cmd = "@echo off`r`n`"$runtimeLatch`" %*`r`n"
+    Set-Content -Path $shim -Encoding ASCII -Value $cmd
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $parts = @($userPath -split ';' | Where-Object { $_ })
     if ($parts -notcontains $binRoot) {
       [Environment]::SetEnvironmentVariable("Path", (($parts + $binRoot) -join ';'), "User")
-      $env:Path = "$binRoot;$env:Path"
     }
+    $env:Path = "$(Join-Path $installRoot 'runtime');$binRoot;$env:Path"
   } else {
     $shim = Join-Path $binRoot "latch"
-    $script = "#!/bin/sh`nexec \"$runtimeLatch\" \"`$@\"`n"
+    $script = "#!/bin/sh`nexec `"$runtimeLatch`" `"`$@`"`n"
     Set-Content -Path $shim -Encoding UTF8 -NoNewline -Value $script
-    & chmod 0755 $runtimeLatch $shim
+    & chmod 0755 $runtimeLatch $runtimeNode $shim
+    $env:PATH = "$(Join-Path $installRoot 'runtime'):$binRoot:$env:PATH"
   }
 
   $env:LATCH_HOME = $installRoot
+  $env:LATCH_CLOUD_URL = [string]$manifest.cloudUrl
+  $env:LATCH_VERSION = [string]$manifest.version
+
   Write-Host "LATCH · running runtime self-check"
   & $runtimeLatch doctor
   if ($LASTEXITCODE -ne 0) { Fail "runtime self-check failed" }
+
+  Write-Host "LATCH · enrolling with Cloud Intelligence"
+  & $runtimeLatch cloud enroll
+  if ($LASTEXITCODE -ne 0) { Fail "Cloud Intelligence enrollment failed" }
+
+  Write-Host "LATCH · running cloud safety probe"
+  & $runtimeLatch cloud probe
+  if ($LASTEXITCODE -ne 0) { Fail "Cloud Intelligence safety probe failed" }
 
   if (-not $NoService) {
     Write-Host "LATCH · installing always-on Gateway"
@@ -123,6 +139,7 @@ try {
   Write-Host "LATCH installed successfully."
   Write-Host "Version: $($manifest.version)"
   Write-Host "Runtime: $installRoot"
+  Write-Host "Privacy: durable user state remains local"
   Write-Host ""
   Write-Host "Run: latch gateway status"
   Write-Host "Run: latch cloud status"
