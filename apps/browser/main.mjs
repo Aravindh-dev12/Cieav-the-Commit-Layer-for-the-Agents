@@ -12,13 +12,14 @@ const API_PORT=+env("CIEAV_API_PORT","LATCH_API_PORT",8787),CONTROL_PORT=+env("C
 let CONTROL_TOKEN=env("CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN","");
 if(CONTROL_TOKEN.length<43){CONTROL_TOKEN=crypto.randomBytes(48).toString("base64url");process.env.CIEAV_BROWSER_CONTROL_TOKEN=CONTROL_TOKEN}
 
-// Startup verifies these markers against the preserved hardened mediator before loading it.
+// Startup verifies these exact release/security markers against the preserved hardened mediator before loading it.
 const CORE_INVARIANTS=[
   "CIEAV_REQUIRE_PRODUCTION_API","refusing standalone/dev","verifyAdapterProposal({",'m.kind==="UNDO_READY"',"liveAdapter(u)",'current.outcome?.status!=="OBSERVED_SUCCESS"',
   '"--remote-debugging-pipe"','browserControlTransport:"private-pipe"',"Target.setDiscoverTargets","Target.attachToTarget","flatten:true",
   'if(AUTO&&req.method==="POST"&&u.pathname==="/api/test/eval"','if(AUTO&&req.method==="POST"&&u.pathname==="/api/test/click"',
   "if(!controlAuth.authorized(req))return send(401",'u.pathname==="/api/bootstrap"',"delete browserEnv.CIEAV_BROWSER_CONTROL_TOKEN","delete browserEnv.LATCH_BROWSER_CONTROL_TOKEN",
-  "persistOutcome","p.persistenceFailures","if(p.finalizing)return p.finalizing","await attention.flush()","Promise.allSettled(finalizers)"
+  "async function persistOutcome","p.finalOutcome","p.finalizing","p.persistenceFailures","await persistOutcome(receiptId,value)","pendingOutcomes.delete(receiptId)","Promise.allSettled(finalizers)","await attention.flush()",
+  "attention.replay(","attention.outcome(","attention.undoAvailable(",'m.kind==="REPLAYED"',"await attention.replay("
 ];
 const CORE_FORBIDDEN=["--remote-"+"debugging-port","/json/"+"list","/json/"+"new","webSocket"+"DebuggerUrl"];
 const coreSource=await readFile(path.join(HERE,"main-core.mjs"),"utf8");
