@@ -9,7 +9,8 @@
     "./reality": {"types": "./dist/reality.d.ts", "import": "./dist/reality.js"},
     "./approval": {"types": "./dist/approval.d.ts", "import": "./dist/approval.js"},
     "./proof": {"types": "./dist/proof.d.ts", "import": "./dist/proof.js"},
-    "./business": {"types": "./dist/business.d.ts", "import": "./dist/business.js"}
+    "./business": {"types": "./dist/business.d.ts", "import": "./dist/business.js"},
+    "./policy": {"types": "./dist/policy.d.ts", "import": "./dist/policy.js"}
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
