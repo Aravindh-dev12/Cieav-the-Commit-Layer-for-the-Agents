@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import platform
-import shutil
 import stat
 import subprocess
 import tempfile
@@ -25,6 +24,13 @@ def canonical(value):
     return json.dumps(value,separators=(",",":"))
 
 
+def sha256_file(path:Path)->str:
+    h=hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda:f.read(1024*1024),b""):h.update(chunk)
+    return h.hexdigest()
+
+
 def host_target()->str:
     system={"Windows":"windows","Darwin":"macos","Linux":"linux"}.get(platform.system(),platform.system().lower())
     machine=platform.machine().lower();arch="arm64" if machine in {"arm64","aarch64"} else "x64" if machine in {"x86_64","amd64"} else machine
@@ -40,13 +46,9 @@ def run(cmd:list[str],*,cwd:Path,env:dict[str,str],ok=(0,),timeout=45)->subproce
 
 def service_present()->bool:
     system=platform.system()
-    if system=="Linux":
-        unit=Path.home()/".config/systemd/user/cieav-gateway.service"
-        return unit.exists()
-    if system=="Darwin":
-        return (Path.home()/"Library/LaunchAgents/ai.cieav.gateway.plist").exists()
-    if system=="Windows":
-        return subprocess.run(["schtasks","/Query","/TN","CIEAV Gateway"],capture_output=True).returncode==0
+    if system=="Linux":return (Path.home()/".config/systemd/user/cieav-gateway.service").exists()
+    if system=="Darwin":return (Path.home()/"Library/LaunchAgents/ai.cieav.gateway.plist").exists()
+    if system=="Windows":return subprocess.run(["schtasks","/Query","/TN","CIEAV Gateway"],capture_output=True).returncode==0
     raise RuntimeError(f"Unsupported platform: {system}")
 
 
@@ -77,12 +79,14 @@ def main()->None:
     commit=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
     package=json.loads((ROOT/"package.json").read_text("utf-8"));target=host_target();archive=(args.archive or find_archive(args.release_dir.resolve(),target)).resolve()
     if not archive.exists():raise SystemExit(f"Archive not found: {archive}")
+    archive_identity={"filename":archive.name,"sha256":sha256_file(archive),"size":archive.stat().st_size}
     checks={};installed=False
     with tempfile.TemporaryDirectory(prefix="cieav-service-lifecycle-") as td:
         root=Path(td)/"runtime";state=Path(td)/"state"
         with zipfile.ZipFile(archive) as zf:zf.extractall(root)
-        runtime=root/"cieav-runtime";exe=runtime/"bin"/exe_name();executable(exe)
+        runtime=root/"cieav-runtime";exe=runtime/"bin"/exe_name()
         if not exe.exists():raise RuntimeError("packaged CIEAV executable missing")
+        executable(exe)
         env=dict(os.environ);env.update({"CIEAV_HOME":str(runtime),"LATCH_HOME":str(runtime),"CIEAV_STATE_DIR":str(state),"LATCH_STATE_DIR":str(state),"CIEAV_CLOUD_URL":"https://example.invalid","LATCH_CLOUD_URL":"https://example.invalid"})
         try:
             pre=run([str(exe),"gateway","status"],cwd=runtime,env=env);checks["preInstallStatus"]="not installed" in (pre.stdout+pre.stderr).lower() or not service_present()
@@ -97,14 +101,13 @@ def main()->None:
             if service_present():raise RuntimeError("Gateway service still exists after uninstall")
             checks["uninstall"]=True
         finally:
-            if installed or service_present():
-                subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=30)
+            if installed or service_present():subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=30)
         if service_present():raise RuntimeError("cleanup failed: CIEAV service still present")
         checks["cleanup"]=True
-    evidence={"schemaVersion":1,"product":"CIEAV","version":package["version"],"mode":args.mode,"target":target,"commit":commit,"archive":archive.name,"verifiedAt":__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),"checks":checks}
+    evidence={"schemaVersion":1,"product":"CIEAV","version":package["version"],"mode":args.mode,"target":target,"commit":commit,"archive":archive_identity,"verifiedAt":__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),"checks":checks}
     digest=hashlib.sha256(canonical(evidence).encode()).hexdigest();out={**evidence,"digestAlgorithm":"SHA-256","digest":digest}
     REPORTS.mkdir(parents=True,exist_ok=True);name=f"cieav-service-lifecycle-{package['version']}-{args.mode}-{target}-{commit[:12]}.json";(REPORTS/name).write_text(json.dumps(out,indent=2)+"\n","utf-8");(REPORTS/"latest-service-lifecycle.json").write_text(json.dumps(out,indent=2)+"\n","utf-8")
-    print(f"CIEAV service lifecycle qualification PASS · {target}")
+    print(f"CIEAV service lifecycle qualification PASS · {target} · {archive.name}")
     print(f"Evidence: {REPORTS/name}")
 
 
