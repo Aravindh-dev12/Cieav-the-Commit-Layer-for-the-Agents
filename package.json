@@ -1,5 +1,5 @@
 {
-  "name":"latch","version":"0.7.0","private":true,"description":"Always-on commit infrastructure for consequential digital actions.","workspaces":["apps/*","packages/*"],
+  "name":"cieav","version":"0.7.0","private":true,"description":"CIEAV — always-on commit infrastructure for consequential digital actions.","workspaces":["apps/*","packages/*"],
   "scripts":{
     "start":"npm run build:api && node scripts/start-production.mjs",
     "start:browser":"node apps/browser/main.mjs",
