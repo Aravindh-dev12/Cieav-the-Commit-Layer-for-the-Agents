@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -10,7 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit, urlunsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
 def _env(primary: str, legacy: str | None = None, default: str = "") -> str:
@@ -51,6 +53,128 @@ def _read(path: Path) -> str | None:
         return None
 
 
+def _validate_cloud_url(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    parts = urlsplit(raw.strip())
+    if parts.username or parts.password or parts.query or parts.fragment:
+        raise ValueError("CIEAV_CLOUD_URL must not contain credentials, query strings, or fragments")
+    host = (parts.hostname or "").lower()
+    loopback = host in {"127.0.0.1", "localhost", "::1"}
+    if parts.scheme != "https" and not (loopback and parts.scheme == "http"):
+        raise ValueError("CIEAV_CLOUD_URL must use HTTPS except for loopback tests")
+    if not parts.netloc:
+        raise ValueError("CIEAV_CLOUD_URL must include a host")
+    path = parts.path.rstrip("/")
+    return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
+
+
+_EMAIL = re.compile(r"\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
+_PHONE = re.compile(r"\b(?:\+?\d[\d\s().-]{7,}\d)\b")
+_CARD = re.compile(r"\b(?:\d[ -]*?){13,19}\b")
+_OTP = re.compile(r"(?<!\d)\d{6}(?!\d)")
+_SECRET = re.compile(r"(?:sk|pk|api)[-_][A-Za-z0-9_-]{16,}", re.I)
+_BEARER = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/\-]{16,}={0,2}\b", re.I)
+
+
+def _clean_text(value: Any, limit: int) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = _EMAIL.sub("[EMAIL]", value)
+    value = _PHONE.sub("[PHONE]", value)
+    value = _CARD.sub("[POSSIBLE_CARD]", value)
+    value = _OTP.sub("[POSSIBLE_OTP]", value)
+    value = _SECRET.sub("[POSSIBLE_SECRET]", value)
+    value = _BEARER.sub("[POSSIBLE_BEARER]", value)
+    return value[:limit]
+
+
+def _strip_url(value: Any) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        p = urlsplit(value)
+        if p.scheme not in {"http", "https"} or not p.netloc or p.username or p.password:
+            return None
+        return urlunsplit((p.scheme, p.netloc, p.path, "", ""))[:4096]
+    except Exception:
+        return None
+
+
+def _generic_file(value: Any) -> str:
+    suffix = Path(str(value or "")).suffix.lower().lstrip(".")
+    return f"[selected-file.{suffix[:10]}]" if suffix and suffix.isalnum() else "[selected-file]"
+
+
+def _privacy_reduce_context(context: dict[str, Any]) -> dict[str, Any]:
+    url = _strip_url(context.get("url")) or _strip_url(context.get("origin"))
+    if not url:
+        raise RuntimeError("CIEAV Cloud context has no safe http/https URL")
+    origin_parts = urlsplit(url)
+    origin = f"{origin_parts.scheme}://{origin_parts.netloc}"
+    element_raw = context.get("element") if isinstance(context.get("element"), dict) else {}
+    element: dict[str, Any] = {"tag": _clean_text(element_raw.get("tag"), 50) or "unknown"}
+    for key, limit in (("role",80),("text",700),("ariaLabel",300),("name",200),("inputType",80),("method",20),("declaredActionType",160),("declaredSummary",300),("declaredReversibility",40)):
+        value = _clean_text(element_raw.get(key), limit)
+        if value:
+            element[key] = value
+    for key in ("href", "action"):
+        value = _strip_url(element_raw.get(key))
+        if value:
+            element[key] = value
+    reduced: dict[str, Any] = {
+        "requestId": _clean_text(context.get("requestId"), 128) or f"cloud-{uuid.uuid4()}",
+        "url": url,
+        "origin": origin,
+        "element": element,
+        "timestamp": context.get("timestamp") if isinstance(context.get("timestamp"), str) else datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "clientVersion": _clean_text(context.get("clientVersion"), 50) or "unknown",
+    }
+    title = _clean_text(context.get("title"), 300)
+    nearby = _clean_text(context.get("nearbyText"), 1800)
+    if title: reduced["title"] = title
+    if nearby: reduced["nearbyText"] = nearby
+    form_raw = context.get("form")
+    if isinstance(form_raw, dict):
+        form: dict[str, Any] = {"fields": [], "fileNames": []}
+        method = _clean_text(form_raw.get("method"), 20)
+        action = _strip_url(form_raw.get("action"))
+        submitter = _clean_text(form_raw.get("submitterText"), 300)
+        if method: form["method"] = method
+        if action: form["action"] = action
+        if submitter: form["submitterText"] = submitter
+        for field in (form_raw.get("fields") if isinstance(form_raw.get("fields"), list) else [])[:100]:
+            if not isinstance(field, dict):
+                continue
+            item: dict[str, Any] = {"name": _clean_text(field.get("name"),160) or "field", "type": _clean_text(field.get("type"),80) or "unknown", "redacted": True}
+            label = _clean_text(field.get("label"),220)
+            if label: item["label"] = label
+            if isinstance(field.get("required"), bool): item["required"] = field["required"]
+            if isinstance(field.get("dataCategory"), str): item["dataCategory"] = field["dataCategory"][:40]
+            form["fields"].append(item)
+        form["fileNames"] = [_generic_file(x) for x in (form_raw.get("fileNames") if isinstance(form_raw.get("fileNames"), list) else [])[:20]]
+        reduced["form"] = form
+    return reduced
+
+
+def _privacy_reduce_baseline(base: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "actionType": str(base.get("actionType") or "web.action")[:160],
+        "risk": base.get("risk") if base.get("risk") in {"LOW","MEDIUM","HIGH","CRITICAL"} else "HIGH",
+        "reversibility": base.get("reversibility") if base.get("reversibility") in {"REVERSIBLE","DELAYABLE","COMPENSABLE","IRREVERSIBLE","UNKNOWN"} else "UNKNOWN",
+        "confidence": max(0.0, min(1.0, float(base.get("confidence") or 0))),
+        "dataCategories": [str(x)[:40] for x in (base.get("dataCategories") if isinstance(base.get("dataCategories"), list) else [])[:20]],
+    }
+
+
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise HTTPError(req.full_url, code, "CIEAV Cloud redirects are not allowed", headers, fp)
+
+
+_NO_REDIRECT_OPENER = build_opener(_NoRedirect)
+
+
 @dataclass(frozen=True)
 class CloudConfig:
     base_url: str | None
@@ -60,7 +184,7 @@ class CloudConfig:
 
     @classmethod
     def load(cls) -> "CloudConfig":
-        url = _env("CIEAV_CLOUD_URL", "LATCH_CLOUD_URL").rstrip("/") or None
+        url = _validate_cloud_url(_env("CIEAV_CLOUD_URL", "LATCH_CLOUD_URL").rstrip("/") or None)
         return cls(
             base_url=url,
             timeout_seconds=max(2.0, min(20.0, float(_env("CIEAV_CLOUD_TIMEOUT_SECONDS", "LATCH_CLOUD_TIMEOUT_SECONDS", "8")))),
@@ -107,7 +231,7 @@ class CloudSemanticProvider:
             headers["authorization"] = f"Bearer {token}"
         request = Request(f"{self.config.base_url}{path}", data=body, headers=headers, method="POST" if body is not None else "GET")
         try:
-            with urlopen(request, timeout=timeout or self.config.timeout_seconds) as response:
+            with _NO_REDIRECT_OPENER.open(request, timeout=timeout or self.config.timeout_seconds) as response:
                 raw = response.read(262_145)
                 if len(raw) > 262_144:
                     raise RuntimeError("CIEAV Cloud response exceeded size limit")
@@ -116,7 +240,7 @@ class CloudSemanticProvider:
                     raise RuntimeError("CIEAV Cloud returned a non-object response")
                 return value
         except HTTPError as exc:
-            raw = exc.read(4096).decode("utf-8", "replace")
+            raw = exc.read(4096).decode("utf-8", "replace") if getattr(exc, "fp", None) else ""
             try:
                 detail = json.loads(raw).get("error") or f"HTTP {exc.code}"
             except Exception:
@@ -163,7 +287,7 @@ class CloudSemanticProvider:
                 token = self._token()
             if not token:
                 raise RuntimeError("CIEAV Cloud device enrollment failed")
-            payload = {"context": context, "baseline": base, "privacy": {"rawFormValuesIncluded": False, "rawSecretsIncluded": False, "fullPageTextIncluded": False, "durableStorageRequested": False}}
+            payload = {"context": _privacy_reduce_context(context), "baseline": _privacy_reduce_baseline(base), "privacy": {"rawFormValuesIncluded": False, "rawSecretsIncluded": False, "fullPageTextIncluded": False, "durableStorageRequested": False}}
             try:
                 result = self._request("/v1/inference/analyze", payload=payload, token=token)
             except RuntimeError as first:
