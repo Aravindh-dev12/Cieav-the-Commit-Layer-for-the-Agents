@@ -53,6 +53,7 @@ def main() -> int:
         ["dashboard"],
         ["test-lab"],
         ["audit", "tail"],
+        ["audit", "verify"],
     ]:
         parsed = parser.parse_args(argv)
         assert parsed.command
@@ -76,7 +77,6 @@ def main() -> int:
         assert a.local_api_secret() == a_api
         assert a.receipt_signing_secret() == a_receipt
 
-        # Each local user/install owns independent authority.
         assert a.state_dir != b.state_dir
         assert a_token != b_token
         assert a_api != b_api
@@ -113,6 +113,7 @@ def main() -> int:
 
     print("CIEAV Python Gateway smoke test passed")
     print("CIEAV per-user local authority isolation passed")
+    print("CIEAV audit verification command is available")
     return 0
 
 
