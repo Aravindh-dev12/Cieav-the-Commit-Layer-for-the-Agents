@@ -7,6 +7,8 @@ const server=await readFile(new URL("../apps/api/src/server.ts",import.meta.url)
 const config=await readFile(new URL("../apps/api/src/config.ts",import.meta.url),"utf8");
 const receipt=await readFile(new URL("../apps/api/src/receipt.ts",import.meta.url),"utf8");
 const deviceSigning=await readFile(new URL("../apps/api/src/device-signing.ts",import.meta.url),"utf8");
+const privacy=await readFile(new URL("../apps/api/src/model/privacy.ts",import.meta.url),"utf8");
+const cloudProvider=await readFile(new URL("../python/latch_platform/cloud_provider.py",import.meta.url),"utf8");
 if(/p\.fallback[^\n;]*t\.click\(|p\.fallback[^\n;]*requestSubmit/.test(injected))throw new Error("consequential action still contains fail-open fallback");
 if(!injected.includes("action not executed"))throw new Error("fail-closed user feedback missing");
 if(!injected.includes("Commit control unavailable"))throw new Error("commit-control failure is not fail-closed");
@@ -26,4 +28,7 @@ if(!server.includes("loadDeviceReceiptSigner")||!server.includes('algorithm:"Ed2
 if(!receipt.includes("verifyReceiptPublic")||!receipt.includes('signatureAlgorithm:"Ed25519"'))throw new Error("independent receipt signature verification is missing");
 if(!deviceSigning.includes('generateKeyPairSync("ed25519")')||!deviceSigning.includes("receipt-ed25519-private.pem"))throw new Error("persistent per-user Ed25519 key lifecycle is missing");
 if(!config.includes("!localAuthority&&process.env.DATABASE_URL"))throw new Error("local authority may inherit DATABASE_URL");
-console.log("CIEAV browser/control fail-closed, resource-bound adapter, outcome-evidence, and receipt-identity checks passed");
+for(const token of ["privacyReduceContext","assertCloudPrivacyIngress","assertCloudPrivacyBaseline","privacy_page_text_forbidden","privacy_raw_filename_forbidden"]){if(!privacy.includes(token))throw new Error(`model privacy invariant missing: ${token}`)}
+if(!server.includes("assertCloudPrivacyIngress(raw?.context)")||!server.includes("assertCloudPrivacyBaseline(raw?.baseline"))throw new Error("CIEAV Cloud server trusts client privacy declarations without ingress validation");
+for(const token of ["_privacy_reduce_context","_privacy_reduce_baseline","_NoRedirect","must use HTTPS except for loopback tests"]){if(!cloudProvider.includes(token))throw new Error(`CIEAV Cloud egress invariant missing: ${token}`)}
+console.log("CIEAV browser/control, privacy, trusted-adapter, outcome-evidence, and receipt-identity checks passed");
