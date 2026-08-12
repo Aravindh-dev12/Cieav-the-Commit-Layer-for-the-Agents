@@ -2,116 +2,104 @@
 
 **The commit layer for the internet.**
 
-LATCH is a browser-native safety and control layer for consequential web actions. It understands actions such as **pay, transfer, publish, submit, share, connect, upload, delete, revoke** and turns them into explicit semantic commits with risk, reversibility, receipts, and—when a reliable inverse exists—Undo.
+LATCH is a browser-native safety/control layer for consequential web actions. It understands actions such as **pay, transfer, publish, submit, share, connect, upload, delete, revoke** and turns them into explicit semantic commits with risk, reversibility, receipts, and verified Undo when a credible inverse exists.
 
-LATCH is **not a browser extension and not an AI assistant**. It launches a dedicated Chromium browsing session and mediates actions through Chrome DevTools Protocol (CDP). AI is optional and invisible: deterministic policy always establishes the minimum safety level; a model may add semantic detail but cannot make an action safer than the hard rules allow.
+LATCH is not an assistant and not an extension. It launches a dedicated Chromium browsing session and mediates actions through Chrome DevTools Protocol.
 
-## Working product flow
+## Production AI
+
+When `OPENAI_API_KEY` is configured, AI is the semantic core behind LATCH's interpretation layer—not a single optional classifier. The production path uses:
 
 ```text
-User browses normally in LATCH Chromium
+browser-side privacy reduction
         ↓
-Consequential action is detected
+fast independent AI gate
+        +
+primary frontier semantic interpreter
+        +
+independent verifier for high-risk / ambiguous actions
         ↓
-Browser-side privacy reduction
+conservative consensus
         ↓
-Deterministic semantic/risk policy
+deterministic safety floor
         ↓
-Optional frontier-model enrichment
-        ↓
-Adaptive friction: HARD / SOFT / PASSIVE
-        ↓
-User commits or cancels
-        ↓
-Approved top-frame click is replayed as trusted browser input
-        ↓
-Signed Action Receipt
-        ↓
-Verified live inverse → optional Undo
+adaptive HARD / SOFT / PASSIVE friction
 ```
 
-## Why it is different
+The hard safety policy remains authoritative: AI can make a classification stricter or add semantic detail, but cannot downgrade deterministic risk/reversibility.
 
-Browsers have page history, downloads, passwords, and permissions, but no universal model of **what a user just did**. LATCH adds that missing primitive:
+High-risk, sensitive, prompt-injected, or unknown-reversibility actions receive independent verification. Model disagreement lowers confidence and resolves toward the stricter interpretation. Model failures never turn a protected action into an unprotected action.
 
-- **Action Manifest** — consequence, data involved, risk, reversibility, confidence, effects.
-- **Commit check** — only when the consequence deserves attention.
-- **Action Receipt** — durable record of what LATCH observed and what the user committed/cancelled.
-- **Undo capability** — only when an unambiguous live inverse can be verified.
-- **Cognitive-friction engine** — avoids warning fatigue while never habituating away high-consequence actions.
+See [`docs/ai-architecture.md`](docs/ai-architecture.md).
 
-## Repository
+## Run production LATCH
 
-- `apps/browser` — primary product runtime: Chromium launch, isolated-world mediation, trusted replay, Undo, control dashboard.
-- `apps/api` — semantic analysis, device auth, signed receipts, optional structured model enrichment, memory/Postgres persistence.
-- `apps/dashboard` — reusable receipt timeline.
-- `packages/contracts`, `packages/core`, `packages/sdk` — schemas, deterministic policy/redaction, integration helpers.
-- `docs/browser-architecture.md` and `docs/cognitive-friction.md` — implementation boundaries and anti-warning-fatigue policy.
-
-## Run LATCH
-
-Requirements: **Node.js 22+** and Chrome/Chromium.
+Requirements: Node.js 22+, npm, Chrome/Chromium.
 
 ```bash
-npm start
-```
-
-LATCH starts its local semantic/receipt service, creates a dedicated browser profile under `.latch/`, chooses an ephemeral localhost-only DevTools port, launches Chrome/Chromium, protects normal web tabs, and serves the local action dashboard at `http://127.0.0.1:8790`.
-
-If Chrome is not auto-detected:
-
-```bash
-LATCH_CHROMIUM=/path/to/chrome npm start
-```
-
-Optional model enrichment:
-
-```bash
+npm install
 export OPENAI_API_KEY=...
-export LATCH_MODEL=gpt-5.1
 npm start
 ```
 
-LATCH remains functional without a model key.
+`npm start` builds the production TypeScript semantic API, launches it on localhost, then starts the LATCH browser. The no-install standalone service is kept only as a development/offline fallback and is not the production AI path.
 
-## Attention modes
+### AI profiles
 
-- **Balanced** — default. High/critical/sensitive actions stay hard; uncertain/new medium-risk actions get a soft check; understood lower-risk actions can become passive.
-- **Strict** — commit check on every intercepted consequential action.
-- **Quiet** — hard checks only for high/critical/sensitive actions plus uncertain medium-risk actions.
+```bash
+LATCH_AI_PROFILE=balanced   # default
+LATCH_AI_FAST_MODEL=gpt-5-mini
+LATCH_AI_PRIMARY_MODEL=gpt-5.1
+LATCH_AI_VERIFIER_MODEL=gpt-5-pro
+npm start
+```
 
-High/critical or sensitive actions **never habituate away**.
+Profiles:
 
-## Reversibility
+- **economy** — low-cost ordinary-action gate; high-risk actions still escalate.
+- **balanced** — gate + primary, with verifier for high-risk/ambiguous/adversarial actions.
+- **maximum** — broad independent verification and higher reasoning effort.
 
-`REVERSIBLE`, `DELAYABLE`, `COMPENSABLE`, `IRREVERSIBLE`, and `UNKNOWN` are explicit semantics. LATCH never claims magic rollback. For example, revoking shared access cannot erase copies another party already made, so generic sharing is conservatively `COMPENSABLE`.
+For a real production release, pin model snapshots only after they pass the LATCH evaluation set instead of relying indefinitely on moving aliases.
+
+## Privacy and adversarial pages
+
+Raw form values, passwords, card numbers, OTPs, uploaded file contents, whole-page text, and URL query strings are excluded from model analysis. Every model request sets `store:false`. DOM/page text is treated as hostile data; suspected prompt injection triggers conservative handling and independent verification.
+
+## Core product behavior
+
+- Action Manifest: consequence, target, data categories, risk, reversibility, effects, confidence.
+- Cognitive friction: hard warnings for high consequence, soft checks for uncertain/new medium risk, passive recording where interruption is unnecessary.
+- Signed Action Receipts.
+- Verified live Undo only where a credible inverse exists.
+- Dedicated LATCH Chromium profile, separate from normal Chrome.
+- Deterministic fallback if AI is unavailable.
 
 ## Verification
 
 ```bash
+npm run build
+npm run test:ai-orchestration
+npm run typecheck
+npm run test:core
 npm run test:browser
-npm run selftest:noinstall
-npm test
 ```
 
-The real-browser E2E launches headless Chromium and verifies a trusted payment click is intercepted, classified `CRITICAL / IRREVERSIBLE`, replayed after approval as trusted browser input, recorded as a signed receipt, and that an access grant can discover a live `Disconnect` inverse, execute Undo, and transition the receipt to `UNDONE`.
+`test:ai-orchestration` boots a fake Responses endpoint and the real compiled LATCH API, then verifies multi-stage gate/primary/verifier routing, conservative consensus, prompt-injection escalation, `store:false`, and that URL query secrets never reach model input.
+
+`test:browser` launches real headless Chromium and verifies trusted action replay, CRITICAL/IRREVERSIBLE payment classification, signed receipts, live inverse detection, and an Undo transition to `UNDONE`.
 
 ## Security invariants
 
-1. Website DOM/content is hostile input.
-2. Raw form values are not sent for semantic analysis.
-3. Model output cannot downgrade deterministic risk or reversibility.
-4. LATCH logic runs in a named isolated JavaScript world.
-5. Controller/API bind to localhost only.
-6. Approved click replay is coordinate-bound and single-use—not a global bypass timer.
-7. Undo is offered only for exactly one credible live inverse.
-8. Receipts record LATCH's observation; they are not proof that a remote server honored an action.
+1. Website content is hostile input.
+2. Raw secret/form values are not model context.
+3. AI cannot lower the deterministic safety floor.
+4. High-consequence actions never habituate to passive mode.
+5. Approved replay is coordinate-bound and single-use.
+6. Undo is offered only when a credible inverse is verifiable.
+7. Receipts describe what LATCH observed; they do not prove remote-server behavior.
 
-See `SECURITY.md` and `PRIVACY.md`.
-
-## Current boundaries
-
-Privileged pages such as `chrome://` are intentionally outside injection. Top-frame clicks get trusted CDP replay; nested iframe/form semantics still have browser-specific limitations. A browser client cannot reverse inherently irreversible server-side effects.
+See [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md), and [`docs/cognitive-friction.md`](docs/cognitive-friction.md).
 
 ## License
 
