@@ -9,7 +9,6 @@ import platform
 import shutil
 import stat
 import subprocess
-import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -149,8 +148,9 @@ def main() -> None:
         if meta.get("brand") != "CIEAV": raise RuntimeError("runtime brand mismatch")
         if meta.get("version") != package.get("version"): raise RuntimeError("runtime version does not match package version")
         if meta.get("platform") != target: raise RuntimeError(f"runtime target {meta.get('platform')} != host {target}")
-        if int(meta.get("bundleFormat", 0)) < 5: raise RuntimeError("runtime bundle format is too old")
-        if meta.get("platformBoundaryVerified") is not True: raise RuntimeError("runtime does not attest platform-boundary verification")
+        if int(meta.get("bundleFormat", 0)) < 6: raise RuntimeError("runtime bundle format is too old for expanded CIEAV qualification")
+        for key in ("platformBoundaryVerified","releaseBoundaryVerified","canonicalNamespaceVerified","controlCenterRealityBoundaryVerified"):
+            if meta.get(key) is not True: raise RuntimeError(f"runtime metadata missing {key}")
         protocols = meta.get("agentProtocols") or {}
         if not protocols.get("mcp") or not protocols.get("a2a"): raise RuntimeError("runtime protocol metadata is incomplete")
         checks["runtimeMetadata"] = True
