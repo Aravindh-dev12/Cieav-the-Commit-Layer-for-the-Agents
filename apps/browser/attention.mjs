@@ -1,5 +1,6 @@
 import {readFile,writeFile} from "node:fs/promises";
 import path from "node:path";
+import {AuditLog} from "./audit.mjs";
 
 const REGRET_WINDOW_MS=7*24*60*60*1000;
 const RECOVERY_COMMITS=3;
@@ -16,8 +17,8 @@ function normalizedHistory(x){return{...history(),...(x??{})}}
 function splitKey(key){const i=key.lastIndexOf("::");return i<0?{origin:key,actionType:"unknown"}:{origin:key.slice(0,i),actionType:key.slice(i+2)}}
 
 export class Attention{
-  constructor(stateDir,{clock=now}={}){this.f=path.join(stateDir,"attention.json");this.clock=clock;this.s={version:3,mode:"balanced",origins:{},stats:stats()}}
-  async load(){try{const x=JSON.parse(await readFile(this.f,"utf8")),origins={};for(const[k,v]of Object.entries(x.origins??{}))origins[k]=normalizedHistory(v);this.s={...this.s,...x,version:3,origins,stats:{...stats(),...(x.stats??{})}}}catch{}return this}
+  constructor(stateDir,{clock=now}={}){this.f=path.join(stateDir,"attention.json");this.clock=clock;this.audit=new AuditLog(stateDir);this.s={version:3,mode:"balanced",origins:{},stats:stats()}}
+  async load(){await this.audit.load();try{const x=JSON.parse(await readFile(this.f,"utf8")),origins={};for(const[k,v]of Object.entries(x.origins??{}))origins[k]=normalizedHistory(v);this.s={...this.s,...x,version:3,origins,stats:{...stats(),...(x.stats??{})}}}catch{}return this}
   async save(){await writeFile(this.f,JSON.stringify(this.s,null,2),{mode:0o600})}
   h(origin,type){const k=`${origin}::${type}`;return this.s.origins[k]??(this.s.origins[k]=history())}
   recentRegret(h){const latest=Math.max(Date.parse(h.lastCancelledAt||0)||0,Date.parse(h.lastUndoneAt||0)||0);return latest>0&&(this.clock()-latest)<REGRET_WINDOW_MS&&h.recoveryCommits<RECOVERY_COMMITS}
@@ -38,14 +39,15 @@ export class Attention{
     this.s.stats.analyzed++;h.lastFriction=level;
     const refocus=level==="HARD"&&h.fastApprovalStreak>=REFOCUS_STREAK;
     if(refocus)reasons.push("habituation_signal");
+    void this.audit.append("ACTION_DETECTED",{requestId:m.requestId,origin,actionType:m.actionType,risk:m.risk,detail:`friction=${level}`}).catch(()=>{});
     void this.save();
     return{level,refocus,reasons,debt:this.report()}
   }
   async record(origin,type,status,{friction,decisionMs,automated=false}={}){const h=this.h(origin,type),ts=new Date(this.clock()).toISOString();h.seen++;h.lastAt=ts;
-    if(status==="COMMITTED"){h.committed++;this.s.stats.committed++;h.safeCommitStreak++;if(this.recentRegret(h))h.recoveryCommits++;}
-    if(status==="CANCELLED"){h.cancelled++;this.s.stats.cancelled++;h.safeCommitStreak=0;h.recoveryCommits=0;h.fastApprovalStreak=0;h.lastCancelledAt=ts;}
-    if(status==="UNDONE"){h.undone++;this.s.stats.undone++;h.safeCommitStreak=0;h.recoveryCommits=0;h.fastApprovalStreak=0;h.lastUndoneAt=ts;}
-    if(status==="UNDO_FAILED"){h.undoFailed++;this.s.stats.undoFailed++;}
+    if(status==="COMMITTED"){h.committed++;this.s.stats.committed++;h.safeCommitStreak++;if(this.recentRegret(h))h.recoveryCommits++;await this.audit.append("ACTION_COMMITTED",{origin,actionType:type,detail:friction?`friction=${friction}`:undefined}).catch(()=>{});}
+    if(status==="CANCELLED"){h.cancelled++;this.s.stats.cancelled++;h.safeCommitStreak=0;h.recoveryCommits=0;h.fastApprovalStreak=0;h.lastCancelledAt=ts;await this.audit.append("ACTION_CANCELLED",{origin,actionType:type}).catch(()=>{});}
+    if(status==="UNDONE"){h.undone++;this.s.stats.undone++;h.safeCommitStreak=0;h.recoveryCommits=0;h.fastApprovalStreak=0;h.lastUndoneAt=ts;await this.audit.append("UNDO_EXECUTED",{origin,actionType:type}).catch(()=>{});}
+    if(status==="UNDO_FAILED"){h.undoFailed++;this.s.stats.undoFailed++;await this.audit.append("UNDO_FAILED",{origin,actionType:type}).catch(()=>{});}
     if(!automated&&(friction==="HARD"||friction==="SOFT")&&Number.isFinite(decisionMs)){
       const ms=Math.max(0,Number(decisionMs));h.lastDecisionMs=ms;h.promptedDecisions++;h.decisionMsTotal+=ms;this.s.stats.promptedDecisions++;this.s.stats.decisionMsTotal+=ms;
       if(status==="COMMITTED"&&ms<=FAST_APPROVAL_MS){h.fastApprovalStreak++;h.fastApprovals++;this.s.stats.fastApprovals++}else if(status==="COMMITTED")h.fastApprovalStreak=0;
