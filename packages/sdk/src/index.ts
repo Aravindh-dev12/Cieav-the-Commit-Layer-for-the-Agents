@@ -1,6 +1,6 @@
 import { AnalyzeResponseSchema, DeviceRegisterResponseSchema, ReceiptListSchema, ReceiptSchema, type ActionContext, type ActionManifest, type Receipt } from "@latch/contracts";
 
-export class LatchClient {
+export class CieavClient {
   constructor(public apiBase: string, public token?: string) { this.apiBase = apiBase.replace(/\/$/,""); }
   async register(installId: string, deviceName?: string) {
     const r = await this.request("/v1/devices/register", {method:"POST", body:JSON.stringify({installId, ...(deviceName?{deviceName}:{})})}, false);
@@ -17,23 +17,29 @@ export class LatchClient {
     return ReceiptListSchema.parse(await this.request(`/v1/receipts?limit=${limit}`, {method:"GET"})).receipts;
   }
   private async request(path:string, init:RequestInit, auth=true) {
-    if (auth && !this.token) throw new Error("LatchClient token is required");
+    if (auth && !this.token) throw new Error("CIEAV client token is required");
     const res = await fetch(`${this.apiBase}${path}`, {...init,headers:{"content-type":"application/json",...(auth?{authorization:`Bearer ${this.token}`}:{})}});
-    if (!res.ok) throw new Error(`LATCH API ${res.status}: ${await res.text()}`);
+    if (!res.ok) throw new Error(`CIEAV API ${res.status}: ${await res.text()}`);
     return res.json();
   }
 }
 
-export function declareWebAction(
+/** @deprecated Use CieavClient. */
+export class LatchClient extends CieavClient {}
+
+export function declareCieavWebAction(
   element: HTMLElement,
   declaration: {actionType:string; summary:string; reversibility?:"REVERSIBLE"|"DELAYABLE"|"COMPENSABLE"|"IRREVERSIBLE"|"UNKNOWN"}
 ) {
-  element.dataset.latchAction = declaration.actionType;
-  element.dataset.latchSummary = declaration.summary;
-  if (declaration.reversibility) element.dataset.latchReversibility = declaration.reversibility;
+  element.dataset.cieavAction = declaration.actionType;
+  element.dataset.cieavSummary = declaration.summary;
+  if (declaration.reversibility) element.dataset.cieavReversibility = declaration.reversibility;
   return () => {
-    delete element.dataset.latchAction;
-    delete element.dataset.latchSummary;
-    delete element.dataset.latchReversibility;
+    delete element.dataset.cieavAction;
+    delete element.dataset.cieavSummary;
+    delete element.dataset.cieavReversibility;
   };
 }
+
+/** @deprecated Use declareCieavWebAction. */
+export const declareWebAction = declareCieavWebAction;
