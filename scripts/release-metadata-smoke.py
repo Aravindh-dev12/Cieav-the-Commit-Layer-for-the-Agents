@@ -74,9 +74,16 @@ def main()->None:
         render_case(bad,False)
     for bad in ("", "not-a-thumbprint", "AA:BB:CC", "a"*39, "f"*129):
         render_case("https://downloads.example.test",False,windows_signer=bad)
-    for bad in ("", "Developer ID\nInjected", "<script>", "x"*241):
+    for bad in (
+        "", "Developer ID\nInjected", "<script>", "x"*241,
+        'Developer ID Application: CIEAV"; Write-Host pwned; #',
+        "Developer ID Application: $(touch /tmp/pwned)",
+        "Developer ID Application: `whoami`",
+        "Developer ID Application: CIEAV; rm -rf /",
+        "Developer ID Application: CIEAV\\evil",
+    ):
         render_case("https://downloads.example.test",False,macos_signer=bad)
-    print("CIEAV release metadata/origin/publisher-pin smoke passed")
+    print("CIEAV release metadata/origin/publisher-pin injection smoke passed")
 
 
 if __name__=="__main__": main()
