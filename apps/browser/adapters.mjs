@@ -10,6 +10,13 @@ const ADAPTERS=Object.freeze([
       return u.protocol==="http:"&&u.hostname==="127.0.0.1"&&u.pathname==="/test-lab"&&actionType==="access.grant";
     },
     inverse:Object.freeze({operationId:"disconnect",labels:Object.freeze(["Disconnect"]),expiresMs:30_000})
+  }),
+  Object.freeze({
+    id:"cieav.synthetic.access",
+    version:1,
+    testOnly:true,
+    match({url,actionType}){return url==="about:blank"&&actionType==="access.grant"},
+    inverse:Object.freeze({operationId:"disconnect",labels:Object.freeze(["Disconnect"]),expiresMs:10_000})
   })
 ]);
 
