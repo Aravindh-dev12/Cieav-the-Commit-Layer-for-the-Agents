@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 from .config import Settings
 from .gateway import run_gateway
 from .hf_provider import HFConfig, HuggingFaceSemanticProvider
+from .local_model import LocalSemanticProvider
 from .service import install as install_service
 from .service import restart as restart_service
 from .service import service_status
@@ -59,34 +60,87 @@ def _hf_direct(settings: Settings) -> HuggingFaceSemanticProvider:
 
 def _doctor(settings: Settings) -> dict:
     checks = []
-    def add(name: str, ok: bool, detail: str): checks.append({"name": name, "ok": ok, "detail": detail})
+
+    def add(name: str, ok: bool, detail: str):
+        checks.append({"name": name, "ok": ok, "detail": detail})
+
     add("Python", sys.version_info >= (3, 11), sys.version.split()[0])
-    node = shutil.which("node"); add("Node", bool(node), node or "not found")
-    chrome = os.environ.get("LATCH_CHROMIUM") or next((p for p in [shutil.which("google-chrome"),shutil.which("google-chrome-stable"),shutil.which("chromium"),shutil.which("chromium-browser")] if p),None)
+    node = shutil.which("node")
+    add("Node", bool(node), node or "not found")
+    chrome = os.environ.get("LATCH_CHROMIUM") or next(
+        (
+            p
+            for p in [
+                shutil.which("google-chrome"),
+                shutil.which("google-chrome-stable"),
+                shutil.which("chromium"),
+                shutil.which("chromium-browser"),
+            ]
+            if p
+        ),
+        None,
+    )
     add("Chromium", bool(chrome), chrome or "not found; set LATCH_CHROMIUM if installed elsewhere")
-    api_build = settings.root / "apps" / "api" / "dist" / "server.js"; add("Production semantic API build", api_build.exists(), str(api_build))
-    entry = settings.root / "apps" / "browser" / "main.mjs"; add("Browser mediator entry", entry.exists(), str(entry))
-    test_lab = settings.root / "apps" / "browser" / "test-lab.html"; add("Protected Test Lab", test_lab.exists(), str(test_lab))
-    hf=_hf_direct(settings); hfs=hf.status(); add("Hugging Face credential", bool(hfs.get("tokenPresent")), f"model={hfs.get('model')} mode={hfs.get('mode')}")
+    api_build = settings.root / "apps" / "api" / "dist" / "server.js"
+    add("Production semantic API build", api_build.exists(), str(api_build))
+    entry = settings.root / "apps" / "browser" / "main.mjs"
+    add("Browser mediator entry", entry.exists(), str(entry))
+    test_lab = settings.root / "apps" / "browser" / "test-lab.html"
+    add("Protected Test Lab", test_lab.exists(), str(test_lab))
+
+    semantic = _hf_direct(settings).status()
+    local = semantic.get("local", {})
+    hosted = semantic.get("hosted", {})
+    add(
+        "Local Granite model",
+        bool(local.get("healthy")),
+        f"model={local.get('model')} url={local.get('baseUrl')} active={semantic.get('activeTier')}",
+    )
+    add(
+        "Hugging Face fallback",
+        bool(hosted.get("configured")),
+        f"configured={hosted.get('configured')} mode={hosted.get('mode')}",
+    )
     try:
-        status = _gateway_request(settings, "/health"); add("Gateway", True, f"pid={status.get('gatewayPid')} paused={status.get('paused')} hf={status.get('huggingFaceConfigured')}")
-    except Exception as exc: add("Gateway", False, str(exc))
+        status = _gateway_request(settings, "/health")
+        add("Gateway", True, f"pid={status.get('gatewayPid')} paused={status.get('paused')}")
+    except Exception as exc:
+        add("Gateway", False, str(exc))
     try:
-        service = service_status(settings); add("OS startup service", bool(service.get("installed")), f"{service.get('platform')}: {service.get('detail')}")
-    except Exception as exc: add("OS startup service", False, str(exc))
+        service = service_status(settings)
+        add("OS startup service", bool(service.get("installed")), f"{service.get('platform')}: {service.get('detail')}")
+    except Exception as exc:
+        add("OS startup service", False, str(exc))
     return {"ok": all(c["ok"] for c in checks[:6]), "checks": checks}
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="latch", description="LATCH always-on commit platform")
     sub = p.add_subparsers(dest="command", required=True)
-    g = sub.add_parser("gateway", help="Manage the always-on Gateway"); gs = g.add_subparsers(dest="gateway_command", required=True)
-    for name,help_text in [("run","Run the Gateway in the foreground"),("status","Show live Gateway status"),("install","Install and start the per-user OS service"),("uninstall","Remove the per-user OS service"),("start","Start the installed OS service"),("stop","Stop the installed OS service"),("restart","Restart the installed OS service"),("pause","Pause LATCH protection while keeping the Gateway alive"),("resume","Resume LATCH protection"),("restart-surface","Restart only the protected browser surface")]: gs.add_parser(name,help=help_text)
-    m=sub.add_parser("model",help="Manage LATCH semantic model providers"); ms=m.add_subparsers(dest="model_command",required=True)
-    ms.add_parser("hf-login",help="Securely store a Hugging Face token in local LATCH state")
-    ms.add_parser("hf-logout",help="Delete the locally stored Hugging Face token")
-    ms.add_parser("hf-status",help="Show Hugging Face configuration without exposing credentials")
-    ms.add_parser("hf-probe",help="Run a live synthetic safety classification against Hugging Face")
+    g = sub.add_parser("gateway", help="Manage the always-on Gateway")
+    gs = g.add_subparsers(dest="gateway_command", required=True)
+    for name, help_text in [
+        ("run", "Run the Gateway in the foreground"),
+        ("status", "Show live Gateway status"),
+        ("install", "Install and start the per-user OS service"),
+        ("uninstall", "Remove the per-user OS service"),
+        ("start", "Start the installed OS service"),
+        ("stop", "Stop the installed OS service"),
+        ("restart", "Restart the installed OS service"),
+        ("pause", "Pause LATCH protection while keeping the Gateway alive"),
+        ("resume", "Resume LATCH protection"),
+        ("restart-surface", "Restart only the protected browser surface"),
+    ]:
+        gs.add_parser(name, help=help_text)
+
+    m = sub.add_parser("model", help="Manage LATCH semantic model providers")
+    ms = m.add_subparsers(dest="model_command", required=True)
+    ms.add_parser("local-status", help="Check the local Granite OpenAI-compatible server")
+    ms.add_parser("local-probe", help="Run the synthetic LATCH safety probe against local Granite")
+    ms.add_parser("hf-login", help="Securely store a Hugging Face token in local LATCH state")
+    ms.add_parser("hf-logout", help="Delete the locally stored Hugging Face token")
+    ms.add_parser("hf-status", help="Show local-first/Hugging Face model-router status without exposing credentials")
+    ms.add_parser("hf-probe", help="Probe the local-first semantic router, with hosted HF fallback when configured")
     sub.add_parser("doctor", help="Check runtime, browser, models, Gateway and service health")
     sub.add_parser("dashboard", help="Open the local LATCH Control Center")
     sub.add_parser("test-lab", help="Open synthetic scenarios inside the protected LATCH browser")
@@ -99,39 +153,83 @@ def main(argv: list[str] | None = None) -> int:
         settings = Settings.load()
         if args.command == "gateway":
             cmd = args.gateway_command
-            if cmd == "run": return run_gateway(settings)
-            if cmd == "install": _print(install_service(settings)); return 0
-            if cmd == "uninstall": _print(uninstall_service(settings)); return 0
-            if cmd == "start": _print(start_service(settings)); return 0
-            if cmd == "stop": _print(stop_service(settings)); return 0
-            if cmd == "restart": _print(restart_service(settings)); return 0
+            if cmd == "run":
+                return run_gateway(settings)
+            if cmd == "install":
+                _print(install_service(settings)); return 0
+            if cmd == "uninstall":
+                _print(uninstall_service(settings)); return 0
+            if cmd == "start":
+                _print(start_service(settings)); return 0
+            if cmd == "stop":
+                _print(stop_service(settings)); return 0
+            if cmd == "restart":
+                _print(restart_service(settings)); return 0
             if cmd == "status":
-                try: payload = _gateway_request(settings, "/v1/status"); payload["service"] = service_status(settings)
-                except Exception: payload = {"gateway": "offline", "service": service_status(settings)}
+                try:
+                    payload = _gateway_request(settings, "/v1/status")
+                    payload["service"] = service_status(settings)
+                except Exception:
+                    payload = {"gateway": "offline", "service": service_status(settings)}
                 _print(payload); return 0
-            if cmd == "pause": _print(_gateway_request(settings, "/v1/pause", "POST")); return 0
-            if cmd == "resume": _print(_gateway_request(settings, "/v1/resume", "POST")); return 0
-            if cmd == "restart-surface": _print(_gateway_request(settings, "/v1/restart-surface", "POST")); return 0
+            if cmd == "pause":
+                _print(_gateway_request(settings, "/v1/pause", "POST")); return 0
+            if cmd == "resume":
+                _print(_gateway_request(settings, "/v1/resume", "POST")); return 0
+            if cmd == "restart-surface":
+                _print(_gateway_request(settings, "/v1/restart-surface", "POST")); return 0
+
         if args.command == "model":
-            cmd=args.model_command
-            if cmd=="hf-login":
-                token=getpass.getpass("Hugging Face token (input hidden): ").strip(); settings.write_hf_token(token); print("Hugging Face token stored locally with restricted permissions. Restart the Gateway to activate it."); return 0
-            if cmd=="hf-logout":
-                removed=settings.delete_hf_token(); print("Removed local Hugging Face token." if removed else "No local Hugging Face token was stored."); return 0
-            if cmd=="hf-status":
-                try: _print(_gateway_request(settings,"/v1/hf/status"))
-                except Exception: _print({"ok":True,"gateway":"offline","huggingFace":_hf_direct(settings).status()})
+            cmd = args.model_command
+            if cmd == "local-status":
+                status = LocalSemanticProvider().status()
+                _print({"ok": bool(status.get("healthy")), "localModel": status})
+                return 0 if status.get("healthy") else 2
+            if cmd == "local-probe":
+                result = LocalSemanticProvider().probe()
+                _print(result)
+                return 0 if result.get("probePassed") else 2
+            if cmd == "hf-login":
+                token = getpass.getpass("Hugging Face token (input hidden): ").strip()
+                settings.write_hf_token(token)
+                print("Hugging Face token stored locally with restricted permissions. Restart the Gateway to activate it.")
                 return 0
-            if cmd=="hf-probe":
-                try: result=_gateway_request(settings,"/v1/hf/probe","POST")
-                except Exception: result=_hf_direct(settings).probe()
-                _print(result); return 0 if result.get("probePassed") else 2
-        if args.command == "doctor": report = _doctor(settings); _print(report); return 0 if report["ok"] else 1
-        if args.command == "dashboard": return _open_url(f"http://127.0.0.1:{settings.control_port}")
+            if cmd == "hf-logout":
+                removed = settings.delete_hf_token()
+                print("Removed local Hugging Face token." if removed else "No local Hugging Face token was stored.")
+                return 0
+            if cmd == "hf-status":
+                try:
+                    _print(_gateway_request(settings, "/v1/hf/status"))
+                except Exception:
+                    _print({"ok": True, "gateway": "offline", "semanticRouter": _hf_direct(settings).status()})
+                return 0
+            if cmd == "hf-probe":
+                try:
+                    result = _gateway_request(settings, "/v1/hf/probe", "POST")
+                except Exception:
+                    result = _hf_direct(settings).probe()
+                _print(result)
+                return 0 if result.get("probePassed") else 2
+
+        if args.command == "doctor":
+            report = _doctor(settings)
+            _print(report)
+            return 0 if report["ok"] else 1
+        if args.command == "dashboard":
+            return _open_url(f"http://127.0.0.1:{settings.control_port}")
         if args.command == "test-lab":
-            result = _gateway_request(settings, "/v1/open-test-lab", "POST"); print("Opened LATCH Test Lab inside the protected browser surface."); _print(result); return 0
-    except KeyboardInterrupt: return 130
-    except Exception as exc: print(f"LATCH error: {exc}", file=sys.stderr); return 1
+            result = _gateway_request(settings, "/v1/open-test-lab", "POST")
+            print("Opened LATCH Test Lab inside the protected browser surface.")
+            _print(result)
+            return 0
+    except KeyboardInterrupt:
+        return 130
+    except Exception as exc:
+        print(f"LATCH error: {exc}", file=sys.stderr)
+        return 1
     return 2
 
-if __name__ == "__main__": raise SystemExit(main())
+
+if __name__ == "__main__":
+    raise SystemExit(main())
