@@ -101,6 +101,27 @@ export const ActionManifestSchema = z.object({
 });
 export type ActionManifest = z.infer<typeof ActionManifestSchema>;
 
+export const ActionOutcomeStatusSchema = z.enum([
+  "OBSERVED_SUCCESS",
+  "OBSERVED_FAILURE",
+  "UNKNOWN"
+]);
+export type ActionOutcomeStatus = z.infer<typeof ActionOutcomeStatusSchema>;
+
+export const ActionOutcomeEvidenceSchema = z.object({
+  kind: z.enum(["NAVIGATION", "DOM_STATE", "NETWORK", "PAGE_MESSAGE", "ELEMENT_STATE"]),
+  summary: z.string().min(1).max(700)
+});
+export type ActionOutcomeEvidence = z.infer<typeof ActionOutcomeEvidenceSchema>;
+
+export const ActionOutcomeSchema = z.object({
+  status: ActionOutcomeStatusSchema,
+  confidence: z.number().min(0).max(1),
+  observedAt: z.string().datetime(),
+  evidence: z.array(ActionOutcomeEvidenceSchema).max(20).default([])
+});
+export type ActionOutcome = z.infer<typeof ActionOutcomeSchema>;
+
 export const ReceiptSchema = z.object({
   id: z.string().uuid(),
   deviceId: z.string().min(8).max(200),
@@ -109,6 +130,7 @@ export const ReceiptSchema = z.object({
   status: z.enum(["PREVIEWED", "COMMITTED", "CANCELLED", "UNDONE", "UNDO_FAILED"]),
   manifest: ActionManifestSchema,
   source: z.object({url: z.string().url(), origin: z.string(), title: z.string().optional()}),
+  outcome: ActionOutcomeSchema.optional(),
   signature: z.string().optional(),
   signatureAlgorithm: z.string().optional(),
   receiptVersion: z.string()
@@ -122,6 +144,7 @@ export const CommitRequestSchema = z.object({
   source: z.object({url: z.string().url(), origin: z.string(), title: z.string().optional()}),
   status: z.enum(["PREVIEWED", "COMMITTED", "CANCELLED"])
 });
+export const ReceiptOutcomeUpdateSchema = z.object({outcome: ActionOutcomeSchema});
 export const ReceiptListSchema = z.object({receipts: z.array(ReceiptSchema)});
 
 export const DeviceRegisterSchema = z.object({
