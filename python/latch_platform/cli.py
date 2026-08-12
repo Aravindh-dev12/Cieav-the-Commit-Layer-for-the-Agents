@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import hashlib
+import hmac
 import json
 import os
 import shutil
@@ -64,38 +65,66 @@ def _audit_sha(text: str) -> str: return hashlib.sha256(text.encode("utf-8")).he
 def _audit_field(value) -> str:
     text="" if value is None else str(value)
     return f"{len(text.encode('utf-8'))}:{text}"
-def _audit_payload(value: dict) -> str:
-    fields=("version","eventId","type","at","requestId","receiptId","origin","actionType","risk","outcomeStatus","detail")
-    return "|".join(_audit_field(value.get(k)) for k in fields)
+def _audit_payload(value: dict, fields: tuple[str,...]) -> str: return "|".join(_audit_field(value.get(k)) for k in fields)
+_AUDIT_V2_FIELDS=("version","eventId","type","at","requestId","receiptId","origin","actionType","risk","outcomeStatus","detail")
+_AUDIT_V3_FIELDS=(*_AUDIT_V2_FIELDS,"algorithm")
+_ZERO_HASH="0"*64
 
-def _audit_verify_file(path: Path) -> dict:
-    zero="0"*64
+def _audit_key(settings: Settings) -> str | None:
+    p=settings.state_dir/"audit-integrity-key"
+    try:
+        value=p.read_text("utf-8").strip()
+        if len(value)<43: raise RuntimeError("audit integrity key is invalid")
+        return value
+    except FileNotFoundError:
+        return None
+
+def _audit_verify_file(path: Path, *, key: str | None, initial_hash: str | None, allow_legacy_reset: bool=False) -> dict:
     try: raw=path.read_text("utf-8")
-    except FileNotFoundError: return {"file":path.name,"present":False,"events":0,"lastHash":zero}
-    previous=zero; count=0
+    except FileNotFoundError: return {"file":path.name,"present":False,"events":0,"lastHash":initial_hash or _ZERO_HASH,"anchorHash":initial_hash}
+    previous=initial_hash; anchor=initial_hash; count=0; format_name="legacy"; first=True
     for number,line in enumerate(raw.splitlines(),1):
         if not line: continue
         try: value=json.loads(line)
         except json.JSONDecodeError as exc: raise RuntimeError(f"audit JSON is corrupt in {path.name} line {number}") from exc
         if not isinstance(value,dict): raise RuntimeError(f"audit event is not an object in {path.name} line {number}")
-        if value.get("version")==2:
+        version=value.get("version")
+        if version==3:
+            format_name="hmac-sha256-chain-v3"
+            if key is None: raise RuntimeError("audit integrity key is missing; keyed audit history cannot be verified")
+            prev_hash=value.get("prevHash"); event_hash=value.get("hash")
+            if value.get("algorithm")!="HMAC-SHA256": raise RuntimeError(f"invalid audit algorithm in {path.name} line {number}")
+            if not isinstance(prev_hash,str) or len(prev_hash)!=64 or any(c not in "0123456789abcdef" for c in prev_hash): raise RuntimeError(f"invalid prevHash in {path.name} line {number}")
+            if not isinstance(event_hash,str) or len(event_hash)!=64 or any(c not in "0123456789abcdef" for c in event_hash): raise RuntimeError(f"invalid hash in {path.name} line {number}")
+            if first and previous is None: previous=prev_hash; anchor=prev_hash
+            if prev_hash!=previous: raise RuntimeError(f"audit chain mismatch in {path.name} line {number}")
+            msg=f"{prev_hash}\n{_audit_payload(value,_AUDIT_V3_FIELDS)}".encode("utf-8")
+            expected=hmac.new(key.encode("utf-8"),msg,hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(expected,event_hash): raise RuntimeError(f"audit event authentication failed in {path.name} line {number}")
+            previous=event_hash
+        elif version==2:
+            if format_name=="legacy": format_name="sha256-chain-v2"
             prev_hash=value.get("prevHash"); event_hash=value.get("hash")
             if not isinstance(prev_hash,str) or len(prev_hash)!=64 or any(c not in "0123456789abcdef" for c in prev_hash): raise RuntimeError(f"invalid prevHash in {path.name} line {number}")
             if not isinstance(event_hash,str) or len(event_hash)!=64 or any(c not in "0123456789abcdef" for c in event_hash): raise RuntimeError(f"invalid hash in {path.name} line {number}")
+            if first and previous is None: previous=prev_hash; anchor=prev_hash
+            if first and allow_legacy_reset and prev_hash==_ZERO_HASH and previous!=_ZERO_HASH: previous=_ZERO_HASH; anchor=_ZERO_HASH
             if prev_hash!=previous: raise RuntimeError(f"audit chain mismatch in {path.name} line {number}")
-            expected=_audit_sha(f"{prev_hash}\n{_audit_payload(value)}")
+            expected=_audit_sha(f"{prev_hash}\n{_audit_payload(value,_AUDIT_V2_FIELDS)}")
             if expected!=event_hash: raise RuntimeError(f"audit event hash mismatch in {path.name} line {number}")
             previous=event_hash
         else:
+            if first and previous is None: previous=_ZERO_HASH; anchor=_ZERO_HASH
             previous=_audit_sha(f"LEGACY\n{previous}\n{line}")
-        count+=1
-    return {"file":path.name,"present":True,"events":count,"lastHash":previous}
+        first=False; count+=1
+    return {"file":path.name,"present":True,"events":count,"lastHash":previous or initial_hash or _ZERO_HASH,"anchorHash":anchor,"format":format_name}
 
 
 def _audit_verify(settings: Settings) -> dict:
-    previous=_audit_verify_file(settings.state_dir/"audit-events.previous.jsonl")
-    current=_audit_verify_file(settings.state_dir/"audit-events.jsonl")
-    return {"ok":True,"localOnly":True,"format":"sha256-chain-v2","stateDir":str(settings.state_dir),"previous":previous,"current":current}
+    key=_audit_key(settings)
+    previous=_audit_verify_file(settings.state_dir/"audit-events.previous.jsonl",key=key,initial_hash=None)
+    current=_audit_verify_file(settings.state_dir/"audit-events.jsonl",key=key,initial_hash=previous["lastHash"] if previous["present"] else _ZERO_HASH,allow_legacy_reset=True)
+    return {"ok":True,"localOnly":True,"format":"hmac-sha256-chain-v3" if key else "legacy-compatible","keyed":bool(key),"stateDir":str(settings.state_dir),"previous":previous,"current":current}
 
 
 def _router_direct(settings: Settings) -> HuggingFaceSemanticProvider:
@@ -140,7 +169,7 @@ def _doctor(settings: Settings) -> dict:
         service=service_status(settings); add("OS startup service",bool(service.get("installed")),f"{service.get('platform')}: {service.get('detail')}")
     except Exception as exc: add("OS startup service",False,str(exc))
     try:
-        audit=_audit_verify(settings); add("Local audit integrity",True,f"current={audit['current']['events']} previous={audit['previous']['events']} format={audit['format']}")
+        audit=_audit_verify(settings); add("Local audit integrity",True,f"keyed={audit['keyed']} current={audit['current']['events']} previous={audit['previous']['events']} format={audit['format']}")
     except Exception as exc: add("Local audit integrity",False,str(exc))
     return {"ok":all(c["ok"] for c in checks[:6]) and all(c["ok"] for c in checks if c["name"]=="Local audit integrity"),"brand":"CIEAV","checks":checks}
 
@@ -154,7 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
     cs.add_parser("status",help="Show CIEAV Cloud connectivity and enrollment status"); cs.add_parser("enroll",help="Enroll this CIEAV installation with the configured cloud endpoint"); cs.add_parser("probe",help="Run the synthetic critical-payment safety probe through CIEAV Cloud")
     m=sub.add_parser("model",help="Manage optional/diagnostic semantic model providers"); ms=m.add_subparsers(dest="model_command",required=True)
     for name,help_text in [("local-status","Check an optional local OpenAI-compatible model server"),("local-probe","Probe the optional local model"),("hf-login","Securely store a direct Hugging Face fallback token"),("hf-logout","Delete the locally stored Hugging Face fallback token"),("hf-status","Show low-level semantic router status"),("hf-probe","Probe the complete semantic router")]: ms.add_parser(name,help=help_text)
-    a=sub.add_parser("audit",help="Inspect and verify the local-only CIEAV lifecycle audit log"); ass=a.add_subparsers(dest="audit_command",required=True); at=ass.add_parser("tail",help="Show recent local audit events"); at.add_argument("--limit",type=int,default=25,help="Number of events to show (1-500)"); ass.add_parser("verify",help="Verify local audit JSON and the tamper-evident SHA-256 chain")
+    a=sub.add_parser("audit",help="Inspect and verify the local-only CIEAV lifecycle audit log"); ass=a.add_subparsers(dest="audit_command",required=True); at=ass.add_parser("tail",help="Show recent local audit events"); at.add_argument("--limit",type=int,default=25,help="Number of events to show (1-500)"); ass.add_parser("verify",help="Verify local audit JSON and the keyed tamper-evident chain")
     sub.add_parser("doctor",help="Check runtime, browser, cloud, Gateway and service health"); sub.add_parser("dashboard",help="Open the local CIEAV Control Center"); sub.add_parser("test-lab",help="Open synthetic scenarios inside the protected CIEAV browser")
     return p
 
