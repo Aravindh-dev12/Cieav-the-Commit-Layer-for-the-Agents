@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import shutil
 import signal
 import subprocess
@@ -10,19 +11,31 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 from .config import Settings
 from .hf_provider import HFConfig, HuggingFaceSemanticProvider
 
 
-def _request_json(url: str, *, method: str = "GET", payload: dict | None = None, timeout: float = 1.5) -> dict:
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _request_json(url: str, *, method: str = "GET", payload: dict | None = None, timeout: float = 1.5, token: str | None = None) -> dict:
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     headers = {"accept": "application/json"}
     if body is not None:
         headers["content-type"] = "application/json"
-    with urlopen(Request(url, data=body, headers=headers, method=method), timeout=timeout) as r:
-        return json.loads(r.read().decode("utf-8") or "{}")
+    if token:
+        headers["authorization"] = f"Bearer {token}"
+    opener=build_opener(_NoRedirect)
+    with opener.open(Request(url, data=body, headers=headers, method=method), timeout=timeout) as r:
+        raw=r.read(262_145)
+        if len(raw)>262_144: raise RuntimeError("CIEAV local control response exceeded size limit")
+        value=json.loads(raw.decode("utf-8") or "{}")
+        if not isinstance(value,dict): raise RuntimeError("CIEAV local control returned a non-object response")
+        return value
 
 
 def _redacted_url(url: str) -> str:
@@ -38,7 +51,8 @@ class Gateway:
 
     The Gateway owns process lifecycle, local signing secrets, semantic routing,
     health, and privileged local control. Chromium never receives provider tokens,
-    the Gateway bearer token, or receipt/API signing keys.
+    the Gateway bearer token, receipt/API signing keys, or the browser-control
+    capability used between the Gateway and the Node mediator.
     """
 
     def __init__(self, settings: Settings):
@@ -52,6 +66,7 @@ class Gateway:
         self.paused = False
         self.semantic: subprocess.Popen | None = None
         self.surface: subprocess.Popen | None = None
+        self.surface_control_token: str | None = None
         self.semantic_started_at: float | None = None
         self.surface_started_at: float | None = None
         self.semantic_restart_count = 0
@@ -86,7 +101,8 @@ class Gateway:
         env = dict(os.environ)
         for key in (
             "HF_TOKEN","HUGGING_FACE_HUB_TOKEN","JWT_SECRET","RECEIPT_SIGNING_SECRET",
-            "CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN","CIEAV_TEST_AUTO_APPROVE","LATCH_TEST_AUTO_APPROVE"
+            "CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN","CIEAV_TEST_AUTO_APPROVE","LATCH_TEST_AUTO_APPROVE",
+            "CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN"
         ):
             env.pop(key, None)
         env["CIEAV_STATE_DIR"] = str(self.s.state_dir)
@@ -105,10 +121,13 @@ class Gateway:
         env["CIEAV_HF_ENABLED"] = "1" if self.hf.configured else "0"
         return env
 
-    def _surface_env(self) -> dict[str, str]:
+    def _surface_env(self, control_token: str | None = None) -> dict[str, str]:
         env = self._base_env()
         for key in ("JWT_SECRET","RECEIPT_SIGNING_SECRET","CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN"):
             env.pop(key, None)
+        token=control_token or secrets.token_urlsafe(48)
+        if len(token)<43: raise RuntimeError("Browser control token is too weak")
+        env["CIEAV_BROWSER_CONTROL_TOKEN"] = token
         env["CIEAV_REQUIRE_PRODUCTION_API"] = "1"
         env["CIEAV_TEST_AUTO_APPROVE"] = "0"
         return env
@@ -150,20 +169,28 @@ class Gateway:
         code=self._terminate(child,"semantic service")
         if code is not None: self.semantic_last_exit=code
 
+    def _browser_request(self, path: str, *, method: str="GET", payload: dict | None=None, timeout: float=3.0) -> dict:
+        with self._lock: token=self.surface_control_token
+        if not token: raise RuntimeError("Browser control capability is unavailable")
+        return _request_json(f"http://127.0.0.1:{self.s.control_port}{path}",method=method,payload=payload,timeout=timeout,token=token)
+
     def start_surface(self) -> None:
         with self._lock:
             if self.paused or self.stop_event.is_set() or (self.surface and self.surface.poll() is None): return
             if not self.browser_entry.exists(): raise RuntimeError("Browser mediator entry is missing")
         health=self._semantic_health()
         if not health.get("ok") or health.get("service")!="cieav-local-api": raise RuntimeError("Refusing protected surface without the managed CIEAV local API")
+        control_token=secrets.token_urlsafe(48)
         with self._lock:
-            self.surface=subprocess.Popen([self.node_executable(),str(self.browser_entry)],cwd=self.s.root,env=self._surface_env())
+            self.surface_control_token=control_token
+            self.surface=subprocess.Popen([self.node_executable(),str(self.browser_entry)],cwd=self.s.root,env=self._surface_env(control_token))
             self.surface_started_at=time.time(); self._log(f"browser surface started pid={self.surface.pid}")
         self._write_runtime()
 
     def stop_surface(self) -> None:
         with self._lock: child=self.surface; self.surface=None
         code=self._terminate(child,"browser surface")
+        with self._lock: self.surface_control_token=None
         if code is not None: self.surface_last_exit=code
         self._write_runtime()
 
@@ -181,16 +208,26 @@ class Gateway:
 
     def open_surface_url(self, url: str) -> dict:
         if self.paused: raise RuntimeError("CIEAV protection is paused")
-        if not (url.startswith("http://") or url.startswith("https://")): raise RuntimeError("Only http/https URLs can be opened in the protected surface")
+        try: parts=urlsplit(url)
+        except Exception: raise RuntimeError("Invalid protected URL")
+        if parts.scheme not in {"http","https"} or not parts.netloc or parts.username or parts.password: raise RuntimeError("Only credential-free http/https URLs can be opened in the protected surface")
         browser=self._browser_health()
         if not browser.get("ok"): raise RuntimeError("Protected browser surface is not ready")
-        result=_request_json(f"http://127.0.0.1:{self.s.control_port}/api/open",method="POST",payload={"url":url},timeout=3.0)
+        result=self._browser_request("/api/open",method="POST",payload={"url":url},timeout=3.0)
         self._log(f"opened protected surface URL {_redacted_url(url)}")
-        return {"ok":True,"url":url,"surface":result}
+        return {"ok":True,"url":_redacted_url(url),"surface":result}
+
+    def dashboard_url(self) -> str:
+        result=self._browser_request("/api/bootstrap",timeout=2.0)
+        url=result.get("url")
+        if not isinstance(url,str): raise RuntimeError("Browser did not issue a dashboard bootstrap URL")
+        parts=urlsplit(url)
+        if parts.scheme!="http" or parts.hostname!="127.0.0.1" or parts.port!=self.s.control_port or parts.path!="/": raise RuntimeError("Browser returned an invalid dashboard bootstrap URL")
+        return url
 
     def open_test_lab(self) -> dict: return self.open_surface_url(self.test_lab_url)
     def _browser_health(self) -> dict:
-        try: return _request_json(f"http://127.0.0.1:{self.s.control_port}/api/status")
+        try: return self._browser_request("/api/status",timeout=1.5)
         except Exception: return {"ok":False,"browserConnected":False}
     def _semantic_health(self) -> dict:
         try: return _request_json(f"http://127.0.0.1:{self.s.api_port}/health")
@@ -208,7 +245,7 @@ class Gateway:
             semantic_uptime=int(time.time()-self.semantic_started_at) if semantic_running and self.semantic_started_at else 0
             surface_uptime=int(time.time()-self.surface_started_at) if surface_running and self.surface_started_at else 0
         browser=self._browser_health() if surface_running else {"ok":False,"browserConnected":False}; semantic_health=self._semantic_health() if semantic_running else {"ok":False}
-        return {"ok":True,"platform":"CIEAV Gateway","runtime":"python","gatewayPid":os.getpid(),"paused":self.paused,"nodeRuntime":self.node_executable(),"semanticRunning":semantic_running,"semanticHealthy":bool(semantic_health.get("ok") and semantic_health.get("service")=="cieav-local-api"),"semanticService":semantic_health.get("service"),"semanticPid":semantic.pid if semantic_running and semantic else None,"semanticUptimeSeconds":semantic_uptime,"semanticRestartCount":self.semantic_restart_count,"semanticLastExitCode":self.semantic_last_exit,"surfaceRunning":surface_running,"surfacePid":surface.pid if surface_running and surface else None,"surfaceUptimeSeconds":surface_uptime,"surfaceRestartCount":self.surface_restart_count,"surfaceLastExitCode":self.surface_last_exit,"browserConnected":bool(browser.get("browserConnected")),"protectedPages":int(browser.get("protectedPages") or 0),"productionApiRequired":bool(browser.get("productionApiRequired",True)),"modelEnabled":bool(self.hf.configured or browser.get("modelEnabled") or semantic_health.get("modelEnabled")),"huggingFace":self.hf.status(),"attention":browser.get("attention",{}),"controlUrl":f"http://127.0.0.1:{self.s.control_port}","testLabUrl":self.test_lab_url}
+        return {"ok":True,"platform":"CIEAV Gateway","runtime":"python","gatewayPid":os.getpid(),"paused":self.paused,"nodeRuntime":self.node_executable(),"semanticRunning":semantic_running,"semanticHealthy":bool(semantic_health.get("ok") and semantic_health.get("service")=="cieav-local-api"),"semanticService":semantic_health.get("service"),"semanticPid":semantic.pid if semantic_running and semantic else None,"semanticUptimeSeconds":semantic_uptime,"semanticRestartCount":self.semantic_restart_count,"semanticLastExitCode":self.semantic_last_exit,"surfaceRunning":surface_running,"surfacePid":surface.pid if surface_running and surface else None,"surfaceUptimeSeconds":surface_uptime,"surfaceRestartCount":self.surface_restart_count,"surfaceLastExitCode":self.surface_last_exit,"browserConnected":bool(browser.get("browserConnected")),"protectedPages":int(browser.get("protectedPages") or 0),"productionApiRequired":bool(browser.get("productionApiRequired",True)),"modelEnabled":bool(self.hf.configured or browser.get("modelEnabled") or semantic_health.get("modelEnabled")),"huggingFace":self.hf.status(),"attention":browser.get("attention",{}),"controlUrl":f"http://127.0.0.1:{self.s.control_port}","testLabUrl":self.test_lab_url,"browserControlAuthenticated":surface_running}
 
     def _write_runtime(self) -> None:
         try: self.s.write_runtime(self.status())
@@ -245,6 +282,7 @@ class Gateway:
                     self.surface_last_exit=surface.returncode; self.surface_restart_count+=1; self._log(f"browser surface exited code={surface.returncode}; restart #{self.surface_restart_count}")
                     with self._lock:
                         if self.surface is surface: self.surface=None
+                    with self._lock: self.surface_control_token=None
                 if self.stop_event.wait(surface_backoff): break
                 try: self.start_surface(); surface_backoff=1.0
                 except Exception as exc: self._log(f"surface restart failed: {exc}"); surface_backoff=min(surface_backoff*2,20.0)
@@ -289,6 +327,7 @@ class ControlHandler(BaseHTTPRequestHandler):
             if path=="/v1/pause": self.gateway.pause(); self._send(200,self.gateway.status()); return
             if path=="/v1/resume": self.gateway.resume(); self._send(200,self.gateway.status()); return
             if path=="/v1/restart-surface": self.gateway.restart_surface(); self._send(200,self.gateway.status()); return
+            if path=="/v1/dashboard": self._send(200,{"ok":True,"url":self.gateway.dashboard_url()}); return
             if path=="/v1/open-test-lab": self._send(200,self.gateway.open_test_lab()); return
             if path=="/v1/hf/probe": self._send(200,self.gateway.hf.probe()); return
             if path=="/v1/hf/analyze":
