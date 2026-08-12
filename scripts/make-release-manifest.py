@@ -47,7 +47,7 @@ def main() -> None:
         artifact_path=f"{channel}/{filename}"
         artifacts[key]={"url":artifact_path,"sha256":digest,"size":size}
         bootstrap=inp/f"bootstrap-{key}.txt"
-        bootstrap.write_text("\n".join(["BRAND=CIEAV",f"VERSION={version}",f"CLOUD_URL={cloud_url}",f"ARTIFACT_PATH={artifact_path}",f"SHA256={digest},"[:-1],""]),"utf-8")
+        bootstrap.write_text("\n".join(["BRAND=CIEAV",f"VERSION={version}",f"CLOUD_URL={cloud_url}",f"ARTIFACT_PATH={artifact_path}",f"SHA256={digest}",""]),"utf-8")
     if not artifacts: raise SystemExit("no runtime metadata files found")
     manifest={"schemaVersion":3,"brand":"CIEAV","legacyBrand":"LATCH","version":version,"channel":channel,"cloudUrl":cloud_url,"privacy":{"durableUserState":"local","cloudInference":"transient-minimized","rawSecretsSent":False,"rawFormValuesSent":False,"fullPageTextSent":False},"artifacts":artifacts}
     output=Path(args.output); output.parent.mkdir(parents=True,exist_ok=True); output.write_text(json.dumps(manifest,indent=2,sort_keys=True)+"\n","utf-8"); print(output)
