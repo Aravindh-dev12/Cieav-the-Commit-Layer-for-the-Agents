@@ -15,35 +15,33 @@ The public download service distributes software. CIEAV Cloud interprets privacy
   ┌──────────────────────────────┐            ┌──────────────────────────┐
   │ install.ps1 / install.sh     │            │ device enrollment        │
   │ stable/manifest.json         │            │ transient semantic API   │
-  │ stable/bootstrap-*.txt       │            │ Granite/model routing    │
-  │ stable/cieav-runtime-*.zip   │            │ NO execution capability  │
-  └──────────────┬───────────────┘            └────────────┬─────────────┘
-                 │ verified bootstrap                       │ TLS
-                 ▼                                          │
-  ┌─────────────────────────────────────────────────────────▼────────────┐
+  │ stable/bootstrap-*.txt       │            │ model routing            │
+  │ stable/signatures/*.json     │            │ NO execution capability  │
+  │ stable/release-public-key.pem│            └────────────┬─────────────┘
+  │ stable/cieav-runtime-*.zip   │                         │ TLS
+  └──────────────┬───────────────┘                         │
+                 │ verified bootstrap                      │
+                 ▼                                         │
+  ┌────────────────────────────────────────────────────────▼─────────────┐
   │                         USER DEVICE                                  │
   │                                                                     │
   │  CIEAV Gateway                                                      │
-  │  ├─ per-user Gateway bearer token                                   │
-  │  ├─ per-user local API signing secret                               │
-  │  ├─ per-user receipt signing secret                                 │
-  │  ├─ process supervisor                                              │
-  │  ├─ deterministic safety floor                                      │
-  │  ├─ local semantic/API bridge                                       │
+  │  ├─ per-user local authority and OS-backed secrets where available  │
+  │  ├─ managed local semantic/API bridge                               │
+  │  ├─ authenticated Control Center                                    │
+  │  ├─ private Chromium CDP pipe                                       │
   │  ├─ protected Chromium profile                                      │
-  │  ├─ Action Receipts                                                 │
-  │  ├─ lifecycle audit                                                 │
+  │  ├─ signed Action Receipts                                          │
+  │  ├─ keyed lifecycle audit                                           │
   │  └─ cognitive-debt state                                            │
   │                                                                     │
   │  Only this device can COMMIT / replay / execute / Undo.             │
   └─────────────────────────────────────────────────────────────────────┘
 ```
 
-The download host and Cloud API may use different hostnames. They have different trust roles and should be operated separately even if they share the same parent domain.
-
 ## Consumer bootstrap
 
-Once the production download hostname is configured and the release has passed qualification, Windows users should install CIEAV from the controlled domain root:
+Once the production download hostname is configured and the exact release has passed qualification, Windows users should install from the controlled domain root:
 
 ```powershell
 irm https://downloads.<cieav-domain>/install.ps1 | iex
@@ -55,33 +53,54 @@ macOS/Linux:
 curl -fsSL https://downloads.<cieav-domain>/install.sh | sh
 ```
 
-These are examples of the URL shape only. Do not publish them until the actual hostname is configured, TLS is active, the artifacts are present, and the production publish gate passes.
+These are URL-shape examples only until the real hostname, TLS, CDN objects, signing identities, and production publish gate are configured.
+
+### Root bootstrap trust
+
+The outer one-line fetch is initially rooted in the security of the configured CIEAV HTTPS domain. A malicious party that can completely replace the root installer can also replace trust material embedded in that installer. Therefore the root installer must be treated as a high-value production asset: direct/no-redirect serving, tightly scoped deployment credentials, protected DNS/CDN/origin administration, immutable history, monitoring, and controlled promotion are required.
+
+After the root installer starts, CIEAV adds independent artifact checks instead of relying on transport security alone.
 
 ## Download-origin contract
 
-`CIEAV_DOWNLOAD_BASE_URL` is a **clean HTTPS origin**, for example:
+`CIEAV_DOWNLOAD_BASE_URL` is a clean HTTPS origin such as:
 
 ```text
 https://downloads.<cieav-domain>
 ```
 
-It must not contain:
+It must not contain credentials, a path prefix, query string, fragment, or HTTP scheme. Bootstrap downloads do not follow HTTP redirects. Runtime metadata contains relative artifact paths only; absolute URLs, traversal, query/fragment data, and channel escape are rejected.
 
-- a username or password;
-- a path prefix;
-- a query string;
-- a fragment;
-- an HTTP scheme.
+## Release trust roots
 
-The installer is rendered with this origin and trusts bootstrap/release objects only from that same origin.
+A production publish requires separate trust material for each role:
 
-Bootstrap downloads do **not** follow HTTP redirects. This is deliberate. CDN/origin configuration must directly serve the requested CIEAV object at the public hostname instead of redirecting the installer to another host.
+```text
+Windows publisher
+  CIEAV_WINDOWS_CODE_SIGN_PFX_B64           secret
+  CIEAV_WINDOWS_CODE_SIGN_PFX_PASSWORD      secret
+  CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT        variable / pinned identity
+  CIEAV_WINDOWS_TIMESTAMP_URL               variable
 
-Runtime metadata contains relative artifact paths only. Absolute artifact URLs, `..` traversal, query strings, fragments, and paths outside the selected channel are rejected by the installers.
+macOS publisher
+  CIEAV_MACOS_DEVELOPER_ID_P12_B64          secret
+  CIEAV_MACOS_DEVELOPER_ID_P12_PASSWORD     secret
+  CIEAV_MACOS_SIGNING_IDENTITY              variable / pinned identity
+  CIEAV_APPLE_NOTARY_KEY_B64                secret
+  CIEAV_APPLE_NOTARY_KEY_ID                 variable
+  CIEAV_APPLE_NOTARY_ISSUER                 variable
+
+Release metadata
+  CIEAV_RELEASE_SIGNING_PRIVATE_KEY_B64      secret
+  CIEAV_RELEASE_SIGNING_PUBLIC_KEY_B64       variable
+  CIEAV_RELEASE_SIGNING_KEY_ID               independently checked key ID
+```
+
+Private signing material must never be committed to the repository or included in release artifacts.
 
 ## Required public object layout
 
-For the `stable` channel:
+For a `stable` channel, the expected layout is:
 
 ```text
 /
@@ -89,137 +108,134 @@ For the `stable` channel:
 ├── install.sh
 └── stable/
     ├── manifest.json
+    ├── release-public-key.pem
     ├── bootstrap-windows-x64.txt
     ├── bootstrap-macos-arm64.txt
     ├── bootstrap-linux-x64.txt
+    ├── signatures/
+    │   ├── manifest.json.sig.json
+    │   └── bootstrap-*.txt.sig.json
     ├── cieav-runtime-<version>-windows-x64.zip
     ├── cieav-runtime-<version>-macos-arm64.zip
     └── cieav-runtime-<version>-linux-x64.zip
 ```
 
-Only targets that are actually built, clean-machine tested, and included in the cross-platform qualification should be published.
+Only targets actually built and clean-machine qualified should be published.
 
-## Publication ordering
+## Supply-chain verification
 
-A stable-channel release must be promoted in an order that never exposes metadata pointing at a missing runtime:
+The production pipeline now has multiple independent checks:
 
-1. Build the exact source commit on each target platform.
-2. Run local release verification and packaged install/upgrade/rollback tests.
-3. Collect PASS reports for the same version and commit.
-4. Run `npm run release:qualify`.
-5. Upload versioned runtime ZIPs to the download origin.
-6. Upload matching `bootstrap-*.txt` and `manifest.json` only after all referenced runtimes are available.
-7. Publish/replace root `install.ps1` and `install.sh` last.
-8. Run real-domain installation probes from clean machines.
+```text
+Windows
+  exact source
+  → Authenticode SHA-256 signing + RFC-3161 timestamp
+  → SignTool verification
+  → configured signer-thumbprint verification
+  → ZIP SHA-256 metadata
+  → installer re-verifies staged executable Authenticode status + pinned thumbprint
 
-CDN cache invalidation must not create a window where new metadata is served with old or missing artifacts. Prefer immutable runtime object names and short/no-cache metadata during promotion.
+macOS
+  exact source
+  → Developer ID hardened-runtime signing
+  → codesign verification + configured signing identity
+  → Apple notarization acceptance
+  → ZIP SHA-256 metadata
+  → installer re-verifies staged executable + pinned Developer ID authority
+
+all platforms
+  manifest/bootstrap generation
+  → offline Ed25519 metadata signing
+  → immediate signature verification
+  → configured release-key-ID verification
+  → HTTPS same-origin/no-redirect publication
+```
+
+Linux currently has no native CIEAV publisher-certificate check equivalent to Authenticode/Developer ID in the shell bootstrap. Its runtime is still protected by same-origin HTTPS, SHA-256, and independently signed publication metadata. A future native DEB/RPM channel should additionally use distro/package signing. Do not represent Linux bootstrap publisher identity as equivalent to Windows/macOS until a portable installer-side trust-root verifier is enforced.
 
 ## Installer safety boundary
 
-The bootstrap performs these checks before installing the OS service:
+The bootstrap performs the following before installing the per-user service:
 
 ```text
 controlled HTTPS origin
 → no redirect escape
-→ platform-specific metadata
+→ platform metadata / manifest validation
 → CIEAV brand/version/path validation
-→ SHA-256 verification
-→ staged runtime extraction
-→ runtime self-check
+→ SHA-256 artifact verification
+→ staged extraction
+→ Windows/macOS publisher verification where applicable
+→ transactional replacement
+→ runtime doctor
 → CIEAV Cloud enrollment
 → CRITICAL-payment safety probe
 → per-user Gateway installation
 ```
 
-If a post-replacement step fails during an upgrade, the previous runtime is restored.
+Publisher verification occurs on the staged executable before it replaces the existing runtime. Any later failure triggers rollback to the previous installation.
 
-SHA-256 detects corruption or mismatch against trusted metadata. It is **not by itself publisher identity** if an attacker controls the download origin. Production 1.0 should additionally use platform-native code signing/notarization and/or signed release metadata before treating the supply-chain story as complete.
+## Publication ordering
+
+A stable release should be promoted so metadata never references missing or unqualified artifacts:
+
+1. Build the exact source commit on every target OS.
+2. Sign Windows/macOS executables and verify their configured publisher identities.
+3. Notarize the macOS runtime.
+4. Run local release verification plus clean install/upgrade/rollback/service/reboot tests.
+5. Collect qualification evidence for the same version and commit and run `npm run release:qualify`.
+6. Generate manifest/bootstrap metadata.
+7. Sign and verify metadata with the offline Ed25519 release key and verify the configured key ID.
+8. Upload immutable/versioned runtime ZIPs first.
+9. Upload matching manifest/bootstrap/public-key/signature objects only after all referenced runtimes exist.
+10. Render root installers with the production Windows thumbprint and macOS signing identity pins.
+11. Publish root `install.ps1` / `install.sh` last.
+12. Run real-domain clean-machine installation probes.
+
+CDN invalidation must not create a new-metadata/old-runtime window. Runtime object names should be immutable; metadata promotion should be atomic or carefully ordered.
 
 ## Local control authority
 
-All normal production starts must route through:
+All normal production starts route through:
 
 ```text
 CIEAV Gateway
 → managed local API (`cieav-local-api`)
-→ protected browser surface
+→ authenticated browser mediator
+→ private browser-wide CDP pipe
+→ Chromium
 ```
 
-The protected browser must not silently fall back to the standalone development API. `npm start` in repository mode and the packaged OS service both use the Gateway control plane.
-
-The browser child never receives:
-
-```text
-Gateway bearer token
-JWT/local API signing secret
-receipt signing secret
-HF/provider token
-```
-
-The semantic/API child receives only the local secrets required for its role. CIEAV Cloud never receives these local authority secrets.
+The protected browser cannot silently fall back to a development API. Chromium does not receive Gateway/API/receipt/provider/browser-control secrets. Test auto-approval is forcibly disabled in managed production.
 
 ## Per-user privacy boundary
 
-Every OS user/install has independent local authority and durable state. At minimum these are distinct:
+Each OS user/install has independent state and authority, including installation identity, Gateway/API credentials, receipt identity, browser-control session, protected Chromium profile, Action Receipts, keyed lifecycle audit, and cognitive history.
 
-```text
-state directory
-installation/device identity
-Gateway bearer token
-local API signing secret
-receipt signing secret
-protected browser profile
-Action Receipts
-lifecycle audit
-cognitive-debt history
-```
+OS-backed secret storage is used when available: Windows DPAPI, macOS Keychain, and Linux Secret Service. If a secure facility is unavailable, CIEAV explicitly falls back to permission-restricted local files and must report that fallback rather than claiming encryption at rest.
 
-Another local OS user must not inherit or share these files merely because CIEAV is installed on the same computer.
+## Outcome and Undo boundary
 
-## Cognitive-debt safety boundary
-
-CIEAV must never learn safety from an action merely because the approved click/submit was dispatched.
-
-```text
-COMMITTED / replayed
-        ≠
-verified successful outcome
-```
-
-Only `OBSERVED_SUCCESS` may build the safe streak used to reduce repeated MEDIUM-risk friction. `OBSERVED_FAILURE`, `UNKNOWN`, cancellation, Undo, and failed Undo keep or restore friction as appropriate. HIGH/CRITICAL and sensitive classes never habituate to passive mode.
-
-The local audit records the lifecycle needed to explain that behavior without storing raw form values or whole-page content:
-
-```text
-ACTION_DETECTED
-ACTION_COMMITTED / ACTION_CANCELLED
-ACTION_REPLAYED
-OUTCOME_OBSERVED
-UNDO_AVAILABLE
-UNDO_EXECUTED / UNDO_FAILED
-```
+`COMMITTED` means dispatch occurred; it does not mean the remote effect succeeded. Only a durable signed `OBSERVED_SUCCESS` may unlock an adapter-backed Undo capability. UNKNOWN/failure outcomes never teach CIEAV that the pattern is safe. Trusted inverse capabilities are bound to adapter version, origin/path, action type, expiry, and exact resource fingerprint.
 
 ## Pre-domain validation
 
-Before DNS/CDN setup, use:
+Before DNS/CDN setup:
 
 ```bash
 npm install
 npm run release:verify
 ```
 
-This is the authoritative local release-candidate gate. It verifies control authentication, production API identity, cognitive-debt invariants, lifecycle audit wiring, privacy contracts, browser E2E, builds, typechecks, and release metadata/installer rules.
-
-After testing the same version/commit on every shipped OS:
+Then qualify the same version/commit on every shipped OS with clean-machine installer, upgrade, rollback, service/reboot, browser, privacy, and security tests:
 
 ```bash
 npm run release:qualify
 ```
 
-After the real download and Cloud endpoints exist, the repository has been renamed to CIEAV, and public placeholders are removed:
+Only after the real endpoints exist, production signing variables/secrets are configured, the repository has the final CIEAV identity, and cross-platform evidence passes should the publish gate be used:
 
 ```bash
 npm run release:verify:publish
 ```
 
-A production publish should not proceed until the publish gate and required cross-platform qualification both pass.
+A workflow definition or signed artifact is not itself evidence that the production release passed. The executed local/clean-VM qualification remains the release authority.
