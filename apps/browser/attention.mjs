@@ -92,6 +92,7 @@ export class Attention{
   async replay(origin,type,{receiptId,requestId,risk}={}){await this.audit.append("ACTION_REPLAYED",{origin,actionType:type,receiptId,requestId,risk})}
   async undoAvailable(origin,type,{receiptId,requestId,risk}={}){await this.audit.append("UNDO_AVAILABLE",{origin,actionType:type,receiptId,requestId,risk})}
   async mode(m){if(!["balanced","strict","quiet"].includes(m))throw new Error("invalid mode");this._touch();this.s.mode=m;await this.save();return this.snapshot()}
+  async flush(){await this._saveChain;await this.audit.flush()}
 }
 
 export const CognitiveDebtConstants={REGRET_WINDOW_MS,ADVERSE_OUTCOME_WINDOW_MS,SAFETY_MEMORY_MS,DEBT_EPOCH_IDLE_MS,RECOVERY_SUCCESSES,FAST_APPROVAL_MS,REFOCUS_STREAK,MEDIUM_WARMUP_PROMPTS};
