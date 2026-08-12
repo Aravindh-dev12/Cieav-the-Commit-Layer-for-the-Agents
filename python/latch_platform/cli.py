@@ -4,11 +4,8 @@ import argparse
 import json
 import os
 import shutil
-import subprocess
 import sys
 import webbrowser
-from pathlib import Path
-from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from .config import Settings
@@ -33,8 +30,7 @@ def _print(payload) -> None:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 
-def _open_control(settings: Settings, path: str = "") -> int:
-    url = f"http://127.0.0.1:{settings.control_port}{path}"
+def _open_url(url: str) -> int:
     webbrowser.open(url)
     print(url)
     return 0
@@ -125,9 +121,9 @@ def main(argv: list[str] | None = None) -> int:
             _print(report)
             return 0 if report["ok"] else 1
         if args.command == "dashboard":
-            return _open_control(settings)
+            return _open_url(f"http://127.0.0.1:{settings.control_port}")
         if args.command == "test-lab":
-            return _open_control(settings, "/test-lab")
+            return _open_url(f"http://127.0.0.1:{settings.gateway_port}/test-lab")
     except KeyboardInterrupt:
         return 130
     except Exception as exc:
