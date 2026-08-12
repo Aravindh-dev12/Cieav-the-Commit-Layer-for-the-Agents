@@ -17,6 +17,8 @@ jobs:
           node --check scripts/compare-evals.mjs
       - name: Verify cognitive debt invariants
         run: node scripts/cognitive-debt-e2e.mjs
+      - name: Verify Attention Health dashboard
+        run: node scripts/dashboard-attention-smoke.mjs
       - name: Verify no-install browser safety path
         run: |
           google-chrome --version || chromium --version
