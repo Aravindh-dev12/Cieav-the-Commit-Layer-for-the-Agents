@@ -1,78 +1,55 @@
 # CIEAV security model
 
-CIEAV mediates consequential browser actions and treats page content, model output, inferred outcomes, and undo candidates as untrusted inputs until deterministic checks accept them.
+CIEAV mediates consequential browser actions and treats page content, model output, inferred outcomes, and undo candidates as untrusted until deterministic checks accept them.
 
-## Deterministic safety floor
+## Deterministic authority
 
-The model cannot downgrade deterministic risk or make reversibility more optimistic. Financial commitments, credentials, sensitive identity data, destructive operations, and other hard-policy classes remain protected even if every semantic model call fails.
+Models interpret semantics; deterministic local code controls execution. Model output cannot downgrade deterministic risk or make reversibility more optimistic. Once a consequential interaction is intercepted, control/analysis failure blocks execution rather than failing open.
 
-Cloud inference has interpretation authority only. It never receives the browser replay/commit capability. The local Gateway remains the authority that can allow, replay, record, pause, or stop protected execution.
+Cloud inference has no browser replay capability. The local Gateway remains the authority that starts/stops the protected surface, owns provider/control secrets, and requires the durable managed local API in production.
 
-## Multi-stage semantic verification
+Managed production surfaces also forcibly disable `CIEAV_TEST_AUTO_APPROVE` and its legacy alias even when inherited from a polluted parent environment.
 
-Production semantic routing uses deterministic policy first, cloud/local semantic interpretation where configured, and stricter merging at the local boundary. Disagreement resolves toward the stricter risk/reversibility result. Model failure or low confidence never silently lowers protection.
+## Browser isolation and replay
+
+CIEAV uses a dedicated Chromium profile and isolated-world mediator. Approved top-frame click replay is coordinate-bound, one-shot, and short-lived. Chromium never receives Gateway bearer credentials, model provider credentials, API-signing secrets, receipt private keys, or audit-integrity keys.
+
+The current implementation still uses loopback Chrome DevTools Protocol transport. Loopback reduces network exposure but is not as strong as a private inherited pipe. Chromium supports `--remote-debugging-pipe`; migrating the managed production browser to a private pipe is a remaining local-authority hardening item and should be completed before making a strongest-possible local isolation claim.
+
+## Privacy boundary
+
+Every supported remote model egress uses an explicit privacy reducer. URL credentials/query/fragment data, raw form values, full-page text, raw filenames, file contents, and common secret patterns are removed before inference. The Python Cloud provider independently reconstructs an allowlisted packet and refuses non-HTTPS remote Cloud URLs.
+
+Authenticated CIEAV Cloud requests do not follow redirects. CIEAV Cloud independently validates the minimized context and deterministic baseline instead of trusting privacy booleans supplied by the client.
 
 ## Prompt injection
 
-DOM text, attributes, and site-declared semantics are hostile. CIEAV strips/limits context, detects common injection patterns, labels snapshots as untrusted data, constrains structured output, and retains the deterministic minimum. Page text cannot grant authorization or instruct CIEAV to weaken its policy.
+Page text and site-declared semantics are hostile data. CIEAV limits/redacts context, detects common injection patterns, constrains model output, and retains the deterministic minimum. Page content cannot grant authorization, enable a site adapter, or reduce required friction.
 
-## Browser isolation and trusted replay
+## Outcome truth boundary
 
-CIEAV uses a dedicated Chromium profile and localhost-only CDP. Mediation logic runs in an isolated JavaScript world. Websites do not receive CIEAV device tokens, Gateway credentials, model credentials, JWT signing keys, receipt-signing private keys, or local audit-integrity material.
+`COMMITTED` means the approved action entered replay; it does not prove a remote service succeeded. Post-action outcome is separately signed as `OBSERVED_SUCCESS`, `OBSERVED_FAILURE`, or `UNKNOWN`.
 
-Approved top-frame clicks use Chrome input replay. The bypass guard is coordinate-bound (±4 px), single-use, and expires quickly; an unrelated click cannot inherit the approval.
+HIGH/CRITICAL actions cannot become successful from generic DOM success text alone. Navigation alone does not prove payment, deletion, publication, sharing, permission grant, or upload success.
 
-Once CIEAV has intercepted a consequential action, loss of the analysis/control path fails conservative: the protected action is not silently replayed outside the commit boundary.
+## Trusted Undo
 
-## Commit is not success
+One-click Undo requires a signed `OBSERVED_SUCCESS` and a trusted bundled adapter. Generic button labels cannot unlock production Undo. Adapter capabilities are bound to adapter ID/version, exact action type, origin/path rules, expiry, and a deterministic resource fingerprint; the capability is revalidated at execution time.
 
-A receipt with status `COMMITTED` means the approved action entered the commit/replay path. It does **not** prove that an arbitrary remote server accepted or completed the action.
+Compensation/revocation is not described as complete reversal when copies, fees, third-party access, or other effects may persist.
 
-Receipts store a separate immutable signed outcome:
+## Receipt and audit integrity
 
-- `OBSERVED_SUCCESS` — CIEAV observed evidence strong enough for the supported action class.
-- `OBSERVED_FAILURE` — CIEAV observed a failure signal.
-- `UNKNOWN` — evidence was insufficient, the page closed, or the verification window expired.
+Managed receipt v3 uses a persistent per-user Ed25519 keypair. Receipts can be publicly verified from their embedded public key, while the durable store additionally anchors them to the locally enrolled key. Legacy HMAC receipts remain readable for migration.
 
-For consequential actions, navigation/redirect alone is evidence but is not treated as proof of payment, deletion, sharing, permission grant, publication, or upload success. Ordinary navigation actions may use a successful top-frame navigation as their outcome.
+The Ed25519 private key is filesystem-protected, not hardware-backed. A fully compromised OS account may obtain it.
 
-DOM outcome matching is failure-first and compares before/after state so a pre-existing success banner is not sufficient. Raw DOM snapshots used for comparison remain local and are not persisted as receipt evidence. HIGH and CRITICAL actions do not become `OBSERVED_SUCCESS` from page text alone; a page can still contribute failure evidence, but success remains unresolved until a stronger supported signal exists.
+Audit events use a per-user HMAC-SHA256 chain, cross-rotation linkage, and fsync before replay acknowledgement. `cieav audit verify` checks integrity locally. This is tamper evidence against modification without the local key, not a hardware-backed transparency log.
 
-## Undo
+## Local services
 
-Undo is available only when **both** conditions hold:
+Gateway, local API, Control Center, and current CDP transport bind to loopback. Loopback is not a sandbox against a fully compromised same-user local process. Local-service authentication and private browser-control transport remain important defense-in-depth areas; product claims must not equate loopback binding with OS-level isolation.
 
-1. the signed action outcome is `OBSERVED_SUCCESS`; and
-2. a trusted inverse implementation is available for the exact committed action.
+## Distribution and cloud deployment
 
-Generic page-label matching such as finding a button named `Disconnect`, `Restore`, or `Remove` is **not** a production trust mechanism and cannot unlock one-click Undo on arbitrary websites. The label-based inverse discovery used by the synthetic browser E2E is restricted to explicit test-auto mode. Production one-click Undo requires a trusted CIEAV/site adapter; until such an adapter exists, CIEAV does not claim a verified inverse.
-
-The local receipt API independently refuses an `UNDONE` transition unless the receipt has an observed-success outcome. Failed or unknown outcomes therefore cannot expose Undo.
-
-Revocation/compensation is not represented as full reversal when external parties may already have copied data or when a server-side effect cannot be proven reversible.
-
-## Receipt identity and local secrets
-
-New managed local-authority receipts use a persistent per-user Ed25519 device keypair and receipt format v3. The private key remains in the local CIEAV state directory with restrictive filesystem permissions where supported and is used only by the local API process. Each v3 receipt contains the corresponding public verification key and a SHA-256-derived key identifier, so its signature can be verified without sharing the private key.
-
-The local durable receipt store does more than self-verification: it anchors v3 receipts to the locally enrolled public key. A receipt signed correctly by a different keypair is therefore not accepted as part of that user's durable history.
-
-Legacy receipt v1/v2 HMAC-SHA256 signatures remain readable during migration using the existing per-install receipt secret. When an old receipt is subsequently updated by the current local authority it can be re-signed into the v3 device-identity format.
-
-Ed25519 makes new receipts independently verifiable, but the current key is filesystem-protected rather than hardware-backed. A fully compromised OS account may be able to access local key material. OS secure-key storage / hardware-backed identity remains a future hardening layer and must not be implied by product claims.
-
-CIEAV Cloud refuses to start with built-in development secrets or secrets shorter than the configured minimum. Cloud deployment therefore fails closed on this class of misconfiguration.
-
-## Local audit trail
-
-CIEAV writes a bounded, rotated local audit log for lifecycle events including detection, commit/cancel, replay, observed outcome, Undo availability, and Undo execution/failure. Records are metadata-oriented and intentionally exclude raw form values and raw page text.
-
-New audit events use a per-user HMAC-SHA256 integrity chain and are fsync-backed before replay acknowledgment. The current segment is linked to the retained rotated segment, and `cieav audit verify` checks JSON, chain linkage, and keyed event authentication locally. Existing legacy audit segments remain readable during migration.
-
-The audit key is local filesystem-protected material, not a hardware-backed transparency service. This detects accidental/page-level modification and modification without the local key, but does not claim protection against a fully compromised OS user that can read and rewrite CIEAV state. Audit data remains local by default and is not cloud telemetry.
-
-## Cloud and remote deployment
-
-The local controller and semantic service bind to loopback. CIEAV Cloud requires TLS termination, authenticated device enrollment, strong server secrets, rate limiting, monitored infrastructure, and private model endpoints. Cloud receipt routes are disabled as local-only resources.
-
-A public CIEAV download/CDN domain is not part of the code-level security boundary until an actual deployment is configured. Installers require HTTPS and release SHA-256 verification before installing a runtime.
+Installers require HTTPS-controlled distribution, SHA-256 artifact verification, same-origin bootstrap/runtime downloads, redirect rejection, and transactional rollback. A final production release still needs real-domain TLS/CDN deployment, platform signing/notarization where applicable, signed release provenance/manifest hardening, monitoring, backups, and operational rate limits.
