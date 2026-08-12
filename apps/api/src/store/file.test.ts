@@ -1,4 +1,4 @@
-import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
+import {mkdtemp,readFile,rm,unlink,writeFile} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {afterEach,describe,expect,it} from "vitest";
@@ -27,6 +27,13 @@ describe("FileReceiptStore",()=>{
     const first=new FileReceiptStore(file,signer);await first.save(receipt);await first.close();
     const reloadedSigner=await loadDeviceReceiptSigner(state,"legacy-"+"s".repeat(64)),second=new FileReceiptStore(file,reloadedSigner);
     expect((await second.get("device-a",receipt.id))?.signatureKeyId).toBe(signer.keyId);await second.close();
+  });
+
+  it("recovers the same public identity if only the public key file is lost",async()=>{
+    const dir=await temp(),state=path.join(dir,"state"),first=await loadDeviceReceiptSigner(state,"legacy-"+"s".repeat(64));
+    await unlink(path.join(state,"receipt-ed25519-public.pem"));
+    const recovered=await loadDeviceReceiptSigner(state,"legacy-"+"s".repeat(64));
+    expect(recovered.keyId).toBe(first.keyId);expect(recovered.publicKeyEncoded).toBe(first.publicKeyEncoded);
   });
 
   it("rejects a valid receipt signed by a different local identity",async()=>{
