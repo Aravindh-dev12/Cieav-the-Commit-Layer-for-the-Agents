@@ -36,7 +36,8 @@ function verifierInstructions(){return `${commonInstructions()}\nYou are an inde
 
 function effort(profile:AIProfile,stage:"gate"|"primary"|"verifier"):"low"|"medium"|"high"{
   if(stage==="gate")return"low";
-  if(stage==="verifier")return profile==="maximum"?"high":"medium";
+  // The default verifier is gpt-5-pro, whose documented reasoning effort is high-only.
+  if(stage==="verifier")return"high";
   return profile==="maximum"?"high":"medium";
 }
 
