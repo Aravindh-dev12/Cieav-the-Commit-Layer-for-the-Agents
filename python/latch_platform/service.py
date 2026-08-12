@@ -28,13 +28,33 @@ def _module_command(settings: Settings) -> list[str]:
 
 
 def _env(settings: Settings) -> dict[str, str]:
-    return {
+    runtime_dir = settings.root / "runtime"
+    path_sep = ";" if platform.system().lower() == "windows" else ":"
+    env = {
         "LATCH_HOME": str(settings.root),
         "LATCH_STATE_DIR": str(settings.state_dir),
         "LATCH_GATEWAY_PORT": str(settings.gateway_port),
         "LATCH_CONTROL_PORT": str(settings.control_port),
         "LATCH_API_PORT": str(settings.api_port),
+        "PATH": f"{runtime_dir}{path_sep}{os.environ.get('PATH','')}",
     }
+    for key in (
+        "LATCH_CLOUD_URL",
+        "LATCH_CLOUD_TIMEOUT_SECONDS",
+        "LATCH_VERSION",
+        "LATCH_CHROMIUM",
+        "OPENAI_API_KEY",
+        "OPENAI_BASE_URL",
+        "LATCH_AI_PROFILE",
+        "LATCH_AI_FAST_MODEL",
+        "LATCH_AI_PRIMARY_MODEL",
+        "LATCH_AI_VERIFIER_MODEL",
+        "LATCH_AI_TIMEOUT_MS",
+    ):
+        value = os.environ.get(key)
+        if value:
+            env[key] = value
+    return env
 
 
 def _system() -> str:
@@ -124,37 +144,16 @@ def service_status(settings: Settings) -> dict:
     if system == "linux":
         unit = _systemd_unit()
         proc = subprocess.run(["systemctl", "--user", "is-active", SERVICE_NAME], capture_output=True, text=True)
-        return {
-            "platform": "systemd-user",
-            "installed": unit.exists(),
-            "active": proc.returncode == 0,
-            "detail": proc.stdout.strip() or proc.stderr.strip() or "inactive",
-        }
+        return {"platform": "systemd-user", "installed": unit.exists(), "active": proc.returncode == 0, "detail": proc.stdout.strip() or proc.stderr.strip() or "inactive"}
     if system == "darwin":
         plist = _launchd_plist()
         proc = subprocess.run(["launchctl", "print", f"gui/{os.getuid()}/{LAUNCHD_LABEL}"], capture_output=True, text=True)
-        return {
-            "platform": "launchd",
-            "installed": plist.exists(),
-            "active": proc.returncode == 0,
-            "detail": "loaded" if proc.returncode == 0 else "not loaded",
-        }
+        return {"platform": "launchd", "installed": plist.exists(), "active": proc.returncode == 0, "detail": "loaded" if proc.returncode == 0 else "not loaded"}
     if system == "windows":
-        proc = subprocess.run(
-            ["schtasks", "/Query", "/TN", WINDOWS_TASK, "/FO", "LIST", "/V"],
-            capture_output=True,
-            text=True,
-        )
+        proc = subprocess.run(["schtasks", "/Query", "/TN", WINDOWS_TASK, "/FO", "LIST", "/V"], capture_output=True, text=True)
         detail = (proc.stdout or proc.stderr).strip()
-        active = proc.returncode == 0 and any(
-            marker in detail.lower() for marker in ["status:                               running", "status: running"]
-        )
-        return {
-            "platform": "Task Scheduler",
-            "installed": proc.returncode == 0,
-            "active": active,
-            "detail": detail[-700:] if detail else "not installed",
-        }
+        active = proc.returncode == 0 and any(marker in detail.lower() for marker in ["status:                               running", "status: running"])
+        return {"platform": "Task Scheduler", "installed": proc.returncode == 0, "active": active, "detail": detail[-700:] if detail else "not installed"}
     return {"platform": platform.system(), "installed": False, "active": False, "detail": "unsupported"}
 
 
@@ -267,20 +266,7 @@ def _install_windows(settings: Settings) -> str:
     command = subprocess.list2cmdline(_module_command(settings))
     env_prefix = " && ".join(f'set "{k}={v}"' for k, v in _env(settings).items())
     wrapped = f'cmd /d /c "cd /d {subprocess.list2cmdline([str(settings.root)])} && {env_prefix} && {command}"'
-    subprocess.run(
-        [
-            "schtasks",
-            "/Create",
-            "/F",
-            "/SC",
-            "ONLOGON",
-            "/TN",
-            WINDOWS_TASK,
-            "/TR",
-            wrapped,
-        ],
-        check=True,
-    )
+    subprocess.run(["schtasks", "/Create", "/F", "/SC", "ONLOGON", "/TN", WINDOWS_TASK, "/TR", wrapped], check=True)
     subprocess.run(["schtasks", "/Run", "/TN", WINDOWS_TASK], check=False)
     return "Installed LATCH Gateway as a per-user logon task"
 
