@@ -1,0 +1,31 @@
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate evaluation corpus and runners
+        run: |
+          node -e "const x=require('./evals/cases.v1.json'); if(!Array.isArray(x.cases)||x.cases.length<30) process.exit(1); const ids=x.cases.map(c=>c.id); if(new Set(ids).size!==ids.length) process.exit(2); console.log('eval cases:',x.cases.length)"
+          node --check scripts/latch-eval.mjs
+          node --check scripts/compare-evals.mjs
+      - name: Verify cognitive debt invariants
+        run: node scripts/cognitive-debt-e2e.mjs
+      - name: Verify Attention Health dashboard
+        run: node scripts/dashboard-attention-smoke.mjs
+      - name: Verify no-install browser safety path
+        run: |
+          google-chrome --version || chromium --version
+          node scripts/browser-e2e.mjs
+          node scripts/noinstall-selftest.mjs
+      - run: npm install
+      - run: npm run build
+      - run: npm run test:ai-orchestration
+      - run: npm run typecheck
+      - run: npm run test:core

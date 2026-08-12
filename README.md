@@ -1,179 +1,105 @@
 # LATCH
 
-**LATCH is a semantic commit layer for consequential actions on the web.**
+**The commit layer for the internet.**
 
-Instead of treating a browser as a stream of pages, LATCH treats important interactions as structured actions: share, submit, publish, delete, grant access, upload, connect, transfer, and other consequential operations.
+LATCH is a browser-native safety/control layer for consequential web actions. It understands actions such as **pay, transfer, publish, submit, share, connect, upload, delete, revoke** and turns them into explicit semantic commits with risk, reversibility, receipts, and verified Undo when a credible inverse exists.
 
-Before a candidate action commits, LATCH creates an `ActionManifest` describing what may happen, who/what is affected, which data categories are involved, risk, and reversibility. After the user continues or cancels, LATCH records an `ActionReceipt` so the action is traceable later.
+LATCH is not an assistant and not an extension. It launches a dedicated Chromium browsing session and mediates actions through Chrome DevTools Protocol.
 
-The model is **an interpreter, not the security authority**. Deterministic policy can only be made stricter by model output, never weaker.
+## Production AI
 
-## Repository
+When `OPENAI_API_KEY` is configured, AI is the semantic core behind LATCH's interpretation layer—not a single optional classifier. The production path uses:
 
-- `apps/extension` — Chrome Manifest V3 extension; global DOM interception, redaction, preview UI, local fallback, receipt cache.
-- `apps/api` — HTTP API, anonymous device authentication, structured model analysis, signed receipts, Postgres persistence.
-- `apps/dashboard` — action timeline and receipt inspector.
-- `packages/contracts` — Zod schemas shared across every component.
-- `packages/core` — deterministic risk/reversibility policy and redaction utilities.
-- `packages/sdk` — API client plus native website action declarations.
-
-## What works today
-
-- Runs on arbitrary `http`/`https` pages through a Manifest V3 content script, including matching child/related frames.
-- Detects candidate actions using DOM semantics and form characteristics.
-- Never transmits raw form values; passwords/card values are not read into the semantic snapshot.
-- Redacts common emails, phones, card-like strings, OTP-like values and secret patterns from nearby text.
-- Builds deterministic action semantics on-device.
-- Optionally enriches classification with an OpenAI Responses API call constrained by a strict JSON schema.
-- Prevents model output from downgrading deterministic risk.
-- Uses a balanced intervention policy by default: low-impact interactions can pass silently, while high-risk, access, publishing, upload, deletion and financial actions receive stronger friction. Strict and high-risk-only modes are available.
-- Records committed and cancelled action receipts; signed connected receipts are re-signed when their undo status changes.
-- Falls back to local-only operation when the backend is unavailable.
-- Stores receipts in Postgres when configured.
-- Signs receipts server-side with HMAC-SHA256.
-- Provides both a zero-dependency local timeline and a React dashboard for filtering/inspecting receipts.
-- Detects a narrow class of unambiguous live-page inverse controls and can route an undo back to the correct tab/frame; ambiguous or unverifiable inverses are refused.
-- Allows websites to declare native action semantics through `data-latch-*` attributes or `declareWebAction()`.
-
-## What no browser extension can guarantee
-
-LATCH cannot truthfully promise automatic reversal of every action on every website. A website may execute irreversible server-side side effects, require trusted browser events, expose no inverse API, or deliberately obscure its semantics. LATCH therefore models reversibility explicitly:
-
-- `REVERSIBLE` — a reliable inverse is expected to exist.
-- `DELAYABLE` — action may be held before final commit.
-- `COMPENSABLE` — an inverse action can mitigate but not erase the original effect.
-- `IRREVERSIBLE` — no safe inverse is expected.
-- `UNKNOWN` — LATCH cannot prove the semantics.
-
-Native site adapters can provide stronger guarantees where a service exposes a reliable inverse operation.
-
-## Quick start
-
-### Fastest path: no dependency install
-
-The repository includes a zero-dependency Node runtime for product evaluation:
-
-```bash
-cp .env.example .env   # optional; export values into your shell if desired
-node apps/api/standalone.mjs
+```text
+browser-side privacy reduction
+        ↓
+fast independent AI gate
+        +
+primary frontier semantic interpreter
+        +
+independent verifier for high-risk / ambiguous actions
+        ↓
+conservative consensus
+        ↓
+deterministic safety floor
+        ↓
+adaptive HARD / SOFT / PASSIVE friction
 ```
 
-A prebuilt extension is committed in `apps/extension/dist`, so no package installation is required for evaluation. Load that directory as an unpacked Chrome extension. The standalone API serves the action timeline at `http://127.0.0.1:8787/dashboard`; the extension's **Timeline** button pairs it using the anonymous device token in the URL fragment.
+The hard safety policy remains authoritative: AI can make a classification stricter or add semantic detail, but cannot downgrade deterministic risk/reversibility.
 
-Run the full no-install behavioral test with:
+High-risk, sensitive, prompt-injected, or unknown-reversibility actions receive independent verification. Model disagreement lowers confidence and resolves toward the stricter interpretation. Model failures never turn a protected action into an unprotected action.
 
-```bash
-npm run selftest:noinstall
-# or, without npm:
-node scripts/noinstall-selftest.mjs
-```
+See [`docs/ai-architecture.md`](docs/ai-architecture.md).
 
-### Scalable TypeScript/Postgres path
+## Run production LATCH
 
-#### 1. Install dependencies
+Requirements: Node.js 22+, npm, Chrome/Chromium.
 
 ```bash
 npm install
+export OPENAI_API_KEY=...
+npm start
 ```
 
-#### 2. Configure backend
+`npm start` builds the production TypeScript semantic API, launches it on localhost, then starts the LATCH browser. The no-install standalone service is kept only as a development/offline fallback and is not the production AI path.
+
+### AI profiles
 
 ```bash
-cp .env.example .env
+LATCH_AI_PROFILE=balanced   # default
+LATCH_AI_FAST_MODEL=gpt-5-mini
+LATCH_AI_PRIMARY_MODEL=gpt-5.1
+LATCH_AI_VERIFIER_MODEL=gpt-5-pro
+npm start
 ```
 
-For AI-enhanced semantic interpretation, set `OPENAI_API_KEY`. Without it, the product still runs using deterministic local/server policy.
+Profiles:
 
-#### 3. Start Postgres + API
+- **economy** — low-cost ordinary-action gate; high-risk actions still escalate.
+- **balanced** — gate + primary, with verifier for high-risk/ambiguous/adversarial actions.
+- **maximum** — broad independent verification and higher reasoning effort.
+
+For a real production release, pin model snapshots only after they pass the LATCH evaluation set instead of relying indefinitely on moving aliases.
+
+## Privacy and adversarial pages
+
+Raw form values, passwords, card numbers, OTPs, uploaded file contents, whole-page text, and URL query strings are excluded from model analysis. Every model request sets `store:false`. DOM/page text is treated as hostile data; suspected prompt injection triggers conservative handling and independent verification.
+
+## Core product behavior
+
+- Action Manifest: consequence, target, data categories, risk, reversibility, effects, confidence.
+- Cognitive friction: hard warnings for high consequence, soft checks for uncertain/new medium risk, passive recording where interruption is unnecessary.
+- Signed Action Receipts.
+- Verified live Undo only where a credible inverse exists.
+- Dedicated LATCH Chromium profile, separate from normal Chrome.
+- Deterministic fallback if AI is unavailable.
+
+## Verification
 
 ```bash
-docker compose up --build
-```
-
-Or run without Postgres (in-memory receipt persistence):
-
-```bash
-npm run dev:api
-```
-
-#### 4. Build extension
-
-```bash
-npm run build:extension
-```
-
-Open Chrome → `chrome://extensions` → enable Developer mode → **Load unpacked** → select:
-
-```text
-apps/extension/dist
-```
-
-#### 5. Dashboard
-
-```bash
-npm run dev:dashboard
-```
-
-The extension obtains an anonymous device token automatically. For the standalone dashboard, use the same token if you want to inspect the server-side timeline directly. During development it is easiest to inspect the extension's local timeline from the popup.
-
-## Native website integration
-
-A website can give LATCH a semantic hint:
-
-```html
-<button
-  data-latch-action="document.share"
-  data-latch-summary="Share this document with the selected collaborator"
-  data-latch-reversibility="REVERSIBLE">
-  Share
-</button>
-```
-
-Or with the SDK:
-
-```ts
-import { declareWebAction } from "@latch/sdk";
-
-declareWebAction(button, {
-  actionType: "document.share",
-  summary: "Share this document with the selected collaborator",
-  reversibility: "REVERSIBLE"
-});
-```
-
-Declarations are **untrusted hints**. A hostile page cannot use them to lower LATCH's deterministic risk classification.
-
-## API
-
-- `POST /v1/devices/register`
-- `POST /v1/analyze`
-- `POST /v1/receipts`
-- `GET /v1/receipts`
-- `PATCH /v1/receipts/:id/status`
-- `GET /health`
-
-See [`docs/action-manifest.md`](docs/action-manifest.md) for the protocol.
-
-## Security principles
-
-1. Do not ship raw secrets to a model.
-2. Treat page content and site declarations as hostile input.
-3. Structured model output only.
-4. Deterministic policy is the minimum risk floor.
-5. Model confidence never creates authorization.
-6. User consent remains explicit for blocked/intercepted actions.
-7. Local-only operation must remain possible.
-8. Receipts describe what LATCH observed; they are not proof that a third-party server honored an action.
-
-See [`SECURITY.md`](SECURITY.md) and [`PRIVACY.md`](PRIVACY.md).
-
-## Development
-
-```bash
-npm run typecheck
-npm test
 npm run build
+npm run test:ai-orchestration
+npm run typecheck
+npm run test:core
+npm run test:browser
 ```
+
+`test:ai-orchestration` boots a fake Responses endpoint and the real compiled LATCH API, then verifies multi-stage gate/primary/verifier routing, conservative consensus, prompt-injection escalation, `store:false`, and that URL query secrets never reach model input.
+
+`test:browser` launches real headless Chromium and verifies trusted action replay, CRITICAL/IRREVERSIBLE payment classification, signed receipts, live inverse detection, and an Undo transition to `UNDONE`.
+
+## Security invariants
+
+1. Website content is hostile input.
+2. Raw secret/form values are not model context.
+3. AI cannot lower the deterministic safety floor.
+4. High-consequence actions never habituate to passive mode.
+5. Approved replay is coordinate-bound and single-use.
+6. Undo is offered only when a credible inverse is verifiable.
+7. Receipts describe what LATCH observed; they do not prove remote-server behavior.
+
+See [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md), and [`docs/cognitive-friction.md`](docs/cognitive-friction.md).
 
 ## License
 
