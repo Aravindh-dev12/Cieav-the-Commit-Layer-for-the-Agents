@@ -2,6 +2,7 @@
 import {readFile} from "node:fs/promises";
 const injected=await readFile(new URL("../apps/browser/injected.js",import.meta.url),"utf8");
 const browser=await readFile(new URL("../apps/browser/main.mjs",import.meta.url),"utf8");
+const cdpPipe=await readFile(new URL("../apps/browser/cdp-pipe.mjs",import.meta.url),"utf8");
 const controlAuth=await readFile(new URL("../apps/browser/control-auth.mjs",import.meta.url),"utf8");
 const adapters=await readFile(new URL("../apps/browser/adapters.mjs",import.meta.url),"utf8");
 const server=await readFile(new URL("../apps/api/src/server.ts",import.meta.url),"utf8");
@@ -19,12 +20,17 @@ if(!injected.includes("async function register(e,m,rid){if(!AUTO)return;"))throw
 if(!injected.includes("No trusted live-page inverse adapter is available"))throw new Error("production Undo trust-boundary message missing");
 if(!browser.includes('verifyAdapterProposal({')||!browser.includes('m.kind==="UNDO_READY"')||!browser.includes("liveAdapter(u)"))throw new Error("browser host does not validate trusted adapter proposals and expiry");
 if(!browser.includes('current.outcome?.status!=="OBSERVED_SUCCESS"'))throw new Error("host Undo path does not independently require observed success");
+if(!browser.includes('"--remote-debugging-pipe"')||!browser.includes('browserControlTransport:"private-pipe"')||!browser.includes("Target.setDiscoverTargets")||!browser.includes("Target.attachToTarget")||!browser.includes("flatten:true"))throw new Error("browser authority is not using browser-wide flat private CDP pipe sessions");
+for(const forbidden of ["--remote-debugging-port","/json/list","/json/new","webSocketDebuggerUrl"]){if(browser.includes(forbidden))throw new Error(`browser authority reintroduced TCP DevTools surface: ${forbidden}`)}
+if(!cdpPipe.includes('JSON.stringify(msg)+"\\0"')||!cdpPipe.includes("indexOf(0)")||!cdpPipe.includes("MAX_MESSAGE_BYTES")||!cdpPipe.includes("sessionId"))throw new Error("private CDP pipe framing/session limits are incomplete");
+if(!browser.includes('if(AUTO&&req.method==="POST"&&u.pathname==="/api/test/eval"')||!browser.includes('if(AUTO&&req.method==="POST"&&u.pathname==="/api/test/click"'))throw new Error("synthetic browser controls are not explicitly test-only");
 if(!controlAuth.includes("timingSafeEqual")||!controlAuth.includes("HttpOnly")||!controlAuth.includes("SameSite=Strict")||!controlAuth.includes("consumeBootstrap"))throw new Error("browser control session is not constant-time/HttpOnly/one-time bootstrapped");
 if(!browser.includes("if(!controlAuth.authorized(req))return send(401")||!browser.includes('u.pathname==="/api/bootstrap"'))throw new Error("Control Center API is not authenticated");
 if(!browser.includes("delete browserEnv.CIEAV_BROWSER_CONTROL_TOKEN")||!browser.includes("delete browserEnv.LATCH_BROWSER_CONTROL_TOKEN"))throw new Error("browser-control capability may leak into Chromium environment");
 if(!gateway.includes("surface_control_token")||!gateway.includes("secrets.token_urlsafe(48)")||!gateway.includes('env["CIEAV_BROWSER_CONTROL_TOKEN"]'))throw new Error("Gateway does not own a fresh per-surface browser-control capability");
 if(!gateway.includes('"CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN"')||!gateway.includes("self.surface_control_token=None"))throw new Error("Gateway does not scrub/destroy inherited browser-control authority");
 if(!cli.includes('"/v1/dashboard","POST"')||cli.includes('return _open_url(f"http://127.0.0.1:{settings.control_port}")'))throw new Error("CLI dashboard bypasses authenticated Gateway bootstrap");
+if(!browser.includes("persistOutcome")||!browser.includes("p.persistenceFailures")||!browser.includes("if(p.finalizing)return p.finalizing")||!browser.includes("await attention.flush()"))throw new Error("outcome/audit persistence is not retry-safe and gracefully flushed");
 if(!adapters.includes('error:"ambiguous_trusted_adapter"')||!adapters.includes('error:"no_trusted_adapter_match"'))throw new Error("adapter registry does not fail closed on zero/ambiguous matches");
 if(!adapters.includes('testOnly:true'))throw new Error("test adapters are not explicitly marked test-only");
 if(!adapters.includes('kind:"ADAPTER_RESOURCE"')||!adapters.includes("resourceKey")||!adapters.includes("sameAdapterCapability"))throw new Error("trusted adapter capabilities are not bound to exact resource fingerprints");
@@ -40,4 +46,4 @@ if(!config.includes("!localAuthority&&process.env.DATABASE_URL"))throw new Error
 for(const token of ["privacyReduceContext","assertCloudPrivacyIngress","assertCloudPrivacyBaseline","privacy_page_text_forbidden","privacy_raw_filename_forbidden"]){if(!privacy.includes(token))throw new Error(`model privacy invariant missing: ${token}`)}
 if(!server.includes("assertCloudPrivacyIngress(raw?.context)")||!server.includes("assertCloudPrivacyBaseline(raw?.baseline"))throw new Error("CIEAV Cloud server trusts client privacy declarations without ingress validation");
 for(const token of ["_privacy_reduce_context","_privacy_reduce_baseline","_NoRedirect","must use HTTPS except for loopback tests"]){if(!cloudProvider.includes(token))throw new Error(`CIEAV Cloud egress invariant missing: ${token}`)}
-console.log("CIEAV browser/control-auth, privacy, trusted-adapter, outcome-evidence, and receipt-identity checks passed");
+console.log("CIEAV browser/private-pipe/control-auth, privacy, trusted-adapter, outcome-evidence, and receipt-identity checks passed");
