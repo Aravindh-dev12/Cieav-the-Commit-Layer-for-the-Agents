@@ -1,0 +1,46 @@
+import crypto from "node:crypto";
+import type {IncomingMessage} from "node:http";
+import {ActionManifestSchema} from "@latch/contracts";
+import {ActionProposalSchema,CommitPermitSchema,OpenLoopCreateRequestSchema,OpenLoopSchema,OpenLoopUpdateRequestSchema,RealityEvaluateRequestSchema,type OpenLoop} from "@latch/contracts/reality";
+import {assessConsequences,evaluateAuthority,issueCommitPermit,proposalFromManifest,verifyCommitPermit} from "@latch/core/reality";
+import type {AgentTokenPayload,TokenRisk} from "./auth.js";
+import type {CieavRealityApi,RealityRouteResult} from "./reality-api.js";
+
+const MAX_BODY=256_000;
+const riskRank:Record<TokenRisk,number>={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3};
+async function parseBody(req:IncomingMessage){const chunks:Buffer[]=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>MAX_BODY)throw new Error("body_too_large");chunks.push(b)}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{} }
+function intentAllowed(identity:AgentTokenPayload,id:string){return identity.allowedIntentIds.includes(id)}
+function actionAllowed(identity:AgentTokenPayload,actionType:string){return identity.allowedActionTypes.includes("*")||identity.allowedActionTypes.includes(actionType)}
+function riskAllowed(identity:AgentTokenPayload,risk:TokenRisk){return riskRank[risk]<=riskRank[identity.maxRisk]}
+function assertProposalAllowed(identity:AgentTokenPayload,proposal:{intentId:string;actionType:string;risk:TokenRisk}){if(!intentAllowed(identity,proposal.intentId))throw new Error("agent_intent_not_allowed");if(!actionAllowed(identity,proposal.actionType))throw new Error("agent_action_not_allowed");if(!riskAllowed(identity,proposal.risk))throw new Error("agent_risk_limit_exceeded")}
+
+export class CieavAgentRealityApi{
+  constructor(private readonly reality:CieavRealityApi,private readonly permitSecret:string){}
+  async handle(req:IncomingMessage,pathname:string,identity:AgentTokenPayload):Promise<RealityRouteResult|null>{
+    const scope=identity.scopeDeviceId;
+    if(req.method==="GET"&&pathname==="/v1/agent/intents"){const values=await this.reality.store.listIntents(scope);return{status:200,body:{intents:values.filter(x=>intentAllowed(identity,x.id))}}}
+    const intentMatch=pathname.match(/^\/v1\/agent\/intents\/([0-9a-f-]+)$/i);
+    if(req.method==="GET"&&intentMatch?.[1]){if(!intentAllowed(identity,intentMatch[1]))return{status:403,body:{error:"agent_intent_not_allowed"}};const intent=await this.reality.store.getIntent(scope,intentMatch[1]);return intent?{status:200,body:{intent}}:{status:404,body:{error:"not_found"}}}
+    if(req.method==="POST"&&pathname==="/v1/agent/reality/evaluate"){
+      const raw=await parseBody(req),base=RealityEvaluateRequestSchema.parse({intentId:raw?.intentId,actor:raw?.actor,delegationChain:raw?.delegationChain??[],amount:raw?.amount}),manifest=ActionManifestSchema.parse(raw?.manifest);
+      if(!intentAllowed(identity,base.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};
+      if(base.actor.kind!=="AGENT"||base.actor.id!==identity.agentId)return{status:403,body:{error:"agent_identity_mismatch"}};
+      if(!actionAllowed(identity,manifest.actionType))return{status:403,body:{error:"agent_action_not_allowed"}};
+      if(!riskAllowed(identity,manifest.risk))return{status:403,body:{error:"agent_risk_limit_exceeded"}};
+      const intent=await this.reality.store.getIntent(scope,base.intentId);if(!intent)return{status:404,body:{error:"intent_not_found"}};
+      const proposal=proposalFromManifest(intent.id,base.actor,manifest,base.delegationChain,base.amount);assertProposalAllowed(identity,proposal);
+      const assessment=assessConsequences(proposal),authority=evaluateAuthority(intent,proposal),permit=authority.decision==="ALLOW"?issueCommitPermit(proposal,this.permitSecret,90):undefined,approval=authority.decision==="ASK"?await this.reality.store.createApproval(scope,proposal):undefined;
+      return{status:200,body:{intent,proposal,assessment,authority,...(permit?{permit}:{}),...(approval?{approval}:{})}};
+    }
+    const approvalMatch=pathname.match(/^\/v1\/agent\/reality\/approvals\/([0-9a-f-]+)$/i);
+    if(req.method==="GET"&&approvalMatch?.[1]){const approval=await this.reality.store.getApproval(scope,approvalMatch[1]);if(!approval)return{status:404,body:{error:"not_found"}};if(!intentAllowed(identity,approval.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};return{status:200,body:{approval}}}
+    const permitMatch=pathname.match(/^\/v1\/agent\/reality\/approvals\/([0-9a-f-]+)\/permit$/i);
+    if(req.method==="POST"&&permitMatch?.[1]){const proposal=await this.reality.store.claimApprovedProposal(scope,permitMatch[1]);if(!proposal)return{status:409,body:{error:"approval_not_available"}};assertProposalAllowed(identity,proposal);return{status:200,body:{proposal,permit:issueCommitPermit(proposal,this.permitSecret,90)}}}
+    if(req.method==="POST"&&pathname==="/v1/agent/reality/consume"){const raw=await parseBody(req),permit=CommitPermitSchema.parse(raw?.permit),proposal=ActionProposalSchema.parse(raw?.proposal);assertProposalAllowed(identity,proposal);if(permit.intentId!==proposal.intentId)return{status:403,body:{error:"permit_scope_mismatch"}};if(!await this.reality.store.getIntent(scope,permit.intentId))return{status:404,body:{error:"intent_not_found"}};if(!verifyCommitPermit(permit,proposal,this.permitSecret))return{status:403,body:{error:"invalid_or_expired_permit"}};if(!await this.reality.store.consumePermit(scope,permit.id))return{status:409,body:{error:"permit_already_consumed"}};return{status:200,body:{ok:true,permitId:permit.id,consumedAt:new Date().toISOString()}}}
+    if(req.method==="POST"&&pathname==="/v1/agent/open-loops"){const input=OpenLoopCreateRequestSchema.parse(await parseBody(req));if(!intentAllowed(identity,input.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};if(!await this.reality.store.getIntent(scope,input.intentId))return{status:404,body:{error:"intent_not_found"}};const loop:OpenLoop=OpenLoopSchema.parse({id:crypto.randomUUID(),...input,status:"OPEN",createdAt:new Date().toISOString()});return{status:201,body:{openLoop:await this.reality.store.saveLoop(scope,loop)}}}
+    if(req.method==="GET"&&pathname==="/v1/agent/open-loops"){const loops=await this.reality.store.listLoops(scope);return{status:200,body:{openLoops:loops.filter(x=>intentAllowed(identity,x.intentId))}}}
+    const loopMatch=pathname.match(/^\/v1\/agent\/open-loops\/([0-9a-f-]+)$/i);
+    if(req.method==="PATCH"&&loopMatch?.[1]){const current=await this.reality.store.getLoop(scope,loopMatch[1]);if(!current)return{status:404,body:{error:"not_found"}};if(!intentAllowed(identity,current.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};const patch=OpenLoopUpdateRequestSchema.parse(await parseBody(req));if(patch.status==="RESOLVED"||patch.status==="CANCELLED")return{status:403,body:{error:"agent_cannot_finalize_open_loop"}};const next=OpenLoopSchema.parse({...current,...patch});return{status:200,body:{openLoop:await this.reality.store.saveLoop(scope,next)}}}
+    return null;
+  }
+}

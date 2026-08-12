@@ -1,18 +1,14 @@
 import crypto from "node:crypto";
 
-const encoder = new TextEncoder();
-function b64url(input: Buffer | string): string { return Buffer.from(input).toString("base64url"); }
-function signPart(part: string, secret: string): string { return crypto.createHmac("sha256", secret).update(part).digest("base64url"); }
-export interface TokenPayload { sub: string; installId: string; exp: number; iat: number }
-export function issueToken(payload: Omit<TokenPayload, "iat" | "exp">, secret: string, ttlSeconds = 60 * 60 * 24 * 365): {token: string; expiresAt: string} {
-  const now = Math.floor(Date.now() / 1000); const full: TokenPayload = {...payload, iat: now, exp: now + ttlSeconds};
-  const header = b64url(JSON.stringify({alg: "HS256", typ: "JWT"})); const body = b64url(JSON.stringify(full)); const signing = `${header}.${body}`; const sig = signPart(signing, secret);
-  return {token: `${signing}.${sig}`, expiresAt: new Date(full.exp * 1000).toISOString()};
-}
-export function verifyToken(token: string, secret: string): TokenPayload | null {
-  const parts = token.split("."); if (parts.length !== 3) return null; const [header, body, sig] = parts; if (!header || !body || !sig) return null;
-  const expected = signPart(`${header}.${body}`, secret); const a = encoder.encode(sig); const b = encoder.encode(expected);
-  if (a.byteLength !== b.byteLength || !crypto.timingSafeEqual(a, b)) return null;
-  try { const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as TokenPayload; if (!payload.sub || !payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null; return payload; } catch { return null; }
-}
-export function deviceIdFor(installId: string, secret: string): string { return `dev_${crypto.createHmac("sha256", secret).update(installId).digest("hex").slice(0, 24)}`; }
+const encoder=new TextEncoder();
+function b64url(input:Buffer|string):string{return Buffer.from(input).toString("base64url")}
+function signPart(part:string,secret:string):string{return crypto.createHmac("sha256",secret).update(part).digest("base64url")}
+export type TokenRisk="LOW"|"MEDIUM"|"HIGH"|"CRITICAL";
+export interface DeviceTokenPayload{sub:string;installId:string;exp:number;iat:number;tokenType?:"device"}
+export interface AgentTokenPayload{sub:string;installId:"agent-session";exp:number;iat:number;tokenType:"agent";sessionId:string;scopeDeviceId:string;agentId:string;agentName?:string;provider?:string;allowedIntentIds:string[];allowedActionTypes:string[];maxRisk:TokenRisk}
+export type TokenPayload=DeviceTokenPayload|AgentTokenPayload;
+function encodeToken(payload:TokenPayload,secret:string):string{const header=b64url(JSON.stringify({alg:"HS256",typ:"JWT"})),body=b64url(JSON.stringify(payload)),signing=`${header}.${body}`,sig=signPart(signing,secret);return`${signing}.${sig}`}
+export function issueToken(payload:Omit<DeviceTokenPayload,"iat"|"exp"|"tokenType">,secret:string,ttlSeconds=60*60*24*365):{token:string;expiresAt:string}{const now=Math.floor(Date.now()/1000),full:DeviceTokenPayload={...payload,tokenType:"device",iat:now,exp:now+ttlSeconds};return{token:encodeToken(full,secret),expiresAt:new Date(full.exp*1000).toISOString()}}
+export function issueAgentToken(payload:Omit<AgentTokenPayload,"iat"|"exp"|"tokenType"|"installId">,secret:string,ttlSeconds:number):{token:string;expiresAt:string}{const now=Math.floor(Date.now()/1000),ttl=Math.max(60,Math.min(3600,Math.floor(ttlSeconds))),full:AgentTokenPayload={...payload,installId:"agent-session",tokenType:"agent",iat:now,exp:now+ttl};return{token:encodeToken(full,secret),expiresAt:new Date(full.exp*1000).toISOString()}}
+export function verifyToken(token:string,secret:string):TokenPayload|null{const parts=token.split(".");if(parts.length!==3)return null;const[header,body,sig]=parts;if(!header||!body||!sig)return null;const expected=signPart(`${header}.${body}`,secret),a=encoder.encode(sig),b=encoder.encode(expected);if(a.byteLength!==b.byteLength||!crypto.timingSafeEqual(a,b))return null;try{const h=JSON.parse(Buffer.from(header,"base64url").toString("utf8"));if(h?.alg!=="HS256"||h?.typ!=="JWT")return null;const payload=JSON.parse(Buffer.from(body,"base64url").toString("utf8")) as TokenPayload,now=Math.floor(Date.now()/1000);if(!payload?.sub||!payload.exp||!payload.iat||payload.exp<now||payload.iat>now+60)return null;if(payload.tokenType==="agent"){if(payload.installId!=="agent-session"||!payload.sessionId||!payload.scopeDeviceId||!payload.agentId||!Array.isArray(payload.allowedIntentIds)||!Array.isArray(payload.allowedActionTypes)||!["LOW","MEDIUM","HIGH","CRITICAL"].includes(payload.maxRisk))return null}else if(typeof payload.installId!=="string"||payload.installId.length<1)return null;return payload}catch{return null}}
+export function deviceIdFor(installId:string,secret:string):string{return`dev_${crypto.createHmac("sha256",secret).update(installId).digest("hex").slice(0,24)}`}

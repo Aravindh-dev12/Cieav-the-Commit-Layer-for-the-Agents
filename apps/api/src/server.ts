@@ -5,6 +5,8 @@ import {ActionContextSchema,CommitRequestSchema,DeviceRegisterSchema,ReceiptOutc
 import {heuristicManifest,shouldUseModel,stricterRisk,stricterReversibility} from "@latch/core";
 import {loadConfig} from "./config.js";
 import {deviceIdFor,issueToken,verifyToken} from "./auth.js";
+import {CieavAgentSessionStore} from "./agent-sessions.js";
+import {CieavAgentRealityApi} from "./agent-api.js";
 import {analyzeWithOpenAI} from "./model/openai.js";
 import {analyzeWithHuggingFace,shouldEscalateAfterHuggingFace} from "./model/huggingface.js";
 import {analyzeWithCloudModel} from "./model/cloud.js";
@@ -20,6 +22,8 @@ import {CieavRealityApi} from "./reality-api.js";
 const config=loadConfig(),rateBuckets=new Map<string,{start:number;count:number}>();
 const receiptSigner:ReceiptSigner=config.localAuthority?await loadDeviceReceiptSigner(config.localStateDir!,config.receiptSigningSecret):config.receiptSigningSecret;
 const realityApi=config.localAuthority?new CieavRealityApi(path.join(config.localStateDir!,"reality-state.json"),config.receiptSigningSecret):null;
+const agentSessions=config.localAuthority?new CieavAgentSessionStore(path.join(config.localStateDir!,"agent-sessions.json"),config.receiptSigningSecret,config.jwtSecret):null;
+const agentApi=realityApi?new CieavAgentRealityApi(realityApi,config.receiptSigningSecret):null;
 function rateLimit(k:string,l:number,w=60000){const n=Date.now();let b=rateBuckets.get(k);if(!b||n-b.start>w){b={start:n,count:0};rateBuckets.set(k,b)}b.count++;return b.count<=l}
 const store:ReceiptStore=config.cloudServer?new MemoryReceiptStore():config.localAuthority?new FileReceiptStore(path.join(config.localStateDir!,"receipts.json"),receiptSigner):config.databaseUrl?new PostgresReceiptStore(config.databaseUrl):new MemoryReceiptStore();
 if(store instanceof PostgresReceiptStore)await store.init();
@@ -45,7 +49,7 @@ const server=http.createServer(async(req,res)=>{
   try{
     if(req.method==="GET"&&url.pathname==="/health")return json(res,200,config.cloudServer?
       {ok:true,service,model:config.cloudModel,privacyMode:"transient-minimized",durableUserState:false}:
-      {ok:true,service,localAuthority:config.localAuthority,receiptPersistence:persistence,receiptSigning:typeof receiptSigner==="string"?{algorithm:"HMAC-SHA256",version:"2"}:{algorithm:"Ed25519",version:"3",keyId:receiptSigner.keyId,publicKey:receiptSigner.publicKeyEncoded},modelEnabled:Boolean(config.hfEnabled||config.openaiApiKey),aiProfile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel},providers:{semanticRouter:{enabled:config.hfEnabled,role:"first-tier"},frontier:{enabled:Boolean(config.openaiApiKey),profile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel}}},realityRuntime:{enabled:Boolean(realityApi),version:"2",intentContracts:true,scopedPermits:true,oneUseConsumption:true,openLoops:true,trustedApprovalGateway:true}},origin);
+      {ok:true,service,localAuthority:config.localAuthority,receiptPersistence:persistence,receiptSigning:typeof receiptSigner==="string"?{algorithm:"HMAC-SHA256",version:"2"}:{algorithm:"Ed25519",version:"3",keyId:receiptSigner.keyId,publicKey:receiptSigner.publicKeyEncoded},modelEnabled:Boolean(config.hfEnabled||config.openaiApiKey),aiProfile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel},providers:{semanticRouter:{enabled:config.hfEnabled,role:"first-tier"},frontier:{enabled:Boolean(config.openaiApiKey),profile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel}}},realityRuntime:{enabled:Boolean(realityApi),version:"2",intentContracts:true,scopedPermits:true,oneUseConsumption:true,openLoops:true,trustedApprovalGateway:true,agentSessions:Boolean(agentSessions)}},origin);
 
     if(req.method==="POST"&&url.pathname==="/v1/devices/register"){
       if(!rateLimit(`register:${ip}`,30))return json(res,429,{error:"rate_limited"},origin);
@@ -60,7 +64,25 @@ const server=http.createServer(async(req,res)=>{
       const handled=await realityApi.handleGateway(req,url.pathname);if(handled)return json(res,handled.status,handled.body,origin);
     }
 
+    const gatewayAgentPath=url.pathname.startsWith("/v1/agent-sessions");
+    if(config.cloudServer&&gatewayAgentPath)return json(res,404,{error:"local_only_resource"},origin);
+    if(agentSessions&&gatewayAgentPath&&gatewayAuth(req)){
+      if(!rateLimit("gateway-agent-session",120))return json(res,429,{error:"rate_limited"},origin);
+      if(req.method==="GET"&&url.pathname==="/v1/agent-sessions")return json(res,200,{sessions:await agentSessions.list()},origin);
+      if(req.method==="POST"&&url.pathname==="/v1/agent-sessions")return json(res,201,await agentSessions.issue(await body(req)),origin);
+      const revoke=url.pathname.match(/^\/v1\/agent-sessions\/([0-9a-f-]+)\/revoke$/i);
+      if(req.method==="POST"&&revoke?.[1]){const session=await agentSessions.revoke(revoke[1]);return session?json(res,200,{session},origin):json(res,404,{error:"not_found"},origin)}
+    }
+
     const identity=auth(req);if(!identity)return json(res,401,{error:"unauthorized"},origin);
+    if(identity.tokenType==="agent"){
+      if(!agentSessions||!await agentSessions.validate(identity))return json(res,401,{error:"agent_session_invalid_or_revoked"},origin);
+      if(!url.pathname.startsWith("/v1/agent/"))return json(res,403,{error:"agent_endpoint_required"},origin);
+      if(!agentApi)return json(res,503,{error:"agent_runtime_unavailable"},origin);
+      if(!rateLimit(`agent:${identity.sessionId}`,240))return json(res,429,{error:"rate_limited"},origin);
+      const handled=await agentApi.handle(req,url.pathname,identity);return handled?json(res,handled.status,handled.body,origin):json(res,404,{error:"not_found"},origin);
+    }
+    if(url.pathname.startsWith("/v1/agent/"))return json(res,403,{error:"agent_session_required"},origin);
 
     if(config.cloudServer&&req.method==="POST"&&url.pathname==="/v1/inference/analyze"){
       if(!rateLimit(`cloud-analyze:${identity.sub}`,240))return json(res,429,{error:"rate_limited"},origin);
@@ -112,4 +134,4 @@ const server=http.createServer(async(req,res)=>{
 
 const bindHost=config.cloudServer?(process.env.HOST??"0.0.0.0"):"127.0.0.1";
 server.listen(config.port,bindHost,()=>console.log(`${service} listening on http://${bindHost}:${config.port} · persistence=${persistence}`));
-for(const signal of ["SIGINT","SIGTERM"] as const)process.on(signal,async()=>{await store.close();await realityApi?.store.close();server.close(()=>process.exit(0))});
+for(const signal of ["SIGINT","SIGTERM"] as const)process.on(signal,async()=>{await store.close();await realityApi?.store.close();await agentSessions?.close();server.close(()=>process.exit(0))});
