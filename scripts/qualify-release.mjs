@@ -15,7 +15,7 @@ const reports=[];
 for(const file of files){
   try{
     const r=JSON.parse(await readFile(path.join(DIR,file),"utf8"));
-    if(r?.product==="CIEAV"&&r?.verdict==="PASS"&&r?.source?.commit&&r?.version)reports.push({...r,_file:file,_target:targetOf(r)});
+    if(r?.product==="CIEAV"&&r?.verdict==="PASS"&&r?.qualifying===true&&r?.source?.commit&&r?.version)reports.push({...r,_file:file,_target:targetOf(r)});
   }catch{}
 }
 reports.sort((a,b)=>String(b.finishedAt).localeCompare(String(a.finishedAt)));
@@ -27,8 +27,8 @@ const missing=selected.filter(x=>!x.report).map(x=>x.target);
 const present=selected.filter(x=>x.report);
 const versions=[...new Set(present.map(x=>x.report.version))];
 const commits=[...new Set(present.map(x=>x.report.source.commit))];
-let verdict="PASS",reason="all required targets have matching PASS evidence";
-if(missing.length){verdict="FAIL";reason=`missing PASS evidence for ${missing.join(', ')}`}
+let verdict="PASS",reason="all required targets have matching qualifying PASS evidence";
+if(missing.length){verdict="FAIL";reason=`missing qualifying PASS evidence for ${missing.join(', ')}`}
 else if(versions.length!==1){verdict="FAIL";reason=`reports disagree on version: ${versions.join(', ')}`}
 else if(commits.length!==1){verdict="FAIL";reason=`reports disagree on source commit: ${commits.join(', ')}`}
 
