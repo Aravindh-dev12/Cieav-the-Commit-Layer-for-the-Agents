@@ -14,7 +14,7 @@
     "test:cdp-pipe":"node scripts/cdp-pipe-e2e.mjs",
     "test:release-signing":"node scripts/release-signing-smoke.mjs",
     "test:secrets":"python scripts/secret-store-smoke.py",
-    "test:browser":"node scripts/control-auth-e2e.mjs && node scripts/cdp-pipe-e2e.mjs && node scripts/adapter-registry-e2e.mjs && node scripts/browser-safety-static.mjs && node scripts/browser-e2e.mjs",
+    "test:browser":"npm run test:secrets && npm run test:release-signing && node scripts/control-auth-e2e.mjs && node scripts/cdp-pipe-e2e.mjs && node scripts/adapter-registry-e2e.mjs && node scripts/browser-safety-static.mjs && node scripts/browser-e2e.mjs",
     "test:ai-orchestration":"node scripts/ai-orchestration-e2e.mjs",
     "test:cognitive-debt":"node scripts/cognitive-debt-e2e.mjs",
     "test:control":"python scripts/control-plane-smoke.py",
