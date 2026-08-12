@@ -18,6 +18,7 @@ hf = ["huggingface_hub>=0.34,<2"]
 cieav = "latch_platform.__main__:entrypoint"
 latch = "latch_platform.__main__:entrypoint"
 cieav-mcp = "latch_platform.mcp_launcher:main"
+cieav-a2a = "latch_platform.a2a_launcher:main"
 cieav-approval = "latch_platform.approval_cli:main"
 cieav-proof = "latch_platform.proof_cli:main"
 

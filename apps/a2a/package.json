@@ -1,0 +1,9 @@
+{
+  "name":"@cieav/a2a",
+  "version":"0.1.0",
+  "private":true,
+  "type":"module",
+  "main":"src/index.mjs",
+  "scripts":{"start":"node src/index.mjs","build":"node --check src/index.mjs","typecheck":"node --check src/index.mjs"},
+  "engines":{"node":">=22"}
+}
