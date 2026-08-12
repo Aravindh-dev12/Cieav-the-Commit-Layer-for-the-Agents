@@ -97,9 +97,17 @@ check("Control Center scoped reality surface",()=>{
 
 check("release bundle covers agent protocols",()=>{
   const build=requireFile("scripts/build-release-runtime.py"),pkg=JSON.parse(requireFile("package.json"));
-  has(build,["verify_platform_boundaries","platformBoundaryVerified","apps/mcp/dist/index.js","apps/a2a/src/index.mjs","agentProtocols","a2a","mcp","bundleFormat"],"release runtime");
-  for(const script of ["test:a2a","test:dashboard-reality","build","typecheck"])if(!pkg.scripts?.[script])throw new Error(`package script missing: ${script}`);
-  return "MCP, A2A, Control Center boundaries and protocol metadata participate in release qualification";
+  has(build,["verify_release_boundaries","releaseBoundaryVerified","canonicalNamespaceVerified","controlCenterRealityBoundaryVerified","apps/mcp/dist/index.js","apps/a2a/src/index.mjs","agentProtocols","bundleFormat\":6"],"release runtime");
+  for(const script of ["test:a2a","test:dashboard-reality","build","typecheck","release:smoke:runtime"])if(!pkg.scripts?.[script])throw new Error(`package script missing: ${script}`);
+  return "MCP, A2A, Control Center and canonical namespace boundaries participate in runtime packaging";
+});
+
+check("clean runtime qualification is mandatory",()=>{
+  const smoke=requireFile("scripts/clean-runtime-smoke.py"),qualify=requireFile("scripts/qualify-release.mjs"),docs=requireFile("docs/release-qualification.md");
+  has(smoke,["first-extract","releaseBoundaryVerified","windowsAuthenticode","macosCodeSign","cliSurfaces","relocation","cieav-runtime-smoke-"],"clean runtime smoke");
+  has(qualify,["missing_matching_clean_runtime_smoke","runtimeSmokeSchema:1","rejectedRuntimeSmokes","windowsAuthenticode","macosCodeSign"],"cross-platform qualification");
+  has(docs,["release:smoke:runtime","release:qualify","same version and Git commit"],"local qualification runbook");
+  return "source PASS cannot qualify without matching clean extracted runtime evidence";
 });
 
 check("new secrets excluded from release evidence",()=>{
