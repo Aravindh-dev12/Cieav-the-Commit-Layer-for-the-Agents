@@ -28,7 +28,9 @@ export class Attention{
       const x=JSON.parse(await readFile(this.f,"utf8")),origins={};
       if(!x||typeof x!=="object"||Array.isArray(x)||!x.origins||typeof x.origins!=="object"||Array.isArray(x.origins))throw new Error("invalid attention state shape");
       for(const[k,v]of Object.entries(x.origins??{}))origins[k]=normalizedHistory(v);
-      this.s={...this.s,...x,version:5,origins,stats:{...stats(),...(x.stats??{})}};
+      const migrated=Number(x.version??0)<5||!x.lastActivityAt;
+      this.s={...this.s,...x,version:5,origins,stats:{...stats(),...(x.stats??{})},lastActivityAt:x.lastActivityAt??null,...(migrated?{migratedDebtEpoch:true}:{})};
+      if(migrated)this._resetDebtEpoch({forgetSafety:true});
     }catch(err){
       if(err?.code!=="ENOENT"){
         const corrupt=path.join(this.stateDir,`attention.corrupt.${new Date(this.clock()).toISOString().replace(/[:.]/g,"-")}.json`);
@@ -40,17 +42,17 @@ export class Attention{
     return this;
   }
   save(){const body=JSON.stringify(this.s,null,2),work=async()=>{await writeFile(this.tmp,body,{mode:0o600});await rename(this.tmp,this.f)};const task=this._saveChain.then(work,work);this._saveChain=task.then(()=>undefined,()=>undefined);return task}
-  _touch(){this._expireEpochIfIdle();this.s.lastActivityAt=new Date(this.clock()).toISOString()}
-  _expireEpochIfIdle(){
-    const last=ts(this.s.lastActivityAt);
-    if(!last||this.clock()-last<=DEBT_EPOCH_IDLE_MS)return;
+  _resetDebtEpoch({forgetSafety=false}={}){
     this.s.stats=stats();
     for(const raw of Object.values(this.s.origins)){
       const h=raw;
-      h.hardShown=0;h.softShown=0;h.passiveShown=0;h.fastApprovalStreak=0;h.promptedDecisions=0;h.fastApprovals=0;h.decisionMsTotal=0;h.lastDecisionMs=null;h.lastFriction=null;h.safeCommitStreak=0;h.recoveryCommits=0;
+      h.hardShown=0;h.softShown=0;h.passiveShown=0;h.fastApprovalStreak=0;h.promptedDecisions=0;h.fastApprovals=0;h.decisionMsTotal=0;h.lastDecisionMs=null;h.lastFriction=null;
+      if(forgetSafety){h.safeCommitStreak=0;h.recoveryCommits=0}
     }
     this.s.lastActivityAt=null;
   }
+  _touch(){this._expireEpochIfIdle();this.s.lastActivityAt=new Date(this.clock()).toISOString()}
+  _expireEpochIfIdle(){const last=ts(this.s.lastActivityAt);if(last&&this.clock()-last>DEBT_EPOCH_IDLE_MS)this._resetDebtEpoch({forgetSafety:true})}
   _expirePatternMemory(h){
     const last=ts(h.lastAt),outcomeAt=ts(h.lastOutcomeAt);
     if(last&&this.clock()-last>SAFETY_MEMORY_MS){h.safeCommitStreak=0;h.recoveryCommits=0;h.fastApprovalStreak=0}
