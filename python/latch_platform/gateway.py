@@ -13,16 +13,21 @@ from urllib.request import Request, urlopen
 from .config import Settings
 
 
-def _json(url: str, *, timeout: float = 1.5) -> dict:
-    with urlopen(Request(url, headers={"accept": "application/json"}), timeout=timeout) as r:
+def _request_json(url: str, *, method: str = "GET", payload: dict | None = None, timeout: float = 1.5) -> dict:
+    body = None if payload is None else json.dumps(payload).encode("utf-8")
+    headers = {"accept": "application/json"}
+    if body is not None:
+        headers["content-type"] = "application/json"
+    with urlopen(Request(url, data=body, headers=headers, method=method), timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8") or "{}")
 
 
 class Gateway:
     """Always-on Python control plane for LATCH.
 
-    Python owns process lifecycle, health, restart policy and local control.
-    Node is used only for the compiled semantic service and Chromium surface.
+    Python owns lifecycle, supervision and privileged local control. Node remains
+    an implementation detail for the compiled semantic service and Chromium
+    surface until those components are progressively migrated behind adapters.
     """
 
     def __init__(self, settings: Settings):
@@ -52,6 +57,10 @@ class Gateway:
     def test_lab_file(self) -> Path:
         return self.s.root / "apps" / "browser" / "test-lab.html"
 
+    @property
+    def test_lab_url(self) -> str:
+        return f"http://127.0.0.1:{self.s.gateway_port}/test-lab"
+
     def _log(self, message: str) -> None:
         self.s.ensure()
         line = f"{time.strftime('%Y-%m-%dT%H:%M:%S%z')} {message}\n"
@@ -64,6 +73,7 @@ class Gateway:
         env.setdefault("LATCH_STATE_DIR", str(self.s.state_dir))
         env.setdefault("LATCH_CONTROL_PORT", str(self.s.control_port))
         env.setdefault("LATCH_API_PORT", str(self.s.api_port))
+        env.setdefault("LATCH_GATEWAY_PORT", str(self.s.gateway_port))
         return env
 
     def _semantic_env(self) -> dict[str, str]:
@@ -92,7 +102,7 @@ class Gateway:
         deadline = time.time() + timeout
         while time.time() < deadline and not self.stop_event.is_set():
             try:
-                if _json(f"http://127.0.0.1:{self.s.api_port}/health", timeout=.7).get("ok", True):
+                if _request_json(f"http://127.0.0.1:{self.s.api_port}/health", timeout=.7).get("ok", True):
                     return True
             except Exception:
                 pass
@@ -110,19 +120,14 @@ class Gateway:
                 return
             if not self.semantic_entry.exists():
                 raise RuntimeError("Production semantic API is not built. Run npm run build:api first.")
-            self.semantic = subprocess.Popen(
-                ["node", str(self.semantic_entry)],
-                cwd=self.s.root,
-                env=self._semantic_env(),
-            )
+            self.semantic = subprocess.Popen(["node", str(self.semantic_entry)], cwd=self.s.root, env=self._semantic_env())
             self.semantic_started_at = time.time()
             self._log(f"semantic service started pid={self.semantic.pid}")
         if not self._wait_semantic():
             with self._lock:
                 child = self.semantic
                 self.semantic = None
-            code = self._terminate(child, "semantic service")
-            self.semantic_last_exit = code
+            self.semantic_last_exit = self._terminate(child, "semantic service")
             raise RuntimeError("Production semantic service failed its health check")
 
     def stop_semantic(self) -> None:
@@ -144,14 +149,10 @@ class Gateway:
         if not self._semantic_health().get("ok"):
             raise RuntimeError("Refusing to start browser surface without a healthy semantic service")
         with self._lock:
-            self.surface = subprocess.Popen(
-                ["node", str(self.browser_entry)],
-                cwd=self.s.root,
-                env=self._surface_env(),
-            )
+            self.surface = subprocess.Popen(["node", str(self.browser_entry)], cwd=self.s.root, env=self._surface_env())
             self.surface_started_at = time.time()
             self._log(f"browser surface started pid={self.surface.pid}")
-            self._write_runtime()
+        self._write_runtime()
 
     def stop_surface(self) -> None:
         with self._lock:
@@ -181,15 +182,35 @@ class Gateway:
         if not self.paused:
             self.start_surface()
 
+    def open_surface_url(self, url: str) -> dict:
+        if self.paused:
+            raise RuntimeError("LATCH protection is paused")
+        if not (url.startswith("http://127.0.0.1:") or url.startswith("http://localhost:") or url.startswith("https://") or url.startswith("http://")):
+            raise RuntimeError("Only http/https URLs can be opened in the protected surface")
+        browser = self._browser_health()
+        if not browser.get("ok"):
+            raise RuntimeError("Protected browser surface is not ready")
+        result = _request_json(
+            f"http://127.0.0.1:{self.s.control_port}/api/open",
+            method="POST",
+            payload={"url": url},
+            timeout=3.0,
+        )
+        self._log(f"opened protected surface URL {url}")
+        return {"ok": True, "url": url, "surface": result}
+
+    def open_test_lab(self) -> dict:
+        return self.open_surface_url(self.test_lab_url)
+
     def _browser_health(self) -> dict:
         try:
-            return _json(f"http://127.0.0.1:{self.s.control_port}/api/status")
+            return _request_json(f"http://127.0.0.1:{self.s.control_port}/api/status")
         except Exception:
             return {"ok": False, "browserConnected": False}
 
     def _semantic_health(self) -> dict:
         try:
-            return _json(f"http://127.0.0.1:{self.s.api_port}/health")
+            return _request_json(f"http://127.0.0.1:{self.s.api_port}/health")
         except Exception:
             return {"ok": False}
 
@@ -240,7 +261,7 @@ class Gateway:
             "modelEnabled": bool(browser.get("modelEnabled") or semantic_health.get("modelEnabled")),
             "attention": browser.get("attention", {}),
             "controlUrl": f"http://127.0.0.1:{self.s.control_port}",
-            "testLabUrl": f"http://127.0.0.1:{self.s.gateway_port}/test-lab",
+            "testLabUrl": self.test_lab_url,
         }
 
     def _write_runtime(self) -> None:
@@ -273,7 +294,6 @@ class Gateway:
                     with self._lock:
                         if self.semantic is semantic:
                             self.semantic = None
-                # Never keep a protected surface alive without its production semantic backend.
                 if surface and surface.poll() is None:
                     self.stop_surface()
                 if self.stop_event.wait(semantic_backoff):
@@ -378,17 +398,25 @@ class ControlHandler(BaseHTTPRequestHandler):
         if not self._authorized():
             self._send(401, {"error": "unauthorized"})
             return
-        if self.path == "/v1/pause":
-            self.gateway.pause()
-            self._send(200, self.gateway.status())
-            return
-        if self.path == "/v1/resume":
-            self.gateway.resume()
-            self._send(200, self.gateway.status())
-            return
-        if self.path == "/v1/restart-surface":
-            self.gateway.restart_surface()
-            self._send(200, self.gateway.status())
+        path = self.path.split("?", 1)[0]
+        try:
+            if path == "/v1/pause":
+                self.gateway.pause()
+                self._send(200, self.gateway.status())
+                return
+            if path == "/v1/resume":
+                self.gateway.resume()
+                self._send(200, self.gateway.status())
+                return
+            if path == "/v1/restart-surface":
+                self.gateway.restart_surface()
+                self._send(200, self.gateway.status())
+                return
+            if path == "/v1/open-test-lab":
+                self._send(200, self.gateway.open_test_lab())
+                return
+        except RuntimeError as exc:
+            self._send(409, {"error": str(exc)})
             return
         self._send(404, {"error": "not_found"})
 
