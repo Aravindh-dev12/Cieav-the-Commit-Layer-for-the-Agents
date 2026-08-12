@@ -4,6 +4,8 @@ set -eu
 CHANNEL="${CIEAV_CHANNEL:-${LATCH_CHANNEL:-stable}}"
 BASE_URL="${CIEAV_DOWNLOAD_BASE_URL:-${LATCH_DOWNLOAD_BASE_URL:-__CIEAV_DOWNLOAD_BASE_URL__}}"
 NO_SERVICE="${CIEAV_NO_SERVICE:-${LATCH_NO_SERVICE:-0}}"
+PINNED_CLOUD_URL="__CIEAV_CLOUD_URL__"
+PINNED_RELEASE_VERSION="__CIEAV_RELEASE_VERSION__"
 PINNED_WINDOWS_SIGNER="__CIEAV_WINDOWS_SIGNER_THUMBPRINT__"
 PINNED_MACOS_SIGNER="__CIEAV_MACOS_SIGNING_IDENTITY__"
 
@@ -14,9 +16,14 @@ command -v grep >/dev/null 2>&1 || fail "grep is required"
 command -v sed >/dev/null 2>&1 || fail "sed is required"
 
 [ "$BASE_URL" != "__CIEAV_DOWNLOAD_BASE_URL__" ] || fail "installer was not rendered with an official download endpoint"
-BASE_URL=${BASE_URL%/}
+[ "$PINNED_CLOUD_URL" != "__CIEAV_CLOUD_URL__" ] || fail "installer has no pinned Cloud endpoint"
+[ "$PINNED_RELEASE_VERSION" != "__CIEAV_RELEASE_VERSION__" ] || fail "installer has no pinned release version"
+BASE_URL=${BASE_URL%/}; PINNED_CLOUD_URL=${PINNED_CLOUD_URL%/}
 case "$BASE_URL" in https://*/*) fail "download endpoint must be a clean HTTPS origin with no path" ;; https://*) ;; *) fail "download endpoint must use HTTPS" ;; esac
 case "$BASE_URL" in *'?'*|*'#'*|*'@'*) fail "download endpoint must not contain credentials, query, or fragment" ;; esac
+case "$PINNED_CLOUD_URL" in https://*/*) fail "pinned Cloud endpoint must be a clean HTTPS origin with no path" ;; https://*) ;; *) fail "pinned Cloud endpoint must use HTTPS" ;; esac
+case "$PINNED_CLOUD_URL" in *'?'*|*'#'*|*'@'*) fail "pinned Cloud endpoint must not contain credentials, query, or fragment" ;; esac
+case "$PINNED_RELEASE_VERSION" in *[!a-zA-Z0-9._-]*|'') fail "invalid pinned release version" ;; esac
 case "$CHANNEL" in *[!a-zA-Z0-9._-]*|'') fail "invalid release channel" ;; esac
 
 fetch_https() {
@@ -57,12 +64,15 @@ fetch_https "$BASE_URL/$CHANNEL/bootstrap-$PLATFORM.txt" "$BOOTSTRAP"
 [ "$(grep -c '^SHA256=' "$BOOTSTRAP" || true)" -eq 1 ] || fail "invalid bootstrap checksum field"
 BRAND=$(sed -n 's/^BRAND=//p' "$BOOTSTRAP" | tr -d '\r')
 VERSION=$(sed -n 's/^VERSION=//p' "$BOOTSTRAP" | tr -d '\r')
-CLOUD_URL=$(sed -n 's/^CLOUD_URL=//p' "$BOOTSTRAP" | tr -d '\r')
+CLOUD_URL=$(sed -n 's/^CLOUD_URL=//p' "$BOOTSTRAP" | tr -d '\r'); CLOUD_URL=${CLOUD_URL%/}
 ARTIFACT_PATH=$(sed -n 's/^ARTIFACT_PATH=//p' "$BOOTSTRAP" | tr -d '\r')
 EXPECTED=$(sed -n 's/^SHA256=//p' "$BOOTSTRAP" | tr -d '\r' | tr 'A-F' 'a-f')
 [ "$BRAND" = "CIEAV" ] || fail "release metadata brand mismatch"
 case "$VERSION" in *[!a-zA-Z0-9._-]*|'') fail "invalid release version" ;; esac
-case "$CLOUD_URL" in https://*) ;; *) fail "Cloud Intelligence URL must use HTTPS" ;; esac
+[ "$VERSION" = "$PINNED_RELEASE_VERSION" ] || fail "release metadata version does not match the installer-pinned release"
+case "$CLOUD_URL" in https://*/*) fail "Cloud Intelligence URL must be a clean HTTPS origin with no path" ;; https://*) ;; *) fail "Cloud Intelligence URL must use HTTPS" ;; esac
+case "$CLOUD_URL" in *'?'*|*'#'*|*'@'*) fail "Cloud Intelligence URL must not contain credentials, query, or fragment" ;; esac
+[ "$CLOUD_URL" = "$PINNED_CLOUD_URL" ] || fail "release metadata Cloud endpoint does not match the installer-pinned endpoint"
 case "$ARTIFACT_PATH" in http://*|https://*|/*|*'..'*|*'?'*|*'#'*|*'\\'*|*[!a-zA-Z0-9._/-]*|'') fail "artifact path must be a safe relative path on the CIEAV download origin" ;; esac
 case "$ARTIFACT_PATH" in "$CHANNEL"/*) ;; *) fail "artifact path must remain inside the selected release channel" ;; esac
 ARTIFACT_URL="$BASE_URL/$ARTIFACT_PATH"
@@ -109,8 +119,8 @@ EOF
 chmod 0755 "$BIN_ROOT/latch"
 
 export PATH="$INSTALL_ROOT/runtime:$BIN_ROOT:$PATH"
-export CIEAV_HOME="$INSTALL_ROOT"; export CIEAV_CLOUD_URL="$CLOUD_URL"; export CIEAV_VERSION="$VERSION"
-export LATCH_HOME="$INSTALL_ROOT"; export LATCH_CLOUD_URL="$CLOUD_URL"; export LATCH_VERSION="$VERSION"
+export CIEAV_HOME="$INSTALL_ROOT"; export CIEAV_CLOUD_URL="$PINNED_CLOUD_URL"; export CIEAV_VERSION="$PINNED_RELEASE_VERSION"
+export LATCH_HOME="$INSTALL_ROOT"; export LATCH_CLOUD_URL="$PINNED_CLOUD_URL"; export LATCH_VERSION="$PINNED_RELEASE_VERSION"
 
 printf '%s\n' "CIEAV · running runtime self-check"; "$RUNTIME_CIEAV" doctor || fail "runtime self-check failed"
 printf '%s\n' "CIEAV · enrolling with Cloud Intelligence"; "$RUNTIME_CIEAV" cloud enroll || fail "cloud enrollment failed"
@@ -121,7 +131,7 @@ SUCCESS=1
 cat <<EOF
 
 CIEAV installed successfully.
-Version: $VERSION
+Version: $PINNED_RELEASE_VERSION
 Runtime: $INSTALL_ROOT
 Privacy: durable user state remains local
 
