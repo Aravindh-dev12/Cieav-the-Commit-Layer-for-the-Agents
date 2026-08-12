@@ -5,21 +5,22 @@
     "start:browser":"node apps/browser/main.mjs",
     "start:noinstall":"node apps/browser/main.mjs",
     "platform:install":"python -m pip install -e .",
-    "platform:check":"python -m compileall -q python && python -m latch_platform.cli --help",
+    "platform:check":"python -m compileall -q python && python -m latch_platform.cli --help && python scripts/platform-gateway-smoke.py",
     "build:api":"npm run build -w @latch/contracts && npm run build -w @latch/core && npm run build -w @latch/api",
     "build":"npm run build -w @latch/contracts && npm run build -w @latch/core && npm run build -w @latch/sdk && npm run build -w @latch/api && npm run build -w @latch/dashboard",
     "test:core":"npm run test -w @latch/core && npm run test -w @latch/api",
     "test:browser":"node scripts/browser-e2e.mjs",
     "test:ai-orchestration":"node scripts/ai-orchestration-e2e.mjs",
     "test:cognitive-debt":"node scripts/cognitive-debt-e2e.mjs",
+    "test:platform":"python scripts/platform-gateway-smoke.py",
     "eval":"node scripts/latch-eval.mjs",
     "eval:compare":"node scripts/compare-evals.mjs",
-    "test":"npm run test:core && npm run test:ai-orchestration && npm run test:cognitive-debt && npm run test:browser",
+    "test":"npm run test:platform && npm run test:core && npm run test:ai-orchestration && npm run test:cognitive-debt && npm run test:browser",
     "typecheck":"npm run typecheck -w @latch/contracts && npm run typecheck -w @latch/core && npm run typecheck -w @latch/sdk && npm run typecheck -w @latch/api && npm run typecheck -w @latch/dashboard",
     "dev:api":"npm run dev -w @latch/api",
     "dev:dashboard":"npm run dev -w @latch/dashboard",
     "selftest:noinstall":"node scripts/noinstall-selftest.mjs",
-    "selftest":"node scripts/noinstall-selftest.mjs && node scripts/cognitive-debt-e2e.mjs && node scripts/browser-e2e.mjs"
+    "selftest":"python scripts/platform-gateway-smoke.py && node scripts/noinstall-selftest.mjs && node scripts/cognitive-debt-e2e.mjs && node scripts/browser-e2e.mjs"
   },
   "engines":{"node":">=22"},"license":"Apache-2.0"
 }
