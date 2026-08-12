@@ -4,12 +4,10 @@ import json
 import os
 import signal
 import subprocess
-import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from .config import Settings
@@ -35,6 +33,10 @@ class Gateway:
     @property
     def production_entry(self) -> Path:
         return self.s.root / "scripts" / "start-production.mjs"
+
+    @property
+    def test_lab_file(self) -> Path:
+        return self.s.root / "apps" / "browser" / "test-lab.html"
 
     def _log(self, message: str) -> None:
         self.s.ensure()
@@ -108,6 +110,17 @@ class Gateway:
         except Exception:
             return {"ok": False}
 
+    def public_health(self) -> dict:
+        with self._lock:
+            running = bool(self.child and self.child.poll() is None)
+            return {
+                "ok": True,
+                "platform": "LATCH Gateway",
+                "gatewayPid": os.getpid(),
+                "paused": self.paused,
+                "surfaceRunning": running,
+            }
+
     def status(self) -> dict:
         with self._lock:
             child = self.child
@@ -130,7 +143,7 @@ class Gateway:
                 "modelEnabled": bool(browser.get("modelEnabled") or semantic.get("modelEnabled")),
                 "attention": browser.get("attention", {}),
                 "controlUrl": f"http://127.0.0.1:{self.s.control_port}",
-                "testLabUrl": f"http://127.0.0.1:{self.s.control_port}/test-lab",
+                "testLabUrl": f"http://127.0.0.1:{self.s.gateway_port}/test-lab",
             }
 
     def _write_runtime(self) -> None:
@@ -179,26 +192,46 @@ class ControlHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         return
 
+    def _headers(self, content_type: str) -> None:
+        self.send_header("content-type", content_type)
+        self.send_header("cache-control", "no-store")
+        self.send_header("x-content-type-options", "nosniff")
+        self.send_header("referrer-policy", "no-referrer")
+        self.send_header("content-security-policy", "default-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'")
+
     def _send(self, code: int, payload: dict) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(code)
-        self.send_header("content-type", "application/json; charset=utf-8")
-        self.send_header("cache-control", "no-store")
-        self.send_header("x-content-type-options", "nosniff")
+        self._headers("application/json; charset=utf-8")
         self.end_headers()
         self.wfile.write(body)
+
+    def _send_html(self, code: int, body: str) -> None:
+        self.send_response(code)
+        self._headers("text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(body.encode("utf-8"))
 
     def _authorized(self) -> bool:
         return self.headers.get("authorization") == f"Bearer {self.gateway.token}"
 
     def do_GET(self) -> None:
-        if self.path == "/health":
-            self._send(200, self.gateway.status())
+        path = self.path.split("?", 1)[0]
+        if path == "/health":
+            self._send(200, self.gateway.public_health())
+            return
+        if path == "/test-lab":
+            try:
+                body = self.gateway.test_lab_file.read_text("utf-8")
+            except FileNotFoundError:
+                self._send(404, {"error": "test_lab_not_found"})
+                return
+            self._send_html(200, body)
             return
         if not self._authorized():
             self._send(401, {"error": "unauthorized"})
             return
-        if self.path == "/v1/status":
+        if path == "/v1/status":
             self._send(200, self.gateway.status())
             return
         self._send(404, {"error": "not_found"})
