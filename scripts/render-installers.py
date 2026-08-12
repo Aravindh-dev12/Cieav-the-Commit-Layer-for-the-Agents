@@ -10,6 +10,7 @@ BASE_PLACEHOLDER = "__CIEAV_DOWNLOAD_BASE_URL__"
 WINDOWS_SIGNER_PLACEHOLDER = "__CIEAV_WINDOWS_SIGNER_THUMBPRINT__"
 MACOS_SIGNER_PLACEHOLDER = "__CIEAV_MACOS_SIGNING_IDENTITY__"
 WINDOWS_THUMBPRINT = re.compile(r"^[0-9A-Fa-f]{40,128}$")
+MACOS_SIGNER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 .,:()_+@/&-]{0,239}$")
 
 
 def clean_origin(value: str) -> str:
@@ -36,8 +37,8 @@ def clean_windows_signer(value: str) -> str:
 
 def clean_macos_signer(value: str) -> str:
     raw = value.strip()
-    if not raw or len(raw) > 240 or "\n" in raw or "\r" in raw or any(c in raw for c in "<>\x00"):
-        raise SystemExit("macOS signing identity is invalid")
+    if not MACOS_SIGNER.fullmatch(raw):
+        raise SystemExit("macOS signing identity contains unsupported characters")
     return raw
 
 
