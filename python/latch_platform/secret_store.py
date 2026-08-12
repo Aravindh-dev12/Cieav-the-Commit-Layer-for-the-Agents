@@ -174,18 +174,34 @@ class SecretStoreStatus:
 class SecretStore:
     def __init__(self,state_dir:Path):
         self.state_dir=state_dir
-        requested=os.environ.get("CIEAV_SECRET_BACKEND","auto").strip().lower() or "auto"
-        if requested not in {"auto","file"}: raise SecretStoreError("CIEAV_SECRET_BACKEND must be auto or file")
+        frozen=bool(getattr(sys,"frozen",False))
+        requested=os.environ.get("CIEAV_SECRET_BACKEND", "secure" if frozen else "auto").strip().lower() or ("secure" if frozen else "auto")
+        if requested not in {"auto","secure","file"}: raise SecretStoreError("CIEAV_SECRET_BACKEND must be auto, secure, or file")
+        if frozen and requested=="file" and os.environ.get("CIEAV_ALLOW_INSECURE_SECRET_STORE")!="1":
+            raise SecretStoreError("production CIEAV refuses plaintext secret storage; remove CIEAV_SECRET_BACKEND=file or explicitly set CIEAV_ALLOW_INSECURE_SECRET_STORE=1 for diagnostics")
         backend:_Backend
-        if requested=="file": backend=_FileBackend(state_dir)
-        elif sys.platform=="win32" and _DPAPIBackend is not None: backend=_DPAPIBackend(state_dir)
+        if requested=="file":
+            backend=_FileBackend(state_dir)
+        elif sys.platform=="win32" and _DPAPIBackend is not None:
+            backend=_DPAPIBackend(state_dir)
         elif sys.platform=="darwin":
             try: backend=_MacKeychainBackend(state_dir)
-            except Exception: backend=_FileBackend(state_dir)
+            except Exception as exc:
+                if requested=="secure": raise SecretStoreError("macOS Keychain is required for production CIEAV secret storage") from exc
+                backend=_FileBackend(state_dir)
         elif sys.platform.startswith("linux") and shutil.which("secret-tool") and os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
             try: backend=_SecretServiceBackend(state_dir)
-            except Exception: backend=_FileBackend(state_dir)
-        else: backend=_FileBackend(state_dir)
+            except Exception as exc:
+                if requested=="secure": raise SecretStoreError("Linux Secret Service is required for production CIEAV secret storage") from exc
+                backend=_FileBackend(state_dir)
+        elif requested=="secure":
+            if sys.platform.startswith("linux"):
+                raise SecretStoreError("Linux Secret Service is required for production CIEAV secret storage (secret-tool and a user D-Bus session are required)")
+            raise SecretStoreError(f"no supported OS-backed secret store is available on {sys.platform}")
+        else:
+            backend=_FileBackend(state_dir)
+        if requested=="secure" and not backend.encrypted_at_rest:
+            raise SecretStoreError("secure secret-storage policy resolved to an unencrypted backend")
         self.backend=backend
     @property
     def status(self)->SecretStoreStatus:return SecretStoreStatus(self.backend.name,self.backend.encrypted_at_rest,not self.backend.encrypted_at_rest)
