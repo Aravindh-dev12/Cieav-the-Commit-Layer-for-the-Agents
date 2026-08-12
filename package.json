@@ -44,8 +44,12 @@
     "release:smoke:runtime:publish":"python scripts/clean-runtime-smoke.py --mode publish",
     "release:smoke:service":"python scripts/service-lifecycle-smoke.py --confirm-service-mutation",
     "release:smoke:service:publish":"python scripts/service-lifecycle-smoke.py --mode publish --confirm-service-mutation",
+    "release:smoke:installer:success":"python scripts/installer-live-smoke.py --scenario success --mode publish --confirm-install-mutation",
+    "release:smoke:installer:rollback":"python scripts/installer-live-smoke.py --scenario rollback --mode publish --confirm-install-mutation",
     "release:qualify:current":"node scripts/qualify-current-platform.mjs",
-    "release:qualify":"node scripts/qualify-release.mjs"
+    "release:qualify":"node scripts/qualify-release.mjs",
+    "release:qualify:installers":"node scripts/qualify-installers.mjs",
+    "release:qualify:production":"node scripts/qualify-production.mjs"
   },
   "engines":{"node":">=22"},"license":"Apache-2.0"
 }
