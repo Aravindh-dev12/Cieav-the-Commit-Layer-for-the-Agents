@@ -1,37 +1,45 @@
 # CIEAV privacy architecture
 
-CIEAV minimizes information before any remote semantic-model call. The production design is **cloud interpretation, local authority**: durable user state and execution capability stay on the device; only privacy-reduced semantic evidence is sent transiently for interpretation.
+CIEAV follows **cloud interpretation, local authority**. Durable user state, execution capability, receipts, browser profile, cognitive history, audit history, and signing material stay on the device. Remote inference receives only a reconstructed, privacy-reduced semantic packet.
 
-## Model-visible data
+## Remote model boundary
 
-Production semantic inference may receive the origin/path with query strings and fragments removed, page title, clicked-control semantics, bounded/redacted nearby text, form field names/labels/types, inferred data categories, and generic file descriptors.
+Before any supported remote model call, CIEAV rebuilds the action context from an explicit allowlist rather than forwarding the caller's object. The reduced packet may contain:
 
-The cloud request explicitly declares that raw form values, raw secrets, whole-page text, and durable storage are not included/requested. The cloud service has no browser replay capability.
+- origin and URL path, with credentials, query strings, and fragments removed;
+- bounded/redacted title, clicked-control semantics, and nearby text;
+- form field names, labels, types, required flags, and inferred data categories;
+- generic file descriptors such as `[selected-file.pdf]`;
+- deterministic baseline metadata such as action type, risk, reversibility, confidence, and data categories.
 
-## Intentionally excluded
+It intentionally excludes raw form values, passwords, OTP values, card values, file contents, raw filenames, full-page text, browsing history, receipt history, and local signing/control secrets. Common email, phone, card-like, OTP, API-key, and bearer-token patterns are redacted from permitted text fields.
 
-Production model analysis excludes raw ordinary form values, passwords, card numbers, OTP values, uploaded file contents, full browsing history, Action Receipt storage, and whole-page text. File names are reduced to generic descriptors. URL query parameters are excluded because they frequently contain tokens, identifiers, and private form/search state.
+The OpenAI-compatible and Hugging Face paths use the shared reducer. The Python CIEAV Cloud provider independently reconstructs its own minimized packet as a second egress boundary.
 
-CIEAV does not claim that literally every byte stays on-device: remote inference necessarily transmits a privacy-reduced semantic packet. The precise promise is that durable user state and raw secrets remain local while minimized action evidence is sent transiently for semantic interpretation.
+## Cloud ingress enforcement
 
-## Post-action outcome verification
+CIEAV Cloud does not trust the client's privacy declaration alone. It independently rejects packets containing forbidden/unknown context fields, `pageText`, URL queries/fragments, raw filenames, unredacted form fields, unexpected baseline fields, or recognizable secret literals in permitted text fields.
 
-Outcome verification runs locally. CIEAV may compare bounded before/after DOM state and observe browser navigation to decide whether an approved action has a credible success or failure signal.
+Remote `CIEAV_CLOUD_URL` endpoints must use HTTPS. Plain HTTP is accepted only for loopback test servers. Authenticated Cloud requests do not follow redirects, so a configured CIEAV origin cannot silently redirect the device token or semantic packet to another origin.
 
-Raw page snapshots used for this comparison are not written to receipts, audit logs, or cloud requests. Persisted outcome evidence is deliberately generic, for example: "a new local page message matched an action-specific success signal." When the evidence is inconclusive, the outcome is recorded as `UNKNOWN`; CIEAV does not convert uncertainty into a success claim.
+## What the model can still learn
+
+Privacy minimization is not anonymity. An origin/path, action type, nearby semantics, field metadata, and data-category labels can still reveal what service or type of action the user is interacting with. CIEAV therefore does not claim that every byte or every semantic fact stays on-device.
+
+The precise promise is: **raw secrets and durable private state remain local; only minimized action evidence is transmitted transiently for configured semantic interpretation.**
+
+## Post-action verification
+
+Outcome verification runs locally. Bounded before/after DOM snapshots used for comparison are not persisted or sent to cloud inference. Receipts persist only generic evidence summaries. Inconclusive evidence becomes `UNKNOWN`, not success.
 
 ## Local state
 
-Fresh installations use `~/.cieav/` (or `CIEAV_STATE_DIR`; Windows installers use the per-user CIEAV application directory). Existing `.latch` state may be reused during migration so receipts, credentials, and history are not silently lost.
+Fresh installations use `~/.cieav/` or the per-user platform application directory. Existing `.latch` state may be reused during migration. Local state includes the dedicated Chromium profile, device identity, Action Receipts, Attention Health/cognitive-debt state, Gateway credentials, audit history and integrity material, and receipt-signing keys.
 
-Local durable state includes the dedicated Chromium profile, device identity, Action Receipts, outcome state, Attention Health/cognitive-debt history, local policies, Gateway credentials, per-install signing secrets, and the bounded local audit log. The protected Chromium profile is separate from the user's normal Chrome profile.
+Action Receipts are sensitive browsing/action history. New managed receipts use receipt v3 and a persistent per-user Ed25519 device key. The private key stays local; receipts carry public verification material. Legacy v1/v2 HMAC receipts remain readable for migration.
 
-The audit log stores event metadata such as origin, action type, risk, and lifecycle stage. It does not intentionally store raw form values or raw page text and is rotated locally.
+Filesystem permissions are not equivalent to hardware-backed key protection. A fully compromised OS account may access CIEAV local state. OS keychain/TPM/Secure Enclave style storage remains an additional hardening layer.
 
-## Receipts and local secrets
+## Local audit data
 
-Action Receipts reveal browsing/action history and are sensitive. Receipt v2 separates `COMMITTED` (the approved action entered the commit/replay path) from the signed post-action `outcome` (`OBSERVED_SUCCESS`, `OBSERVED_FAILURE`, or `UNKNOWN`).
-
-The local Gateway generates distinct per-install API-signing and receipt-signing secrets and stores them with restrictive filesystem permissions where supported. Those signing keys and provider credentials are not passed to Chromium.
-
-Filesystem permissions are not the same as hardware-backed or OS-keychain protection. A future hardening step is OS secure-storage/device-key integration and asymmetric receipt identity. Production deployments that require stronger local-at-rest guarantees should additionally use full-disk/device encryption and appropriate endpoint controls.
+Audit records are metadata-oriented and exclude raw form values and raw page text. New events use a per-user HMAC-SHA256 chain, are fsync-backed before replay acknowledgement, and can be checked locally with `cieav audit verify`. Audit history is not cloud telemetry.
