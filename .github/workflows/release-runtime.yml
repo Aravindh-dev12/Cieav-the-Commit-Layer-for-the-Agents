@@ -324,12 +324,18 @@ jobs:
           name: cieav-cdn-publish-layout
           path: publish/**
           if-no-files-found: error
-      - name: Attach assets to GitHub Release
+      - name: Stage assets in draft GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           TAG="$GITHUB_REF_NAME"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "CIEAV $TAG" --notes "CIEAV runtime release. Public installer distribution should be served from the configured CIEAV download CDN."
+          RELEASE_JSON="$RUNNER_TEMP/cieav-release.json"
+          if gh release view "$TAG" --json isDraft > "$RELEASE_JSON" 2>/dev/null; then
+            IS_DRAFT=$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(x.isDraft))' "$RELEASE_JSON")
+            test "$IS_DRAFT" = "true" || { echo 'Refusing to overwrite an already-published release before live production qualification'; exit 2; }
+          else
+            gh release create "$TAG" --draft --title "CIEAV $TAG" --notes "Staged CIEAV runtime release. Keep this release draft until npm run release:qualify:production reports PASS for this exact commit and version."
+          fi
           gh release upload "$TAG" publish/install.ps1 publish/install.sh "publish/$CHANNEL/manifest.json" "publish/$CHANNEL/release-public-key.pem" publish/$CHANNEL/bootstrap-*.txt publish/$CHANNEL/signatures/*.sig.json publish/$CHANNEL/cieav-runtime-*.zip --clobber
