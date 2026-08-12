@@ -19,6 +19,7 @@
     "test:secrets":"python scripts/secret-store-smoke.py",
     "test:audit-key":"node scripts/audit-key-smoke.mjs",
     "test:a2a":"node scripts/a2a-e2e.mjs",
+    "test:clean-runtime":"python scripts/clean-runtime-smoke.py",
     "test:browser":"npm run test:secrets && npm run test:audit-key && npm run test:release-signing && node scripts/control-auth-e2e.mjs && npm run test:cdp-pipe && node scripts/adapter-registry-e2e.mjs && node scripts/browser-safety-static.mjs && node scripts/browser-e2e.mjs",
     "test:ai-orchestration":"node scripts/ai-orchestration-e2e.mjs",
     "test:cognitive-debt":"node scripts/cognitive-debt-e2e.mjs",
@@ -38,6 +39,8 @@
     "release:verify":"node scripts/release-gate.mjs",
     "release:verify:publish":"node scripts/release-gate.mjs --publish",
     "release:verify:plan":"node scripts/release-gate.mjs --plan",
+    "release:smoke:runtime":"python scripts/clean-runtime-smoke.py",
+    "release:smoke:runtime:publish":"python scripts/clean-runtime-smoke.py --mode publish",
     "release:qualify":"node scripts/qualify-release.mjs"
   },
   "engines":{"node":">=22"},"license":"Apache-2.0"
