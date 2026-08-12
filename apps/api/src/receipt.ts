@@ -2,13 +2,13 @@ import crypto from "node:crypto";
 import type { ActionManifest, ActionOutcome, Receipt } from "@latch/contracts";
 import {publicKeyFromEncoded,receiptKeyId,type DeviceReceiptSigner} from "./device-signing.js";
 
-type Signer=string|DeviceReceiptSigner;
+export type ReceiptSigner=string|DeviceReceiptSigner;
 function canonical(value: unknown): string { if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`; if (value && typeof value === "object") { const obj = value as Record<string, unknown>; return `{${Object.keys(obj).sort().map(k => `${JSON.stringify(k)}:${canonical(obj[k])}`).join(",")}}`; } return JSON.stringify(value); }
 function unsignedV3(receipt:Receipt){const{signature:_s,...unsigned}=receipt;return unsigned}
 function legacyUnsigned(receipt:Receipt){const{signature:_s,signatureAlgorithm:_a,...unsigned}=receipt;return unsigned}
 function legacySignature(receipt:Receipt,secret:string){return crypto.createHmac("sha256",secret).update(canonical(legacyUnsigned(receipt))).digest("base64url")}
 
-export function signReceipt(receipt:Receipt,signer:Signer):Receipt{
+export function signReceipt(receipt:Receipt,signer:ReceiptSigner):Receipt{
   if(typeof signer==="string")return{...legacyUnsigned(receipt),signature:legacySignature(receipt,signer),signatureAlgorithm:"HMAC-SHA256"};
   const prepared:Receipt={...receipt,receiptVersion:"3",signatureAlgorithm:"Ed25519",signatureKeyId:signer.keyId,signingPublicKey:signer.publicKeyEncoded};
   const signature=crypto.sign(null,Buffer.from(canonical(unsignedV3(prepared))),signer.privateKey).toString("base64url");
@@ -24,7 +24,7 @@ export function verifyReceiptPublic(receipt:Receipt):boolean{
   }catch{return false}
 }
 
-export function verifyReceipt(receipt:Receipt,signer:Signer):boolean{
+export function verifyReceipt(receipt:Receipt,signer:ReceiptSigner):boolean{
   if(receipt.signatureAlgorithm==="Ed25519"){
     if(!verifyReceiptPublic(receipt))return false;
     if(typeof signer==="string")return false;
@@ -36,8 +36,8 @@ export function verifyReceipt(receipt:Receipt,signer:Signer):boolean{
   try{return crypto.timingSafeEqual(Buffer.from(actual),Buffer.from(expected))}catch{return false}
 }
 
-export function createReceipt(deviceId:string,manifest:ActionManifest,source:Receipt["source"],status:"PREVIEWED"|"COMMITTED"|"CANCELLED",signer:Signer):Receipt{
+export function createReceipt(deviceId:string,manifest:ActionManifest,source:Receipt["source"],status:"PREVIEWED"|"COMMITTED"|"CANCELLED",signer:ReceiptSigner):Receipt{
   const receipt:Receipt={id:crypto.randomUUID(),deviceId,createdAt:new Date().toISOString(),...(status==="COMMITTED"?{committedAt:new Date().toISOString()}:{}),status,manifest,source,receiptVersion:typeof signer==="string"?"2":"3"};
   return signReceipt(receipt,signer);
 }
-export function withOutcome(receipt:Receipt,outcome:ActionOutcome,signer:Signer):Receipt{return signReceipt({...receipt,outcome,receiptVersion:typeof signer==="string"?"2":"3"},signer)}
+export function withOutcome(receipt:Receipt,outcome:ActionOutcome,signer:ReceiptSigner):Receipt{return signReceipt({...receipt,outcome,receiptVersion:typeof signer==="string"?"2":"3"},signer)}
