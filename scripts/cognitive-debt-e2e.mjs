@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import {mkdtemp,rm,readFile} from "node:fs/promises";
+import {mkdtemp,rm,readFile,writeFile,readdir} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {Attention} from "../apps/browser/attention.mjs";
+import {Attention,CognitiveDebtConstants} from "../apps/browser/attention.mjs";
+import {AuditLog} from "../apps/browser/audit.mjs";
 
 const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-debt-"));
 let t=Date.now();
@@ -22,9 +23,20 @@ try{
   await a.outcome(origin,"data.submit",success);
   d=a.decide(origin,m());assert.equal(d.level,"PASSIVE","two verified successful medium actions may become passive");
 
+  // Learned safety is not permanent. Long inactivity must require a fresh check.
+  t+=CognitiveDebtConstants.SAFETY_MEMORY_MS+1;
+  d=a.decide(origin,m());assert.equal(d.level,"SOFT","stale medium-risk safety memory must expire");assert.ok(d.reasons.includes("new_or_stale_pattern"));
+  // Re-establish verified safety for the rest of the scenario.
+  await a.record(origin,"data.submit","COMMITTED",{friction:"SOFT",decisionMs:1200});await a.outcome(origin,"data.submit",success);
+  await a.record(origin,"data.submit","COMMITTED",{friction:"SOFT",decisionMs:1200});await a.outcome(origin,"data.submit",success);
+  assert.equal(a.decide(origin,m()).level,"PASSIVE");
+
   // Unknown outcome destroys learned safety and must restore friction.
   await a.record(origin,"data.submit","COMMITTED",{friction:"PASSIVE"});await a.outcome(origin,"data.submit",unknown);
   d=a.decide(origin,m());assert.equal(d.level,"SOFT");assert.ok(d.reasons.includes("recent_unknown_outcome"));
+  // The explicit adverse-outcome label is time-bounded, while safety still remains unlearned.
+  t+=CognitiveDebtConstants.ADVERSE_OUTCOME_WINDOW_MS+1;
+  d=a.decide(origin,m());assert.equal(d.level,"SOFT");assert.ok(!d.reasons.includes("recent_unknown_outcome"));assert.ok(d.reasons.includes("new_or_stale_pattern"));
 
   // Failure must also restore friction and clear the safe streak.
   await a.record(origin,"data.submit","COMMITTED",{friction:"SOFT",decisionMs:1100});await a.outcome(origin,"data.submit",failure);
@@ -61,10 +73,25 @@ try{
   assert.ok(report.fastApprovalRate>0);assert.ok(report.refocusActions>=1);assert.ok(Number.isFinite(report.unknownOutcomeRate));
   assert.ok(["WATCH","HIGH","CRITICAL"].includes(report.level),`expected measurable debt, got ${report.level}`);
 
-  // Audit must contain lifecycle evidence and no raw page/form payloads.
+  // Audit must contain lifecycle evidence, avoid raw sensitive payloads, and verify as a hash chain.
   await a.audit.flush();
-  const audit=await readFile(path.join(dir,"audit-events.jsonl"),"utf8");
-  assert.match(audit,/ACTION_DETECTED/);assert.match(audit,/ACTION_COMMITTED/);assert.match(audit,/OUTCOME_OBSERVED/);
+  const auditPath=path.join(dir,"audit-events.jsonl"),audit=await readFile(auditPath,"utf8");
+  assert.match(audit,/ACTION_DETECTED/);assert.match(audit,/ACTION_COMMITTED/);assert.match(audit,/OUTCOME_OBSERVED/);assert.match(audit,/"version":2/);assert.match(audit,/"prevHash":"[0-9a-f]{64}"/);assert.match(audit,/"hash":"[0-9a-f]{64}"/);
   assert.doesNotMatch(audit,/password|cardNumber|rawFormValue/i);
-  console.log("CIEAV cognitive-debt E2E passed",JSON.stringify(report));
+  const verified=await a.audit.verify();assert.equal(verified.ok,true);assert.equal(verified.format,"sha256-chain-v2");
+
+  // Tampering with an existing event must be detected on the next load.
+  await writeFile(auditPath,audit.replace("ACTION_COMMITTED","ACTION_COMMITTEZ"),"utf8");
+  await assert.rejects(()=>new AuditLog(dir).load(),/audit event hash mismatch|chain mismatch/i);
+  // Restore valid audit before testing attention-state corruption recovery.
+  await writeFile(auditPath,audit,"utf8");
+
+  // Corrupt cognitive state is preserved for diagnosis and CIEAV recovers in Strict mode.
+  await writeFile(path.join(dir,"attention.json"),"{not-json","utf8");
+  const recovered=await new Attention(dir,{clock}).load();
+  assert.equal(recovered.s.mode,"strict");assert.equal(recovered.s.recoveredFromCorruptState,true);
+  const files=await readdir(dir);assert.ok(files.some(x=>x.startsWith("attention.corrupt.")),"corrupt attention state should be preserved");
+  assert.equal(recovered.decide("https://fresh.test",m("MEDIUM")).level,"HARD","corrupt-state recovery must be conservative");
+
+  console.log("CIEAV cognitive-debt/audit E2E passed",JSON.stringify(report));
 } finally {await rm(dir,{recursive:true,force:true});}
