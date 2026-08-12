@@ -57,7 +57,11 @@ Current receipt integrity uses HMAC-SHA256. This provides strong local integrity
 
 ## Local audit trail
 
-CIEAV writes a bounded, rotated local audit log for action lifecycle events such as detection, commit/cancel, and Undo results. Audit records are metadata-oriented and intentionally exclude raw form values and raw page text. This log remains local by default and is not cloud telemetry.
+CIEAV writes a bounded, rotated local audit log for the protected action lifecycle: detection, commit/cancel, replay, observed outcome, Undo availability, and Undo result. Audit records are metadata-oriented and intentionally exclude raw form values and raw page text. The log remains local by default and is not cloud telemetry.
+
+New audit events use a per-user local HMAC-SHA256 integrity chain. Each event authenticates its metadata plus the previous event hash, writes are flushed with `fsync` before replay acknowledgment, and the active log remains linked to the retained rotated segment. `cieav audit verify` checks JSON structure, keyed event authentication, ordering, and retained cross-rotation linkage. Missing or modified retained history therefore fails verification.
+
+The audit integrity key is stored in the same per-user CIEAV state boundary with restrictive filesystem permissions where supported. This protects against accidental corruption and raises the bar against page-level or unprivileged modification, but it is **not** a hardware-backed security boundary and does not protect against an attacker who fully controls the user's OS account and can read/replace both the audit log and its local key. Hardware/OS-keychain-backed audit identity is future hardening work.
 
 ## Cloud and remote deployment
 
