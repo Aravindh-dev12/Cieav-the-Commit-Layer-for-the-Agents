@@ -23,13 +23,13 @@ const ADAPTERS=Object.freeze([
 export function adapterById(id){return ADAPTERS.find(a=>a.id===id)??null}
 
 export function verifyAdapterProposal({adapterId,url,actionType,operationId,label,testMode=false}){
-  const adapter=adapterById(adapterId);
-  if(!adapter)return{ok:false,error:"unknown_adapter"};
-  if(adapter.testOnly&&!testMode)return{ok:false,error:"test_adapter_disabled"};
-  if(!adapter.match({url,actionType}))return{ok:false,error:"adapter_origin_or_action_mismatch"};
-  if(operationId!==adapter.inverse.operationId)return{ok:false,error:"adapter_inverse_operation_mismatch"};
   const normalized=text(label,200).trim();
-  if(!adapter.inverse.labels.includes(normalized))return{ok:false,error:"adapter_inverse_label_mismatch"};
+  let candidates=ADAPTERS.filter(a=>(testMode||!a.testOnly)&&a.match({url,actionType})&&a.inverse.labels.includes(normalized));
+  if(adapterId)candidates=candidates.filter(a=>a.id===adapterId);
+  if(operationId)candidates=candidates.filter(a=>a.inverse.operationId===operationId);
+  if(candidates.length===0)return{ok:false,error:"no_trusted_adapter_match"};
+  if(candidates.length!==1)return{ok:false,error:"ambiguous_trusted_adapter"};
+  const adapter=candidates[0];
   return{ok:true,adapterId:adapter.id,adapterVersion:adapter.version,operationId:adapter.inverse.operationId,expiresAt:new Date(Date.now()+adapter.inverse.expiresMs).toISOString()};
 }
 
