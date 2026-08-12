@@ -12,9 +12,9 @@ assert(!prod.includes("--no-sandbox"),"production launch must not disable Chromi
 const test=chromiumArgs({profile:"C:/private-profile",headless:true,testMode:true});
 assert(test.includes("--no-sandbox"),"explicit automated test mode may opt out of sandboxing");
 
-const clean=chromiumEnvironment({PATH:"ok",CIEAV_BROWSER_CONTROL_TOKEN:"secret",JWT_SECRET:"secret",RECEIPT_SIGNING_SECRET:"secret",HF_TOKEN:"secret",OPENAI_API_KEY:"secret"});
+const clean=chromiumEnvironment({PATH:"ok",CIEAV_BROWSER_CONTROL_TOKEN:"secret",CIEAV_AUDIT_INTEGRITY_KEY:"audit-secret",JWT_SECRET:"secret",RECEIPT_SIGNING_SECRET:"secret",HF_TOKEN:"secret",OPENAI_API_KEY:"secret"});
 assert.equal(clean.PATH,"ok");
-for(const key of ["CIEAV_BROWSER_CONTROL_TOKEN","JWT_SECRET","RECEIPT_SIGNING_SECRET","HF_TOKEN","OPENAI_API_KEY"])assert(!(key in clean),`${key} leaked into Chromium environment`);
+for(const key of ["CIEAV_BROWSER_CONTROL_TOKEN","CIEAV_AUDIT_INTEGRITY_KEY","JWT_SECRET","RECEIPT_SIGNING_SECRET","HF_TOKEN","OPENAI_API_KEY"])assert(!(key in clean),`${key} leaked into Chromium environment`);
 
 const native=await readFile(path.join(ROOT,"native/windows/cdp-win-bridge.cpp"),"utf8");
 for(const marker of ["--remote-debugging-io-pipes=","PROC_THREAD_ATTRIBUTE_HANDLE_LIST","JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE","CREATE_SUSPENDED"])assert(native.includes(marker),`Windows bridge missing ${marker}`);

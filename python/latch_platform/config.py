@@ -122,8 +122,26 @@ class Settings:
         if value and len(value)>=32:return value
         value=secrets.token_urlsafe(bytes_count);_write_private(legacy_file,value);return value
 
+    def _read_secret(self, account: str, legacy_file: Path) -> str | None:
+        store=self._store()
+        if store.status.encrypted_at_rest:
+            value=store.get(account,legacy_file)
+            return value if value and len(value)>=32 else None
+        value=_read_private(legacy_file)
+        return value if value and len(value)>=32 else None
+
+    def audit_integrity_secret(self) -> str:
+        return self._get_or_create_secret("audit-integrity-key",self.state_dir/"audit-integrity-key")
+
+    def read_audit_integrity_secret(self) -> str | None:
+        return self._read_secret("audit-integrity-key",self.state_dir/"audit-integrity-key")
+
     def token(self) -> str:
-        return self._get_or_create_secret("gateway-token",self.token_file,bytes_count=32)
+        value=self._get_or_create_secret("gateway-token",self.token_file,bytes_count=32)
+        # Managed Gateway startup loads this first. Keep the audit HMAC key only
+        # in trusted runtime process environments; Chromium strips it before spawn.
+        os.environ["CIEAV_AUDIT_INTEGRITY_KEY"]=self.audit_integrity_secret()
+        return value
 
     def local_api_secret(self) -> str:
         return self._get_or_create_secret("local-api-signing-secret",self.local_api_secret_file)

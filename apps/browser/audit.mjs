@@ -26,12 +26,14 @@ const legacyHash=(prev,line)=>sha(`LEGACY\n${prev}\n${line}`);
 const validHash=v=>typeof v==="string"&&/^[0-9a-f]{64}$/.test(v);
 
 export class AuditLog{
-  constructor(stateDir,{maxBytes=MAX_BYTES}={}){
+  constructor(stateDir,{maxBytes=MAX_BYTES,integrityKey=process.env.CIEAV_AUDIT_INTEGRITY_KEY??process.env.LATCH_AUDIT_INTEGRITY_KEY,production=process.env.CIEAV_REQUIRE_PRODUCTION_API==="1"}={}){
     this.stateDir=stateDir;
     this.file=path.join(stateDir,"audit-events.jsonl");
     this.previous=path.join(stateDir,"audit-events.previous.jsonl");
     this.keyFile=path.join(stateDir,"audit-integrity-key");
     this.maxBytes=maxBytes;
+    this.production=Boolean(production);
+    this.injectedKey=typeof integrityKey==="string"?integrityKey.trim():"";
     this._chain=Promise.resolve();
     this._lastHash=ZERO_HASH;
     this._key=null;
@@ -43,6 +45,12 @@ export class AuditLog{
     return false;
   }
   async _loadKey(){
+    if(this.injectedKey){
+      if(this.injectedKey.length<43)throw new Error("CIEAV audit integrity key is invalid");
+      this._key=this.injectedKey;
+      return;
+    }
+    if(this.production)throw new Error("Managed CIEAV requires an OS-backed audit integrity key; plaintext audit-key fallback is disabled");
     try{
       const value=(await readFile(this.keyFile,"utf8")).trim();
       if(value.length<43)throw new Error("CIEAV audit integrity key is invalid");
@@ -121,8 +129,6 @@ export class AuditLog{
     }catch(err){if(err?.code==="ENOENT")return;throw err}
     await rm(this.previous,{force:true});
     await rename(this.file,this.previous);
-    // Keep _lastHash unchanged: the first event in the new current file is
-    // cryptographically linked to the terminal event retained in previous.
   }
   async _appendDurable(line){
     const fh=await open(this.file,"a",0o600);

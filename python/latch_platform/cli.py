@@ -71,13 +71,10 @@ _AUDIT_V3_FIELDS=(*_AUDIT_V2_FIELDS,"algorithm")
 _ZERO_HASH="0"*64
 
 def _audit_key(settings: Settings) -> str | None:
-    p=settings.state_dir/"audit-integrity-key"
-    try:
-        value=p.read_text("utf-8").strip()
-        if len(value)<43: raise RuntimeError("audit integrity key is invalid")
-        return value
-    except FileNotFoundError:
-        return None
+    value=settings.read_audit_integrity_secret()
+    if value is None:return None
+    if len(value)<43: raise RuntimeError("audit integrity key is invalid")
+    return value
 
 def _audit_verify_file(path: Path, *, key: str | None, initial_hash: str | None, allow_legacy_reset: bool=False) -> dict:
     try: raw=path.read_text("utf-8")
