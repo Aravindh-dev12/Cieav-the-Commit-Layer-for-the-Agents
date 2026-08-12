@@ -7,8 +7,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def _env(primary: str, legacy: str | None = None) -> str | None:
+    value = os.environ.get(primary, "").strip()
+    if value:
+        return value
+    if legacy:
+        value = os.environ.get(legacy, "").strip()
+        if value:
+            return value
+    return None
+
+
 def _repo_root() -> Path:
-    configured = os.environ.get("LATCH_HOME")
+    configured = _env("CIEAV_HOME", "LATCH_HOME")
     if configured:
         return Path(configured).expanduser().resolve()
     candidates = [Path.cwd(), Path(__file__).resolve()]
@@ -16,14 +27,24 @@ def _repo_root() -> Path:
         for p in [start, *start.parents]:
             if (p / "package.json").exists() and (p / "apps" / "browser" / "main.mjs").exists():
                 return p
-    raise RuntimeError("Cannot locate LATCH repository. Set LATCH_HOME to the repository/install root.")
+    raise RuntimeError("Cannot locate CIEAV runtime. Set CIEAV_HOME to the repository/install root.")
 
 
 def _state_dir() -> Path:
-    configured = os.environ.get("LATCH_STATE_DIR")
+    configured = _env("CIEAV_STATE_DIR", "LATCH_STATE_DIR")
     if configured:
         return Path(configured).expanduser().resolve()
-    return (Path.home() / ".latch").resolve()
+    cieav = (Path.home() / ".cieav").resolve()
+    legacy = (Path.home() / ".latch").resolve()
+    # Existing users retain their durable receipts/tokens/history. Fresh installs
+    # start in ~/.cieav.
+    if legacy.exists() and not cieav.exists():
+        return legacy
+    return cieav
+
+
+def _port(primary: str, legacy: str, default: str) -> int:
+    return int(_env(primary, legacy) or default)
 
 
 def _chmod_private(path: Path, mode: int) -> None:
@@ -51,9 +72,9 @@ class Settings:
         return cls(
             root=_repo_root(),
             state_dir=state,
-            gateway_port=int(os.environ.get("LATCH_GATEWAY_PORT", "8791")),
-            control_port=int(os.environ.get("LATCH_CONTROL_PORT", "8790")),
-            api_port=int(os.environ.get("LATCH_API_PORT", "8787")),
+            gateway_port=_port("CIEAV_GATEWAY_PORT", "LATCH_GATEWAY_PORT", "8791"),
+            control_port=_port("CIEAV_CONTROL_PORT", "LATCH_CONTROL_PORT", "8790"),
+            api_port=_port("CIEAV_API_PORT", "LATCH_API_PORT", "8787"),
             token_file=state / "gateway-token",
             hf_token_file=state / "hf-token",
             runtime_file=state / "gateway-runtime.json",
