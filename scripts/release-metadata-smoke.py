@@ -12,6 +12,8 @@ MANIFEST=ROOT/"scripts"/"make-release-manifest.py"
 RENDER=ROOT/"scripts"/"render-installers.py"
 VERSION="0.7.0"
 CLOUD="https://cloud.example.test"
+WINDOWS_SIGNER="0123456789ABCDEF0123456789ABCDEF01234567"
+MACOS_SIGNER="Developer ID Application: CIEAV Example (ABCDE12345)"
 
 
 def build_metadata(root:Path,filename:str="cieav-runtime-0.7.0-linux-x64.zip",*,size:int=1234,platform:str="linux-x64",version:str=VERSION)->None:
@@ -38,18 +40,24 @@ def manifest_case(*,filename:str="cieav-runtime-0.7.0-linux-x64.zip",cloud:str=C
         assert parsed=={"BRAND":"CIEAV","VERSION":VERSION,"CLOUD_URL":cloud.rstrip('/'),"ARTIFACT_PATH":f"{channel}/{filename}","SHA256":"a"*64}
 
 
-def render_case(base:str,expect_ok:bool)->None:
+def render_case(base:str,expect_ok:bool,*,windows_signer:str=WINDOWS_SIGNER,macos_signer:str=MACOS_SIGNER)->None:
     with tempfile.TemporaryDirectory(prefix="cieav-render-") as td:
         out=Path(td)/"publish"
-        proc=subprocess.run([sys.executable,str(RENDER),"--download-base-url",base,"--output-dir",str(out)],cwd=ROOT,capture_output=True,text=True)
+        proc=subprocess.run([sys.executable,str(RENDER),"--download-base-url",base,"--windows-signer-thumbprint",windows_signer,"--macos-signing-identity",macos_signer,"--output-dir",str(out)],cwd=ROOT,capture_output=True,text=True)
         if expect_ok and proc.returncode!=0: raise AssertionError(proc.stderr or proc.stdout)
-        if not expect_ok and proc.returncode==0: raise AssertionError(f"invalid download origin was accepted: {base}")
+        if not expect_ok and proc.returncode==0: raise AssertionError(f"invalid installer trust input was accepted: base={base!r} windows_signer={windows_signer!r} macos_signer={macos_signer!r}")
         if not expect_ok:return
         ps=(out/"install.ps1").read_text("utf-8");sh=(out/"install.sh").read_text("utf-8")
-        assert "__CIEAV_DOWNLOAD_BASE_URL__" not in ps+sh
+        combined=ps+sh
+        for placeholder in ("__CIEAV_DOWNLOAD_BASE_URL__","__CIEAV_WINDOWS_SIGNER_THUMBPRINT__","__CIEAV_MACOS_SIGNING_IDENTITY__"):
+            assert placeholder not in combined
         assert base.rstrip('/') in ps and base.rstrip('/') in sh
+        assert windows_signer.upper() in ps and windows_signer.upper() in sh
+        assert macos_signer in ps and macos_signer in sh
         assert "MaximumRedirection 0" in ps
         assert "--max-redirs 0" in sh
+        assert "Get-AuthenticodeSignature" in ps and "SignerCertificate.Thumbprint" in ps
+        assert "codesign --verify --strict" in sh
 
 
 def main()->None:
@@ -64,7 +72,11 @@ def main()->None:
     render_case("https://downloads.example.test",True)
     for bad in ("http://downloads.example.test","https://user:pass@downloads.example.test","https://downloads.example.test/path","https://downloads.example.test/?token=x","https://downloads.example.test/#frag"):
         render_case(bad,False)
-    print("CIEAV release metadata/origin smoke passed")
+    for bad in ("", "not-a-thumbprint", "AA:BB:CC", "a"*39, "f"*129):
+        render_case("https://downloads.example.test",False,windows_signer=bad)
+    for bad in ("", "Developer ID\nInjected", "<script>", "x"*241):
+        render_case("https://downloads.example.test",False,macos_signer=bad)
+    print("CIEAV release metadata/origin/publisher-pin smoke passed")
 
 
 if __name__=="__main__": main()
