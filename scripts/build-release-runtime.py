@@ -32,13 +32,14 @@ def sha256(path: Path) -> str:
 
 def copy_tree(src: Path, dst: Path) -> None:
     if dst.exists(): shutil.rmtree(dst)
-    shutil.copytree(src, dst, ignore=shutil.ignore_patterns("node_modules", "*.log", ".DS_Store"))
+    shutil.copytree(src, dst, ignore=shutil.ignore_patterns("node_modules", "*.log", ".DS_Store", "cdp-win-bridge.exe"))
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cieav-exe", "--latch-exe", dest="cieav_exe", required=True)
     ap.add_argument("--node-exe", required=True)
+    ap.add_argument("--cdp-win-bridge")
     ap.add_argument("--output-dir", default="release-out")
     ap.add_argument("--version", required=True)
     args = ap.parse_args()
@@ -48,9 +49,12 @@ def main() -> None:
     node_exe = Path(args.node_exe).resolve()
     out = Path(args.output_dir).resolve(); out.mkdir(parents=True, exist_ok=True)
     key = platform_key()
+    cdp_win_bridge = Path(args.cdp_win_bridge).resolve() if args.cdp_win_bridge else None
 
     if not cieav_exe.exists(): raise SystemExit(f"Missing CIEAV executable: {cieav_exe}")
     if not node_exe.exists(): raise SystemExit(f"Missing Node executable: {node_exe}")
+    if key.startswith("windows-") and (cdp_win_bridge is None or not cdp_win_bridge.exists()):
+        raise SystemExit("Windows release requires --cdp-win-bridge with the signed native CDP bridge")
     if not (root / "apps/api/dist/server.js").exists(): raise SystemExit("Missing bundled apps/api/dist/server.js")
 
     with tempfile.TemporaryDirectory() as td:
@@ -64,12 +68,14 @@ def main() -> None:
             for p in (stage / "bin" / exe_name, stage / "runtime" / node_name): p.chmod(p.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
         copy_tree(root / "apps/browser", stage / "apps/browser")
+        if cdp_win_bridge is not None:
+            shutil.copy2(cdp_win_bridge, stage / "apps/browser/cdp-win-bridge.exe")
         shutil.copy2(root / "apps/api/dist/server.js", stage / "apps/api/dist/server.js")
         for name in ("package.json", "PRIVACY.md", "SECURITY.md", "README.md"):
             src = root / name
             if src.exists(): shutil.copy2(src, stage / name)
 
-        runtime_meta = {"brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":2,"legacyBrand":"LATCH"}
+        runtime_meta = {"brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":3,"legacyBrand":"LATCH","privateCdpTransport":"windows-handle-pipe" if key.startswith("windows-") else "posix-fd-pipe"}
         (stage / "runtime.json").write_text(json.dumps(runtime_meta, indent=2) + "\n", "utf-8")
 
         archive = out / f"cieav-runtime-{args.version}-{key}.zip"
