@@ -23,7 +23,20 @@ case "$ARCH" in x86_64|amd64) ARCH_KEY=x64 ;; arm64|aarch64) ARCH_KEY=arm64 ;; *
 PLATFORM="$OS_KEY-$ARCH_KEY"
 
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/cieav-install.XXXXXX")
-trap 'rm -rf "$TMP"' EXIT INT TERM
+INSTALL_ROOT="$HOME/.local/share/cieav"; BACKUP_ROOT="$INSTALL_ROOT.previous"; BIN_ROOT="$HOME/.local/bin"
+SUCCESS=0; RUNTIME_REPLACED=0
+cleanup() {
+  rc=$?
+  trap - EXIT HUP INT TERM
+  if [ "$SUCCESS" -ne 1 ] && [ "$RUNTIME_REPLACED" -eq 1 ]; then
+    echo "CIEAV · install failed; restoring previous runtime" >&2
+    rm -rf "$INSTALL_ROOT"
+    if [ -e "$BACKUP_ROOT" ]; then mv "$BACKUP_ROOT" "$INSTALL_ROOT"; fi
+  fi
+  rm -rf "$TMP"
+  exit "$rc"
+}
+trap cleanup EXIT HUP INT TERM
 BOOTSTRAP="$TMP/bootstrap.txt"; ARCHIVE="$TMP/cieav-runtime.zip"; STAGE="$TMP/runtime"
 
 printf '%s\n' "CIEAV · fetching release metadata"
@@ -58,10 +71,10 @@ printf '%s\n' "CIEAV · checksum verified"
 mkdir -p "$STAGE"; unzip -q "$ARCHIVE" -d "$STAGE"
 PAYLOAD="$STAGE/cieav-runtime"
 [ -d "$PAYLOAD" ] || { PAYLOAD="$STAGE/latch-runtime"; [ -d "$PAYLOAD" ] || fail "archive missing cieav-runtime/"; }
-INSTALL_ROOT="$HOME/.local/share/cieav"; BIN_ROOT="$HOME/.local/bin"
 mkdir -p "$(dirname "$INSTALL_ROOT")" "$BIN_ROOT"
-if [ -e "$INSTALL_ROOT" ]; then rm -rf "$INSTALL_ROOT.previous"; mv "$INSTALL_ROOT" "$INSTALL_ROOT.previous"; fi
-mv "$PAYLOAD" "$INSTALL_ROOT"
+rm -rf "$BACKUP_ROOT"
+if [ -e "$INSTALL_ROOT" ]; then mv "$INSTALL_ROOT" "$BACKUP_ROOT"; fi
+mv "$PAYLOAD" "$INSTALL_ROOT"; RUNTIME_REPLACED=1
 RUNTIME_CIEAV="$INSTALL_ROOT/bin/cieav"
 if [ ! -f "$RUNTIME_CIEAV" ] && [ -f "$INSTALL_ROOT/bin/latch" ]; then RUNTIME_CIEAV="$INSTALL_ROOT/bin/latch"; fi
 RUNTIME_NODE="$INSTALL_ROOT/runtime/node"
@@ -88,6 +101,7 @@ printf '%s\n' "CIEAV · running runtime self-check"; "$RUNTIME_CIEAV" doctor || 
 printf '%s\n' "CIEAV · enrolling with Cloud Intelligence"; "$RUNTIME_CIEAV" cloud enroll || fail "cloud enrollment failed"
 printf '%s\n' "CIEAV · running cloud safety probe"; "$RUNTIME_CIEAV" cloud probe || fail "cloud safety probe failed"
 if [ "$NO_SERVICE" != "1" ]; then printf '%s\n' "CIEAV · installing always-on Gateway"; "$RUNTIME_CIEAV" gateway install || fail "Gateway service installation failed"; fi
+SUCCESS=1
 
 cat <<EOF
 
