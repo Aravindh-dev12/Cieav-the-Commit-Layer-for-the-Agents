@@ -176,6 +176,7 @@ jobs:
           case "$CLOUD_URL" in https://*) ;; *) echo 'Cloud URL must use HTTPS'; exit 2;; esac
           case "$DOWNLOAD_BASE_URL" in https://*) ;; *) echo 'Download base URL must use HTTPS'; exit 2;; esac
           VERSION=$(python -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           python scripts/make-release-manifest.py --input-dir release-out --output release-out/manifest.json --version "$VERSION" --cloud-url "$CLOUD_URL" --channel "$CHANNEL"
           test -n "$(find release-out -maxdepth 1 -name 'bootstrap-*.txt' -print -quit)" || { echo 'No bootstrap metadata generated'; exit 2; }
       - name: Sign release metadata with offline trust root
@@ -197,7 +198,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p "publish/$CHANNEL/signatures"
-          python scripts/render-installers.py --download-base-url "$DOWNLOAD_BASE_URL" --windows-signer-thumbprint "$WINDOWS_SIGNER_THUMBPRINT" --macos-signing-identity "$MACOS_SIGNING_IDENTITY" --output-dir publish
+          python scripts/render-installers.py --download-base-url "$DOWNLOAD_BASE_URL" --cloud-url "$CLOUD_URL" --release-version "$VERSION" --windows-signer-thumbprint "$WINDOWS_SIGNER_THUMBPRINT" --macos-signing-identity "$MACOS_SIGNING_IDENTITY" --output-dir publish
           cp release-out/manifest.json "publish/$CHANNEL/manifest.json"
           cp release-out/bootstrap-*.txt "publish/$CHANNEL/"
           cp release-out/cieav-runtime-*.zip "publish/$CHANNEL/"
