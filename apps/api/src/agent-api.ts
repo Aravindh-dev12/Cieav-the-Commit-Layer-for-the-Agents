@@ -5,6 +5,7 @@ import {ActionProposalSchema,CommitPermitSchema,OpenLoopCreateRequestSchema,Open
 import {assessConsequences,evaluateAuthority,issueCommitPermit,proposalFromManifest,verifyCommitPermit} from "@latch/core/reality";
 import type {AgentTokenPayload,TokenRisk} from "./auth.js";
 import type {CieavRealityApi,RealityRouteResult} from "./reality-api.js";
+import type {CieavProofApi} from "./proof-api.js";
 
 const MAX_BODY=256_000;
 const riskRank:Record<TokenRisk,number>={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3};
@@ -15,7 +16,7 @@ function riskAllowed(identity:AgentTokenPayload,risk:TokenRisk){return riskRank[
 function assertProposalAllowed(identity:AgentTokenPayload,proposal:{intentId:string;actionType:string;risk:TokenRisk}){if(!intentAllowed(identity,proposal.intentId))throw new Error("agent_intent_not_allowed");if(!actionAllowed(identity,proposal.actionType))throw new Error("agent_action_not_allowed");if(!riskAllowed(identity,proposal.risk))throw new Error("agent_risk_limit_exceeded")}
 
 export class CieavAgentRealityApi{
-  constructor(private readonly reality:CieavRealityApi,private readonly permitSecret:string){}
+  constructor(private readonly reality:CieavRealityApi,private readonly permitSecret:string,private readonly proof?:CieavProofApi){}
   async handle(req:IncomingMessage,pathname:string,identity:AgentTokenPayload):Promise<RealityRouteResult|null>{
     const scope=identity.scopeDeviceId;
     if(req.method==="GET"&&pathname==="/v1/agent/intents"){const values=await this.reality.store.listIntents(scope);return{status:200,body:{intents:values.filter(x=>intentAllowed(identity,x.id))}}}
@@ -41,6 +42,11 @@ export class CieavAgentRealityApi{
     if(req.method==="GET"&&pathname==="/v1/agent/open-loops"){const loops=await this.reality.store.listLoops(scope);return{status:200,body:{openLoops:loops.filter(x=>intentAllowed(identity,x.intentId))}}}
     const loopMatch=pathname.match(/^\/v1\/agent\/open-loops\/([0-9a-f-]+)$/i);
     if(req.method==="PATCH"&&loopMatch?.[1]){const current=await this.reality.store.getLoop(scope,loopMatch[1]);if(!current)return{status:404,body:{error:"not_found"}};if(!intentAllowed(identity,current.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};const patch=OpenLoopUpdateRequestSchema.parse(await parseBody(req));if(patch.status==="RESOLVED"||patch.status==="CANCELLED")return{status:403,body:{error:"agent_cannot_finalize_open_loop"}};const next=OpenLoopSchema.parse({...current,...patch});return{status:200,body:{openLoop:await this.reality.store.saveLoop(scope,next)}}}
+    if(this.proof&&req.method==="GET"&&pathname==="/v1/agent/proofs"){const proofs=await this.proof.store.list(scope);return{status:200,body:{proofs:proofs.filter(x=>intentAllowed(identity,x.intentId))}}}
+    const proofMatch=pathname.match(/^\/v1\/agent\/proofs\/([0-9a-f-]+)$/i);
+    if(this.proof&&req.method==="GET"&&proofMatch?.[1]){const value=await this.proof.store.get(scope,proofMatch[1]);if(!value)return{status:404,body:{error:"not_found"}};if(!intentAllowed(identity,value.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};return{status:200,body:{proof:value}}}
+    const reportMatch=pathname.match(/^\/v1\/agent\/proofs\/([0-9a-f-]+)\/report$/i);
+    if(this.proof&&req.method==="POST"&&reportMatch?.[1]){const value=await this.proof.store.get(scope,reportMatch[1]);if(!value)return{status:404,body:{error:"not_found"}};if(!intentAllowed(identity,value.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};return{status:200,body:await this.proof.observe(scope,value.id,await parseBody(req),"AGENT_REPORT")}}
     return null;
   }
 }
