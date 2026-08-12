@@ -65,7 +65,20 @@ jobs:
         shell: bash
         run: |
           pyinstaller --noconfirm --clean --onefile --name cieav --paths python python/latch_platform/__main__.py
-      - name: Authenticode sign and verify Windows executable
+      - name: Build native Windows CDP bridge
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw 'vswhere.exe not found' }
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'Visual C++ build tools not found' }
+          $devcmd = Join-Path $vs 'Common7\Tools\VsDevCmd.bat'
+          $command = '"' + $devcmd + '" -arch=x64 -host_arch=x64 && cl /nologo /std:c++17 /O2 /EHsc /DUNICODE /D_UNICODE native\windows\cdp-win-bridge.cpp /Fe:dist\cdp-win-bridge.exe /link /DYNAMICBASE /NXCOMPAT'
+          cmd.exe /d /s /c $command
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path dist/cdp-win-bridge.exe)) { throw 'Windows CDP bridge build failed' }
+      - name: Authenticode sign and verify Windows executables
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -74,15 +87,18 @@ jobs:
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_PFX_B64))
           $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } | Sort-Object FullName -Descending | Select-Object -First 1
           if (-not $signtool) { throw 'signtool.exe not found' }
-          & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_PFX_PASSWORD /tr $env:WINDOWS_TIMESTAMP_URL /td SHA256 dist/cieav.exe
-          if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed' }
-          & $signtool.FullName verify /pa /all /v dist/cieav.exe
-          if ($LASTEXITCODE -ne 0) { throw 'Authenticode verification failed' }
-          $sig = Get-AuthenticodeSignature dist/cieav.exe
-          if ($sig.Status -ne 'Valid') { throw "Authenticode status is $($sig.Status)" }
-          $actual = ($sig.SignerCertificate.Thumbprint -replace '\s','').ToUpperInvariant()
           $expected = ($env:WINDOWS_CERT_THUMBPRINT -replace '\s','').ToUpperInvariant()
-          if ($actual -ne $expected) { throw 'Windows signer certificate thumbprint mismatch' }
+          foreach ($exe in @('dist/cieav.exe','dist/cdp-win-bridge.exe')) {
+            if (-not (Test-Path $exe)) { throw "Required Windows executable missing: $exe" }
+            & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_PFX_PASSWORD /tr $env:WINDOWS_TIMESTAMP_URL /td SHA256 $exe
+            if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed for $exe" }
+            & $signtool.FullName verify /pa /all /v $exe
+            if ($LASTEXITCODE -ne 0) { throw "Authenticode verification failed for $exe" }
+            $sig = Get-AuthenticodeSignature $exe
+            if ($sig.Status -ne 'Valid' -or -not $sig.SignerCertificate) { throw "Authenticode status is $($sig.Status) for $exe" }
+            $actual = ($sig.SignerCertificate.Thumbprint -replace '\s','').ToUpperInvariant()
+            if ($actual -ne $expected) { throw "Windows signer certificate thumbprint mismatch for $exe" }
+          }
           Remove-Item -Force $pfx
       - name: Developer ID sign and verify macOS executable
         if: runner.os == 'macOS'
@@ -120,7 +136,9 @@ jobs:
       - name: Assemble runtime archive
         shell: bash
         run: |
-          python scripts/build-release-runtime.py --cieav-exe '${{ steps.identity.outputs.cieav_exe }}' --node-exe '${{ steps.identity.outputs.node_exe }}' --version '${{ steps.identity.outputs.version }}' --output-dir release-out
+          EXTRA=()
+          if [ -f dist/cdp-win-bridge.exe ]; then EXTRA+=(--cdp-win-bridge dist/cdp-win-bridge.exe); fi
+          python scripts/build-release-runtime.py --cieav-exe '${{ steps.identity.outputs.cieav_exe }}' --node-exe '${{ steps.identity.outputs.node_exe }}' "${EXTRA[@]}" --version '${{ steps.identity.outputs.version }}' --output-dir release-out
       - name: Notarize macOS runtime archive
         if: runner.os == 'macOS'
         shell: bash
