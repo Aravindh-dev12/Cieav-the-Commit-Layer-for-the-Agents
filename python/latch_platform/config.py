@@ -36,8 +36,6 @@ def _state_dir() -> Path:
         return Path(configured).expanduser().resolve()
     cieav = (Path.home() / ".cieav").resolve()
     legacy = (Path.home() / ".latch").resolve()
-    # Existing users retain their durable receipts/tokens/history. Fresh installs
-    # start in ~/.cieav.
     if legacy.exists() and not cieav.exists():
         return legacy
     return cieav
@@ -54,6 +52,21 @@ def _chmod_private(path: Path, mode: int) -> None:
         pass
 
 
+def _private_secret(path: Path, *, bytes_count: int = 48) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _chmod_private(path.parent, 0o700)
+    try:
+        value = path.read_text("utf-8").strip()
+        if len(value) >= 32:
+            return value
+    except FileNotFoundError:
+        pass
+    value = secrets.token_urlsafe(bytes_count)
+    path.write_text(value, "utf-8")
+    _chmod_private(path, 0o600)
+    return value
+
+
 @dataclass(frozen=True)
 class Settings:
     root: Path
@@ -62,6 +75,8 @@ class Settings:
     control_port: int
     api_port: int
     token_file: Path
+    local_api_secret_file: Path
+    receipt_signing_secret_file: Path
     hf_token_file: Path
     runtime_file: Path
     log_file: Path
@@ -76,6 +91,8 @@ class Settings:
             control_port=_port("CIEAV_CONTROL_PORT", "LATCH_CONTROL_PORT", "8790"),
             api_port=_port("CIEAV_API_PORT", "LATCH_API_PORT", "8787"),
             token_file=state / "gateway-token",
+            local_api_secret_file=state / "local-api-signing-secret",
+            receipt_signing_secret_file=state / "receipt-signing-secret",
             hf_token_file=state / "hf-token",
             runtime_file=state / "gateway-runtime.json",
             log_file=state / "gateway.log",
@@ -97,6 +114,14 @@ class Settings:
         self.token_file.write_text(value, "utf-8")
         _chmod_private(self.token_file, 0o600)
         return value
+
+    def local_api_secret(self) -> str:
+        self.ensure()
+        return _private_secret(self.local_api_secret_file)
+
+    def receipt_signing_secret(self) -> str:
+        self.ensure()
+        return _private_secret(self.receipt_signing_secret_file)
 
     def read_hf_token(self) -> str | None:
         value = os.environ.get("HF_TOKEN", "").strip()
