@@ -6,6 +6,7 @@ import {assessConsequences,evaluateAuthority,issueCommitPermit,proposalFromManif
 import type {AgentTokenPayload,TokenRisk} from "./auth.js";
 import type {CieavRealityApi,RealityRouteResult} from "./reality-api.js";
 import type {CieavProofApi} from "./proof-api.js";
+import type {CieavBusinessApi} from "./business-api.js";
 
 const MAX_BODY=256_000;
 const riskRank:Record<TokenRisk,number>={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3};
@@ -16,7 +17,7 @@ function riskAllowed(identity:AgentTokenPayload,risk:TokenRisk){return riskRank[
 function assertProposalAllowed(identity:AgentTokenPayload,proposal:{intentId:string;actionType:string;risk:TokenRisk}){if(!intentAllowed(identity,proposal.intentId))throw new Error("agent_intent_not_allowed");if(!actionAllowed(identity,proposal.actionType))throw new Error("agent_action_not_allowed");if(!riskAllowed(identity,proposal.risk))throw new Error("agent_risk_limit_exceeded")}
 
 export class CieavAgentRealityApi{
-  constructor(private readonly reality:CieavRealityApi,private readonly permitSecret:string,private readonly proof?:CieavProofApi){}
+  constructor(private readonly reality:CieavRealityApi,private readonly permitSecret:string,private readonly proof?:CieavProofApi,private readonly business?:CieavBusinessApi){}
   async handle(req:IncomingMessage,pathname:string,identity:AgentTokenPayload):Promise<RealityRouteResult|null>{
     const scope=identity.scopeDeviceId;
     if(req.method==="GET"&&pathname==="/v1/agent/intents"){const values=await this.reality.store.listIntents(scope);return{status:200,body:{intents:values.filter(x=>intentAllowed(identity,x.id))}}}
@@ -47,6 +48,11 @@ export class CieavAgentRealityApi{
     if(this.proof&&req.method==="GET"&&proofMatch?.[1]){const value=await this.proof.store.get(scope,proofMatch[1]);if(!value)return{status:404,body:{error:"not_found"}};if(!intentAllowed(identity,value.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};return{status:200,body:{proof:value}}}
     const reportMatch=pathname.match(/^\/v1\/agent\/proofs\/([0-9a-f-]+)\/report$/i);
     if(this.proof&&req.method==="POST"&&reportMatch?.[1]){const value=await this.proof.store.get(scope,reportMatch[1]);if(!value)return{status:404,body:{error:"not_found"}};if(!intentAllowed(identity,value.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};return{status:200,body:await this.proof.observe(scope,value.id,await parseBody(req),"AGENT_REPORT")}}
+    if(this.business&&req.method==="GET"&&pathname==="/v1/agent/business/plans"){const records=await this.business.store.list(scope);return{status:200,body:{plans:records.filter(x=>x.plan.intentId&&intentAllowed(identity,x.plan.intentId))}}}
+    const businessMatch=pathname.match(/^\/v1\/agent\/business\/plans\/([0-9a-f-]+)$/i);
+    if(this.business&&req.method==="GET"&&businessMatch?.[1]){const record=await this.business.store.get(scope,businessMatch[1]);if(!record)return{status:404,body:{error:"not_found"}};if(!record.plan.intentId||!intentAllowed(identity,record.plan.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};return{status:200,body:{plan:record}}}
+    const businessReport=pathname.match(/^\/v1\/agent\/business\/plans\/([0-9a-f-]+)\/report$/i);
+    if(this.business&&req.method==="POST"&&businessReport?.[1]){const record=await this.business.store.get(scope,businessReport[1]);if(!record)return{status:404,body:{error:"not_found"}};if(!record.plan.intentId||!intentAllowed(identity,record.plan.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};return{status:200,body:{plan:await this.business.addFact(scope,record.plan.id,await parseBody(req),"AGENT_REPORT")}}}
     return null;
   }
 }

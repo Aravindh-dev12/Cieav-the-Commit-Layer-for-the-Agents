@@ -8,6 +8,7 @@ import {deviceIdFor,issueToken,verifyToken} from "./auth.js";
 import {CieavAgentSessionStore} from "./agent-sessions.js";
 import {CieavAgentRealityApi} from "./agent-api.js";
 import {CieavProofApi} from "./proof-api.js";
+import {CieavBusinessApi} from "./business-api.js";
 import {analyzeWithOpenAI} from "./model/openai.js";
 import {analyzeWithHuggingFace,shouldEscalateAfterHuggingFace} from "./model/huggingface.js";
 import {analyzeWithCloudModel} from "./model/cloud.js";
@@ -28,7 +29,8 @@ function rateLimit(k:string,l:number,w=60000){const n=Date.now();let b=rateBucke
 const store:ReceiptStore=config.cloudServer?new MemoryReceiptStore():config.localAuthority?new FileReceiptStore(path.join(config.localStateDir!,"receipts.json"),receiptSigner):config.databaseUrl?new PostgresReceiptStore(config.databaseUrl):new MemoryReceiptStore();
 if(store instanceof PostgresReceiptStore)await store.init();
 const proofApi=realityApi&&config.localStateDir?new CieavProofApi(path.join(config.localStateDir,"proof-state.json"),config.receiptSigningSecret,realityApi,store):null;
-const agentApi=realityApi?new CieavAgentRealityApi(realityApi,config.receiptSigningSecret,proofApi??undefined):null;
+const businessApi=realityApi&&config.localStateDir?new CieavBusinessApi(path.join(config.localStateDir,"business-state.json"),config.receiptSigningSecret,realityApi):null;
+const agentApi=realityApi?new CieavAgentRealityApi(realityApi,config.receiptSigningSecret,proofApi??undefined,businessApi??undefined):null;
 const persistence=config.cloudServer?"cloud-no-receipts":config.localAuthority?"local-durable":config.databaseUrl?"postgres":"memory-dev",service=config.cloudServer?"cieav-cloud-intelligence":config.localAuthority?"cieav-local-api":"cieav-dev-api";
 function allowedOrigin(o?:string){if(!o)return undefined;if(config.allowedOrigins.includes(o))return o;return undefined}
 function json(res:http.ServerResponse,status:number,bodyValue:unknown,origin?:string){const allow=allowedOrigin(origin);res.statusCode=status;res.setHeader("content-type","application/json; charset=utf-8");res.setHeader("cache-control","no-store");res.setHeader("x-content-type-options","nosniff");res.setHeader("referrer-policy","no-referrer");if(allow)res.setHeader("access-control-allow-origin",allow);res.end(JSON.stringify(bodyValue))}
@@ -48,7 +50,7 @@ const server=http.createServer(async(req,res)=>{
   }
   const url=new URL(req.url??"/",`http://${req.headers.host??"localhost"}`);
   try{
-    if(req.method==="GET"&&url.pathname==="/health")return json(res,200,config.cloudServer?{ok:true,service,model:config.cloudModel,privacyMode:"transient-minimized",durableUserState:false}:{ok:true,service,localAuthority:config.localAuthority,receiptPersistence:persistence,receiptSigning:typeof receiptSigner==="string"?{algorithm:"HMAC-SHA256",version:"2"}:{algorithm:"Ed25519",version:"3",keyId:receiptSigner.keyId,publicKey:receiptSigner.publicKeyEncoded},modelEnabled:Boolean(config.hfEnabled||config.openaiApiKey),aiProfile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel},providers:{semanticRouter:{enabled:config.hfEnabled,role:"first-tier"},frontier:{enabled:Boolean(config.openaiApiKey),profile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel}}},realityRuntime:{enabled:Boolean(realityApi),version:"3",intentContracts:true,scopedPermits:true,oneUseConsumption:true,openLoops:true,trustedApprovalGateway:true,agentSessions:Boolean(agentSessions),proofPersistence:Boolean(proofApi)}},origin);
+    if(req.method==="GET"&&url.pathname==="/health")return json(res,200,config.cloudServer?{ok:true,service,model:config.cloudModel,privacyMode:"transient-minimized",durableUserState:false}:{ok:true,service,localAuthority:config.localAuthority,receiptPersistence:persistence,receiptSigning:typeof receiptSigner==="string"?{algorithm:"HMAC-SHA256",version:"2"}:{algorithm:"Ed25519",version:"3",keyId:receiptSigner.keyId,publicKey:receiptSigner.publicKeyEncoded},modelEnabled:Boolean(config.hfEnabled||config.openaiApiKey),aiProfile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel},providers:{semanticRouter:{enabled:config.hfEnabled,role:"first-tier"},frontier:{enabled:Boolean(config.openaiApiKey),profile:config.aiProfile,models:{fast:config.fastModel,primary:config.primaryModel,verifier:config.verifierModel}}},realityRuntime:{enabled:Boolean(realityApi),version:"4",intentContracts:true,scopedPermits:true,oneUseConsumption:true,openLoops:true,trustedApprovalGateway:true,agentSessions:Boolean(agentSessions),proofPersistence:Boolean(proofApi),businessTwin:Boolean(businessApi),continuousReconciliation:Boolean(businessApi)}},origin);
     if(req.method==="POST"&&url.pathname==="/v1/devices/register"){if(!rateLimit(`register:${ip}`,30))return json(res,429,{error:"rate_limited"},origin);const raw=await body(req),input=DeviceRegisterSchema.parse(raw),deviceId=deviceIdFor(input.installId,config.jwtSecret),issued=issueToken({sub:deviceId,installId:input.installId},config.jwtSecret);return json(res,200,{deviceId,token:issued.token,expiresAt:issued.expiresAt},origin)}
 
     const gatewayApprovalPath=url.pathname.startsWith("/v1/reality/approvals");
@@ -72,6 +74,16 @@ const server=http.createServer(async(req,res)=>{
       if(req.method==="POST"&&url.pathname==="/v1/proofs"){const raw=await body(req),scope=gatewayScope(raw?.installId),proof=await proofApi.create(scope,raw?.proof);return json(res,201,{proof},origin)}
       const proofRead=url.pathname.match(/^\/v1\/proofs\/([0-9a-f-]+)$/i);if(req.method==="GET"&&proofRead?.[1]){const scope=gatewayScope(url.searchParams.get("installId")),proof=await proofApi.store.get(scope,proofRead[1]);return proof?json(res,200,{proof},origin):json(res,404,{error:"not_found"},origin)}
       const attest=url.pathname.match(/^\/v1\/proofs\/([0-9a-f-]+)\/human-attestation$/i);if(req.method==="POST"&&attest?.[1]){const raw=await body(req),scope=gatewayScope(raw?.installId),result=await proofApi.observe(scope,attest[1],{kind:"HUMAN_ATTESTATION",signal:raw?.signal==="CONTRADICTS"?"CONTRADICTS":raw?.signal==="NEUTRAL"?"NEUTRAL":"SUPPORTS",summary:String(raw?.summary??"").slice(0,1000),confidence:Math.max(0,Math.min(1,Number(raw?.confidence??1))),source:"local-human"},"HUMAN_ATTESTATION");return json(res,200,result,origin)}
+    }
+
+    const gatewayBusinessPath=url.pathname.startsWith("/v1/business");
+    if(config.cloudServer&&gatewayBusinessPath)return json(res,404,{error:"local_only_resource"},origin);
+    if(businessApi&&gatewayBusinessPath&&gatewayAuth(req)){
+      if(!rateLimit("gateway-business",240))return json(res,429,{error:"rate_limited"},origin);
+      if(req.method==="GET"&&url.pathname==="/v1/business/plans"){const scope=gatewayScope(url.searchParams.get("installId"));return json(res,200,{plans:await businessApi.store.list(scope)},origin)}
+      if(req.method==="POST"&&url.pathname==="/v1/business/plans"){const raw=await body(req),scope=gatewayScope(raw?.installId),record=await businessApi.create(scope,raw?.plan);return json(res,201,{plan:record},origin)}
+      const read=url.pathname.match(/^\/v1\/business\/plans\/([0-9a-f-]+)$/i);if(req.method==="GET"&&read?.[1]){const scope=gatewayScope(url.searchParams.get("installId")),record=await businessApi.store.get(scope,read[1]);return record?json(res,200,{plan:record},origin):json(res,404,{error:"not_found"},origin)}
+      const fact=url.pathname.match(/^\/v1\/business\/plans\/([0-9a-f-]+)\/human-fact$/i);if(req.method==="POST"&&fact?.[1]){const raw=await body(req),scope=gatewayScope(raw?.installId),record=await businessApi.addFact(scope,fact[1],raw?.fact,"HUMAN_ATTESTATION");return json(res,200,{plan:record},origin)}
     }
 
     const identity=auth(req);if(!identity)return json(res,401,{error:"unauthorized"},origin);
@@ -98,6 +110,12 @@ const server=http.createServer(async(req,res)=>{
       return json(res,403,{error:"proof_mutation_requires_trusted_authority"},origin);
     }
 
+    if(businessApi&&url.pathname.startsWith("/v1/business")){
+      if(req.method==="GET"&&url.pathname==="/v1/business/plans")return json(res,200,{plans:await businessApi.store.list(identity.sub)},origin);
+      const read=url.pathname.match(/^\/v1\/business\/plans\/([0-9a-f-]+)$/i);if(req.method==="GET"&&read?.[1]){const record=await businessApi.store.get(identity.sub,read[1]);return record?json(res,200,{plan:record},origin):json(res,404,{error:"not_found"},origin)}
+      return json(res,403,{error:"business_mutation_requires_trusted_authority"},origin);
+    }
+
     const isRealityPath=url.pathname.startsWith("/v1/intents")||url.pathname.startsWith("/v1/open-loops")||url.pathname.startsWith("/v1/reality/");
     if(config.cloudServer&&isRealityPath)return json(res,404,{error:"local_only_resource"},origin);
     if(realityApi&&isRealityPath){if(!rateLimit(`reality:${identity.sub}`,240))return json(res,429,{error:"rate_limited"},origin);const handled=await realityApi.handle(req,url.pathname,identity.sub);if(handled)return json(res,handled.status,handled.body,origin)}
@@ -117,6 +135,8 @@ const server=http.createServer(async(req,res)=>{
   }catch(err:any){const message=String(err?.message??err),status=message==="body_too_large"?413:message.startsWith("agent_")?403:400;return json(res,status,{error:status===413?"body_too_large":message.startsWith("agent_")?message:"bad_request",detail:process.env.NODE_ENV==="production"?undefined:message},origin)}
 });
 
+const businessSweep=businessApi?setInterval(()=>{void businessApi.reconcileAll().catch(err=>console.error("CIEAV business reconciliation sweep failed",String(err?.message??err)))},60_000):null;
+businessSweep?.unref();
 const bindHost=config.cloudServer?(process.env.HOST??"0.0.0.0"):"127.0.0.1";
 server.listen(config.port,bindHost,()=>console.log(`${service} listening on http://${bindHost}:${config.port} · persistence=${persistence}`));
-for(const signal of ["SIGINT","SIGTERM"] as const)process.on(signal,async()=>{await store.close();await realityApi?.store.close();await proofApi?.store.close();await agentSessions?.close();server.close(()=>process.exit(0))});
+for(const signal of ["SIGINT","SIGTERM"] as const)process.on(signal,async()=>{if(businessSweep)clearInterval(businessSweep);await store.close();await realityApi?.store.close();await proofApi?.store.close();await businessApi?.store.close();await agentSessions?.close();server.close(()=>process.exit(0))});
