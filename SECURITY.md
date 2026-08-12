@@ -32,11 +32,7 @@ Authenticated CIEAV Cloud requests do not follow redirects. CIEAV Cloud independ
 
 ## Local secret storage
 
-Gateway bearer/API/HF and legacy receipt-wrapping secrets use an explicit per-user secret-store abstraction. In automatic mode CIEAV prefers:
-
-- Windows DPAPI bound to the current user,
-- macOS Keychain Services,
-- Linux Secret Service when an accessible user session/service is available.
+Gateway bearer/API/HF and legacy receipt-wrapping secrets use an explicit per-user secret-store abstraction. In automatic mode CIEAV prefers Windows DPAPI, macOS Keychain Services, and Linux Secret Service when an accessible user session/service is available.
 
 Existing plaintext secret files are migrated only after the secure backend successfully writes and reads back the exact value. The plaintext file is removed only after that verification. If an OS secret facility is unavailable, CIEAV falls back explicitly to per-user `0600` files and reports that fallback rather than claiming encryption at rest.
 
@@ -74,11 +70,13 @@ Audit events use a per-user HMAC-SHA256 chain, cross-rotation linkage, and fsync
 
 Release metadata is independently signed with an offline Ed25519 release key. The publish pipeline signs and immediately verifies `manifest.json` and each platform bootstrap metadata file, checks the release public-key ID against an independently configured expected key ID, and never commits the release private key.
 
-Windows production binaries must be Authenticode signed with SHA-256/RFC-3161 timestamping, verified with SignTool/Windows authentication policy, and match the configured signer certificate thumbprint before packaging.
+Windows production binaries must be Authenticode signed with SHA-256/RFC-3161 timestamping, verified with SignTool/Windows authentication policy, and match the configured signer certificate thumbprint before packaging. The rendered Windows installer pins that thumbprint and re-verifies the staged CIEAV executable with `Get-AuthenticodeSignature` before the existing installation can be replaced.
 
-macOS production binaries must be Developer-ID signed with hardened runtime and secure timestamping, pass `codesign --verify`, and the completed macOS runtime ZIP must be accepted by Apple's notary service before publication.
+macOS production binaries must be Developer-ID signed with hardened runtime and secure timestamping, pass `codesign --verify`, and the completed macOS runtime ZIP must be accepted by Apple's notary service before publication. The rendered installer pins the configured Developer ID identity and verifies the staged executable with `codesign --verify --strict` plus exact authority matching before replacement.
 
-Linux runtime integrity is covered by HTTPS distribution, SHA-256 artifact checks, and independently signed release metadata; distro/package-specific signing can be added if CIEAV later publishes native DEB/RPM packages.
+Signer identities are validated with conservative renderer allowlists before being embedded in shell/PowerShell source; control characters and command/interpolation metacharacters are rejected.
+
+Linux runtime integrity is covered by HTTPS distribution, SHA-256 artifact checks, and independently signed release metadata; distro/package-specific signing can be added if CIEAV later publishes native DEB/RPM packages. The current shell bootstrap does not yet provide a native Linux publisher-certificate check equivalent to Windows Authenticode or macOS Developer ID, so those guarantees must not be described as identical.
 
 ## Bootstrap trust boundary
 
