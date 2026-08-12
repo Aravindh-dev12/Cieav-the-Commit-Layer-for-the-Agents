@@ -4,6 +4,8 @@ set -eu
 CHANNEL="${CIEAV_CHANNEL:-${LATCH_CHANNEL:-stable}}"
 BASE_URL="${CIEAV_DOWNLOAD_BASE_URL:-${LATCH_DOWNLOAD_BASE_URL:-__CIEAV_DOWNLOAD_BASE_URL__}}"
 NO_SERVICE="${CIEAV_NO_SERVICE:-${LATCH_NO_SERVICE:-0}}"
+PINNED_WINDOWS_SIGNER="__CIEAV_WINDOWS_SIGNER_THUMBPRINT__"
+PINNED_MACOS_SIGNER="__CIEAV_MACOS_SIGNING_IDENTITY__"
 
 fail() { echo "CIEAV install failed: $*" >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || fail "curl is required"
@@ -19,8 +21,6 @@ case "$CHANNEL" in *[!a-zA-Z0-9._-]*|'') fail "invalid release channel" ;; esac
 
 fetch_https() {
   url=$1; out=$2
-  # CIEAV bootstrap never follows redirects: all release files must be served
-  # directly from the trusted CIEAV download origin the installer was rendered for.
   curl -fS --proto '=https' --proto-redir '=https' --max-redirs 0 --tlsv1.2 "$url" -o "$out"
 }
 
@@ -78,6 +78,15 @@ printf '%s\n' "CIEAV · checksum verified"
 mkdir -p "$STAGE"; unzip -q "$ARCHIVE" -d "$STAGE"
 PAYLOAD="$STAGE/cieav-runtime"
 [ -d "$PAYLOAD" ] || { PAYLOAD="$STAGE/latch-runtime"; [ -d "$PAYLOAD" ] || fail "archive missing cieav-runtime/"; }
+RUNTIME_STAGED="$PAYLOAD/bin/cieav"
+[ -f "$RUNTIME_STAGED" ] || { RUNTIME_STAGED="$PAYLOAD/bin/latch"; [ -f "$RUNTIME_STAGED" ] || fail "archive missing CIEAV executable"; }
+if [ "$OS_KEY" = "macos" ]; then
+  [ "$PINNED_MACOS_SIGNER" != "__CIEAV_MACOS_SIGNING_IDENTITY__" ] || fail "installer has no pinned macOS signer"
+  /usr/bin/codesign --verify --strict --verbose=2 "$RUNTIME_STAGED" >/dev/null 2>&1 || fail "CIEAV executable failed macOS code-signature verification"
+  SIGN_DETAIL=$(/usr/bin/codesign -dv --verbose=4 "$RUNTIME_STAGED" 2>&1 || true)
+  printf '%s\n' "$SIGN_DETAIL" | grep -F "Authority=$PINNED_MACOS_SIGNER" >/dev/null || fail "CIEAV executable signer does not match the pinned Developer ID"
+  printf '%s\n' "CIEAV · macOS Developer ID verified"
+fi
 mkdir -p "$(dirname "$INSTALL_ROOT")" "$BIN_ROOT"
 rm -rf "$BACKUP_ROOT"
 if [ -e "$INSTALL_ROOT" ]; then mv "$INSTALL_ROOT" "$BACKUP_ROOT"; fi
