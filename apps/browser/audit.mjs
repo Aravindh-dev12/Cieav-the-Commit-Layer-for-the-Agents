@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import {appendFile,mkdir,rename,stat} from "node:fs/promises";
+import {appendFile,mkdir,rename,rm,stat} from "node:fs/promises";
 import path from "node:path";
 
 const MAX_BYTES=5*1024*1024;
@@ -18,7 +18,7 @@ const text=(v,n)=>typeof v==="string"?v.slice(0,n):undefined;
 export class AuditLog{
   constructor(stateDir){this.stateDir=stateDir;this.file=path.join(stateDir,"audit-events.jsonl");this.previous=path.join(stateDir,"audit-events.previous.jsonl")}
   async load(){await mkdir(this.stateDir,{recursive:true,mode:0o700});return this}
-  async rotate(){try{const s=await stat(this.file);if(s.size<MAX_BYTES)return;try{await rename(this.file,this.previous)}catch{}}catch{}}
+  async rotate(){try{const s=await stat(this.file);if(s.size<MAX_BYTES)return;await rm(this.previous,{force:true});await rename(this.file,this.previous)}catch{}}
   async append(type,event={}){
     if(!TYPES.has(type))throw new Error("invalid audit event type");
     await this.rotate();
