@@ -8,7 +8,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from latch_platform.cloud_provider import CloudSemanticProvider
+from latch_platform.cloud_provider import CloudConfig, CloudSemanticProvider
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -51,8 +51,27 @@ class Handler(BaseHTTPRequestHandler):
             }
             ctx = payload.get("context", {})
             assert "requestId" in ctx and "timestamp" in ctx and "clientVersion" in ctx
+            assert "pageText" not in ctx
+            assert ctx.get("url") == "https://example.test/checkout"
+            assert ctx.get("origin") == "https://example.test"
+            assert ctx.get("element", {}).get("href") == "https://example.test/pay"
+            assert ctx.get("form", {}).get("action") == "https://example.test/pay"
+            assert ctx.get("form", {}).get("fileNames") == ["[selected-file.pdf]"]
+            assert ctx.get("form", {}).get("fields", [{}])[0].get("redacted") is True
             raw = json.dumps(payload).lower()
-            assert "password_value" not in raw and "otp_value" not in raw
+            for forbidden in [
+                "password_value",
+                "super-secret",
+                "otp_value",
+                "123456",
+                "4111 1111 1111 1111",
+                "alice@example.com",
+                "real-passport",
+                "secret-query",
+                "session-secret",
+                "abcdefghijklmnopqrstuvwxyz123456",
+            ]:
+                assert forbidden not in raw, forbidden
             return self.send_json(200, {
                 "result": {
                     "actionType": "financial.commit",
@@ -72,20 +91,53 @@ def main() -> None:
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    old = {k: os.environ.get(k) for k in ("LATCH_CLOUD_URL", "LATCH_STATE_DIR", "LATCH_VERSION")}
+    keys = ("CIEAV_CLOUD_URL", "LATCH_CLOUD_URL", "CIEAV_STATE_DIR", "LATCH_STATE_DIR", "CIEAV_VERSION", "LATCH_VERSION")
+    old = {k: os.environ.get(k) for k in keys}
     try:
         with tempfile.TemporaryDirectory() as td:
-            os.environ["LATCH_CLOUD_URL"] = f"http://127.0.0.1:{server.server_address[1]}"
-            os.environ["LATCH_STATE_DIR"] = td
-            os.environ["LATCH_VERSION"] = "0.7.0-test"
+            os.environ["CIEAV_CLOUD_URL"] = f"http://127.0.0.1:{server.server_address[1]}"
+            os.environ["CIEAV_STATE_DIR"] = td
+            os.environ["CIEAV_VERSION"] = "0.7.0-test"
             provider = CloudSemanticProvider()
             enrolled = provider.enroll()
             assert enrolled["ok"] and enrolled["tokenStored"]
             assert (Path(td) / "cloud-device-token").exists()
+
+            raw_context = {
+                "requestId": "privacy-smoke-12345678",
+                "origin": "https://example.test",
+                "url": "https://example.test/checkout?token=secret-query#private",
+                "title": "Checkout alice@example.com",
+                "pageText": "FULL PRIVATE PAGE password_value super-secret",
+                "element": {"tag": "button", "text": "Pay 4111 1111 1111 1111", "href": "https://example.test/pay?session=session-secret"},
+                "form": {
+                    "method": "POST",
+                    "action": "https://example.test/pay?csrf=session-secret",
+                    "fields": [{"name": "password_value", "type": "password", "label": "OTP 123456", "redacted": False, "value": "super-secret", "dataCategory": "CREDENTIAL"}],
+                    "fileNames": ["real-passport.pdf"],
+                    "submitterText": "Bearer abcdefghijklmnopqrstuvwxyz123456",
+                },
+                "nearbyText": "OTP 123456 and secret material",
+                "timestamp": "2026-08-12T12:00:00Z",
+                "clientVersion": "0.7.0-test",
+                "unexpected": {"raw": "otp_value"},
+            }
+            baseline = {"actionType": "financial.commit", "risk": "CRITICAL", "reversibility": "IRREVERSIBLE", "confidence": 0.99, "dataCategories": ["FINANCIAL"], "rawValue": "super-secret"}
+            result = provider.analyze(raw_context, baseline)
+            assert result["ok"]
+
             probe = provider.probe()
             assert probe["ok"] and probe["probePassed"]
             status = provider.status()
             assert status["healthy"] and status["enrolled"] and status["privacyMode"] == "transient-minimized"
+
+            os.environ["CIEAV_CLOUD_URL"] = "http://cloud.example.com"
+            try:
+                CloudConfig.load()
+            except ValueError as exc:
+                assert "HTTPS" in str(exc)
+            else:
+                raise AssertionError("non-loopback HTTP CIEAV Cloud URL must be rejected")
     finally:
         server.shutdown()
         server.server_close()
@@ -95,7 +147,7 @@ def main() -> None:
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-    print("LATCH Cloud provider smoke passed")
+    print("CIEAV Cloud provider privacy smoke passed")
 
 
 if __name__ == "__main__":
