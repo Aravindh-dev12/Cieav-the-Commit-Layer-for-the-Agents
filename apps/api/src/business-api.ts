@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import {chmod,mkdir,readFile,rename,writeFile} from "node:fs/promises";
 import path from "node:path";
-import {BusinessRealityPlanCreateSchema,BusinessRealityPlanSchema,BusinessRealityRecordSchema,ObservedBusinessFactCreateSchema,type BusinessFactProvenance,type BusinessRealityRecord} from "@latch/contracts/business";
-import {reconcileBusinessReality} from "@latch/core/reconciliation";
+import {BusinessRealityPlanCreateSchema,BusinessRealityPlanSchema,BusinessRealityRecordSchema,ObservedBusinessFactCreateSchema,type BusinessFactProvenance,type BusinessRealityRecord} from "@cieav/contracts/business";
+import {reconcileBusinessReality} from "@cieav/core/reconciliation";
 import type {CieavRealityApi} from "./reality-api.js";
 
 type Scoped={deviceId:string;value:BusinessRealityRecord};type Payload={version:1;records:Scoped[]};type Envelope={payload:Payload;mac:string};
