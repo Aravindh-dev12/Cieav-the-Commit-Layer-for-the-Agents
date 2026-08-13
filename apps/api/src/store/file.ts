@@ -1,6 +1,6 @@
 import {mkdir,readFile,rename,writeFile} from "node:fs/promises";
 import path from "node:path";
-import {ReceiptSchema,type Receipt} from "@latch/contracts";
+import {ReceiptSchema,type Receipt} from "@cieav/contracts";
 import {signReceipt,verifyReceipt,type ReceiptSigner} from "../receipt.js";
 import type {ReceiptStore} from "./types.js";
 
