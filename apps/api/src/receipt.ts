@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { ActionManifest, ActionOutcome, Receipt } from "@latch/contracts";
+import type { ActionManifest, ActionOutcome, Receipt } from "@cieav/contracts";
 import {publicKeyFromEncoded,receiptKeyId,type DeviceReceiptSigner} from "./device-signing.js";
 
 export type ReceiptSigner=string|DeviceReceiptSigner;
