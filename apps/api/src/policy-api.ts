@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import {chmod,mkdir,readFile,rename,writeFile} from "node:fs/promises";
 import path from "node:path";
-import {OrganizationPolicyCreateSchema,OrganizationPolicySchema,type EnterprisePolicyDecision,type OrganizationPolicy} from "@latch/contracts/policy";
-import type {ActionProposal,IntentContract} from "@latch/contracts/reality";
-import {evaluateEnterprisePolicy} from "@latch/core/policy";
+import {OrganizationPolicyCreateSchema,OrganizationPolicySchema,type EnterprisePolicyDecision,type OrganizationPolicy} from "@cieav/contracts/policy";
+import type {ActionProposal,IntentContract} from "@cieav/contracts/reality";
+import {evaluateEnterprisePolicy} from "@cieav/core/policy";
 
 const canonical=(value:unknown):string=>Array.isArray(value)?`[${value.map(canonical).join(",")}]`:value&&typeof value==="object"?`{${Object.keys(value as Record<string,unknown>).sort().map(k=>`${JSON.stringify(k)}:${canonical((value as Record<string,unknown>)[k])}`).join(",")}}`:JSON.stringify(value);
 type Payload={version:1;policies:OrganizationPolicy[]};type Envelope={payload:Payload;mac:string};
