@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import type {IncomingMessage} from "node:http";
-import {ActionManifestSchema} from "@latch/contracts";
-import {ActionProposalSchema,CommitPermitSchema,OpenLoopCreateRequestSchema,OpenLoopSchema,OpenLoopUpdateRequestSchema,RealityEvaluateRequestSchema,type OpenLoop} from "@latch/contracts/reality";
-import {assessConsequences,issueCommitPermit,proposalFromManifest,verifyCommitPermit} from "@latch/core/reality";
+import {ActionManifestSchema} from "@cieav/contracts";
+import {ActionProposalSchema,CommitPermitSchema,OpenLoopCreateRequestSchema,OpenLoopSchema,OpenLoopUpdateRequestSchema,RealityEvaluateRequestSchema,type OpenLoop} from "@cieav/contracts/reality";
+import {assessConsequences,issueCommitPermit,proposalFromManifest,verifyCommitPermit} from "@cieav/core/reality";
 import type {AgentTokenPayload,TokenRisk} from "./auth.js";
 import type {CieavRealityApi,RealityRouteResult} from "./reality-api.js";
 import type {CieavProofApi} from "./proof-api.js";
