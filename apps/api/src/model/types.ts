@@ -1,4 +1,4 @@
-import type { ActionManifest } from "@latch/contracts";
+import type { ActionManifest } from "@cieav/contracts";
 export type AIProfile = "economy"|"balanced"|"maximum";
 export type AIStage = "gate"|"primary"|"verifier"|"verifier-fallback";
 export interface OpenAIAnalysisOptions {apiKey:string;baseUrl:string;profile:AIProfile;fastModel:string;primaryModel:string;verifierModel:string;timeoutMs:number}
