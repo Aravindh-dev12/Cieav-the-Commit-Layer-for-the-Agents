@@ -2,7 +2,7 @@ import {describe,expect,it} from "vitest";
 import {mkdtemp} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {createIntentContract} from "@latch/core/reality";
+import {createIntentContract} from "@cieav/core/reality";
 import {CieavRealityApi} from "./reality-api.js";
 import {CieavBusinessApi} from "./business-api.js";
 
