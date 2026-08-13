@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import {describe,expect,it} from "vitest";
-import type {ActionManifest} from "@latch/contracts";
-import type {CieavPrincipal,IntentContract} from "@latch/contracts/reality";
+import type {ActionManifest} from "@cieav/contracts";
+import type {CieavPrincipal,IntentContract} from "@cieav/contracts/reality";
 import {assessConsequences,createIntentContract,evaluateAuthority,issueCommitPermit,proposalFromManifest,verifyCommitPermit} from "./reality.js";
 
 const human:CieavPrincipal={id:"user-1",kind:"HUMAN",displayName:"Owner"};
