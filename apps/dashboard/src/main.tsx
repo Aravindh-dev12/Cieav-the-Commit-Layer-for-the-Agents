@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useState} from "react";
 import {createRoot} from "react-dom/client";
-import {CieavClient} from "@latch/sdk";
-import type {Receipt, RiskLevel} from "@latch/contracts";
+import {CieavClient} from "@cieav/sdk";
+import type {Receipt, RiskLevel} from "@cieav/contracts";
 import "./styles.css";
 function App(){
   const [apiBase,setApiBase]=useState(localStorage.getItem("cieavApi")||localStorage.getItem("latchApi")||"http://localhost:8787");
