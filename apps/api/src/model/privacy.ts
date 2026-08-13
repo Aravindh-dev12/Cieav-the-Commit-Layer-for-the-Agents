@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type {ActionContext} from "@latch/contracts";
+import type {ActionContext} from "@cieav/contracts";
 
 const EMAIL=/\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g;
 const PHONE=/\b(?:\+?\d[\d\s().-]{7,}\d)\b/g;
