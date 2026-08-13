@@ -10,8 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@latch/contracts": "*",
-    "@latch/core": "*",
+    "@cieav/contracts": "*",
+    "@cieav/core": "*",
     "pg": "^8.13.0",
     "zod": "^3.24.0"
   },
