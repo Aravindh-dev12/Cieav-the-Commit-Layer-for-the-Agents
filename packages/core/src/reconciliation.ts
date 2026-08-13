@@ -1,4 +1,4 @@
-import type {BusinessRealityPlan,BusinessReconciliation,DesiredStateAssertion,ObservedBusinessFact,StateValue} from "@latch/contracts/business";
+import type {BusinessRealityPlan,BusinessReconciliation,DesiredStateAssertion,ObservedBusinessFact,StateValue} from "@cieav/contracts/business";
 
 const same=(a:StateValue|undefined,b:StateValue|undefined)=>JSON.stringify(a)===JSON.stringify(b);
 const trusted=(fact:ObservedBusinessFact)=>["CIEAV_OBSERVER","TRUSTED_CONNECTOR","EXTERNAL_SIGNED","HUMAN_ATTESTATION"].includes(fact.provenance??"UNVERIFIED");

@@ -1,5 +1,5 @@
-import type {ActionProposal,IntentContract} from "@latch/contracts/reality";
-import type {EnterprisePolicyDecision,EnterprisePolicyRule,OrganizationPolicy,PrincipalPolicyBinding} from "@latch/contracts/policy";
+import type {ActionProposal,IntentContract} from "@cieav/contracts/reality";
+import type {EnterprisePolicyDecision,EnterprisePolicyRule,OrganizationPolicy,PrincipalPolicyBinding} from "@cieav/contracts/policy";
 
 const riskRank={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3} as const;
 const includesTarget=(values:string[],target?:string)=>{if(!target)return false;const t=target.toLowerCase();return values.some(v=>{const x=v.toLowerCase();return t===x||t.endsWith(`.${x}`)||t.includes(x)})};

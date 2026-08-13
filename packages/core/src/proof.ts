@@ -1,4 +1,4 @@
-import type {ProofAssessment,ProofObservation,ProofPlan} from "@latch/contracts/proof";
+import type {ProofAssessment,ProofObservation,ProofPlan} from "@cieav/contracts/proof";
 
 const now=()=>new Date().toISOString();
 const independent=(o:ProofObservation)=>["CIEAV_OBSERVER","TRUSTED_ADAPTER","EXTERNAL_SIGNED"].includes(o.provenance??"UNVERIFIED")||(o.kind==="HUMAN_ATTESTATION"&&o.provenance==="HUMAN_ATTESTATION");

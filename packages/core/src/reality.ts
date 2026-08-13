@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import type {ActionManifest, RiskLevel} from "@latch/contracts";
-import type {ActionProposal, AuthorityDecision, CieavPrincipal, CommitPermit, ConsequenceAssessment, EffectClass, IntentConstraints, IntentContract, Money, ProofEvidenceKind} from "@latch/contracts/reality";
+import type {ActionManifest, RiskLevel} from "@cieav/contracts";
+import type {ActionProposal, AuthorityDecision, CieavPrincipal, CommitPermit, ConsequenceAssessment, EffectClass, IntentConstraints, IntentContract, Money, ProofEvidenceKind} from "@cieav/contracts/reality";
 
 const riskRank:Record<RiskLevel,number>={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3};
 const now=()=>new Date().toISOString();

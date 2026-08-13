@@ -1,6 +1,6 @@
-import { AnalyzeResponseSchema, DeviceRegisterResponseSchema, ReceiptListSchema, ReceiptSchema, type ActionContext, type ActionManifest, type Receipt } from "@latch/contracts";
-import {ApprovalChallengeSchema,type ApprovalChallenge} from "@latch/contracts/approval";
-import {ActionProposalSchema,AuthorityDecisionSchema,CommitPermitSchema,ConsequenceAssessmentSchema,IntentContractSchema,OpenLoopSchema,type ActionProposal,type AuthorityDecision,type CommitPermit,type ConsequenceAssessment,type IntentContract,type IntentCreateRequest,type OpenLoop,type OpenLoopCreateRequest,type OpenLoopUpdateRequest,type RealityEvaluateRequest} from "@latch/contracts/reality";
+import { AnalyzeResponseSchema, DeviceRegisterResponseSchema, ReceiptListSchema, ReceiptSchema, type ActionContext, type ActionManifest, type Receipt } from "@cieav/contracts";
+import {ApprovalChallengeSchema,type ApprovalChallenge} from "@cieav/contracts/approval";
+import {ActionProposalSchema,AuthorityDecisionSchema,CommitPermitSchema,ConsequenceAssessmentSchema,IntentContractSchema,OpenLoopSchema,type ActionProposal,type AuthorityDecision,type CommitPermit,type ConsequenceAssessment,type IntentContract,type IntentCreateRequest,type OpenLoop,type OpenLoopCreateRequest,type OpenLoopUpdateRequest,type RealityEvaluateRequest} from "@cieav/contracts/reality";
 
 export type RealityEvaluation={intent:IntentContract;proposal:ActionProposal;assessment:ConsequenceAssessment;authority:AuthorityDecision;permit?:CommitPermit;approval?:ApprovalChallenge};
 export class CieavClient {
@@ -20,9 +20,3 @@ export class CieavClient {
   async updateOpenLoop(id:string,patch:OpenLoopUpdateRequest):Promise<OpenLoop>{const r=await this.request(`/v1/open-loops/${encodeURIComponent(id)}`,{method:"PATCH",body:JSON.stringify(patch)}) as any;return OpenLoopSchema.parse(r.openLoop)}
   private async request(path:string, init:RequestInit, auth=true) {if(auth&&!this.token)throw new Error("CIEAV client token is required");const res=await fetch(`${this.apiBase}${path}`,{...init,headers:{"content-type":"application/json",...(auth?{authorization:`Bearer ${this.token}`}:{})}});if(!res.ok)throw new Error(`CIEAV API ${res.status}: ${await res.text()}`);return res.json()}
 }
-
-/** @deprecated Use CieavClient. */
-export class LatchClient extends CieavClient {}
-export function declareCieavWebAction(element:HTMLElement,declaration:{actionType:string;summary:string;reversibility?:"REVERSIBLE"|"DELAYABLE"|"COMPENSABLE"|"IRREVERSIBLE"|"UNKNOWN"}){element.dataset.cieavAction=declaration.actionType;element.dataset.cieavSummary=declaration.summary;if(declaration.reversibility)element.dataset.cieavReversibility=declaration.reversibility;return()=>{delete element.dataset.cieavAction;delete element.dataset.cieavSummary;delete element.dataset.cieavReversibility}}
-/** @deprecated Use declareCieavWebAction. */
-export const declareWebAction=declareCieavWebAction;

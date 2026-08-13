@@ -1,4 +1,4 @@
-import type { DataCategory } from "@latch/contracts";
+import type { DataCategory } from "@cieav/contracts";
 
 const categoryPatterns: Array<[DataCategory, RegExp]> = [
   ["CREDENTIAL", /(password|passcode|pin|secret|api.?key|token|credential|otp|one.?time)/i],
