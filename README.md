@@ -42,7 +42,7 @@ Human / AI agent / automation
 
 CIEAV deliberately separates action dispatch from remote outcome. A receipt with `status: COMMITTED` means an approved action entered the commit/replay path; it does **not** prove that an arbitrary remote server completed the effect.
 
-Receipt v2 can carry an immutable signed outcome:
+Receipt v3 can carry an immutable signed outcome:
 
 - `OBSERVED_SUCCESS` — credible local evidence indicates the supported action succeeded.
 - `OBSERVED_FAILURE` — CIEAV observed a failure signal.
@@ -104,11 +104,13 @@ The old `latch` command is retained temporarily as a compatibility alias during 
 
 The Gateway installs as a per-user startup runtime using systemd user services on Linux, launchd agents on macOS, and Task Scheduler on Windows. Closing the Control Center does not stop CIEAV.
 
-## Local signing secrets
+## Local signing identity
 
-The Python Gateway generates distinct high-entropy per-install secrets for local API token signing and Action Receipt HMAC signing. Where supported, the local state directory and key files receive restrictive filesystem permissions. These signing keys and provider credentials are not passed to Chromium.
+Managed local authority uses a per-install **Ed25519** receipt-signing identity. Receipt v3 embeds the signing public key and key identifier so receipt signatures can be verified without sharing the private key. Private signing material is stored locally and encrypted at rest using installation-secret-derived protection; legacy HMAC-SHA256 receipt verification remains supported for migration of older receipt data.
 
-Current receipts use `HMAC-SHA256`. This is a local integrity mechanism, not a claim of hardware-backed or independently verifiable device identity. OS secure-key storage and asymmetric device signatures remain future hardening work.
+The Gateway also generates distinct high-entropy secrets for local API token signing, durable-state authentication, and other scoped integrity functions. Where supported, sensitive state is protected through the OS-backed secret store and restrictive filesystem permissions. Signing keys and provider credentials are not passed to Chromium.
+
+CIEAV does not claim hardware-backed keys or remote attestation unless a deployment explicitly provides and verifies those properties.
 
 ## CIEAV Cloud deployment
 
