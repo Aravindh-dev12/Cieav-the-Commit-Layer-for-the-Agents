@@ -1,4 +1,4 @@
-import type {ActionContext,ActionManifest} from "@latch/contracts";
+import type {ActionContext,ActionManifest} from "@cieav/contracts";
 import {privacyReduceContext,detectPromptInjection} from "./privacy.js";
 import {mergeGate} from "./consensus.js";
 import type {GateResult} from "./types.js";
