@@ -2,8 +2,8 @@ import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {afterEach,describe,expect,it} from "vitest";
-import {createIntentContract,proposalFromManifest} from "@latch/core/reality";
-import type {ActionManifest} from "@latch/contracts";
+import {createIntentContract,proposalFromManifest} from "@cieav/core/reality";
+import type {ActionManifest} from "@cieav/contracts";
 import {CieavRealityStore} from "./reality-api.js";
 
 const dirs:string[]=[];
