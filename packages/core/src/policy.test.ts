@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import {describe,expect,it} from "vitest";
-import type {ActionProposal,IntentContract} from "@latch/contracts/reality";
-import type {OrganizationPolicy} from "@latch/contracts/policy";
+import type {ActionProposal,IntentContract} from "@cieav/contracts/reality";
+import type {OrganizationPolicy} from "@cieav/contracts/policy";
 import {evaluateEnterprisePolicy} from "./policy.js";
 
 const intent:IntentContract={id:crypto.randomUUID(),owner:{id:"human-1",kind:"HUMAN"},goal:"Manage production safely",createdAt:new Date().toISOString(),status:"ACTIVE",constraints:{allowedActionTypes:[],deniedActionTypes:[],allowedTargets:[],deniedTargets:[],maxRisk:"CRITICAL",allowedDataCategories:["NONE","WORK"],allowExternalRecipients:true,maxDelegationDepth:3,requireIndependentVerification:true},completionCriteria:["Desired change verified"],contextLabels:{organizationId:"org-1"}};
