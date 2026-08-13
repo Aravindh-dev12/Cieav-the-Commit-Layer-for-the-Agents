@@ -1,6 +1,6 @@
-import {ActionManifestSchema} from "@latch/contracts";
-import {RecoveryActionBindingSchema,RecoveryActionEvaluateRequestSchema} from "@latch/contracts/recovery";
-import {assessConsequences,issueCommitPermit,proposalFromManifest} from "@latch/core/reality";
+import {ActionManifestSchema} from "@cieav/contracts";
+import {RecoveryActionBindingSchema,RecoveryActionEvaluateRequestSchema} from "@cieav/contracts/recovery";
+import {assessConsequences,issueCommitPermit,proposalFromManifest} from "@cieav/core/reality";
 import type {CieavRealityApi} from "./reality-api.js";
 
 export class CieavRecoveryApi{
