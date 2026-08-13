@@ -1,6 +1,6 @@
 import pg from "pg";
 import type { Pool as PgPool } from "pg";
-import type { Receipt } from "@latch/contracts";
+import type { Receipt } from "@cieav/contracts";
 import type { ReceiptStore } from "./types.js";
 const {Pool} = pg;
 export class PostgresReceiptStore implements ReceiptStore {
