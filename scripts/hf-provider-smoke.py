@@ -50,7 +50,19 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as td:
         root=Path.cwd().resolve(); state=Path(td)
-        s=Settings(root,state,8791,8790,8787,state/"gateway-token",state/"hf-token",state/"runtime.json",state/"gateway.log")
+        s=Settings(
+            root=root,
+            state_dir=state,
+            gateway_port=8791,
+            control_port=8790,
+            api_port=8787,
+            token_file=state/"gateway-token",
+            local_api_secret_file=state/"local-api-signing-secret",
+            receipt_signing_secret_file=state/"receipt-signing-secret",
+            hf_token_file=state/"hf-token",
+            runtime_file=state/"runtime.json",
+            log_file=state/"gateway.log",
+        )
         s.write_hf_token("hf_test_abcdefghijklmnopqrstuvwxyz")
         assert s.read_hf_token()=="hf_test_abcdefghijklmnopqrstuvwxyz"
         old=os.environ.get("HF_TOKEN")
