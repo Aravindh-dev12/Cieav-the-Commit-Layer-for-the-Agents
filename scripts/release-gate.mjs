@@ -20,6 +20,7 @@ for(const key of sensitiveKeys)delete env[key];
 const run=(file,extra=[])=>{const r=spawnSync(process.execPath,[file,...extra],{cwd:ROOT,env,stdio:"inherit",shell:false});if(r.error)throw r.error;if(r.status!==0)process.exit(r.status??1)};
 run(path.join(ROOT,"scripts/platform-boundary-static.mjs"));
 run(path.join(ROOT,"scripts/package-namespace-smoke.mjs"));
+run(path.join(ROOT,"scripts/release-workflow-static.mjs"));
 run("--check",[path.join(ROOT,"apps/browser/main.mjs")]);
 run("--check",[path.join(ROOT,"apps/browser/main-core.mjs")]);
 run("--check",[path.join(ROOT,"scripts/dashboard-reality-smoke.mjs")]);
