@@ -16,9 +16,6 @@ COPY --from=build /app/packages/contracts/package.json ./packages/contracts/pack
 COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist
 COPY --from=build /app/packages/core/package.json ./packages/core/package.json
 COPY --from=build /app/packages/core/dist ./packages/core/dist
-# Legacy package names remain private one-way shims during the migration window.
-COPY --from=build /app/packages/cieav-contracts ./packages/cieav-contracts
-COPY --from=build /app/packages/cieav-core ./packages/cieav-core
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 CMD ["node", "apps/api/dist/server.js"]
