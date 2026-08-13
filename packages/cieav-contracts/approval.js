@@ -1,1 +1,1 @@
-export * from "@latch/contracts/approval";
+export * from "@cieav/contracts/approval";
