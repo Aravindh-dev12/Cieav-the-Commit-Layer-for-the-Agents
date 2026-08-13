@@ -52,28 +52,37 @@ class Handler(BaseHTTPRequestHandler):
             ctx = payload.get("context", {})
             assert "requestId" in ctx and "timestamp" in ctx and "clientVersion" in ctx
             assert "pageText" not in ctx
-            assert ctx.get("url") == "https://example.test/checkout"
-            assert ctx.get("origin") == "https://example.test"
-            assert ctx.get("element", {}).get("href") == "https://example.test/pay"
-            assert ctx.get("form", {}).get("action") == "https://example.test/pay"
-            assert ctx.get("form", {}).get("fileNames") == ["[selected-file.pdf]"]
-            assert ctx.get("form", {}).get("fields", [{}])[0].get("name") == "password_value"
-            assert ctx.get("form", {}).get("fields", [{}])[0].get("redacted") is True
-            assert "123456" not in (ctx.get("nearbyText") or "")
-            assert "123456" not in (ctx.get("form", {}).get("submitterText") or "")
-            assert "123456" not in (ctx.get("form", {}).get("fields", [{}])[0].get("label") or "")
-            raw = json.dumps(payload).lower()
-            for forbidden in [
-                "super-secret",
-                "otp_value",
-                "4111 1111 1111 1111",
-                "alice@example.com",
-                "real-passport",
-                "secret-query",
-                "session-secret",
-                "abcdefghijklmnopqrstuvwxyz123456",
-            ]:
-                assert forbidden not in raw, forbidden
+            request_id = str(ctx.get("requestId") or "")
+            if request_id.startswith("privacy-smoke-"):
+                assert ctx.get("url") == "https://example.test/checkout"
+                assert ctx.get("origin") == "https://example.test"
+                assert ctx.get("element", {}).get("href") == "https://example.test/pay"
+                assert ctx.get("form", {}).get("action") == "https://example.test/pay"
+                assert ctx.get("form", {}).get("fileNames") == ["[selected-file.pdf]"]
+                assert ctx.get("form", {}).get("fields", [{}])[0].get("name") == "password_value"
+                assert ctx.get("form", {}).get("fields", [{}])[0].get("redacted") is True
+                assert "123456" not in (ctx.get("nearbyText") or "")
+                assert "123456" not in (ctx.get("form", {}).get("submitterText") or "")
+                assert "123456" not in (ctx.get("form", {}).get("fields", [{}])[0].get("label") or "")
+                raw = json.dumps(payload).lower()
+                for forbidden in [
+                    "super-secret",
+                    "otp_value",
+                    "4111 1111 1111 1111",
+                    "alice@example.com",
+                    "real-passport",
+                    "secret-query",
+                    "session-secret",
+                    "abcdefghijklmnopqrstuvwxyz123456",
+                ]:
+                    assert forbidden not in raw, forbidden
+            elif request_id.startswith("cloud-probe-"):
+                assert ctx.get("url") == "https://cieav.test/checkout"
+                assert ctx.get("origin") == "https://cieav.test"
+                assert ctx.get("element", {}).get("tag") == "button"
+                assert "form" not in ctx
+            else:
+                raise AssertionError(f"unexpected cloud smoke requestId: {request_id}")
             return self.send_json(200, {
                 "result": {
                     "actionType": "financial.commit",
