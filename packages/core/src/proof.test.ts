@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import {describe,expect,it} from "vitest";
-import type {ProofObservation,ProofPlan} from "@latch/contracts/proof";
+import type {ProofObservation,ProofPlan} from "@cieav/contracts/proof";
 import {evaluateProof} from "./proof.js";
 
 const plan:ProofPlan={expectedState:["Refund is visible in the payment account"],requirements:[{kind:"PAYMENT",required:true,minConfidence:.8},{kind:"EXTERNAL_RECEIPT",required:true,minConfidence:.7}]};
