@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {ActionOutcomeSchema} from "@latch/contracts";
+import {ActionOutcomeSchema} from "@cieav/contracts";
 import {createReceipt, withOutcome} from "./receipt.js";
 
 const manifest:any={
