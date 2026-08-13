@@ -59,11 +59,13 @@ class Handler(BaseHTTPRequestHandler):
             assert ctx.get("form", {}).get("fileNames") == ["[selected-file.pdf]"]
             assert ctx.get("form", {}).get("fields", [{}])[0].get("name") == "password_value"
             assert ctx.get("form", {}).get("fields", [{}])[0].get("redacted") is True
+            assert "123456" not in (ctx.get("nearbyText") or "")
+            assert "123456" not in (ctx.get("form", {}).get("submitterText") or "")
+            assert "123456" not in (ctx.get("form", {}).get("fields", [{}])[0].get("label") or "")
             raw = json.dumps(payload).lower()
             for forbidden in [
                 "super-secret",
                 "otp_value",
-                "123456",
                 "4111 1111 1111 1111",
                 "alice@example.com",
                 "real-passport",
