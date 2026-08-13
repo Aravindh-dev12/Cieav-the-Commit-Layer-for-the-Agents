@@ -15,18 +15,18 @@ dependencies = []
 hf = ["huggingface_hub>=0.34,<2"]
 
 [project.scripts]
-cieav = "latch_platform.__main__:entrypoint"
-latch = "latch_platform.__main__:entrypoint"
-cieav-mcp = "latch_platform.mcp_launcher:main"
-cieav-a2a = "latch_platform.a2a_launcher:main"
-cieav-companion = "latch_platform.companion_cli:main"
-cieav-lab = "latch_platform.lab_cli:main"
-cieav-approval = "latch_platform.approval_cli:main"
-cieav-proof = "latch_platform.proof_cli:main"
+cieav = "cieav_platform.__main__:entrypoint"
+latch = "cieav_platform.__main__:entrypoint"
+cieav-mcp = "cieav_platform.mcp_launcher:main"
+cieav-a2a = "cieav_platform.a2a_launcher:main"
+cieav-companion = "cieav_platform.companion_cli:main"
+cieav-lab = "cieav_platform.lab_cli:main"
+cieav-approval = "cieav_platform.approval_cli:main"
+cieav-proof = "cieav_platform.proof_cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "python"}
 
 [tool.setuptools.packages.find]
 where = ["python"]
-include = ["latch_platform*"]
+include = ["cieav_platform*", "latch_platform*"]

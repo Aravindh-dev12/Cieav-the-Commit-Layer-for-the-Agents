@@ -1,10 +1,9 @@
-"""Canonical CIEAV Python package surface.
+from __future__ import annotations
 
-The 0.7 compatibility layer delegates to the proven latch_platform implementation so
-existing state, imports, and installed upgrades remain stable while all new entrypoints
-use the CIEAV product identity.
-"""
-
-from latch_platform import __version__
+try:
+    from importlib.metadata import version
+    __version__ = version("cieav-platform")
+except Exception:
+    __version__ = "0.7.0"
 
 __all__ = ["__version__"]
