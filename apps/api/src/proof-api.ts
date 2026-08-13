@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import {chmod,mkdir,readFile,rename,writeFile} from "node:fs/promises";
 import path from "node:path";
-import {ProofCaseCreateSchema,ProofCaseSchema,ProofObservationCreateSchema,type ProofCase,type ProofProvenance} from "@latch/contracts/proof";
-import type {OpenLoop} from "@latch/contracts/reality";
-import {evaluateProof} from "@latch/core/proof";
+import {ProofCaseCreateSchema,ProofCaseSchema,ProofObservationCreateSchema,type ProofCase,type ProofProvenance} from "@cieav/contracts/proof";
+import type {OpenLoop} from "@cieav/contracts/reality";
+import {evaluateProof} from "@cieav/core/proof";
 import type {CieavRealityApi} from "./reality-api.js";
 import type {ReceiptStore} from "./store/types.js";
 
