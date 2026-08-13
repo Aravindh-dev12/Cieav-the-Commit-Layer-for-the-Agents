@@ -1,12 +1,14 @@
 import {access,mkdtemp,rm,writeFile} from "node:fs/promises";
+import {createRequire} from "node:module";
 import os from "node:os";
 import path from "node:path";
-import {DatabaseSync} from "node:sqlite";
 import {afterEach,describe,expect,it} from "vitest";
 import {loadDeviceReceiptSigner} from "../device-signing.js";
 import {createReceipt,verifyReceiptPublic} from "../receipt.js";
 import {FileReceiptStore} from "./file.js";
 
+const nodeRequire=createRequire(import.meta.url);
+const {DatabaseSync}=nodeRequire("node:sqlite") as {DatabaseSync:new(path:string)=>{prepare:(sql:string)=>{get:(...values:unknown[])=>unknown;run:(...values:unknown[])=>unknown};close:()=>void}};
 const dirs:string[]=[];
 async function temp(){const d=await mkdtemp(path.join(os.tmpdir(),"cieav-receipts-"));dirs.push(d);return d}
 afterEach(async()=>{delete process.env.CIEAV_SQLITE_PATH;await Promise.all(dirs.splice(0).map(d=>rm(d,{recursive:true,force:true})))});
