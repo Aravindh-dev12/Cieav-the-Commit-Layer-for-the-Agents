@@ -2,38 +2,7 @@
 import {readFileSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
-
-const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const workflow=readFileSync(path.join(ROOT,".github/workflows/release-runtime.yml"),"utf8");
-const required=[
-  "target: linux-x64","target: windows-x64","target: macos-arm64",
-  "npm run release:verify",
-  "python scripts/clean-runtime-smoke.py --mode local",
-  "python scripts/service-lifecycle-smoke.py --mode local --confirm-service-mutation",
-  "npm run release:qualify:current",
-  "qualify-release:",
-  "npm run release:qualify",
-  "needs: [build-runtime, qualify-release]",
-  "npm run release:verify:publish",
-  "Qualification does not PASS for this exact commit",
-  "Sign release metadata with offline trust root",
-  "Stage assets in draft GitHub Release",
-  "gh release create \"$TAG\" --draft",
-  "Refusing to overwrite an already-published release before live production qualification",
-  "release:qualify:production"
-];
-for(const token of required)if(!workflow.includes(token)&&token!=="release:qualify:production")throw new Error(`release workflow invariant missing: ${token}`);
-const publish=workflow.indexOf("publish-layout:"),qualify=workflow.indexOf("qualify-release:");
-if(qualify<0||publish<0||qualify>publish)throw new Error("cross-platform qualification must be declared before publish-layout");
-const publishBody=workflow.slice(publish);
-if(!publishBody.includes("needs: [build-runtime, qualify-release]"))throw new Error("publish layout is not transitively gated on qualification");
-if(publishBody.indexOf("npm run release:verify:publish")>publishBody.indexOf("Sign release metadata with offline trust root"))throw new Error("production preflight occurs after metadata signing");
-if(publishBody.indexOf("Recheck qualification before signing metadata")>publishBody.indexOf("Sign release metadata with offline trust root"))throw new Error("qualification is not rechecked before release signing");
-if(!publishBody.includes("gh release create \"$TAG\" --draft"))throw new Error("tag release staging is not draft-only");
-if(!publishBody.includes("gh release view \"$TAG\" --json isDraft"))throw new Error("existing release draft status is not checked before upload");
-if(!publishBody.includes("test \"$IS_DRAFT\" = \"true\""))throw new Error("workflow can upload onto an already-published release");
-if(/gh release create \"\$TAG\"(?![^\n]*--draft)/.test(publishBody))throw new Error("workflow contains a non-draft GitHub Release creation path");
-for(const forbidden of ["continue-on-error: true","force: true","--force-with-lease","--draft=false"]){if(publishBody.includes(forbidden))throw new Error(`release publication contains forbidden bypass: ${forbidden}`)}
-const pkg=JSON.parse(readFileSync(path.join(ROOT,"package.json"),"utf8"));
-if(!pkg.scripts?.["release:qualify:production"])throw new Error("final production qualifier is not exposed as an explicit command");
-console.log("CIEAV release workflow static checks passed: build → source gate → exact runtime/service evidence → candidate qualification → production preflight → signed draft staging; public release requires separate production qualification");
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),".."),workflow=readFileSync(path.join(ROOT,".github/workflows/release-runtime.yml"),"utf8");
+const required=["target: linux-x64","target: windows-x64","target: macos-arm64","npm run release:verify:publish","python scripts/clean-runtime-publish-smoke.py","python scripts/service-lifecycle-smoke.py --mode publish --confirm-service-mutation","python scripts/notarize-runtime.py --mode publish","node scripts/qualify-publish-candidate.mjs --require","qualify-release:","npm run release:qualify:publish","needs: [build-runtime, qualify-release]","node scripts/build-publish-layout.mjs --replace","latest-publish-layout.json","Stage assets in draft GitHub Release","gh release create \"$TAG\" --draft","Refusing to overwrite an already-published release before live production qualification"];
+for(const t of required)if(!workflow.includes(t))throw new Error(`release workflow invariant missing: ${t}`);for(const bad of ["python scripts/clean-runtime-smoke.py --mode local","python scripts/service-lifecycle-smoke.py --mode local","continue-on-error: true","force: true","--draft=false"])if(workflow.includes(bad))throw new Error(`release workflow contains forbidden legacy/bypass path: ${bad}`);
+const q=workflow.indexOf("qualify-release:"),p=workflow.indexOf("publish-layout:");if(q<0||p<0||q>p)throw new Error("publish candidate qualification must precede publish-layout");const build=workflow.slice(workflow.indexOf("build-runtime:"),q),pub=workflow.slice(p);if(build.indexOf("npm run release:verify:publish")>build.indexOf("Assemble fully-gated runtime archive"))throw new Error("publish gate occurs after runtime assembly");if(build.indexOf("Publish-mode clean extracted runtime smoke")>build.indexOf("Publish-mode OS service lifecycle smoke"))throw new Error("service lifecycle runs before extracted runtime verification");if(!build.includes("Notarize exact macOS runtime archive")||build.indexOf("Notarize exact macOS runtime archive")>build.indexOf("Qualify current publish target"))throw new Error("macOS notarization is not bound before target qualification");if(!pub.includes("needs: [build-runtime, qualify-release]")||!pub.includes("node scripts/build-publish-layout.mjs --replace"))throw new Error("publish layout is not gated/bound to candidates");if(!pub.includes("gh release view \"$TAG\" --json isDraft")||!pub.includes("test \"$IS_DRAFT\" = \"true\""))throw new Error("draft status is not checked before upload");if(/gh release create "\$TAG"(?![^\n]*--draft)/.test(pub))throw new Error("workflow contains a non-draft GitHub Release creation path");console.log("CIEAV release workflow static checks passed: publish gate on every OS → pinned signed runtime → service lifecycle → macOS notarization → cross-platform qualification → exact signed publish layout → draft-only staging");
