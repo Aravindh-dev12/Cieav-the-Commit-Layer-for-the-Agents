@@ -1,8 +1,8 @@
 import * as http from "node:http";
 import path from "node:path";
 import {URL} from "node:url";
-import {ActionContextSchema,CommitRequestSchema,DeviceRegisterSchema,ReceiptOutcomeUpdateSchema} from "@latch/contracts";
-import {heuristicManifest,shouldUseModel,stricterRisk,stricterReversibility} from "@latch/core";
+import {ActionContextSchema,CommitRequestSchema,DeviceRegisterSchema,ReceiptOutcomeUpdateSchema} from "@cieav/contracts";
+import {heuristicManifest,shouldUseModel,stricterRisk,stricterReversibility} from "@cieav/core";
 import {loadConfig} from "./config.js";
 import {deviceIdFor,issueToken,verifyToken} from "./auth.js";
 import {CieavAgentSessionStore} from "./agent-sessions.js";
