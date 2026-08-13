@@ -84,7 +84,7 @@ jobs:
           npx esbuild apps/api/src/server.ts --bundle --platform=node --format=esm --target=node22 --external:pg-native --outfile=apps/api/dist/server.js
       - name: Build standalone CIEAV executable
         shell: bash
-        run: pyinstaller --noconfirm --clean --onefile --name cieav --paths python python/latch_platform/__main__.py
+        run: pyinstaller --noconfirm --clean --onefile --name cieav --paths python python/cieav_platform/__main__.py
       - name: Build native Windows CDP bridge
         if: runner.os == 'Windows'
         shell: pwsh
