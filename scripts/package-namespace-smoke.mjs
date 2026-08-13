@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import {readFileSync,readdirSync} from "node:fs";
+import {readFileSync,readdirSync,statSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 
@@ -15,8 +15,9 @@ const implementations=[
 ];
 for(const [file,name] of implementations){const p=pkg(file);if(p.name!==name)throw new Error(`${file} must be canonical ${name}, found ${p.name}`);if(name!=="@cieav/dashboard"&&p.private===true)throw new Error(`${name} implementation unexpectedly marked private`)}
 
-for(const file of ["packages/core/package.json","packages/sdk/package.json"]){const p=pkg(file);for(const dep of Object.keys(p.dependencies??{}))if(dep.startsWith("@latch/"))throw new Error(`${p.name} retains legacy dependency ${dep}`)}
-for(const dir of ["packages/core/src","packages/sdk/src"]){for(const file of readdirSync(path.join(ROOT,dir)).filter(x=>x.endsWith(".ts")&&!x.endsWith(".test.ts"))){const src=read(`${dir}/${file}`);if(src.includes("@latch/"))throw new Error(`${dir}/${file} retains legacy package import`)}}
+for(const file of ["packages/core/package.json","packages/sdk/package.json","apps/api/package.json","apps/dashboard/package.json"]){const p=pkg(file);for(const dep of Object.keys(p.dependencies??{}))if(dep.startsWith("@latch/"))throw new Error(`${p.name} retains legacy dependency ${dep}`)}
+function productionSources(dir){const out=[];for(const name of readdirSync(path.join(ROOT,dir))){const rel=`${dir}/${name}`,st=statSync(path.join(ROOT,rel));if(st.isDirectory())out.push(...productionSources(rel));else if(/\.(?:ts|tsx|mts|cts)$/.test(name)&&!name.endsWith(".test.ts")&&!name.endsWith(".test.tsx"))out.push(rel)}return out}
+for(const dir of ["packages/core/src","packages/sdk/src","apps/api/src","apps/dashboard/src"]){for(const file of productionSources(dir)){const src=read(file);if(src.includes("@latch/"))throw new Error(`${file} retains legacy package import`)}}
 
 const shims=[
   {dir:"packages/cieav-contracts",name:"@latch/contracts",canonical:"@cieav/contracts",subs:["reality","approval","proof","business","policy","recovery"]},
@@ -36,6 +37,7 @@ const root=pkg("package.json");
 for(const scriptName of ["build","build:api","test:core","typecheck","dev:api","dev:dashboard"]){const script=String(root.scripts?.[scriptName]??"");if(!script)throw new Error(`root package script missing: ${scriptName}`);if(script.includes("@latch/"))throw new Error(`${scriptName} still targets legacy package ownership`)}
 
 const docker=read("apps/api/Dockerfile");
-for(const token of ["@cieav/contracts","@cieav/core","@cieav/api","packages/cieav-contracts","packages/cieav-core"])if(!docker.includes(token))throw new Error(`API Docker compatibility topology missing: ${token}`);
+for(const token of ["@cieav/contracts","@cieav/core","@cieav/api","/app/packages/contracts","/app/packages/core"])if(!docker.includes(token))throw new Error(`API Docker canonical topology missing: ${token}`);
+for(const legacy of ["packages/cieav-contracts","packages/cieav-core","@latch/"])if(docker.includes(legacy))throw new Error(`API Docker image still carries legacy compatibility topology: ${legacy}`);
 
-console.log("CIEAV package namespace checks passed: canonical implementations/build targets own @cieav/*; core/SDK are legacy-free; private @latch/* packages are one-way compatibility shims");
+console.log("CIEAV package namespace checks passed: production packages/apps own @cieav/*; production source and Docker are legacy-free; private @latch/* packages remain one-way compatibility shims only");
