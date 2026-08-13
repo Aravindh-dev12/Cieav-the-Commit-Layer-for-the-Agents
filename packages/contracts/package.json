@@ -1,10 +1,18 @@
 {
-  "name": "@latch/contracts",
-  "version": "0.1.0",
+  "name": "@cieav/contracts",
+  "version": "0.4.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": {".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"}},
+  "exports": {
+    ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
+    "./reality": {"types": "./dist/reality.d.ts", "import": "./dist/reality.js"},
+    "./approval": {"types": "./dist/approval.d.ts", "import": "./dist/approval.js"},
+    "./proof": {"types": "./dist/proof.d.ts", "import": "./dist/proof.js"},
+    "./business": {"types": "./dist/business.d.ts", "import": "./dist/business.js"},
+    "./policy": {"types": "./dist/policy.d.ts", "import": "./dist/policy.js"},
+    "./recovery": {"types": "./dist/recovery.d.ts", "import": "./dist/recovery.js"}
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"

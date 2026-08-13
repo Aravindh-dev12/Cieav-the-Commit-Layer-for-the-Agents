@@ -1,0 +1,240 @@
+name: release-runtime
+
+on:
+  workflow_dispatch:
+    inputs:
+      cloud_url:
+        description: HTTPS CIEAV Cloud Intelligence base URL
+        required: false
+        type: string
+      download_base_url:
+        description: HTTPS public CIEAV download/CDN base URL
+        required: false
+        type: string
+      channel:
+        description: Release channel
+        required: true
+        default: stable
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: windows-latest
+            target: windows-x64
+          - os: macos-latest
+            target: macos-arm64
+    runs-on: ${{ matrix.os }}
+    env:
+      CIEAV_CLOUD_URL: ${{ inputs.cloud_url || vars.CIEAV_CLOUD_URL || vars.LATCH_CLOUD_URL }}
+      CIEAV_DOWNLOAD_BASE_URL: ${{ inputs.download_base_url || vars.CIEAV_DOWNLOAD_BASE_URL || vars.LATCH_DOWNLOAD_BASE_URL }}
+      WINDOWS_PFX_B64: ${{ secrets.CIEAV_WINDOWS_CODE_SIGN_PFX_B64 }}
+      WINDOWS_PFX_PASSWORD: ${{ secrets.CIEAV_WINDOWS_CODE_SIGN_PFX_PASSWORD }}
+      WINDOWS_CERT_THUMBPRINT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT }}
+      WINDOWS_TIMESTAMP_URL: ${{ vars.CIEAV_WINDOWS_TIMESTAMP_URL }}
+      CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT }}
+      MACOS_CERT_P12_B64: ${{ secrets.CIEAV_MACOS_DEVELOPER_ID_P12_B64 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.CIEAV_MACOS_DEVELOPER_ID_P12_PASSWORD }}
+      MACOS_SIGNING_IDENTITY: ${{ vars.CIEAV_MACOS_SIGNING_IDENTITY }}
+      CIEAV_MACOS_SIGNING_IDENTITY: ${{ vars.CIEAV_MACOS_SIGNING_IDENTITY }}
+      APPLE_NOTARY_KEY_B64: ${{ secrets.CIEAV_APPLE_NOTARY_KEY_B64 }}
+      APPLE_NOTARY_KEY_ID: ${{ vars.CIEAV_APPLE_NOTARY_KEY_ID }}
+      APPLE_NOTARY_ISSUER: ${{ vars.CIEAV_APPLE_NOTARY_ISSUER }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Verify runner target
+        shell: bash
+        run: |
+          ACTUAL=$(python -c 'import platform; s={"Darwin":"macos","Windows":"windows","Linux":"linux"}[platform.system()]; m=platform.machine().lower(); a="arm64" if m in {"arm64","aarch64"} else "x64" if m in {"x86_64","amd64"} else m; print(f"{s}-{a}")')
+          test "$ACTUAL" = '${{ matrix.target }}' || { echo "Runner target $ACTUAL does not match required ${{ matrix.target }}"; exit 2; }
+      - name: Install Node dependencies without source mutation
+        shell: bash
+        run: |
+          npm install --package-lock=false
+          npm install --no-save --package-lock=false esbuild
+          test -z "$(git status --porcelain)" || { git status --short; exit 2; }
+      - name: Run publish source and platform release gate
+        shell: bash
+        run: npm run release:verify:publish
+      - name: Install standalone build tooling
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip pyinstaller
+          test -z "$(git status --porcelain)" || { git status --short; exit 2; }
+      - name: Bundle semantic bridge
+        shell: bash
+        run: |
+          mkdir -p apps/api/dist
+          npx esbuild apps/api/src/server.ts --bundle --platform=node --format=esm --target=node22 --external:pg-native --outfile=apps/api/dist/server.js
+      - name: Build standalone CIEAV executable
+        shell: bash
+        run: pyinstaller --noconfirm --clean --onefile --name cieav --paths python python/cieav_platform/__main__.py
+      - name: Build native Windows CDP bridge
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw 'vswhere.exe not found' }
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'Visual C++ build tools not found' }
+          $devcmd = Join-Path $vs 'Common7\Tools\VsDevCmd.bat'
+          $command = '"' + $devcmd + '" -arch=x64 -host_arch=x64 && cl /nologo /std:c++17 /O2 /EHsc /DUNICODE /D_UNICODE native\windows\cdp-win-bridge.cpp /Fe:dist\cdp-win-bridge.exe /link /DYNAMICBASE /NXCOMPAT'
+          cmd.exe /d /s /c $command
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path dist/cdp-win-bridge.exe)) { throw 'Windows CDP bridge build failed' }
+      - name: Authenticode sign and pin Windows executables
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not $env:WINDOWS_PFX_B64 -or -not $env:WINDOWS_PFX_PASSWORD -or -not $env:WINDOWS_CERT_THUMBPRINT -or -not $env:WINDOWS_TIMESTAMP_URL) { throw 'Windows production signing configuration is incomplete' }
+          $pfx = Join-Path $env:RUNNER_TEMP 'cieav-code-sign.pfx'
+          try {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_PFX_B64))
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } | Sort-Object FullName -Descending | Select-Object -First 1
+            if (-not $signtool) { throw 'signtool.exe not found' }
+            $expected = ($env:WINDOWS_CERT_THUMBPRINT -replace '\s','').ToUpperInvariant()
+            foreach ($exe in @('dist/cieav.exe','dist/cdp-win-bridge.exe')) {
+              & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_PFX_PASSWORD /tr $env:WINDOWS_TIMESTAMP_URL /td SHA256 $exe
+              if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed for $exe" }
+              & $signtool.FullName verify /pa /all /v $exe
+              if ($LASTEXITCODE -ne 0) { throw "Authenticode verification failed for $exe" }
+              $sig = Get-AuthenticodeSignature $exe
+              if ($sig.Status -ne 'Valid' -or -not $sig.SignerCertificate) { throw "Invalid Authenticode status for $exe" }
+              if (($sig.SignerCertificate.Thumbprint -replace '\s','').ToUpperInvariant() -ne $expected) { throw "Windows signer certificate thumbprint mismatch for $exe" }
+            }
+          } finally { Remove-Item -Force -ErrorAction SilentlyContinue $pfx }
+      - name: Developer ID sign and pin macOS executable
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          test -n "$MACOS_CERT_P12_B64" && test -n "$MACOS_CERT_PASSWORD" && test -n "$MACOS_SIGNING_IDENTITY" || exit 2
+          KEYCHAIN="$RUNNER_TEMP/cieav-signing.keychain-db"; CERT="$RUNNER_TEMP/cieav-developer-id.p12"; KEYCHAIN_PASSWORD=$(openssl rand -hex 24)
+          trap 'rm -f "$CERT"; security delete-keychain "$KEYCHAIN" >/dev/null 2>&1 || true' EXIT
+          printf '%s' "$MACOS_CERT_P12_B64" | base64 -D > "$CERT"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -k "$KEYCHAIN" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+          codesign --force --timestamp --options runtime --sign "$MACOS_SIGNING_IDENTITY" dist/cieav
+          codesign --verify --strict --verbose=2 dist/cieav
+          codesign -dv --verbose=4 dist/cieav 2>&1 | grep -F "Authority=$MACOS_SIGNING_IDENTITY"
+      - name: Resolve release identity
+        id: identity
+        shell: bash
+        run: |
+          VERSION=$(python -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
+          KEY=$(python -c 'import platform; s={"Darwin":"macos","Windows":"windows","Linux":"linux"}[platform.system()]; m=platform.machine().lower(); a="arm64" if m in {"arm64","aarch64"} else "x64" if m in {"x86_64","amd64"} else m; print(f"{s}-{a}")')
+          NODE_EXE=$(node -p 'process.execPath'); if [ -f dist/cieav.exe ]; then CIEAV_EXE=dist/cieav.exe; else CIEAV_EXE=dist/cieav; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"; echo "key=$KEY" >> "$GITHUB_OUTPUT"; echo "node_exe=$NODE_EXE" >> "$GITHUB_OUTPUT"; echo "cieav_exe=$CIEAV_EXE" >> "$GITHUB_OUTPUT"
+      - name: Assemble fully-gated runtime archive
+        shell: bash
+        run: |
+          EXTRA=(); if [ -f dist/cdp-win-bridge.exe ]; then EXTRA+=(--cdp-win-bridge dist/cdp-win-bridge.exe); fi
+          python scripts/build-release-runtime.py --cieav-exe '${{ steps.identity.outputs.cieav_exe }}' --node-exe '${{ steps.identity.outputs.node_exe }}' "${EXTRA[@]}" --version '${{ steps.identity.outputs.version }}' --output-dir release-out
+      - name: Publish-mode clean extracted runtime smoke
+        shell: bash
+        run: python scripts/clean-runtime-publish-smoke.py
+      - name: Publish-mode OS service lifecycle smoke
+        shell: bash
+        run: python scripts/service-lifecycle-smoke.py --mode publish --confirm-service-mutation
+      - name: Notarize exact macOS runtime archive
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          test -n "$APPLE_NOTARY_KEY_B64" && test -n "$APPLE_NOTARY_KEY_ID" && test -n "$APPLE_NOTARY_ISSUER" || exit 2
+          NOTARY_KEY="$RUNNER_TEMP/AuthKey_${APPLE_NOTARY_KEY_ID}.p8"; trap 'rm -f "$NOTARY_KEY"' EXIT
+          printf '%s' "$APPLE_NOTARY_KEY_B64" | base64 -D > "$NOTARY_KEY"; chmod 0600 "$NOTARY_KEY"
+          python scripts/notarize-runtime.py --mode publish --key "$NOTARY_KEY" --key-id "$APPLE_NOTARY_KEY_ID" --issuer "$APPLE_NOTARY_ISSUER"
+      - name: Qualify current publish target
+        shell: bash
+        run: node scripts/qualify-publish-candidate.mjs --require '${{ matrix.target }}'
+      - uses: actions/upload-artifact@v4
+        with: {name: 'runtime-${{ steps.identity.outputs.key }}', path: 'release-out/*', if-no-files-found: error}
+      - uses: actions/upload-artifact@v4
+        with: {name: 'qualification-evidence-${{ steps.identity.outputs.key }}', path: 'release/reports/*.json', if-no-files-found: error}
+
+  qualify-release:
+    needs: build-runtime
+    runs-on: ubuntu-latest
+    env:
+      CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT }}
+      CIEAV_MACOS_SIGNING_IDENTITY: ${{ vars.CIEAV_MACOS_SIGNING_IDENTITY }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - uses: actions/download-artifact@v4
+        with: {pattern: 'qualification-evidence-*', path: release/reports, merge-multiple: true}
+      - name: Require matching publish evidence on Windows, macOS and Linux
+        shell: bash
+        run: npm run release:qualify:publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: publish-candidate-qualification
+          path: |
+            release/reports/latest-publish-qualification.json
+            release/reports/latest-publish-qualification.txt
+          if-no-files-found: error
+
+  publish-layout:
+    needs: [build-runtime, qualify-release]
+    runs-on: ubuntu-latest
+    env:
+      CIEAV_CLOUD_URL: ${{ inputs.cloud_url || vars.CIEAV_CLOUD_URL || vars.LATCH_CLOUD_URL }}
+      CIEAV_DOWNLOAD_BASE_URL: ${{ inputs.download_base_url || vars.CIEAV_DOWNLOAD_BASE_URL || vars.LATCH_DOWNLOAD_BASE_URL }}
+      CIEAV_RELEASE_CHANNEL: ${{ inputs.channel || 'stable' }}
+      CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT }}
+      CIEAV_MACOS_SIGNING_IDENTITY: ${{ vars.CIEAV_MACOS_SIGNING_IDENTITY }}
+      RELEASE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.CIEAV_RELEASE_SIGNING_PRIVATE_KEY_B64 }}
+      RELEASE_SIGNING_PUBLIC_KEY_B64: ${{ vars.CIEAV_RELEASE_SIGNING_PUBLIC_KEY_B64 }}
+      CIEAV_RELEASE_SIGNING_KEY_ID: ${{ vars.CIEAV_RELEASE_SIGNING_KEY_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - uses: actions/download-artifact@v4
+        with: {pattern: 'runtime-*', path: release-out, merge-multiple: true}
+      - uses: actions/download-artifact@v4
+        with: {name: publish-candidate-qualification, path: release/reports}
+      - name: Build and qualify signed publish layout
+        shell: bash
+        run: |
+          test -n "$RELEASE_SIGNING_PRIVATE_KEY_B64" && test -n "$RELEASE_SIGNING_PUBLIC_KEY_B64" || exit 2
+          PRIVATE="$RUNNER_TEMP/cieav-release-private.pem"; PUBLIC="$RUNNER_TEMP/cieav-release-public.pem"; trap 'rm -f "$PRIVATE" "$PUBLIC"' EXIT
+          printf '%s' "$RELEASE_SIGNING_PRIVATE_KEY_B64" | base64 -d > "$PRIVATE"; printf '%s' "$RELEASE_SIGNING_PUBLIC_KEY_B64" | base64 -d > "$PUBLIC"; chmod 0600 "$PRIVATE"
+          node scripts/build-publish-layout.mjs --replace --private-key "$PRIVATE" --public-key "$PUBLIC"
+          npm run release:qualify:layout
+      - uses: actions/upload-artifact@v4
+        with: {name: cieav-cdn-publish-layout, path: 'publish/**', if-no-files-found: error}
+      - uses: actions/upload-artifact@v4
+        with: {name: signed-publish-layout-evidence, path: release/reports/latest-publish-layout.json, if-no-files-found: error}
+      - name: Stage assets in draft GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env: {GH_TOKEN: '${{ github.token }}'}
+        shell: bash
+        run: |
+          TAG="$GITHUB_REF_NAME"; CHANNEL="$CIEAV_RELEASE_CHANNEL"; RELEASE_JSON="$RUNNER_TEMP/cieav-release.json"
+          if gh release view "$TAG" --json isDraft > "$RELEASE_JSON" 2>/dev/null; then IS_DRAFT=$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(x.isDraft))' "$RELEASE_JSON"); test "$IS_DRAFT" = "true" || { echo 'Refusing to overwrite an already-published release before live production qualification'; exit 2; }; else gh release create "$TAG" --draft --title "CIEAV $TAG" --notes "Keep draft until release:qualify:production PASS for this exact commit/version."; fi
+          gh release upload "$TAG" publish/install.ps1 publish/install.sh "publish/$CHANNEL/manifest.json" "publish/$CHANNEL/release-public-key.pem" publish/$CHANNEL/bootstrap-*.txt publish/$CHANNEL/signatures/*.sig.json publish/$CHANNEL/cieav-runtime-*.zip --clobber

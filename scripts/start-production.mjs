@@ -1,3 +1,31 @@
 #!/usr/bin/env node
-import {spawn} from "node:child_process";import{access}from"node:fs/promises";import path from"node:path";import{fileURLToPath}from"node:url";
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),".."),port=Number(process.env.LATCH_API_PORT??8787),health=`http://127.0.0.1:${port}/health`,sleep=ms=>new Promise(r=>setTimeout(r,ms));async function alive(){try{return(await fetch(health)).ok}catch{return false}}let api=null;if(!await alive()){const server=path.join(root,"apps/api/dist/server.js");try{await access(server)}catch{throw new Error("Production API is not built. Run npm run build:api first.")}api=spawn(process.execPath,[server],{cwd:root,stdio:"inherit",env:{...process.env,PORT:String(port)}});for(let i=0;i<120&&!await alive();i++)await sleep(100);if(!await alive()){api.kill("SIGTERM");throw new Error("Production semantic API failed to start")}}const browser=spawn(process.execPath,[path.join(root,"apps/browser/main.mjs")],{cwd:root,stdio:"inherit",env:{...process.env,LATCH_REQUIRE_PRODUCTION_API:"1"}}),stop=()=>{try{browser.kill("SIGTERM")}catch{}try{api?.kill("SIGTERM")}catch{}};for(const sig of["SIGINT","SIGTERM"])process.on(sig,()=>{stop();process.exit(0)});browser.on("exit",code=>{try{api?.kill("SIGTERM")}catch{}process.exit(code??0)});
+import {spawn,spawnSync} from "node:child_process";
+import {access} from "node:fs/promises";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const apiBuild=path.join(root,"apps/api/dist/server.js");
+try{await access(apiBuild)}catch{throw new Error("Production API is not built. Run npm run build:api first.")}
+
+function usable(cmd){const r=spawnSync(cmd,["--version"],{stdio:"ignore",shell:false});return !r.error&&r.status===0}
+const env={...process.env,CIEAV_HOME:process.env.CIEAV_HOME||root,PYTHONPATH:[path.join(root,"python"),process.env.PYTHONPATH].filter(Boolean).join(path.delimiter)};
+let command,args;
+if(process.env.CIEAV_EXECUTABLE){command=process.env.CIEAV_EXECUTABLE;args=["gateway","run"]}
+else{
+  const candidates=[process.env.CIEAV_PYTHON,process.env.PYTHON,process.platform==="win32"?"python":"python3","python"].filter(Boolean);
+  command=candidates.find(usable);
+  if(!command)throw new Error("Python 3.11+ is required for repository-mode production startup. Packaged CIEAV releases use the bundled cieav executable instead.");
+  args=["-m","latch_platform.cli","gateway","run"];
+}
+
+console.log(`CIEAV production start · control plane=${command} · root=${root}`);
+const gateway=spawn(command,args,{cwd:root,stdio:"inherit",env,shell:false});
+let stopping=false;
+function stop(signal="SIGTERM"){
+  if(stopping)return;stopping=true;
+  try{gateway.kill(signal)}catch{}
+}
+for(const sig of ["SIGINT","SIGTERM"])process.on(sig,()=>stop(sig));
+gateway.on("exit",code=>{process.exitCode=code??0});
+gateway.on("error",err=>{console.error("CIEAV production control plane failed:",err.message);process.exitCode=1});

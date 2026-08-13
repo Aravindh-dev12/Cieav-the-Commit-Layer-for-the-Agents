@@ -25,12 +25,13 @@ if ((c.requiredVerifierCoveragePct ?? 0) < (b.requiredVerifierCoveragePct ?? 100
 if ((c.actionAccuracyPct ?? 0) < (b.actionAccuracyPct ?? 0) - 2) violations.push("action accuracy regressed by more than 2 percentage points");
 if ((c.benignHighRiskFalsePositivePct ?? 100) > (b.benignHighRiskFalsePositivePct ?? 0) + 5) violations.push("benign HIGH/CRITICAL false-positive rate regressed by more than 5 percentage points");
 
-const latencyBudget = Number(process.env.LATCH_EVAL_MAX_P95_REGRESSION_PCT ?? 75);
+const latencyBudget = Number(process.env.CIEAV_EVAL_MAX_P95_REGRESSION_PCT ?? process.env.LATCH_EVAL_MAX_P95_REGRESSION_PCT ?? 75);
 if (b.latencyMs?.p95 > 0 && c.latencyMs?.p95 > b.latencyMs.p95 * (1 + latencyBudget / 100)) {
   violations.push(`p95 latency regressed by more than ${latencyBudget}%`);
 }
 
 const result = {
+  product: "CIEAV",
   passed: violations.length === 0,
   baseline: {corpusVersion: baseline.corpusVersion, profile: baseline.profile, models: baseline.models, metrics: b},
   candidate: {corpusVersion: candidate.corpusVersion, profile: candidate.profile, models: candidate.models, metrics: c},
@@ -39,7 +40,7 @@ const result = {
 
 console.log(JSON.stringify(result, null, 2));
 if (violations.length) {
-  console.error("Model promotion blocked.");
+  console.error("CIEAV model promotion blocked.");
   process.exit(2);
 }
-console.log("Model promotion gate passed.");
+console.log("CIEAV model promotion gate passed.");

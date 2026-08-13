@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+import crypto from "node:crypto";
+import http from "node:http";
+
+const API=(process.env.CIEAV_API_URL??"http://127.0.0.1:8787").replace(/\/$/,"");
+const AGENT_TOKEN=(process.env.CIEAV_AGENT_TOKEN??"").trim();
+const CLIENT_TOKEN=(process.env.CIEAV_A2A_CLIENT_TOKEN??"").trim();
+const PORT=Math.max(1024,Math.min(65535,Number(process.env.CIEAV_A2A_PORT??8792)));
+if(!AGENT_TOKEN||!CLIENT_TOKEN||CLIENT_TOKEN.length<43)throw new Error("CIEAV A2A must be launched through trusted CIEAV tooling with scoped agent and client capabilities");
+function claims(){try{const body=AGENT_TOKEN.split(".")[1];if(!body)throw new Error();const value=JSON.parse(Buffer.from(body,"base64url").toString("utf8"));if(value?.tokenType!=="agent"||typeof value.agentId!=="string")throw new Error();return value}catch{throw new Error("CIEAV_AGENT_TOKEN is not a valid agent-session token")}}
+const identity=claims(),principal=()=>({id:identity.agentId,kind:"AGENT",...(identity.agentName?{displayName:identity.agentName}:{}),...(identity.provider?{provider:identity.provider}:{})});
+const rpcUrl=`http://127.0.0.1:${PORT}/rpc`;
+const CARD={name:"CIEAV Reality Governance Agent",description:"Local A2A 1.0 boundary for intent-scoped authorization, approvals, one-use commit permits, Proof Mesh, Company Twin reconciliation, and governed recovery. CIEAV does not execute arbitrary actions and agent self-report cannot settle reality.",supportedInterfaces:[{url:rpcUrl,protocolBinding:"JSONRPC",protocolVersion:"1.0"}],version:"1.0.0",capabilities:{streaming:false,pushNotifications:false,extendedAgentCard:false},securitySchemes:{cieavLocal:{httpAuthSecurityScheme:{scheme:"Bearer",bearerFormat:"opaque-local-capability",description:"Ephemeral capability emitted by the trusted local CIEAV A2A launcher."}}},securityRequirements:[{schemes:{cieavLocal:{list:[]}}}],defaultInputModes:["application/json","text/plain"],defaultOutputModes:["application/json","text/plain"],skills:[{id:"cieav-authorize-action",name:"Authorize consequential action",description:"Evaluate an action against an existing CIEAV Intent Contract and active enterprise policy and return ALLOW/ASK/BLOCK with a one-use permit only when authorized.",tags:["authorization","policy","agent-safety"],inputModes:["application/json"],outputModes:["application/json"]},{id:"cieav-settlement",name:"Track proof and settlement",description:"Inspect Open Loops, Proof Cases, and Company Twin state. Agent reports are retained as untrusted evidence and cannot independently settle outcomes.",tags:["verification","proof","reconciliation"],inputModes:["application/json"],outputModes:["application/json"]},{id:"cieav-recovery",name:"Govern recovery",description:"Evaluate undo, compensation, or escalation actions for breached Open Loops through the same CIEAV authority and one-use permit path.",tags:["recovery","compensation","authorization"],inputModes:["application/json"],outputModes:["application/json"]}]};
+
+function timingEqual(a,b){const x=Buffer.from(String(a)),y=Buffer.from(String(b));return x.length===y.length&&crypto.timingSafeEqual(x,y)}
+function authorized(req){const h=req.headers.authorization??"";return typeof h==="string"&&h.startsWith("Bearer ")&&timingEqual(h.slice(7),CLIENT_TOKEN)}
+function send(res,status,value,type="application/json; charset=utf-8"){res.statusCode=status;res.setHeader("content-type",type);res.setHeader("cache-control","no-store");res.setHeader("x-content-type-options","nosniff");res.end(JSON.stringify(value))}
+async function readBody(req){const chunks=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>512_000)throw Object.assign(new Error("Request payload validation error"),{rpcCode:-32600});chunks.push(b)}try{return JSON.parse(Buffer.concat(chunks).toString("utf8"))}catch{throw Object.assign(new Error("Invalid JSON payload"),{rpcCode:-32700})}}
+async function cieav(route,init={}){const response=await fetch(`${API}${route}`,{...init,redirect:"error",signal:AbortSignal.timeout(12_000),headers:{"content-type":"application/json",authorization:`Bearer ${AGENT_TOKEN}`,...(init.headers??{})}}),text=await response.text();let value={};try{value=text?JSON.parse(text):{}}catch{value={error:"invalid_json"}}if(!response.ok)throw new Error(`CIEAV ${response.status}: ${value.error??value.detail??"request failed"}`);return value}
+const operations={
+  list_intents:()=>cieav("/v1/agent/intents"),
+  get_intent:x=>cieav(`/v1/agent/intents/${encodeURIComponent(String(x.intentId??""))}`),
+  evaluate_action:x=>cieav("/v1/agent/reality/evaluate",{method:"POST",body:JSON.stringify({intentId:x.intentId,actor:principal(),delegationChain:x.delegationChain??[],manifest:x.manifest,...(x.amount?{amount:x.amount}:{})})}),
+  get_approval:x=>cieav(`/v1/agent/reality/approvals/${encodeURIComponent(String(x.approvalId??""))}`),
+  claim_approved_permit:x=>cieav(`/v1/agent/reality/approvals/${encodeURIComponent(String(x.approvalId??""))}/permit`,{method:"POST",body:"{}"}),
+  consume_permit:x=>cieav("/v1/agent/reality/consume",{method:"POST",body:JSON.stringify({permit:x.permit,proposal:x.proposal})}),
+  list_open_loops:()=>cieav("/v1/agent/open-loops"),
+  evaluate_recovery_action:x=>cieav("/v1/agent/recovery/evaluate",{method:"POST",body:JSON.stringify({openLoopId:x.openLoopId,actor:principal(),delegationChain:x.delegationChain??[],manifest:x.manifest,...(x.amount?{amount:x.amount}:{})})}),
+  list_proofs:()=>cieav("/v1/agent/proofs"),
+  get_proof:x=>cieav(`/v1/agent/proofs/${encodeURIComponent(String(x.proofId??""))}`),
+  report_proof_observation:x=>cieav(`/v1/agent/proofs/${encodeURIComponent(String(x.proofId??""))}/report`,{method:"POST",body:JSON.stringify(x.observation??{})}),
+  list_business_plans:()=>cieav("/v1/agent/business/plans"),
+  get_business_plan:x=>cieav(`/v1/agent/business/plans/${encodeURIComponent(String(x.planId??""))}`),
+  report_business_fact:x=>cieav(`/v1/agent/business/plans/${encodeURIComponent(String(x.planId??""))}/report`,{method:"POST",body:JSON.stringify(x.fact??{})})
+};
+function inputData(params){const message=params?.message;if(!message||message.role!=="ROLE_USER"||typeof message.messageId!=="string"||!Array.isArray(message.parts)||!message.parts.length)throw Object.assign(new Error("Invalid parameters"),{rpcCode:-32602});for(const part of message.parts){if(part&&typeof part==="object"&&Object.prototype.hasOwnProperty.call(part,"data")&&part.data&&typeof part.data==="object"&&!Array.isArray(part.data))return part.data}return null}
+function responseMessage(requestMessage,data,text){return{message:{messageId:crypto.randomUUID(),...(requestMessage?.contextId?{contextId:requestMessage.contextId}:{contextId:crypto.randomUUID()}),role:"ROLE_AGENT",parts:[...(text?[{text,mediaType:"text/plain"}]:[]),...(data!==undefined?[{data,mediaType:"application/json"}]:[])]}}}
+function rpcError(id,code,message,data){return{jsonrpc:"2.0",id:id??null,error:{code,message,...(data?{data}: {})}}}
+async function handleRpc(value){if(!value||value.jsonrpc!=="2.0"||!(typeof value.id==="string"||typeof value.id==="number")||typeof value.method!=="string")return rpcError(value?.id,-32600,"Request payload validation error");const id=value.id;
+  if(value.method==="GetTask")return rpcError(id,-32001,"Task not found",[{"@type":"type.googleapis.com/google.rpc.ErrorInfo",reason:"TASK_NOT_FOUND",domain:"a2a-protocol.org",metadata:{taskId:String(value.params?.id??""),timestamp:new Date().toISOString()}}]);
+  if(value.method==="ListTasks")return{jsonrpc:"2.0",id,result:{tasks:[],totalSize:0,pageSize:0,nextPageToken:""}};
+  if(value.method==="CancelTask")return rpcError(id,-32001,"Task not found");
+  if(value.method==="SendStreamingMessage")return rpcError(id,-32004,"Unsupported operation");
+  if(value.method!=="SendMessage")return rpcError(id,-32601,"Method not found");
+  const message=value.params?.message,data=inputData(value.params);
+  if(!data)return{jsonrpc:"2.0",id,result:responseMessage(message,undefined,"CIEAV A2A accepts structured application/json parts. Send a data Part containing {operation, input}. Available operations govern authorization, permits, proof, Company Twin, and recovery; CIEAV does not execute arbitrary actions.")};
+  const operation=data.operation,input=data.input??{};if(typeof operation!=="string"||!Object.prototype.hasOwnProperty.call(operations,operation))return rpcError(id,-32602,"Invalid parameters",[{"@type":"type.googleapis.com/google.rpc.BadRequest",fieldViolations:[{field:"message.parts.data.operation",description:"Unsupported CIEAV governance operation"}]}]);
+  try{const output=await operations[operation](input);return{jsonrpc:"2.0",id,result:responseMessage(message,{operation,result:output})}}catch(err){return rpcError(id,-32603,"Internal error",[{"@type":"type.googleapis.com/google.rpc.ErrorInfo",reason:"CIEAV_GOVERNANCE_REJECTED",domain:"cieav.local",metadata:{operation,detail:String(err?.message??err).slice(0,500)}}])}
+}
+const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url??"/",`http://127.0.0.1:${PORT}`);if(req.method==="GET"&&(url.pathname==="/.well-known/agent-card.json"||url.pathname==="/.well-known/agent.json"))return send(res,200,CARD,"application/a2a+json; charset=utf-8");if(url.pathname!=="/rpc")return send(res,404,{error:"not_found"});if(!authorized(req)){res.setHeader("www-authenticate",'Bearer realm="CIEAV A2A"');return send(res,401,{error:"unauthorized"})}const version=typeof req.headers["a2a-version"]==="string"?req.headers["a2a-version"]:"1.0";if(version!=="1.0")return send(res,400,rpcError(null,-32009,"Version not supported",[{"@type":"type.googleapis.com/google.rpc.ErrorInfo",reason:"VERSION_NOT_SUPPORTED",domain:"a2a-protocol.org",metadata:{supportedVersions:"1.0"}}]));if(req.method!=="POST")return send(res,405,{error:"method_not_allowed"});return send(res,200,await handleRpc(await readBody(req)),"application/a2a+json; charset=utf-8")}catch(err){return send(res,400,rpcError(null,err?.rpcCode??-32603,err?.message??"Internal error"),"application/a2a+json; charset=utf-8")}});
+server.listen(PORT,"127.0.0.1",()=>console.error(`CIEAV A2A 1.0 listening on ${rpcUrl} (loopback-only)`));
+for(const signal of ["SIGINT","SIGTERM"])process.on(signal,()=>server.close(()=>process.exit(0)));

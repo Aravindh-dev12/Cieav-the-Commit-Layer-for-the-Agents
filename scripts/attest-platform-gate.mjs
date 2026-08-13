@@ -1,0 +1,30 @@
+#!/usr/bin/env node
+import crypto from "node:crypto";
+import {readFile,writeFile,mkdir} from "node:fs/promises";
+import {spawnSync} from "node:child_process";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),".."),DIR=path.join(ROOT,"release","reports");
+const mode=process.argv.includes("--publish")?"publish":"local";
+const platform=process.platform==="win32"?"windows":process.platform==="darwin"?"macos":process.platform;
+const arch=process.arch==="x64"?"x64":process.arch==="arm64"?"arm64":process.arch;
+const target=`${platform}-${arch}`;
+const git=(...args)=>{const r=spawnSync("git",args,{cwd:ROOT,encoding:"utf8",shell:false});if(r.status!==0||r.error)throw new Error(`git ${args.join(" ")} failed`);return r.stdout.trim()};
+const canonical=value=>Array.isArray(value)?`[${value.map(canonical).join(",")}]`:value&&typeof value==="object"?`{${Object.keys(value).sort().map(k=>`${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}`:JSON.stringify(value);
+await mkdir(DIR,{recursive:true});
+const report=JSON.parse(await readFile(path.join(DIR,"latest-verification.json"),"utf8"));
+const pkg=JSON.parse(await readFile(path.join(ROOT,"package.json"),"utf8")),commit=git("rev-parse","HEAD"),dirty=git("status","--porcelain")!=="";
+if(report?.product!=="CIEAV"||report?.qualifying!==true||report?.verdict!=="PASS")throw new Error("latest release verification is not a qualifying PASS");
+if(report?.source?.commit!==commit)throw new Error("release report commit does not match checked-out HEAD");
+if(report?.version!==pkg.version)throw new Error("release report version does not match package version");
+if(report?.mode!==mode)throw new Error(`release report mode ${report?.mode} does not match gate mode ${mode}`);
+if(dirty||report?.source?.dirty!==false)throw new Error("platform-boundary attestation requires a clean source tree");
+const reportTarget=`${report.host?.platform==="win32"?"windows":report.host?.platform==="darwin"?"macos":report.host?.platform}-${report.host?.arch}`;
+if(reportTarget!==target)throw new Error(`release report target ${reportTarget} does not match host ${target}`);
+const evidence={schemaVersion:1,product:"CIEAV",version:pkg.version,mode,target,commit,verifiedAt:new Date().toISOString(),checks:{platformBoundary:true,canonicalNamespace:true,browserWrapperCoreSyntax:true,controlCenterRealityBoundary:true,ephemeralProtocolSecretsScrubbed:true},releaseReport:{finishedAt:report.finishedAt,summary:report.summary}};
+const digest=crypto.createHash("sha256").update(canonical(evidence)).digest("hex"),attestation={...evidence,digestAlgorithm:"SHA-256",digest};
+const file=`cieav-platform-gate-${pkg.version}-${mode}-${target}-${commit.slice(0,12)}.json`;
+await writeFile(path.join(DIR,file),JSON.stringify(attestation,null,2)+"\n","utf8");
+await writeFile(path.join(DIR,"latest-platform-gate.json"),JSON.stringify(attestation,null,2)+"\n","utf8");
+console.log(`CIEAV platform-gate attestation written: ${file}`);

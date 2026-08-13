@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cieav-platform"
+version = "0.7.0"
+description = "CIEAV always-on commit infrastructure for consequential digital actions."
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+authors = [{name = "CIEAV"}]
+dependencies = []
+
+[project.optional-dependencies]
+hf = ["huggingface_hub>=0.34,<2"]
+
+[project.scripts]
+cieav = "cieav_platform.__main__:entrypoint"
+latch = "cieav_platform.__main__:entrypoint"
+cieav-mcp = "cieav_platform.mcp_launcher:main"
+cieav-a2a = "cieav_platform.a2a_launcher:main"
+cieav-companion = "cieav_platform.companion_cli:main"
+cieav-lab = "cieav_platform.lab_cli:main"
+cieav-approval = "cieav_platform.approval_cli:main"
+cieav-proof = "cieav_platform.proof_cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]
+include = ["cieav_platform*", "latch_platform*"]

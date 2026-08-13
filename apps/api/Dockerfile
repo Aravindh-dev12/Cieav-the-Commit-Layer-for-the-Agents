@@ -5,12 +5,13 @@ COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/api ./apps/api
 RUN npm install
-RUN npm run build -w @latch/contracts && npm run build -w @latch/core && npm run build -w @latch/api
+RUN npm run build -w @cieav/contracts && npm run build -w @cieav/core && npm run build -w @cieav/api
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/node_modules ./node_modules
+# Canonical CIEAV implementations.
 COPY --from=build /app/packages/contracts/package.json ./packages/contracts/package.json
 COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist
 COPY --from=build /app/packages/core/package.json ./packages/core/package.json

@@ -1,147 +1,45 @@
-import type { ActionContext, ActionManifest, RiskLevel, Reversibility } from "@latch/contracts";
+import type {ActionProposal,IntentContract} from "@cieav/contracts/reality";
+import type {EnterprisePolicyDecision,EnterprisePolicyRule,OrganizationPolicy,PrincipalPolicyBinding} from "@cieav/contracts/policy";
 
-export const POLICY_VERSION = "2026-08-12.1";
-
-const rank: Record<RiskLevel, number> = {LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3};
-const revRank: Record<Reversibility, number> = {
-  REVERSIBLE: 0,
-  DELAYABLE: 1,
-  COMPENSABLE: 2,
-  UNKNOWN: 3,
-  IRREVERSIBLE: 4
-};
-
-export function stricterRisk(a: RiskLevel, b: RiskLevel): RiskLevel {
-  return rank[a]! >= rank[b]! ? a : b;
+const riskRank={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3} as const;
+const includesTarget=(values:string[],target?:string)=>{if(!target)return false;const t=target.toLowerCase();return values.some(v=>{const x=v.toLowerCase();return t===x||t.endsWith(`.${x}`)||t.includes(x)})};
+const roleSet=(binding?:PrincipalPolicyBinding)=>new Set(binding?.roles??[]);
+const attrMatch=(required:Record<string,string>,binding?:PrincipalPolicyBinding)=>Object.entries(required).every(([k,v])=>binding?.attributes?.[k]===v);
+function ruleBaseMatches(rule:EnterprisePolicyRule,proposal:ActionProposal){
+  if(rule.actorKinds.length&&!rule.actorKinds.includes(proposal.actor.kind))return false;
+  if(rule.actionTypes.length&&!rule.actionTypes.includes(proposal.actionType))return false;
+  if(rule.effectClasses.length&&!rule.effectClasses.includes(proposal.effect.class))return false;
+  if(rule.targets.length&&!includesTarget(rule.targets,proposal.effect.target))return false;
+  if(rule.dataCategoriesAny.length&&!proposal.effect.dataCategories.some(x=>rule.dataCategoriesAny.includes(x)))return false;
+  if(rule.minRisk&&riskRank[proposal.risk]<riskRank[rule.minRisk])return false;
+  return true;
 }
-
-export function stricterReversibility(a: Reversibility, b: Reversibility): Reversibility {
-  return revRank[a]! >= revRank[b]! ? a : b;
-}
-
-function actionText(ctx: ActionContext): string {
-  return [
-    ctx.element.text,
-    ctx.element.ariaLabel,
-    ctx.element.name,
-    ctx.form?.submitterText,
-    ctx.nearbyText,
-    ctx.title
-  ].filter(Boolean).join(" ").toLowerCase();
-}
-
-export function heuristicManifest(ctx: ActionContext): ActionManifest {
-  const t = actionText(ctx);
-  const cats = [...new Set((ctx.form?.fields ?? []).map(f => f.dataCategory).filter(Boolean))] as ActionManifest["dataCategories"];
-  const warnings: string[] = [];
-  const effects: string[] = [];
-  let actionType = "web.action";
-  let summary = `Perform an action on ${new URL(ctx.url).hostname}`;
-  let risk: RiskLevel = "LOW";
-  let reversibility: Reversibility = "UNKNOWN";
-
-  if (ctx.element.declaredActionType) actionType = ctx.element.declaredActionType;
-  if (ctx.element.declaredSummary) summary = ctx.element.declaredSummary;
-  if (ctx.element.declaredReversibility) reversibility = stricterReversibility(reversibility, ctx.element.declaredReversibility);
-
-  const hasSensitive = cats.some(c => ["CREDENTIAL", "FINANCIAL", "IDENTITY", "HEALTH", "BIOMETRIC"].includes(c));
-  if (hasSensitive) {
-    risk = "HIGH";
-    warnings.push("This action involves sensitive data categories.");
+export function evaluateEnterprisePolicy(policy:OrganizationPolicy,intent:IntentContract,proposal:ActionProposal):EnterprisePolicyDecision{
+  const reasons:string[]=[],matchedRuleIds:string[]=[];const binding=policy.bindings.find(x=>x.principalId===proposal.actor.id),roles=roleSet(binding);
+  if(!policy.enabled)return{decision:"ALLOW",organizationId:policy.organizationId,policyId:policy.id,policyVersion:policy.version,reasons:["Organization policy is disabled; no additional restriction applied."],matchedRuleIds,actorRoles:[...roles],evaluatedAt:new Date().toISOString()};
+  if(intent.contextLabels.organizationId&&intent.contextLabels.organizationId!==policy.organizationId)reasons.push("Intent organization does not match the evaluated enterprise policy.");
+  if(policy.deniedActionTypes.includes(proposal.actionType))reasons.push("Enterprise policy denies this action type.");
+  if(includesTarget(policy.deniedTargets,proposal.effect.target))reasons.push("Enterprise policy denies this target.");
+  if(proposal.effect.dataCategories.some(x=>policy.deniedDataCategories.includes(x)))reasons.push("Enterprise policy denies one or more data categories in this action.");
+  if(policy.maxRisk&&riskRank[proposal.risk]>riskRank[policy.maxRisk])reasons.push(`Enterprise policy caps risk at ${policy.maxRisk}.`);
+  if(policy.maxAmount&&proposal.effect.amount&&(policy.maxAmount.currency!==proposal.effect.amount.currency||proposal.effect.amount.value>policy.maxAmount.value))reasons.push("Enterprise policy amount limit would be exceeded.");
+  if(policy.allowExternalRecipients===false&&proposal.effect.recipients.length)reasons.push("Enterprise policy forbids external recipients.");
+  if(reasons.length)return{decision:"BLOCK",organizationId:policy.organizationId,policyId:policy.id,policyVersion:policy.version,reasons,matchedRuleIds,actorRoles:[...roles],evaluatedAt:new Date().toISOString()};
+  let ask=false;
+  for(const rule of policy.rules){
+    if(!ruleBaseMatches(rule,proposal))continue;
+    if(!attrMatch(rule.requiredAttributes,binding))continue;
+    matchedRuleIds.push(rule.id);
+    const missingRoles=rule.requiredRoles.filter(r=>!roles.has(r));
+    if(missingRoles.length){reasons.push(`Enterprise policy rule '${rule.name}' requires roles: ${missingRoles.join(", ")}.`);return{decision:"BLOCK",organizationId:policy.organizationId,policyId:policy.id,policyVersion:policy.version,reasons,matchedRuleIds,actorRoles:[...roles],evaluatedAt:new Date().toISOString()}}
+    if(rule.effect==="DENY"){reasons.push(rule.reason);return{decision:"BLOCK",organizationId:policy.organizationId,policyId:policy.id,policyVersion:policy.version,reasons,matchedRuleIds,actorRoles:[...roles],evaluatedAt:new Date().toISOString()}}
+    if(rule.effect==="REQUIRE_APPROVAL"){ask=true;reasons.push(rule.reason)}
   }
-
-  if (/(delete|remove|erase|close account|terminate account|deactivate)/i.test(t)) {
-    actionType = "resource.delete";
-    summary = "Delete or remove data/account access";
-    risk = stricterRisk(risk, "HIGH");
-    reversibility = "UNKNOWN";
-    effects.push("Data or access may be removed.");
-    warnings.push("Deletion semantics vary by site; recovery may not be available.");
-  } else if (/(pay|transfer|send money|withdraw|deposit|purchase|buy|subscribe|place order|checkout)/i.test(t)) {
-    actionType = "financial.commit";
-    summary = "Commit a financial action";
-    risk = "CRITICAL";
-    reversibility = "IRREVERSIBLE";
-    effects.push("Funds or a financial commitment may be transferred.");
-    warnings.push("Financial actions can be difficult or impossible to reverse.");
-  } else if (/(publish|post|tweet|send|submit|apply|confirm)/i.test(t)) {
-    actionType = /(publish|post|tweet)/i.test(t) ? "content.publish" : "data.submit";
-    summary = /(publish|post|tweet)/i.test(t) ? "Publish content" : "Submit information";
-    risk = stricterRisk(risk, "MEDIUM");
-    reversibility = "COMPENSABLE";
-    effects.push("Information will leave the current page and be sent to another system.");
-    if (/(publish|post|tweet)/i.test(t)) warnings.push("Removing published content later cannot guarantee that copies were not retained elsewhere.");
-  } else if (/(share|invite|grant|allow|authorize|connect|link account|sign in with)/i.test(t)) {
-    actionType = "access.grant";
-    summary = "Grant or share access";
-    risk = stricterRisk(risk, "MEDIUM");
-    reversibility = "COMPENSABLE";
-    effects.push("Another person or service may gain access to data or capabilities.");
-    warnings.push("Revoking access later cannot retract data already copied or exported.");
-  } else if (/(upload|attach)/i.test(t) || (ctx.form?.fileNames.length ?? 0) > 0) {
-    actionType = "file.upload";
-    summary = "Upload files";
-    risk = stricterRisk(risk, hasSensitive ? "HIGH" : "MEDIUM");
-    reversibility = "COMPENSABLE";
-    effects.push("Selected files may be copied to a remote service.");
-  } else if (ctx.element.href) {
-    actionType = "navigation.open";
-    summary = "Open another page";
-    risk = hasSensitive ? "HIGH" : "LOW";
-    reversibility = "REVERSIBLE";
-    effects.push("The browser will navigate to another page.");
-  } else {
-    effects.push("The page state may change or information may be submitted.");
-  }
-
-  if (cats.includes("CREDENTIAL")) {
-    risk = "CRITICAL";
-    warnings.push("Credentials or secrets should never be disclosed to an unexpected recipient.");
-  }
-
-  if (effects.length === 0) effects.push("The page may perform a consequential action.");
-
-  return {
-    requestId: ctx.requestId,
-    actionType,
-    summary,
-    actor: "You",
-    target: new URL(ctx.url).hostname,
-    recipients: [],
-    dataCategories: cats.length ? cats : ["NONE"],
-    effects,
-    reversibility,
-    undo: {
-      kind: reversibility === "REVERSIBLE" ? "MANUAL" : "NONE",
-      ...(reversibility === "REVERSIBLE" ? {instructions: "Use the site's native controls to revoke or undo this action when available."} : {})
-    },
-    risk,
-    confidence: 0.62,
-    modelUsed: false,
-    warnings,
-    evidence: ["Deterministic browser-side semantics and action text"],
-    policyVersion: POLICY_VERSION
-  };
+  return{decision:ask?"ASK":"ALLOW",organizationId:policy.organizationId,policyId:policy.id,policyVersion:policy.version,reasons:reasons.length?reasons:["Action satisfies the active enterprise policy; no additional restriction is required."],matchedRuleIds,actorRoles:[...roles],evaluatedAt:new Date().toISOString()};
 }
 
-export function mergeWithModel(base: ActionManifest, model: ActionManifest): ActionManifest {
-  return {
-    ...model,
-    requestId: base.requestId,
-    risk: stricterRisk(base.risk, model.risk),
-    reversibility: stricterReversibility(base.reversibility, model.reversibility),
-    dataCategories: [...new Set([...base.dataCategories, ...model.dataCategories])],
-    warnings: [...new Set([...base.warnings, ...model.warnings])],
-    evidence: [...new Set([...base.evidence, ...model.evidence])],
-    confidence: Math.min(0.99, Math.max(base.confidence, model.confidence)),
-    modelUsed: true,
-    policyVersion: POLICY_VERSION
-  };
-}
-
-export function shouldUseModel(ctx: ActionContext, base: ActionManifest): boolean {
-  if (base.risk === "CRITICAL" || base.risk === "HIGH") return true;
-  if (base.reversibility === "UNKNOWN") return true;
-  if (ctx.form && ctx.form.fields.length > 0) return true;
-  return base.confidence < 0.8;
+export function combineAuthorityDecisions(intentDecision:{decision:"ALLOW"|"ASK"|"BLOCK"},policyDecision?:EnterprisePolicyDecision|null){
+  if(intentDecision.decision==="BLOCK"||policyDecision?.decision==="BLOCK")return"BLOCK" as const;
+  if(intentDecision.decision==="ASK"||policyDecision?.decision==="ASK")return"ASK" as const;
+  return"ALLOW" as const;
 }

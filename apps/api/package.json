@@ -1,5 +1,5 @@
 {
-  "name": "@latch/api",
+  "name": "@cieav/api",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -10,8 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@latch/contracts": "*",
-    "@latch/core": "*",
+    "@cieav/contracts": "*",
+    "@cieav/core": "*",
     "pg": "^8.13.0",
     "zod": "^3.24.0"
   },

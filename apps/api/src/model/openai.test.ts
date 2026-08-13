@@ -1,7 +1,7 @@
 import http from "node:http";
 import {afterEach,describe,expect,it} from "vitest";
-import {heuristicManifest} from "@latch/core";
-import type {ActionContext} from "@latch/contracts";
+import {heuristicManifest} from "@cieav/core";
+import type {ActionContext} from "@cieav/contracts";
 import {analyzeWithOpenAI,detectPromptInjection,disagreementScore,privacyReduceContext} from "./openai.js";
 const servers:http.Server[]=[];afterEach(async()=>{await Promise.all(servers.splice(0).map(s=>new Promise<void>(r=>s.close(()=>r()))))});
 function ctx(text="Pay now"):ActionContext{return{requestId:"request-12345678",url:"https://example.com/checkout?token=super-secret",origin:"https://example.com",title:"Checkout",element:{tag:"button",text},form:{fields:[{name:"card",type:"text",label:"Card number",redacted:true,dataCategory:"FINANCIAL"}],fileNames:[]},nearbyText:"Pay the invoice",timestamp:new Date().toISOString(),clientVersion:"test"}}

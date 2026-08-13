@@ -1,0 +1,35 @@
+#!/usr/bin/env node
+import crypto from "node:crypto";
+import {mkdirSync,readFileSync,writeFileSync} from "node:fs";
+import {spawnSync} from "node:child_process";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),".."),REPORTS=path.join(ROOT,"release","reports");
+const run=(cmd,args)=>{const r=spawnSync(cmd,args,{cwd:ROOT,encoding:"utf8",shell:false});if(r.error)throw r.error;if(r.status!==0)throw new Error(`${cmd} ${args.join(" ")} failed: ${(r.stderr||r.stdout||"").trim()}`);return r.stdout.trim()};
+const canonical=v=>Array.isArray(v)?`[${v.map(canonical).join(",")}]`:v&&typeof v==="object"?`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${canonical(v[k])}`).join(",")}}`:JSON.stringify(v);
+const pkg=JSON.parse(readFileSync(path.join(ROOT,"package.json"),"utf8")),commit=run("git",["rev-parse","HEAD"]),dirty=run("git",["status","--porcelain"]);
+if(dirty)throw new Error("repository governance attestation requires a clean worktree");
+const configured=String(process.env.CIEAV_GITHUB_REPOSITORY??"").trim();
+const repoMeta=JSON.parse(run("gh",["repo","view",...(configured?[configured]:[]),"--json","name,nameWithOwner,defaultBranchRef,url"]));
+if(!/cieav/i.test(String(repoMeta?.name??"")))throw new Error(`final repository name must contain CIEAV; found ${repoMeta?.name??"unknown"}`);
+const repository=String(repoMeta.nameWithOwner??"");const branch=String(repoMeta?.defaultBranchRef?.name??"");
+if(!repository||!branch)throw new Error("unable to resolve repository/default branch through gh");
+const branchInfo=JSON.parse(run("gh",["api",`repos/${repository}/branches/${encodeURIComponent(branch)}`]));
+if(branchInfo?.commit?.sha!==commit)throw new Error(`default branch ${branch} is not at the release commit ${commit}`);
+if(branchInfo?.protected!==true)throw new Error(`default branch ${branch} is not protected`);
+const protection=JSON.parse(run("gh",["api",`repos/${repository}/branches/${encodeURIComponent(branch)}/protection`]));
+const status=protection?.required_status_checks,reviews=protection?.required_pull_request_reviews;
+if(status?.strict!==true)throw new Error("branch protection must require up-to-date/strict status checks");
+const requiredChecks=[...(status?.contexts??[]),...(status?.checks??[]).map(x=>x?.context)].filter(Boolean);
+if(!requiredChecks.length)throw new Error("branch protection must require at least one status check");
+const configuredChecks=String(process.env.CIEAV_REQUIRED_STATUS_CHECKS??"test").split(",").map(x=>x.trim()).filter(Boolean);
+for(const check of configuredChecks)if(!requiredChecks.includes(check))throw new Error(`required status check is not protected: ${check}; configured checks=${requiredChecks.join(",")}`);
+if(!reviews||Number(reviews.required_approving_review_count??0)<1)throw new Error("branch protection must require at least one approving PR review");
+if(reviews.dismiss_stale_reviews!==true)throw new Error("branch protection must dismiss stale approvals when protected code changes");
+if(protection?.required_conversation_resolution?.enabled!==true)throw new Error("branch protection must require conversation resolution");
+if(protection?.enforce_admins?.enabled!==true)throw new Error("branch protection must apply to administrators");
+if(protection?.allow_force_pushes?.enabled===true)throw new Error("force pushes must be disabled on the protected default branch");
+if(protection?.allow_deletions?.enabled===true)throw new Error("branch deletion must be disabled on the protected default branch");
+const evidence={schemaVersion:1,product:"CIEAV",kind:"REPOSITORY_GOVERNANCE",version:pkg.version,commit,repository,repositoryUrl:repoMeta.url,defaultBranch:branch,verifiedAt:new Date().toISOString(),checks:{cieavRepositoryIdentity:true,defaultBranchAtReleaseCommit:true,branchProtected:true,strictStatusChecks:true,requiredStatusChecks:configuredChecks,pullRequestReviewRequired:true,dismissStaleReviews:true,conversationResolution:true,enforceAdmins:true,forcePushDisabled:true,deletionDisabled:true}};
+const out={...evidence,digestAlgorithm:"SHA-256",digest:crypto.createHash("sha256").update(canonical(evidence)).digest("hex")};mkdirSync(REPORTS,{recursive:true});const name=`cieav-repository-governance-${pkg.version}-${commit.slice(0,12)}.json`;writeFileSync(path.join(REPORTS,name),JSON.stringify(out,null,2)+"\n");writeFileSync(path.join(REPORTS,"latest-repository-governance.json"),JSON.stringify(out,null,2)+"\n");console.log(`CIEAV repository governance PASS · ${repository}:${branch} · ${commit}`);console.log(`Evidence: ${path.join(REPORTS,name)}`);
