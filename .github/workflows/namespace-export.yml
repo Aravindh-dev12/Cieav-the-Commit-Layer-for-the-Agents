@@ -1,0 +1,59 @@
+name: namespace-export
+on:
+  push:
+    branches:
+      - feat/full-latch-platform
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Canonicalize CIEAV app imports in ephemeral checkout
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          root=Path('.')
+          replacements={
+            '@latch/contracts':'@cieav/contracts',
+            '@latch/core':'@cieav/core',
+            '@latch/sdk':'@cieav/sdk',
+          }
+          changed=[]
+          for base in (root/'apps/api/src',root/'apps/dashboard/src'):
+            for p in base.rglob('*'):
+              if p.suffix not in {'.ts','.tsx','.mts','.cts'}: continue
+              before=p.read_text('utf-8'); after=before
+              for legacy,canonical in replacements.items(): after=after.replace(legacy,canonical)
+              if '@latch/' in after: raise SystemExit(f'unexpected legacy package import remains in {p}')
+              if after!=before: p.write_text(after,'utf-8'); changed.append(str(p))
+          for rel,mapping in {
+            'apps/api/package.json':{'@latch/contracts':'@cieav/contracts','@latch/core':'@cieav/core'},
+            'apps/dashboard/package.json':{'@latch/contracts':'@cieav/contracts','@latch/sdk':'@cieav/sdk'},
+          }.items():
+            p=root/rel; data=json.loads(p.read_text('utf-8')); deps=data.get('dependencies',{})
+            for legacy,canonical in mapping.items():
+              if legacy in deps:
+                value=deps.pop(legacy)
+                if canonical in deps and deps[canonical]!=value: raise SystemExit(f'conflicting dependency {canonical} in {rel}')
+                deps[canonical]=value
+            data['dependencies']=deps; p.write_text(json.dumps(data,indent=2)+'\n','utf-8'); changed.append(rel)
+          p=root/'apps/api/Dockerfile'; before=p.read_text('utf-8'); after=before.replace('# Legacy package names remain private one-way shims during the migration window.\nCOPY --from=build /app/packages/cieav-contracts ./packages/cieav-contracts\nCOPY --from=build /app/packages/cieav-core ./packages/cieav-core\n','')
+          if 'packages/cieav-contracts' in after or 'packages/cieav-core' in after: raise SystemExit('legacy package shims remain in API Docker image')
+          if after!=before: p.write_text(after,'utf-8'); changed.append(str(p))
+          print('\n'.join(sorted(set(changed))))
+          PY
+      - name: Assert transformed app sources are legacy-free
+        run: |
+          if grep -R --line-number --fixed-strings '@latch/' apps/api/src apps/dashboard/src; then exit 1; fi
+          node -e "for (const p of ['apps/api/package.json','apps/dashboard/package.json']) { const x=require('./'+p); for (const d of Object.keys(x.dependencies||{})) if (d.startsWith('@latch/')) process.exit(2) }"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cieav-canonical-apps
+          path: |
+            apps/api
+            apps/dashboard
+          if-no-files-found: error
