@@ -2,11 +2,11 @@ import crypto from "node:crypto";
 import {chmod,mkdir,readFile,rename,writeFile} from "node:fs/promises";
 import path from "node:path";
 import type {IncomingMessage} from "node:http";
-import {ActionManifestSchema} from "@latch/contracts";
-import {ApprovalChallengeSchema,type ApprovalChallenge} from "@latch/contracts/approval";
-import {ActionProposalSchema,CommitPermitSchema,IntentContractSchema,IntentCreateRequestSchema,OpenLoopCreateRequestSchema,OpenLoopSchema,OpenLoopUpdateRequestSchema,RealityEvaluateRequestSchema,type ActionProposal,type IntentContract,type OpenLoop} from "@latch/contracts/reality";
-import {assessConsequences,createIntentContract,evaluateAuthority,issueCommitPermit,proposalFromManifest,verifyCommitPermit} from "@latch/core/reality";
-import {combineAuthorityDecisions} from "@latch/core/policy";
+import {ActionManifestSchema} from "@cieav/contracts";
+import {ApprovalChallengeSchema,type ApprovalChallenge} from "@cieav/contracts/approval";
+import {ActionProposalSchema,CommitPermitSchema,IntentContractSchema,IntentCreateRequestSchema,OpenLoopCreateRequestSchema,OpenLoopSchema,OpenLoopUpdateRequestSchema,RealityEvaluateRequestSchema,type ActionProposal,type IntentContract,type OpenLoop} from "@cieav/contracts/reality";
+import {assessConsequences,createIntentContract,evaluateAuthority,issueCommitPermit,proposalFromManifest,verifyCommitPermit} from "@cieav/core/reality";
+import {combineAuthorityDecisions} from "@cieav/core/policy";
 import type {CieavPolicyApi} from "./policy-api.js";
 
 const MAX_BODY=256_000,MAX_INTENTS=5_000,MAX_LOOPS=10_000,MAX_CONSUMED=20_000,MAX_APPROVALS=10_000,APPROVAL_TTL_SECONDS=300;
