@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import {describe,expect,it} from "vitest";
-import type {BusinessRealityPlan,ObservedBusinessFact} from "@latch/contracts/business";
+import type {BusinessRealityPlan,ObservedBusinessFact} from "@cieav/contracts/business";
 import {reconcileBusinessReality} from "./reconciliation.js";
 
 const entity={kind:"ACCOUNT" as const,id:"employee-42",displayName:"Departing employee"};
