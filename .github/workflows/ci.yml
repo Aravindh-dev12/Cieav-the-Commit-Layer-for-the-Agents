@@ -2,24 +2,11 @@ name: ci
 on:
   push:
   pull_request:
-permissions:
-  contents: write
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Canonicalize CIEAV app package imports once
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/full-latch-platform'
-        run: |
-          node scripts/canonicalize-app-imports.mjs
-          if ! git diff --quiet -- apps/api apps/dashboard; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add -- apps/api apps/dashboard
-            git commit -m "refactor: remove legacy imports from CIEAV apps"
-            git push origin HEAD:feat/full-latch-platform
-          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
