@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import {readFile} from "node:fs/promises";
 const injected=await readFile(new URL("../apps/browser/injected.js",import.meta.url),"utf8");
-const browser=await readFile(new URL("../apps/browser/main.mjs",import.meta.url),"utf8");
+const wrapper=await readFile(new URL("../apps/browser/main.mjs",import.meta.url),"utf8");
+const core=await readFile(new URL("../apps/browser/main-core.mjs",import.meta.url),"utf8");
+const browser=`${wrapper}\n${core}`;
 const cdpPipe=await readFile(new URL("../apps/browser/cdp-pipe.mjs",import.meta.url),"utf8");
 const controlAuth=await readFile(new URL("../apps/browser/control-auth.mjs",import.meta.url),"utf8");
 const adapters=await readFile(new URL("../apps/browser/adapters.mjs",import.meta.url),"utf8");
@@ -17,6 +19,7 @@ const gateway=await readFile(new URL("../python/latch_platform/gateway.py",impor
 const cli=await readFile(new URL("../python/latch_platform/cli.py",import.meta.url),"utf8");
 const releaseSign=await readFile(new URL("./release-sign.mjs",import.meta.url),"utf8");
 const releaseWorkflow=await readFile(new URL("../.github/workflows/release-runtime.yml",import.meta.url),"utf8");
+if(!wrapper.includes('await import("./main-core.mjs")'))throw new Error("Control Center wrapper does not delegate to hardened browser core");
 if(/p\.fallback[^\n;]*t\.click\(|p\.fallback[^\n;]*requestSubmit/.test(injected))throw new Error("consequential action still contains fail-open fallback");
 if(!injected.includes("action not executed"))throw new Error("fail-closed user feedback missing");
 if(!injected.includes("Commit control unavailable"))throw new Error("commit-control failure is not fail-closed");
