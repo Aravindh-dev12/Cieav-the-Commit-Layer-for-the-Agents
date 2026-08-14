@@ -1,19 +1,32 @@
 #!/usr/bin/env node
-import {spawn} from "node:child_process";
-import {mkdtemp,rm} from "node:fs/promises";
+import {spawn,spawnSync} from "node:child_process";
+import {access,mkdtemp,rm} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),".."),NODE=process.platform==="win32"?"node.exe":process.execPath,API_PORT=18887,CONTROL_PORT=18890,CONTROL_TOKEN="browser-e2e-control-"+"x".repeat(48),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const page=`<section id="payment"><button id="pay">Pay ₹500</button><span id="paid"></span></section><section id="connection"><button id="connect">Connect account</button><button id="disconnect" hidden>Disconnect</button><span id="connectionState">disconnected</span></section><section id="publish"><button id="publishBtn">Publish publicly</button><span id="publishState"></span></section>`;
-const state=await mkdtemp(path.join(os.tmpdir(),"cieav-browser-e2e-"));let logs="",child;
+const state=await mkdtemp(path.join(os.tmpdir(),"cieav-browser-e2e-"));let logs="",child,apiChild;
 const tail=()=>String(logs).slice(-6000),exited=p=>Boolean(p&&(p.exitCode!==null||p.signalCode!==null)),exitDetail=(name,p)=>`${name} exited before readiness (code=${p?.exitCode??"null"}, signal=${p?.signalCode??"null"})${tail()?`\n${tail()}`:""}`;
-const apiChild=spawn(NODE,[path.join(ROOT,"apps/api/standalone.mjs")],{cwd:ROOT,stdio:["ignore","pipe","pipe"],env:{...process.env,PORT:String(API_PORT),CIEAV_API_PORT:String(API_PORT)}});apiChild.stdout.on("data",d=>logs+=d);apiChild.stderr.on("data",d=>logs+=d);apiChild.on("error",e=>logs+=`standalone API spawn failed: ${e.message}\n`);
+const exists=async file=>{try{await access(file);return true}catch{return false}},cmdQuote=value=>`"${String(value).replace(/"/g,'""')}"`;
+async function windowsBridge(){
+ if(process.platform!=="win32")return undefined;
+ const configured=process.env.CIEAV_CDP_WIN_BRIDGE??process.env.LATCH_CDP_WIN_BRIDGE;if(configured){const resolved=path.resolve(configured);if(!await exists(resolved))throw new Error(`Configured Windows CDP bridge does not exist: ${resolved}`);return resolved}
+ const releaseBuilt=path.join(ROOT,"dist","cdp-win-bridge.exe");if(await exists(releaseBuilt))return releaseBuilt;
+ const source=path.join(ROOT,"native/windows/cdp-win-bridge.cpp"),output=path.join(state,"cdp-win-bridge.exe"),compileArgs=["/nologo","/std:c++17","/O2","/EHsc","/DUNICODE","/D_UNICODE",source,`/Fe:${output}`,"/link","/DYNAMICBASE","/NXCOMPAT"];
+ const direct=spawnSync("where.exe",["cl.exe"],{encoding:"utf8",windowsHide:true});if(direct.status===0){const r=spawnSync("cl.exe",compileArgs,{cwd:ROOT,encoding:"utf8",windowsHide:true,maxBuffer:8*1024*1024});if(r.status===0&&await exists(output))return output;logs+=`direct MSVC bridge build failed:\n${r.stderr||r.stdout||"unknown compiler failure"}\n`}
+ const programFilesX86=process.env["ProgramFiles(x86)"]??"C:\\Program Files (x86)",vswhere=path.join(programFilesX86,"Microsoft Visual Studio/Installer/vswhere.exe");if(!await exists(vswhere))throw new Error(`Windows browser E2E requires Visual C++ Build Tools to compile the private CDP bridge; vswhere.exe not found at ${vswhere}`);
+ const found=spawnSync(vswhere,["-latest","-products","*","-requires","Microsoft.VisualStudio.Component.VC.Tools.x86.x64","-property","installationPath"],{encoding:"utf8",windowsHide:true});const install=String(found.stdout??"").trim();if(found.status!==0||!install)throw new Error(`Visual C++ Build Tools with x64 compiler were not found${found.stderr?`: ${String(found.stderr).trim()}`:""}`);
+ const devcmd=path.join(install,"Common7/Tools/VsDevCmd.bat");if(!await exists(devcmd))throw new Error(`Visual Studio developer command file is missing: ${devcmd}`);
+ const command=`call ${cmdQuote(devcmd)} -arch=x64 -host_arch=x64 >nul && cl /nologo /std:c++17 /O2 /EHsc /DUNICODE /D_UNICODE ${cmdQuote(source)} /Fe:${cmdQuote(output)} /link /DYNAMICBASE /NXCOMPAT`,shell=process.env.ComSpec??"cmd.exe",built=spawnSync(shell,["/d","/s","/c",command],{cwd:ROOT,encoding:"utf8",windowsHide:true,maxBuffer:8*1024*1024});if(built.status!==0||!await exists(output))throw new Error(`Windows private CDP bridge build failed (${built.status??"spawn"}): ${String(built.stderr||built.stdout||"no compiler output").slice(-5000)}`);return output
+}
 async function waitFor(fn,label,tries=160,watch){let last;for(let i=0;i<tries;i++){if(exited(watch))throw new Error(exitDetail(label,watch));try{const v=await fn();if(v)return v}catch(e){last=e}if(exited(watch))throw new Error(exitDetail(label,watch));await sleep(100)}throw new Error(`Timed out waiting for ${label}: ${last?.message??"no response"}${tail()?`\nChild output:\n${tail()}`:""}`)}
 async function control(pathname,options={}){const r=await fetch(`http://127.0.0.1:${CONTROL_PORT}${pathname}`,{...options,redirect:"error",headers:{authorization:`Bearer ${CONTROL_TOKEN}`,"content-type":"application/json",...(options.headers??{})}}),t=await r.text();if(!r.ok)throw new Error(t);return t?JSON.parse(t):{}}async function evalJs(expression){return (await control("/api/test/eval",{method:"POST",body:JSON.stringify({expression})})).value}async function click(selector){return control("/api/test/click",{method:"POST",body:JSON.stringify({selector})})}
 try{
+ const bridge=await windowsBridge(),browserEnv={...process.env,CIEAV_API_PORT:String(API_PORT),CIEAV_CONTROL_PORT:String(CONTROL_PORT),CIEAV_STATE_DIR:state,CIEAV_HEADLESS:"1",CIEAV_TEST_AUTO_APPROVE:"1",CIEAV_BROWSER_CONTROL_TOKEN:CONTROL_TOKEN,CIEAV_START_URL:"about:blank",...(bridge?{CIEAV_CDP_WIN_BRIDGE:bridge}:{})};
+ apiChild=spawn(NODE,[path.join(ROOT,"apps/api/standalone.mjs")],{cwd:ROOT,stdio:["ignore","pipe","pipe"],env:{...process.env,PORT:String(API_PORT),CIEAV_API_PORT:String(API_PORT)}});apiChild.stdout.on("data",d=>logs+=d);apiChild.stderr.on("data",d=>logs+=d);apiChild.on("error",e=>logs+=`standalone API spawn failed: ${e.message}\n`);
  await waitFor(async()=>{const r=await fetch(`http://127.0.0.1:${API_PORT}/health`,{redirect:"error"});if(r.status!==200)throw new Error(`standalone API health returned ${r.status}`);return true},"standalone API",160,apiChild);
- child=spawn(NODE,[path.join(ROOT,"apps/browser/main.mjs")],{cwd:ROOT,stdio:["ignore","pipe","pipe"],env:{...process.env,CIEAV_API_PORT:String(API_PORT),CIEAV_CONTROL_PORT:String(CONTROL_PORT),CIEAV_STATE_DIR:state,CIEAV_HEADLESS:"1",CIEAV_TEST_AUTO_APPROVE:"1",CIEAV_BROWSER_CONTROL_TOKEN:CONTROL_TOKEN,CIEAV_START_URL:"about:blank"}});child.stdout.on("data",d=>logs+=d);child.stderr.on("data",d=>logs+=d);child.on("error",e=>logs+=`browser spawn failed: ${e.message}\n`);
+ child=spawn(NODE,[path.join(ROOT,"apps/browser/main.mjs")],{cwd:ROOT,stdio:["ignore","pipe","pipe"],env:browserEnv});child.stdout.on("data",d=>logs+=d);child.stderr.on("data",d=>logs+=d);child.on("error",e=>logs+=`browser spawn failed: ${e.message}\n`);
  await waitFor(async()=>{const r=await fetch(`http://127.0.0.1:${CONTROL_PORT}/api/status`,{redirect:"error"});if(r.status!==401)throw new Error(`unauthenticated /api/status returned ${r.status}, expected 401`);return true},"unauthenticated control rejection",160,child);
  const status=await waitFor(async()=>{try{const s=await control("/api/status");return s.ok&&s.browserConnected?s:null}catch{return null}},"authenticated private-pipe control server",160,child);const expectedTransport=process.platform==="win32"?"private-windows-handle-pipe":"private-posix-fd-pipe";if(status.browserControlTransport!==expectedTransport)throw new Error(`unexpected browser transport ${status.browserControlTransport}, expected ${expectedTransport}`);
  const bare=await fetch(`http://127.0.0.1:${CONTROL_PORT}/api/receipts`,{redirect:"error"});if(bare.status!==401)throw new Error(`unauthenticated receipt history returned ${bare.status}, expected 401`);
@@ -27,4 +40,4 @@ try{
 
  const payUnknown=await waitFor(async()=>{const r=await control("/api/receipts");return r.receipts.find(x=>x.id===pay.id&&x.outcome?.status==="UNKNOWN")},"conservative unknown payment outcome",160,child);if(!payUnknown.outcome.evidence?.length)throw new Error("unknown outcome missing evidence");
  console.log("CIEAV Browser E2E passed: private CDP pipe + authenticated control + trusted replay + conservative outcome verification + verified inverse Undo")
-}finally{try{child?.kill("SIGTERM")}catch{}try{apiChild.kill("SIGTERM")}catch{}await sleep(500);await rm(state,{recursive:true,force:true})}
+}finally{try{child?.kill("SIGTERM")}catch{}try{apiChild?.kill("SIGTERM")}catch{}await sleep(500);await rm(state,{recursive:true,force:true})}
