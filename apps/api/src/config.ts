@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { AIProfile } from "./model/openai.js";
-export interface Config {port:number;databaseUrl?:string;jwtSecret:string;receiptSigningSecret:string;openaiApiKey?:string;openaiBaseUrl:string;aiProfile:AIProfile;fastModel:string;primaryModel:string;verifierModel:string;aiTimeoutMs:number;hfEnabled:boolean;gatewayUrl:string;gatewayToken?:string;hfTimeoutMs:number;cloudServer:boolean;localAuthority:boolean;localStateDir?:string;cloudModelBaseUrl:string;cloudModel:string;cloudModelApiKey?:string;cloudModelTimeoutMs:number;allowedOrigins:string[]}
+export interface Config {port:number;jwtSecret:string;receiptSigningSecret:string;openaiApiKey?:string;openaiBaseUrl:string;aiProfile:AIProfile;fastModel:string;primaryModel:string;verifierModel:string;aiTimeoutMs:number;hfEnabled:boolean;gatewayUrl:string;gatewayToken?:string;hfTimeoutMs:number;cloudServer:boolean;localAuthority:boolean;localStateDir?:string;cloudModelBaseUrl:string;cloudModel:string;cloudModelApiKey?:string;cloudModelTimeoutMs:number;allowedOrigins:string[]}
 function profile(v?:string):AIProfile{return v==="economy"||v==="maximum"?v:"balanced"}
 const env=(primary:string,legacy?:string,fallback?:string)=>process.env[primary]??(legacy?process.env[legacy]:undefined)??fallback;
 const DEV_JWT="dev-only-jwt-secret-change-me",DEV_RECEIPT="dev-only-receipt-secret-change-me";
