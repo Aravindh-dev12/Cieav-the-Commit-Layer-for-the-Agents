@@ -18,6 +18,7 @@ const platformConfig=await readFile(new URL("../python/latch_platform/config.py"
 const gateway=await readFile(new URL("../python/latch_platform/gateway.py",import.meta.url),"utf8");
 const cli=await readFile(new URL("../python/latch_platform/cli.py",import.meta.url),"utf8");
 const releaseSign=await readFile(new URL("./release-sign.mjs",import.meta.url),"utf8");
+const publishLayout=await readFile(new URL("./build-publish-layout.mjs",import.meta.url),"utf8");
 const releaseWorkflow=await readFile(new URL("../.github/workflows/release-runtime.yml",import.meta.url),"utf8");
 if(!wrapper.includes('await import("./main-core.mjs")'))throw new Error("Control Center wrapper does not delegate to hardened browser core");
 if(/p\.fallback[^\n;]*t\.click\(|p\.fallback[^\n;]*requestSubmit/.test(injected))throw new Error("consequential action still contains fail-open fallback");
@@ -57,6 +58,7 @@ if(!platformConfig.includes("SecretStore")||!platformConfig.includes("secret_sto
 for(const token of ["privacyReduceContext","assertCloudPrivacyIngress","assertCloudPrivacyBaseline","privacy_page_text_forbidden","privacy_raw_filename_forbidden"]){if(!privacy.includes(token))throw new Error(`model privacy invariant missing: ${token}`)}
 if(!server.includes("assertCloudPrivacyIngress(raw?.context)")||!server.includes("assertCloudPrivacyBaseline(raw?.baseline"))throw new Error("CIEAV Cloud server trusts client privacy declarations without ingress validation");
 for(const token of ["_privacy_reduce_context","_privacy_reduce_baseline","_NoRedirect","must use HTTPS except for loopback tests"]){if(!cloudProvider.includes(token))throw new Error(`CIEAV Cloud egress invariant missing: ${token}`)}
-for(const token of ["generateKeyPairSync(\"ed25519\")","crypto.sign(null","crypto.verify(null","keyId","sha256"]){if(!releaseSign.includes(token))throw new Error(`release provenance signing invariant missing: ${token}`)}
-for(const token of ["CIEAV_RELEASE_SIGNING_PRIVATE_KEY_B64","CIEAV_RELEASE_SIGNING_PUBLIC_KEY_B64","CIEAV_RELEASE_SIGNING_KEY_ID","release-sign.mjs sign","release-sign.mjs verify","signatures/*.sig.json"]){if(!releaseWorkflow.includes(token))throw new Error(`release workflow provenance invariant missing: ${token}`)}
+for(const token of ["generateKeyPairSync(\"rsa\"","modulusLength:3072","publicExponent:0x10001","asymmetricKeyType!==\"rsa\"","crypto.sign(\"sha256\"","crypto.constants.RSA_PKCS1_PADDING","crypto.verify(\"sha256\"",'algorithm:"RSA-SHA256"',"keyId","sha256"]){if(!releaseSign.includes(token))throw new Error(`release provenance signing invariant missing: ${token}`)}
+for(const token of ["CIEAV_RELEASE_SIGNING_PRIVATE_KEY_B64","CIEAV_RELEASE_SIGNING_PUBLIC_KEY_B64","CIEAV_RELEASE_SIGNING_KEY_ID","build-publish-layout.mjs","signatures/*.sig.json"]){if(!releaseWorkflow.includes(token))throw new Error(`release workflow provenance invariant missing: ${token}`)}
+for(const token of ['path.join(ROOT,"scripts/release-sign.mjs"),"sign"','path.join(ROOT,"scripts/release-sign.mjs"),"verify"',"params.keyId!==keyPin","--release-rsa-modulus-b64","--release-rsa-exponent-b64"]){if(!publishLayout.includes(token))throw new Error(`signed publish layout provenance invariant missing: ${token}`)}
 console.log("CIEAV production security checks passed: private-pipe + authenticated control + privacy + encrypted authority + signed provenance");
