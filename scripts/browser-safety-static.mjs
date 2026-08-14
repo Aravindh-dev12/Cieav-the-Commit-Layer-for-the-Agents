@@ -45,6 +45,8 @@ if(!adapters.includes('fingerprint:hash([adapter.id,String(adapter.version),acti
 if(!injected.includes('if(!["HIGH","CRITICAL"].includes(risk))'))throw new Error("HIGH/CRITICAL actions may still accept DOM-only success evidence");
 if(/t==="financial\.commit"\?\/\(payment successful/.test(injected))throw new Error("financial success text is still treated as sufficient DOM proof");
 if(!server.includes("new FileReceiptStore")||!server.includes('"local-durable"'))throw new Error("managed API is not configured for durable local receipts");
+if(!server.includes('config.cloudServer?new MemoryReceiptStore():config.localAuthority?new FileReceiptStore'))throw new Error("local authority does not take precedence over optional external persistence");
+if(config.includes("process.env.DATABASE_URL"))throw new Error("API config still imports DATABASE_URL into local/runtime authority selection");
 if(!server.includes('"cieav-dev-api"'))throw new Error("managed/dev API service identity is not separated");
 if(!server.includes("loadDeviceReceiptSigner")||!server.includes('algorithm:"Ed25519"'))throw new Error("managed local receipts are not using Ed25519 device identity");
 if(!receipt.includes("verifyReceiptPublic")||!receipt.includes('signatureAlgorithm:"Ed25519"'))throw new Error("independent receipt signature verification is missing");
@@ -52,7 +54,6 @@ for(const token of ["receipt-ed25519-private.enc.json","AES-256-GCM","scryptSync
 if(deviceSigning.includes('writeFile(privateFile')||deviceSigning.includes('receipt-ed25519-private.pem\",privateKey.export'))throw new Error("receipt private key may still be written as plaintext");
 for(const token of ["CryptProtectData","CryptUnprotectData","SecKeychainFindGenericPassword","SecKeychainAddGenericPassword","secret-tool","encrypted_at_rest=True","secret migration verification failed"]){if(!secretStore.includes(token))throw new Error(`OS secret-storage invariant missing: ${token}`)}
 if(!platformConfig.includes("SecretStore")||!platformConfig.includes("secret_storage_status")||!platformConfig.includes("store.status.encrypted_at_rest"))throw new Error("Gateway secrets are not routed through explicit OS secret storage/fallback policy");
-if(!config.includes("!localAuthority&&process.env.DATABASE_URL"))throw new Error("local authority may inherit DATABASE_URL");
 for(const token of ["privacyReduceContext","assertCloudPrivacyIngress","assertCloudPrivacyBaseline","privacy_page_text_forbidden","privacy_raw_filename_forbidden"]){if(!privacy.includes(token))throw new Error(`model privacy invariant missing: ${token}`)}
 if(!server.includes("assertCloudPrivacyIngress(raw?.context)")||!server.includes("assertCloudPrivacyBaseline(raw?.baseline"))throw new Error("CIEAV Cloud server trusts client privacy declarations without ingress validation");
 for(const token of ["_privacy_reduce_context","_privacy_reduce_baseline","_NoRedirect","must use HTTPS except for loopback tests"]){if(!cloudProvider.includes(token))throw new Error(`CIEAV Cloud egress invariant missing: ${token}`)}
