@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import {existsSync} from "node:fs";
 import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -8,7 +7,7 @@ import {fileURLToPath} from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SIGN=path.join(ROOT,"scripts/release-sign.mjs");
-const NODE=existsSync(process.execPath)?process.execPath:(process.platform==="win32"?"node.exe":"node");
+const NODE=process.platform==="win32"?"node.exe":process.execPath;
 const tmp=await mkdtemp(path.join(os.tmpdir(),"cieav-sign-"));
 const priv=path.join(tmp,"release-private.pem"),pub=path.join(tmp,"release-public.pem"),out=path.join(tmp,"sig"),manifest=path.join(tmp,"manifest.json");
 const run=args=>spawnSync(NODE,[SIGN,...args],{cwd:ROOT,encoding:"utf8"});
