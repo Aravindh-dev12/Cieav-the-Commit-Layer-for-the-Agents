@@ -79,10 +79,12 @@ try{
     await writeFile(path.join(migrateDir,"attention.json"),JSON.stringify({version:4,mode:"balanced",origins:{"https://old.test::data.submit":{seen:99,safeCommitStreak:20,hardShown:9,softShown:40,passiveShown:50,fastApprovalStreak:8,promptedDecisions:30,fastApprovals:28,decisionMsTotal:3000}},stats:{analyzed:99,hard:9,soft:40,passive:50,fastApprovals:28}}),"utf8");
     const migrated=await new Attention(migrateDir,{clock}).load();const h=migrated.h("https://old.test","data.submit");
     assert.equal(migrated.s.migratedDebtEpoch,true);assert.equal(migrated.s.stats.analyzed,0);assert.equal(h.safeCommitStreak,0);assert.equal(h.fastApprovalStreak,0);assert.equal(migrated.decide("https://old.test",m()).level,"SOFT");
+    await migrated.flush();
   } finally {await rm(migrateDir,{recursive:true,force:true})}
 
   await writeFile(path.join(dir,"attention.json"),"{not-json","utf8");
   const recovered=await new Attention(dir,{clock}).load();assert.equal(recovered.s.mode,"strict");assert.equal(recovered.s.recoveredFromCorruptState,true);const files=await readdir(dir);assert.ok(files.some(x=>x.startsWith("attention.corrupt.")));assert.equal(recovered.decide("https://fresh.test",m("MEDIUM")).level,"HARD");
+  await recovered.flush();
 
   console.log("CIEAV cognitive-debt/audit E2E passed",JSON.stringify(report));
 } finally {await rm(dir,{recursive:true,force:true});}
