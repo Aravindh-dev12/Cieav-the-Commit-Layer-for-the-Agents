@@ -21,8 +21,11 @@ for(const marker of ["--remote-debugging-io-pipes=","PROC_THREAD_ATTRIBUTE_HANDL
 assert(!native.includes("--remote-debugging-port"),"Windows bridge must not expose TCP CDP");
 
 const main=await readFile(path.join(ROOT,"apps/browser/main.mjs"),"utf8");
-assert(main.includes("launchChromiumPrivate"),"browser mediator must use cross-platform private launcher");
-assert(!main.includes("const extraPipe=process.platform"),"legacy Windows fd emulation must be removed");
-assert(!main.includes('"--remote-debugging-port"'),"browser mediator must not expose TCP CDP");
+const core=await readFile(path.join(ROOT,"apps/browser/main-core.mjs"),"utf8");
+assert(main.includes('await import("./main-core.mjs")'),"Control Center wrapper must delegate to hardened browser core");
+assert(core.includes('from "./chromium-launch.mjs"')&&core.includes("launchChromiumPrivate"),"hardened browser core must use cross-platform private launcher");
+const browserSource=`${main}\n${core}`;
+assert(!browserSource.includes("const extraPipe=process.platform"),"legacy Windows fd emulation must be removed");
+assert(!browserSource.includes('"--remote-debugging-port"'),"browser mediator must not expose TCP CDP");
 
 console.log("CIEAV Chromium launch static security checks passed");
