@@ -17,7 +17,7 @@ from .cloud_provider import CloudSemanticProvider
 
 RISK = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
 REVERSIBILITY = {"REVERSIBLE", "DELAYABLE", "COMPENSABLE", "IRREVERSIBLE", "UNKNOWN"}
-DEFAULT_MODEL = "ibm-granite/granite-4.1-3b"
+DEFAULT_MODEL = "Qwen/Qwen3-32B"
 
 GATE_SCHEMA: dict[str, Any] = {
     "type": "object",
