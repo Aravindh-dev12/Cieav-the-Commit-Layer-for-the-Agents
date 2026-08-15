@@ -39,10 +39,9 @@ if(!built){
 }
 
 const state=await mkdtemp(path.join(os.tmpdir(),"cieav-browser-e2e-win-"));
-const dataFile=path.join(state,"receipts.json");
 const child=spawn(process.execPath,[path.join(ROOT,"apps","browser","main.mjs")],{
   cwd:ROOT,stdio:["ignore","pipe","pipe"],windowsHide:true,
-  env:{...process.env,CIEAV_API_PORT:String(API_PORT),CIEAV_CONTROL_PORT:String(CONTROL_PORT),CIEAV_STATE_DIR:state,CIEAV_DATA_FILE:dataFile,CIEAV_HEADLESS:"1",CIEAV_TEST_AUTO_APPROVE:"1",CIEAV_BROWSER_CONTROL_TOKEN:CONTROL_TOKEN,CIEAV_START_URL:"about:blank",CIEAV_CDP_WIN_BRIDGE:bridge}
+  env:{...process.env,CIEAV_API_PORT:String(API_PORT),CIEAV_CONTROL_PORT:String(CONTROL_PORT),CIEAV_STATE_DIR:state,CIEAV_HEADLESS:"1",CIEAV_TEST_AUTO_APPROVE:"1",CIEAV_BROWSER_CONTROL_TOKEN:CONTROL_TOKEN,CIEAV_START_URL:"about:blank",CIEAV_CDP_WIN_BRIDGE:bridge}
 });
 let logs="";child.stdout.on("data",d=>logs+=d);child.stderr.on("data",d=>logs+=d);
 const waitFor=async(fn,label,tries=180)=>{let last;for(let i=0;i<tries;i++){try{const v=await fn();if(v)return v}catch(e){last=e}await sleep(100)}throw new Error(`Timed out waiting for ${label}: ${last?.message??"no response"}\n${logs}`)};
@@ -59,7 +58,7 @@ try{
   await waitFor(()=>evalJs("window.payCount===1"),"trusted replay payment");
   const receipt=await waitFor(async()=>{const r=await control("/api/receipts");return r.receipts.find(x=>x.manifest.actionType==="financial.commit")},"financial receipt");
   if(receipt.status!=="COMMITTED"||receipt.manifest.risk!=="CRITICAL"||receipt.manifest.reversibility!=="IRREVERSIBLE")throw new Error("payment receipt contract failed");
-  console.log("CIEAV Windows Browser E2E passed: normal-shell bridge build + private CDP + trusted replay + receipt persistence");
+  console.log("CIEAV Windows Browser E2E passed: normal-shell bridge build + private CDP + trusted replay + default receipt persistence");
 }finally{
   child.kill("SIGTERM");await sleep(500);await rm(state,{recursive:true,force:true});
 }
