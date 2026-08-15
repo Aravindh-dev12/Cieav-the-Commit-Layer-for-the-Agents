@@ -3,6 +3,7 @@ import * as http from "node:http";
 import crypto from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const env=(primary,legacy,fallback)=>process.env[primary]??process.env[legacy]??fallback;
 const PORT = Number(process.env.PORT ?? env("CIEAV_API_PORT","LATCH_API_PORT",8787));
@@ -10,7 +11,7 @@ const JWT_SECRET = process.env.JWT_SECRET ?? "dev-only-jwt-secret-change-me";
 const RECEIPT_SECRET = process.env.RECEIPT_SIGNING_SECRET ?? "dev-only-receipt-secret-change-me";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const MODEL = env("CIEAV_MODEL","LATCH_MODEL","gpt-5.1");
-const DATA_FILE = path.resolve(env("CIEAV_DATA_FILE","LATCH_DATA_FILE",new URL("./.data/receipts.json", import.meta.url).pathname));
+const DATA_FILE = path.resolve(env("CIEAV_DATA_FILE","LATCH_DATA_FILE",fileURLToPath(new URL("./.data/receipts.json", import.meta.url))));
 const POLICY_VERSION = "2026-08-12.2";
 const DASHBOARD_FILE = new URL("../dashboard/standalone.html", import.meta.url);
 const EXTRA_ORIGINS = new Set(String(env("CIEAV_ALLOW_ORIGIN","LATCH_ALLOW_ORIGIN","")).split(",").map(x=>x.trim()).filter(Boolean));

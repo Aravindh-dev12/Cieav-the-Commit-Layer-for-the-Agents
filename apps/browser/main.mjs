@@ -12,25 +12,24 @@ const API_PORT=+env("CIEAV_API_PORT","LATCH_API_PORT",8787),CONTROL_PORT=+env("C
 let CONTROL_TOKEN=env("CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN","");
 if(CONTROL_TOKEN.length<43){CONTROL_TOKEN=crypto.randomBytes(48).toString("base64url");process.env.CIEAV_BROWSER_CONTROL_TOKEN=CONTROL_TOKEN}
 
-// Startup verifies exact release/security markers against the hardened mediator and its private Chromium launcher before loading the core.
+// Startup verifies release/security markers in the modules that now own each responsibility.
 const CORE_INVARIANTS=[
   "CIEAV_REQUIRE_PRODUCTION_API","refusing standalone/dev","verifyAdapterProposal({",'m.kind==="UNDO_READY"',"liveAdapter(u)",'current.outcome?.status!=="OBSERVED_SUCCESS"',
-  "launchChromiumPrivate",'browserControlTransport:browserTransport',"Target.setDiscoverTargets","Target.attachToTarget","flatten:true",
+  'browserControlTransport:browserTransport',"Target.setDiscoverTargets","Target.attachToTarget","flatten:true",
   'if(AUTO&&req.method==="POST"&&u.pathname==="/api/test/eval"','if(AUTO&&req.method==="POST"&&u.pathname==="/api/test/click"',
   "if(!controlAuth.authorized(req))return send(401",'u.pathname==="/api/bootstrap"',
   "async function persistOutcome","p.finalOutcome","p.finalizing","p.persistenceFailures","await persistOutcome(receiptId,value)","pendingOutcomes.delete(receiptId)","Promise.allSettled(finalizers)","await attention.flush()",
   "attention.replay(","attention.outcome(","attention.undoAvailable(",'m.kind==="REPLAYED"',"await attention.replay("
 ];
 const LAUNCH_INVARIANTS=[
-  "export async function launchChromiumPrivate",'"--remote-debugging-pipe"',"SECRET_ENV_KEYS",'"CIEAV_BROWSER_CONTROL_TOKEN"','"LATCH_BROWSER_CONTROL_TOKEN"',"delete clean[key]",
-  '"private-windows-handle-pipe"','"private-posix-fd-pipe"',"CIEAV_CDP_WIN_BRIDGE"
+  '"--remote-debugging-pipe"','transport:"private-windows-handle-pipe"','transport:"private-posix-fd-pipe"',
+  '"CIEAV_BROWSER_CONTROL_TOKEN"','"LATCH_BROWSER_CONTROL_TOKEN"',"for(const key of SECRET_ENV_KEYS)delete clean[key]"
 ];
-const BROWSER_FORBIDDEN=["--remote-"+"debugging-port","/json/"+"list","/json/"+"new","webSocket"+"DebuggerUrl"];
+const CORE_FORBIDDEN=["--remote-"+"debugging-port","/json/"+"list","/json/"+"new","webSocket"+"DebuggerUrl"];
 const coreSource=await readFile(path.join(HERE,"main-core.mjs"),"utf8"),launchSource=await readFile(path.join(HERE,"chromium-launch.mjs"),"utf8");
 for(const token of CORE_INVARIANTS)if(!coreSource.includes(token))throw new Error(`CIEAV hardened browser core invariant missing: ${token}`);
-for(const token of LAUNCH_INVARIANTS)if(!launchSource.includes(token))throw new Error(`CIEAV private Chromium launcher invariant missing: ${token}`);
-const hardenedSource=`${coreSource}\n${launchSource}`;
-for(const token of BROWSER_FORBIDDEN)if(hardenedSource.includes(token))throw new Error(`CIEAV hardened browser runtime reintroduced forbidden DevTools surface: ${token}`);
+for(const token of LAUNCH_INVARIANTS)if(!launchSource.includes(token))throw new Error(`CIEAV private Chromium launch invariant missing: ${token}`);
+for(const token of CORE_FORBIDDEN)if(coreSource.includes(token)||launchSource.includes(token))throw new Error(`CIEAV hardened browser reintroduced forbidden DevTools surface: ${token}`);
 
 const originalCreateServer=http.createServer.bind(http);
 const safeEqual=(a,b)=>{const x=Buffer.from(String(a??"")),y=Buffer.from(String(b??""));return x.length===y.length&&crypto.timingSafeEqual(x,y)};
