@@ -23,7 +23,7 @@ const CORE_INVARIANTS=[
 ];
 const LAUNCH_INVARIANTS=[
   '"--remote-debugging-pipe"','transport:"private-windows-handle-pipe"','transport:"private-posix-fd-pipe"',
-  "delete clean.CIEAV_BROWSER_CONTROL_TOKEN","delete clean.LATCH_BROWSER_CONTROL_TOKEN"
+  '"CIEAV_BROWSER_CONTROL_TOKEN"','"LATCH_BROWSER_CONTROL_TOKEN"',"for(const key of SECRET_ENV_KEYS)delete clean[key]"
 ];
 const CORE_FORBIDDEN=["--remote-"+"debugging-port","/json/"+"list","/json/"+"new","webSocket"+"DebuggerUrl"];
 const coreSource=await readFile(path.join(HERE,"main-core.mjs"),"utf8"),launchSource=await readFile(path.join(HERE,"chromium-launch.mjs"),"utf8");
