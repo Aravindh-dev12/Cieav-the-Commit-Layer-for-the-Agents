@@ -62,10 +62,10 @@ std::wstring handle_switch(HANDLE input, HANDLE output) {
   return L"--remote-debugging-io-pipes=" + std::to_wstring(in_value) + L"," + std::to_wstring(out_value);
 }
 
-struct CopyContext { HANDLE input; HANDLE output; };
+struct PipeCopyContext { HANDLE input; HANDLE output; };
 
 DWORD WINAPI copy_stream(void* raw) {
-  const auto* ctx = static_cast<CopyContext*>(raw);
+  const auto* ctx = static_cast<PipeCopyContext*>(raw);
   char buffer[64 * 1024];
   for (;;) {
     DWORD read = 0;
@@ -166,11 +166,11 @@ int wmain(int argc, wchar_t** argv) {
     TerminateProcess(process_handle.value, 2); fail(L"bridge stdin/stdout unavailable", ERROR_INVALID_HANDLE);
   }
 
-  CopyContext inbound{stdin_handle, parent_write.value};
+  PipeCopyContext inbound{stdin_handle, parent_write.value};
   Handle inbound_thread(CreateThread(nullptr, 0, copy_stream, &inbound, 0, nullptr));
   if (!inbound_thread) { TerminateProcess(process_handle.value, 2); fail(L"CreateThread inbound proxy"); }
 
-  CopyContext outbound{parent_read.value, stdout_handle};
+  PipeCopyContext outbound{parent_read.value, stdout_handle};
   copy_stream(&outbound);
   parent_read.reset();
   WaitForSingleObject(process_handle.value, INFINITE);
