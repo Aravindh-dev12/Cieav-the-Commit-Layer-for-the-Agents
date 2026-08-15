@@ -8,14 +8,16 @@ import {fileURLToPath} from "node:url";
 if(process.platform!=="win32")throw new Error("browser-e2e-windows.mjs is Windows-only");
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const API_PORT=18887,CONTROL_PORT=18890,CONTROL_TOKEN="browser-e2e-control-"+"x".repeat(48),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const API_PORT=18887,PROBE_PORT=18886,CONTROL_PORT=18890,CONTROL_TOKEN="browser-e2e-control-"+"x".repeat(48),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const source=path.join(ROOT,"native","windows","cdp-win-bridge.cpp");
+const standalone=path.join(ROOT,"apps","api","standalone.mjs");
 const buildDir=path.join(ROOT,".cieav","windows-e2e");
 const bridge=path.join(buildDir,"cdp-win-bridge.exe");
 await mkdir(buildDir,{recursive:true});
 const exists=async file=>{try{await access(file);return true}catch{return false}};
 const compileArgs=["/nologo","/std:c++17","/O2","/EHsc","/DUNICODE","/D_UNICODE",source,`/Fe:${bridge}`,"/link","/DYNAMICBASE","/NXCOMPAT"];
 const run=(command,args,options={})=>spawnSync(command,args,{cwd:ROOT,encoding:"utf8",windowsHide:true,maxBuffer:8*1024*1024,...options});
+const waitJson=async(url,label,tries=120)=>{let last;for(let i=0;i<tries;i++){try{const r=await fetch(url,{redirect:"error"});if(r.ok)return await r.json();last=new Error(`${r.status} ${await r.text()}`)}catch(e){last=e}await sleep(100)}throw new Error(`Timed out waiting for ${label}: ${last?.message??"no response"}`)};
 
 let built=false;
 if(run("where.exe",["cl.exe"]).status===0){
@@ -39,25 +41,46 @@ if(!built){
 }
 
 const state=await mkdtemp(path.join(os.tmpdir(),"cieav-browser-e2e-win-"));
-const child=spawn(process.execPath,[path.join(ROOT,"apps","browser","main.mjs")],{
-  cwd:ROOT,stdio:["ignore","pipe","pipe"],windowsHide:true,
-  env:{...process.env,CIEAV_API_PORT:String(API_PORT),CIEAV_CONTROL_PORT:String(CONTROL_PORT),CIEAV_STATE_DIR:state,CIEAV_HEADLESS:"1",CIEAV_TEST_AUTO_APPROVE:"1",CIEAV_BROWSER_CONTROL_TOKEN:CONTROL_TOKEN,CIEAV_START_URL:"about:blank",CIEAV_CDP_WIN_BRIDGE:bridge}
-});
-let logs="";child.stdout.on("data",d=>logs+=d);child.stderr.on("data",d=>logs+=d);
-const waitFor=async(fn,label,tries=180)=>{let last;for(let i=0;i<tries;i++){try{const v=await fn();if(v)return v}catch(e){last=e}await sleep(100)}throw new Error(`Timed out waiting for ${label}: ${last?.message??"no response"}\n${logs}`)};
-const control=async(pathname,options={})=>{const r=await fetch(`http://127.0.0.1:${CONTROL_PORT}${pathname}`,{...options,redirect:"error",headers:{authorization:`Bearer ${CONTROL_TOKEN}`,"content-type":"application/json",...(options.headers??{})}}),t=await r.text();if(!r.ok)throw new Error(t);return t?JSON.parse(t):{}};
-const evalJs=async expression=>(await control("/api/test/eval",{method:"POST",body:JSON.stringify({expression})})).value;
-const click=selector=>control("/api/test/click",{method:"POST",body:JSON.stringify({selector})});
+const dataFile=path.join(state,"receipts.json");
+let probe=null,apiChild=null,browserChild=null,logs="";
 try{
+  const probeEnv={...process.env,PORT:String(PROBE_PORT),CIEAV_API_PORT:String(PROBE_PORT)};
+  delete probeEnv.CIEAV_DATA_FILE;delete probeEnv.LATCH_DATA_FILE;delete probeEnv.CIEAV_SELFTEST;delete probeEnv.LATCH_SELFTEST;
+  probe=spawn(process.execPath,[standalone],{cwd:ROOT,stdio:["ignore","pipe","pipe"],windowsHide:true,env:probeEnv});
+  probe.stdout.on("data",d=>logs+=d);probe.stderr.on("data",d=>logs+=d);
+  const probeHealth=await waitJson(`http://127.0.0.1:${PROBE_PORT}/health`,"standalone default-path probe");
+  const expectedDefault=path.normalize(path.join(ROOT,"apps","api",".data","receipts.json")).toLowerCase();
+  const actualDefault=path.normalize(String(probeHealth.receiptsFile??"")).toLowerCase();
+  if(actualDefault!==expectedDefault)throw new Error(`Windows default receipt path mismatch: expected ${expectedDefault}, got ${actualDefault}`);
+  probe.kill("SIGTERM");probe=null;await sleep(250);
+
+  const apiEnv={...process.env,PORT:String(API_PORT),CIEAV_API_PORT:String(API_PORT),CIEAV_DATA_FILE:dataFile};
+  delete apiEnv.CIEAV_SELFTEST;delete apiEnv.LATCH_SELFTEST;
+  apiChild=spawn(process.execPath,[standalone],{cwd:ROOT,stdio:["ignore","pipe","pipe"],windowsHide:true,env:apiEnv});
+  apiChild.stdout.on("data",d=>logs+=d);apiChild.stderr.on("data",d=>logs+=d);
+  const apiHealth=await waitJson(`http://127.0.0.1:${API_PORT}/health`,"isolated standalone API");
+  if(apiHealth.service!=="cieav-standalone-api")throw new Error(`unexpected API service ${apiHealth.service??apiHealth.mode??"unknown"}`);
+
+  browserChild=spawn(process.execPath,[path.join(ROOT,"apps","browser","main.mjs")],{
+    cwd:ROOT,stdio:["ignore","pipe","pipe"],windowsHide:true,
+    env:{...process.env,CIEAV_API_PORT:String(API_PORT),CIEAV_CONTROL_PORT:String(CONTROL_PORT),CIEAV_STATE_DIR:state,CIEAV_DATA_FILE:dataFile,CIEAV_HEADLESS:"1",CIEAV_TEST_AUTO_APPROVE:"1",CIEAV_BROWSER_CONTROL_TOKEN:CONTROL_TOKEN,CIEAV_START_URL:"about:blank",CIEAV_CDP_WIN_BRIDGE:bridge}
+  });
+  browserChild.stdout.on("data",d=>logs+=d);browserChild.stderr.on("data",d=>logs+=d);
+  const waitFor=async(fn,label,tries=180)=>{let last;for(let i=0;i<tries;i++){try{const v=await fn();if(v)return v}catch(e){last=e}await sleep(100)}throw new Error(`Timed out waiting for ${label}: ${last?.message??"no response"}\n${logs}`)};
+  const control=async(pathname,options={})=>{const r=await fetch(`http://127.0.0.1:${CONTROL_PORT}${pathname}`,{...options,redirect:"error",headers:{authorization:`Bearer ${CONTROL_TOKEN}`,"content-type":"application/json",...(options.headers??{})}}),t=await r.text();if(!r.ok)throw new Error(t);return t?JSON.parse(t):{}};
+  const evalJs=async expression=>(await control("/api/test/eval",{method:"POST",body:JSON.stringify({expression})})).value;
+  const click=selector=>control("/api/test/click",{method:"POST",body:JSON.stringify({selector})});
+
   const status=await waitFor(async()=>{try{const s=await control("/api/status");return s.ok&&s.browserConnected&&s.protectedPages>0?s:null}catch{return null}},"authenticated protected Windows private-pipe control server");
+  if(status.apiService!=="cieav-standalone-api")throw new Error(`browser attached to unexpected API service ${status.apiService}`);
   if(status.browserControlTransport!=="private-windows-handle-pipe")throw new Error(`unexpected browser transport ${status.browserControlTransport}`);
   await waitFor(async()=>{try{return await evalJs("document.readyState==='complete'")}catch{return false}},"protected test page");
   await evalJs("document.body.innerHTML='<button id=pay>Pay 500</button><span id=paid></span>';window.payCount=0;document.querySelector('#pay').addEventListener('click',function(){window.payCount++;document.querySelector('#paid').textContent='paid'});true");
   await click("#pay");
   await waitFor(()=>evalJs("window.payCount===1"),"trusted replay payment");
   const receipt=await waitFor(async()=>{const r=await control("/api/receipts");return r.receipts.find(x=>x.manifest.actionType==="financial.commit")},"financial receipt");
-  if(receipt.status!=="COMMITTED"||receipt.manifest.risk!=="CRITICAL"||receipt.manifest.reversibility!=="IRREVERSIBLE")throw new Error("payment receipt contract failed");
-  console.log("CIEAV Windows Browser E2E passed: normal-shell bridge build + protection readiness + private CDP + trusted replay + default receipt persistence");
+  if(receipt.status!=="COMMITTED"||receipt.manifest.risk!=="CRITICAL"||receipt.manifest.reversibility!=="IRREVERSIBLE")throw new Error(`payment receipt contract failed: ${JSON.stringify({status:receipt.status,risk:receipt.manifest?.risk,reversibility:receipt.manifest?.reversibility})}`);
+  console.log("CIEAV Windows Browser E2E passed: normal-shell bridge build + default path probe + isolated standalone API + protection readiness + private CDP + trusted replay + receipt persistence");
 }finally{
-  child.kill("SIGTERM");await sleep(500);await rm(state,{recursive:true,force:true});
+  try{browserChild?.kill("SIGTERM")}catch{}try{apiChild?.kill("SIGTERM")}catch{}try{probe?.kill("SIGTERM")}catch{}await sleep(500);await rm(state,{recursive:true,force:true});
 }
