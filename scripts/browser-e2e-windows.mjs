@@ -52,7 +52,8 @@ const click=selector=>control("/api/test/click",{method:"POST",body:JSON.stringi
 try{
   const status=await waitFor(async()=>{try{const s=await control("/api/status");return s.ok&&s.browserConnected?s:null}catch{return null}},"authenticated Windows private-pipe control server");
   if(status.browserControlTransport!=="private-windows-handle-pipe")throw new Error(`unexpected browser transport ${status.browserControlTransport}`);
-  await waitFor(async()=>{try{return await evalJs("document.readyState==='complete'")}catch{return false}},"protected test page");
+  await waitFor(async()=>{try{return await evalJs("document.readyState==='complete'")}catch{return false}},"test page");
+  await sleep(500);
   await evalJs("document.body.innerHTML='<button id=pay>Pay 500</button><span id=paid></span>';window.payCount=0;document.querySelector('#pay').addEventListener('click',function(){window.payCount++;document.querySelector('#paid').textContent='paid'});true");
   await click("#pay");
   await waitFor(()=>evalJs("window.payCount===1"),"trusted replay payment");
