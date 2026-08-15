@@ -74,8 +74,8 @@ jobs:
         run: node scripts/a2a-e2e.mjs
       - name: Verify cognitive debt invariants
         run: node scripts/cognitive-debt-e2e.mjs
-      - name: Verify Attention Health dashboard
-        run: node scripts/dashboard-attention-smoke.mjs
+      - name: Verify Control Center reality dashboard
+        run: node scripts/dashboard-reality-smoke.mjs
       - name: Verify no-install browser safety path
         run: |
           google-chrome --version || chromium --version
