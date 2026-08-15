@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import base64
 import json
 import subprocess
 import sys
@@ -14,6 +15,12 @@ VERSION="0.7.0"
 CLOUD="https://cloud.example.test"
 WINDOWS_SIGNER="0123456789ABCDEF0123456789ABCDEF01234567"
 MACOS_SIGNER="Developer ID Application: CIEAV Example (ABCDE12345)"
+RELEASE_KEY_ID="b"*64
+RELEASE_RSA_MODULUS_B64=base64.b64encode(b"\x01"*384).decode("ascii")
+RELEASE_RSA_EXPONENT_B64=base64.b64encode(b"\x01\x00\x01").decode("ascii")
+RELEASE_PUBLIC_KEY_PEM_B64=base64.b64encode((
+    "-----BEGIN PUBLIC KEY-----\n"+"A"*384+"\n-----END PUBLIC KEY-----\n"
+).encode("ascii")).decode("ascii")
 
 
 def build_metadata(root:Path,filename:str="cieav-runtime-0.7.0-linux-x64.zip",*,size:int=1234,platform:str="linux-x64",version:str=VERSION)->None:
@@ -43,12 +50,34 @@ def manifest_case(*,filename:str="cieav-runtime-0.7.0-linux-x64.zip",cloud:str=C
 def render_case(base:str,expect_ok:bool,*,cloud:str=CLOUD,version:str=VERSION,windows_signer:str=WINDOWS_SIGNER,macos_signer:str=MACOS_SIGNER)->None:
     with tempfile.TemporaryDirectory(prefix="cieav-render-") as td:
         out=Path(td)/"publish"
-        proc=subprocess.run([sys.executable,str(RENDER),"--download-base-url",base,"--cloud-url",cloud,"--release-version",version,"--windows-signer-thumbprint",windows_signer,"--macos-signing-identity",macos_signer,"--output-dir",str(out)],cwd=ROOT,capture_output=True,text=True)
+        proc=subprocess.run([
+            sys.executable,str(RENDER),
+            "--download-base-url",base,
+            "--cloud-url",cloud,
+            "--release-version",version,
+            "--windows-signer-thumbprint",windows_signer,
+            "--macos-signing-identity",macos_signer,
+            "--release-key-id",RELEASE_KEY_ID,
+            "--release-rsa-modulus-b64",RELEASE_RSA_MODULUS_B64,
+            "--release-rsa-exponent-b64",RELEASE_RSA_EXPONENT_B64,
+            "--release-public-key-pem-b64",RELEASE_PUBLIC_KEY_PEM_B64,
+            "--output-dir",str(out)
+        ],cwd=ROOT,capture_output=True,text=True)
         if expect_ok and proc.returncode!=0: raise AssertionError(proc.stderr or proc.stdout)
         if not expect_ok and proc.returncode==0: raise AssertionError(f"invalid installer trust input was accepted: base={base!r} cloud={cloud!r} version={version!r} windows_signer={windows_signer!r} macos_signer={macos_signer!r}")
         if not expect_ok:return
         ps=(out/"install.ps1").read_text("utf-8");sh=(out/"install.sh").read_text("utf-8");combined=ps+sh
-        for placeholder in ("__CIEAV_DOWNLOAD_BASE_URL__","__CIEAV_CLOUD_URL__","__CIEAV_RELEASE_VERSION__","__CIEAV_WINDOWS_SIGNER_THUMBPRINT__","__CIEAV_MACOS_SIGNING_IDENTITY__"):
+        for placeholder in (
+            "__CIEAV_DOWNLOAD_BASE_URL__",
+            "__CIEAV_CLOUD_URL__",
+            "__CIEAV_RELEASE_VERSION__",
+            "__CIEAV_WINDOWS_SIGNER_THUMBPRINT__",
+            "__CIEAV_MACOS_SIGNING_IDENTITY__",
+            "__CIEAV_RELEASE_KEY_ID__",
+            "__CIEAV_RELEASE_RSA_MODULUS_B64__",
+            "__CIEAV_RELEASE_RSA_EXPONENT_B64__",
+            "__CIEAV_RELEASE_PUBLIC_KEY_PEM_B64__",
+        ):
             assert placeholder not in combined
         for source in (ps,sh):
             assert base.rstrip('/') in source and cloud.rstrip('/') in source and version in source
