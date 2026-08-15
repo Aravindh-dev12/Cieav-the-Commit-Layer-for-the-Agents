@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import platform
 import plistlib
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.request import urlopen
 
 from .config import Settings
 
@@ -18,6 +20,8 @@ LEGACY_LAUNCHD_LABEL = "ai.latch.gateway"
 WINDOWS_TASK = "CIEAV Gateway"
 LEGACY_WINDOWS_TASK = "LATCH Gateway"
 WINDOWS_LAUNCHER = "gateway-service.ps1"
+WINDOWS_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+WINDOWS_RUN_VALUE = "CIEAV Gateway"
 
 
 def _python() -> str:
@@ -100,8 +104,8 @@ def start(settings: Settings) -> str:
         _require_launchd_plist(); domain=f"gui/{os.getuid()}"; subprocess.run(["launchctl","kickstart","-k",f"{domain}/{LAUNCHD_LABEL}"],check=True)
         return "Started CIEAV Gateway launchd agent"
     if system == "windows":
-        _require_windows_task(); subprocess.run(["schtasks","/Run","/TN",WINDOWS_TASK],check=True)
-        return "Started CIEAV Gateway scheduled task"
+        _require_windows_startup(settings); _start_windows(settings)
+        return "Started CIEAV Gateway user process"
     raise RuntimeError(f"Unsupported platform: {platform.system()}")
 
 
@@ -112,7 +116,7 @@ def stop(settings: Settings) -> str:
     if system == "darwin":
         _require_launchd_plist(); domain=f"gui/{os.getuid()}"; subprocess.run(["launchctl","kill","SIGTERM",f"{domain}/{LAUNCHD_LABEL}"],check=False); return "Stopped CIEAV Gateway launchd agent"
     if system == "windows":
-        _require_windows_task(); subprocess.run(["schtasks","/End","/TN",WINDOWS_TASK],check=False); return "Stopped CIEAV Gateway scheduled task"
+        _require_windows_startup(settings); _stop_windows(settings); return "Stopped CIEAV Gateway user process"
     raise RuntimeError(f"Unsupported platform: {platform.system()}")
 
 
@@ -123,7 +127,7 @@ def restart(settings: Settings) -> str:
     if system == "darwin":
         _require_launchd_plist(); domain=f"gui/{os.getuid()}"; subprocess.run(["launchctl","kickstart","-k",f"{domain}/{LAUNCHD_LABEL}"],check=True); return "Restarted CIEAV Gateway launchd agent"
     if system == "windows":
-        _require_windows_task(); subprocess.run(["schtasks","/End","/TN",WINDOWS_TASK],check=False); time.sleep(.25); subprocess.run(["schtasks","/Run","/TN",WINDOWS_TASK],check=True); return "Restarted CIEAV Gateway scheduled task"
+        _require_windows_startup(settings); _stop_windows(settings); time.sleep(.25); _start_windows(settings); return "Restarted CIEAV Gateway user process"
     raise RuntimeError(f"Unsupported platform: {platform.system()}")
 
 
@@ -137,10 +141,18 @@ def service_status(settings: Settings) -> dict:
         plist = _launchd_plist(); proc=subprocess.run(["launchctl","print",f"gui/{os.getuid()}/{LAUNCHD_LABEL}"],capture_output=True,text=True)
         return {"platform":"launchd","installed":plist.exists(),"active":proc.returncode==0,"legacyInstalled":_legacy_launchd_plist().exists(),"detail":"loaded" if proc.returncode==0 else "not loaded"}
     if system == "windows":
-        proc=subprocess.run(["schtasks","/Query","/TN",WINDOWS_TASK,"/FO","LIST","/V"],capture_output=True,text=True); detail=(proc.stdout or proc.stderr).strip()
-        legacy=subprocess.run(["schtasks","/Query","/TN",LEGACY_WINDOWS_TASK],capture_output=True).returncode==0
-        active=proc.returncode==0 and "running" in detail.lower()
-        return {"platform":"Task Scheduler","installed":proc.returncode==0,"active":active,"legacyInstalled":legacy,"detail":detail[-700:] if detail else "not installed"}
+        registered=_windows_registered_command()
+        expected=_windows_startup_command(settings)
+        installed=registered==expected
+        health=_windows_gateway_health(settings)
+        legacy=any(subprocess.run(["schtasks","/Query","/TN",name],capture_output=True).returncode==0 for name in (WINDOWS_TASK,LEGACY_WINDOWS_TASK))
+        if installed:
+            detail=f"HKCU startup registered; gateway pid={health.get('gatewayPid')}" if health else "HKCU startup registered; gateway offline"
+        elif registered:
+            detail="HKCU startup entry points to a different CIEAV runtime"
+        else:
+            detail="not installed"
+        return {"platform":"Windows user startup","installed":installed,"active":bool(health),"legacyInstalled":legacy,"detail":detail}
     return {"platform":platform.system(),"installed":False,"active":False,"detail":"unsupported"}
 
 
@@ -154,8 +166,8 @@ def _require_systemd_unit() -> None:
     if not _systemd_unit().exists(): raise RuntimeError("CIEAV Gateway is not installed. Run: cieav gateway install")
 def _require_launchd_plist() -> None:
     if not _launchd_plist().exists(): raise RuntimeError("CIEAV Gateway is not installed. Run: cieav gateway install")
-def _require_windows_task() -> None:
-    if subprocess.run(["schtasks","/Query","/TN",WINDOWS_TASK],capture_output=True).returncode!=0: raise RuntimeError("CIEAV Gateway is not installed. Run: cieav gateway install")
+def _require_windows_startup(settings: Settings) -> None:
+    if _windows_registered_command()!=_windows_startup_command(settings): raise RuntimeError("CIEAV Gateway is not installed. Run: cieav gateway install")
 
 def _escape_systemd(value:str)->str: return value.replace("\\","\\\\").replace('"','\\"')
 def _quote_systemd(value:str)->str: return '"'+_escape_systemd(value)+'"'
@@ -197,8 +209,76 @@ def _uninstall_launchd()->str:
         if path.exists(): path.unlink()
     return "Removed CIEAV Gateway launchd agent"
 
-def _install_windows(settings:Settings)->str:
-    subprocess.run(["schtasks","/End","/TN",LEGACY_WINDOWS_TASK],check=False,capture_output=True); subprocess.run(["schtasks","/Delete","/F","/TN",LEGACY_WINDOWS_TASK],check=False,capture_output=True)
+def _windows_launcher_command(settings: Settings) -> list[str]:
+    return ["powershell.exe","-NoProfile","-NonInteractive","-WindowStyle","Hidden","-ExecutionPolicy","Bypass","-File",str(_windows_launcher(settings))]
+
+def _windows_startup_command(settings: Settings) -> str:
+    return subprocess.list2cmdline(_windows_launcher_command(settings))
+
+def _windows_registered_command() -> str | None:
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,WINDOWS_RUN_KEY,0,winreg.KEY_READ) as key:
+            value,_=winreg.QueryValueEx(key,WINDOWS_RUN_VALUE)
+            return str(value)
+    except FileNotFoundError:
+        return None
+
+def _set_windows_registration(settings: Settings) -> None:
+    import winreg
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER,WINDOWS_RUN_KEY,0,winreg.KEY_SET_VALUE) as key:
+        winreg.SetValueEx(key,WINDOWS_RUN_VALUE,0,winreg.REG_SZ,_windows_startup_command(settings))
+
+def _delete_windows_registration() -> None:
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,WINDOWS_RUN_KEY,0,winreg.KEY_SET_VALUE) as key:
+            winreg.DeleteValue(key,WINDOWS_RUN_VALUE)
+    except FileNotFoundError:
+        pass
+
+def _windows_gateway_health(settings: Settings) -> dict | None:
+    try:
+        with urlopen(f"http://127.0.0.1:{settings.gateway_port}/health",timeout=.6) as response:
+            raw=response.read(65537)
+        if len(raw)>65536:return None
+        value=json.loads(raw.decode("utf-8") or "{}")
+        if not isinstance(value,dict) or value.get("platform")!="CIEAV Gateway":return None
+        pid=value.get("gatewayPid")
+        if not isinstance(pid,int) or pid<=0:return None
+        return value
+    except Exception:
+        return None
+
+def _windows_process_path(pid: int) -> str | None:
+    ps=shutil.which("powershell") or shutil.which("pwsh")
+    if not ps:return None
+    script=f"$p=Get-CimInstance Win32_Process -Filter 'ProcessId = {pid}'; if($p){{$p.ExecutablePath}}"
+    proc=subprocess.run([ps,"-NoProfile","-Command",script],capture_output=True,text=True,timeout=10)
+    value=(proc.stdout or "").strip()
+    return value or None
+
+def _start_windows(settings: Settings) -> None:
+    if _windows_gateway_health(settings):return
+    creationflags=(getattr(subprocess,"DETACHED_PROCESS",0x00000008)|getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200)|getattr(subprocess,"CREATE_NO_WINDOW",0x08000000))
+    subprocess.Popen(_windows_launcher_command(settings),cwd=settings.root,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,close_fds=True,creationflags=creationflags)
+
+def _stop_windows(settings: Settings) -> None:
+    health=_windows_gateway_health(settings)
+    if not health:return
+    pid=int(health["gatewayPid"])
+    actual=_windows_process_path(pid)
+    expected=_python()
+    if not actual or os.path.normcase(str(Path(actual).resolve()))!=os.path.normcase(str(Path(expected).resolve())):
+        raise RuntimeError(f"Refusing to stop PID {pid}: process image does not match the CIEAV runtime")
+    subprocess.run(["taskkill","/PID",str(pid),"/T","/F"],check=False,capture_output=True,text=True)
+    deadline=time.time()+6.0
+    while time.time()<deadline:
+        if not _windows_gateway_health(settings):return
+        time.sleep(.15)
+    raise RuntimeError("CIEAV Gateway did not stop before timeout")
+
+def _write_windows_launcher(settings: Settings) -> Path:
     launcher=_windows_launcher(settings); launcher.parent.mkdir(parents=True,exist_ok=True)
     env_lines=[f"$env:{key}={_quote_powershell(value)}" for key,value in _env(settings).items()]
     command=_module_command(settings)
@@ -212,20 +292,26 @@ def _install_windows(settings:Settings)->str:
         "",
     ])
     launcher.write_text(script,"utf-8-sig")
-    task_action=subprocess.list2cmdline(["powershell.exe","-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",str(launcher)])
-    if len(task_action)>261:
-        launcher.unlink(missing_ok=True)
-        raise RuntimeError(f"Windows scheduled-task launcher path is too long ({len(task_action)} characters); move CIEAV state to a shorter path")
+    return launcher
+
+def _remove_legacy_windows_tasks() -> None:
+    for task in (WINDOWS_TASK,LEGACY_WINDOWS_TASK):
+        subprocess.run(["schtasks","/End","/TN",task],check=False,capture_output=True)
+        subprocess.run(["schtasks","/Delete","/F","/TN",task],check=False,capture_output=True)
+
+def _install_windows(settings:Settings)->str:
+    _remove_legacy_windows_tasks()
+    launcher=_write_windows_launcher(settings)
     try:
-        subprocess.run(["schtasks","/Create","/F","/SC","ONLOGON","/TN",WINDOWS_TASK,"/TR",task_action],check=True)
+        _set_windows_registration(settings)
+        _start_windows(settings)
     except Exception:
-        launcher.unlink(missing_ok=True)
-        raise
-    subprocess.run(["schtasks","/Run","/TN",WINDOWS_TASK],check=False)
-    return f"Installed CIEAV Gateway as a per-user logon task using {launcher}"
+        _delete_windows_registration(); launcher.unlink(missing_ok=True); raise
+    return f"Installed CIEAV Gateway as a per-user startup app using {launcher}"
 
 def _uninstall_windows(settings:Settings)->str:
-    for task in (WINDOWS_TASK,LEGACY_WINDOWS_TASK):
-        subprocess.run(["schtasks","/End","/TN",task],check=False); subprocess.run(["schtasks","/Delete","/F","/TN",task],check=False)
+    _stop_windows(settings)
+    _delete_windows_registration()
+    _remove_legacy_windows_tasks()
     _windows_launcher(settings).unlink(missing_ok=True)
-    return "Removed CIEAV Gateway scheduled task"
+    return "Removed CIEAV Gateway per-user startup registration"
