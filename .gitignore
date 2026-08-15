@@ -15,3 +15,5 @@ publish/
 build/
 *.spec
 *.tsbuildinfo
+__pycache__/
+*.py[cod]
