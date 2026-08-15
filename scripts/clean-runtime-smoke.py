@@ -80,13 +80,17 @@ def check_windows_signature(path: Path, thumbprint: str | None) -> dict | None:
     ps = shutil.which("pwsh") or shutil.which("powershell")
     if not ps:
         raise RuntimeError("PowerShell is required to verify Windows Authenticode signatures")
+    # Windows PowerShell 5.1 does not reliably expose arguments placed after
+    # -Command through $args. Embed a single-quoted, escaped LiteralPath instead
+    # so verification works identically with powershell.exe and pwsh.
+    literal_path = "'" + str(path).replace("'", "''") + "'"
     script = (
-        "$s=Get-AuthenticodeSignature -LiteralPath $args[0];"
+        f"$s=Get-AuthenticodeSignature -LiteralPath {literal_path};"
         "if($s.Status -ne 'Valid' -or -not $s.SignerCertificate){throw ('invalid Authenticode status: '+$s.Status)};"
         "$o=[pscustomobject]@{Status=[string]$s.Status;Thumbprint=[string]$s.SignerCertificate.Thumbprint;Subject=[string]$s.SignerCertificate.Subject};"
         "$o|ConvertTo-Json -Compress"
     )
-    proc = subprocess.run([ps, "-NoProfile", "-Command", script, str(path)], capture_output=True, text=True, timeout=30)
+    proc = subprocess.run([ps, "-NoProfile", "-Command", script], capture_output=True, text=True, timeout=30)
     if proc.returncode != 0:
         raise RuntimeError(f"Authenticode verification failed for {path}: {(proc.stderr or proc.stdout).strip()}")
     data = json.loads(proc.stdout.strip().splitlines()[-1])
