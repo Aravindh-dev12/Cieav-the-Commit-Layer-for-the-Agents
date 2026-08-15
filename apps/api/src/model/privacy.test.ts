@@ -29,10 +29,12 @@ describe("privacy model boundary",()=>{
     expect((reduced as any).pageText).toBeUndefined();
     expect(reduced.element.href).toBe("https://example.test/pay");
     expect(reduced.form?.action).toBe("https://example.test/pay");
-    expect(reduced.form?.fields[0]?.name).toBe("password_value"); // field metadata is permitted; field values are not
+    expect(reduced.form?.fields[0]?.name).toBe("password_value");
     expect(reduced.form?.fields[0]?.redacted).toBe(true);
     expect(reduced.form?.fileNames).toEqual(["[selected-file.pdf]"]);
-    for(const secret of ["secret-query","super-secret","123456","4111 1111 1111 1111","Aravindh-passport","abcdefghijklmnopqrstuvwxyz123456","user@example.com"]){expect(serialized).not.toContain(secret)}
+    expect(reduced.form?.submitterText).not.toContain("123456");
+    expect(reduced.nearbyText).not.toContain("123456");
+    for(const secret of ["secret-query","super-secret","4111 1111 1111 1111","Aravindh-passport","abcdefghijklmnopqrstuvwxyz123456","user@example.com"]){expect(serialized).not.toContain(secret)}
     expect(()=>assertCloudPrivacyIngress(reduced)).not.toThrow();
   });
 

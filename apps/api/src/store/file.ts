@@ -1,15 +1,20 @@
 import {chmodSync} from "node:fs";
 import {mkdir,readFile,rename} from "node:fs/promises";
+import {createRequire} from "node:module";
 import path from "node:path";
-import {DatabaseSync} from "node:sqlite";
 import {ReceiptSchema,type Receipt} from "@cieav/contracts";
 import {signReceipt,verifyReceipt,type ReceiptSigner} from "../receipt.js";
 import type {ReceiptStore} from "./types.js";
 
+type SqliteStatement={run:(...values:unknown[])=>unknown;get:(...values:unknown[])=>unknown;all:(...values:unknown[])=>unknown[]};
+type SqliteDatabase={exec:(sql:string)=>void;prepare:(sql:string)=>SqliteStatement;close:()=>void};
+type DatabaseSyncConstructor=new(path:string)=>SqliteDatabase;
+const nodeRequire=createRequire(import.meta.url);
+const {DatabaseSync}=nodeRequire("node:sqlite") as {DatabaseSync:DatabaseSyncConstructor};
 type ReceiptRow={id:string;device_id:string;created_at:string;receipt_json:string};
 
 export class FileReceiptStore implements ReceiptStore {
-  private db:DatabaseSync|null=null;
+  private db:SqliteDatabase|null=null;
   private loaded=false;
   private readonly dbFile:string;
   constructor(private readonly legacyJsonFile:string,private readonly signer:ReceiptSigner){const configured=process.env.CIEAV_SQLITE_PATH?.trim();this.dbFile=configured?path.resolve(configured):legacyJsonFile.endsWith(".json")?`${legacyJsonFile.slice(0,-5)}.sqlite3`:legacyJsonFile}

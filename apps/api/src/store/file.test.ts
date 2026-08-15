@@ -1,12 +1,14 @@
 import {access,mkdtemp,rm,writeFile} from "node:fs/promises";
+import {createRequire} from "node:module";
 import os from "node:os";
 import path from "node:path";
-import {DatabaseSync} from "node:sqlite";
 import {afterEach,describe,expect,it} from "vitest";
 import {loadDeviceReceiptSigner} from "../device-signing.js";
 import {createReceipt,verifyReceiptPublic} from "../receipt.js";
 import {FileReceiptStore} from "./file.js";
 
+const nodeRequire=createRequire(import.meta.url);
+const {DatabaseSync}=nodeRequire("node:sqlite") as {DatabaseSync:new(path:string)=>{prepare:(sql:string)=>{get:(...values:unknown[])=>unknown;run:(...values:unknown[])=>unknown};close:()=>void}};
 const dirs:string[]=[];
 async function temp(){const d=await mkdtemp(path.join(os.tmpdir(),"cieav-receipts-"));dirs.push(d);return d}
 afterEach(async()=>{delete process.env.CIEAV_SQLITE_PATH;await Promise.all(dirs.splice(0).map(d=>rm(d,{recursive:true,force:true})))});
@@ -19,5 +21,5 @@ describe("SQLite-backed FileReceiptStore",()=>{
 
   it("persists Ed25519 receipts that remain independently verifiable",async()=>{const dir=await temp(),state=path.join(dir,"state"),legacy=path.join(dir,"receipts.json"),signer=await loadDeviceReceiptSigner(state,"legacy-"+"s".repeat(64)),receipt=createReceipt("device-a",manifest,{url:"https://example.test/action",origin:"https://example.test"},"COMMITTED",signer);expect(receipt.receiptVersion).toBe("3");expect(verifyReceiptPublic(receipt)).toBe(true);const store=new FileReceiptStore(legacy,signer);await store.save(receipt);await store.close();const reloaded=new FileReceiptStore(legacy,signer);expect((await reloaded.get("device-a",receipt.id))?.signatureKeyId).toBe(signer.keyId);await reloaded.close()});
 
-  it("fails closed when SQLite receipt content is modified",async()=>{const dir=await temp(),legacy=path.join(dir,"receipts.json"),signer=await loadDeviceReceiptSigner(path.join(dir,"state"),"legacy-"+"s".repeat(64)),receipt=createReceipt("device-a",manifest,{url:"https://example.test/action",origin:"https://example.test"},"COMMITTED",signer),store=new FileReceiptStore(legacy,signer);await store.save(receipt);await store.close();const db=new DatabaseSync(path.join(dir,"receipts.sqlite3")),row=db.prepare("SELECT receipt_json FROM receipts WHERE id=?").get(receipt.id) as {receipt_json:string},raw=JSON.parse(row.receipt_json);raw.manifest.summary="Tampered summary";db.prepare("UPDATE receipts SET receipt_json=? WHERE id=?").run(JSON.stringify(raw),receipt.id);db.close();await expect(new FileReceiptStore(legacy,signer).list("device-a",10)).rejects.toThrow(/signature verification failed/i)});
+  it("fails closed when SQLite receipt content is modified",async()=>{const dir=await temp(),legacy=path.join(dir,"receipts.json"),signer=await loadDeviceReceiptSigner(path.join(dir,"state"),"legacy-"+"s".repeat(64)),receipt=createReceipt("device-a",manifest,{url:"https://example.test/action",origin:"https://example.test"},"COMMITTED",signer),store=new FileReceiptStore(legacy,signer);await store.save(receipt);await store.close();const db=new DatabaseSync(path.join(dir,"receipts.sqlite3")),row=db.prepare("SELECT receipt_json FROM receipts WHERE id=?").get(receipt.id) as {receipt_json:string},raw=JSON.parse(row.receipt_json);raw.manifest.summary="Tampered summary";db.prepare("UPDATE receipts SET receipt_json=? WHERE id=?").run(JSON.stringify(raw),receipt.id);db.close();const tampered=new FileReceiptStore(legacy,signer);try{await expect(tampered.list("device-a",10)).rejects.toThrow(/signature verification failed/i)}finally{await tampered.close()}});
 });

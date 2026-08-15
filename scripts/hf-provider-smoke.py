@@ -38,11 +38,11 @@ class FakeClient:
 
 
 def main() -> None:
-    cfg=HFConfig("hf_test_secret_never_log","ibm-granite/granite-4.1-3b","auto",None,5)
+    cfg=HFConfig("hf_test_secret_never_log","Qwen/Qwen3-32B","auto",None,5)
     provider=HuggingFaceSemanticProvider(cfg,client_factory=FakeClient)
     result=provider.probe()
     assert result["ok"] and result["probePassed"]
-    assert FakeClient.last_kwargs["model"] == "ibm-granite/granite-4.1-3b"
+    assert FakeClient.last_kwargs["model"] == "Qwen/Qwen3-32B"
     fmt=FakeClient.last_kwargs["response_format"]
     assert fmt["type"] == "json_schema" and fmt["json_schema"]["strict"] is True
     prompt=json.dumps(FakeClient.last_kwargs["messages"])
@@ -50,22 +50,38 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as td:
         root=Path.cwd().resolve(); state=Path(td)
-        s=Settings(root,state,8791,8790,8787,state/"gateway-token",state/"hf-token",state/"runtime.json",state/"gateway.log")
+        s=Settings(
+            root=root,
+            state_dir=state,
+            gateway_port=8791,
+            control_port=8790,
+            api_port=8787,
+            token_file=state/"gateway-token",
+            local_api_secret_file=state/"local-api-signing-secret",
+            receipt_signing_secret_file=state/"receipt-signing-secret",
+            hf_token_file=state/"hf-token",
+            runtime_file=state/"runtime.json",
+            log_file=state/"gateway.log",
+        )
         s.write_hf_token("hf_test_abcdefghijklmnopqrstuvwxyz")
         assert s.read_hf_token()=="hf_test_abcdefghijklmnopqrstuvwxyz"
         old=os.environ.get("HF_TOKEN")
         os.environ["HF_TOKEN"]="hf_test_secret_never_log"
         try:
             g=Gateway(s)
-            assert "HF_TOKEN" not in g._semantic_env()
-            assert "HF_TOKEN" not in g._surface_env()
-            assert "LATCH_GATEWAY_TOKEN" in g._semantic_env()
-            assert "LATCH_GATEWAY_TOKEN" not in g._surface_env()
+            semantic_env=g._semantic_env()
+            surface_env=g._surface_env()
+            assert "HF_TOKEN" not in semantic_env
+            assert "HF_TOKEN" not in surface_env
+            assert "CIEAV_GATEWAY_TOKEN" in semantic_env
+            assert "CIEAV_GATEWAY_TOKEN" not in surface_env
+            assert "LATCH_GATEWAY_TOKEN" not in semantic_env
+            assert "LATCH_GATEWAY_TOKEN" not in surface_env
         finally:
             if old is None: os.environ.pop("HF_TOKEN",None)
             else: os.environ["HF_TOKEN"]=old
 
-    print("LATCH Hugging Face provider smoke passed")
+    print("CIEAV Hugging Face provider smoke passed")
 
 if __name__ == "__main__":
     main()
