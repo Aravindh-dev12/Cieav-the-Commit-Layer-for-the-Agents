@@ -17,6 +17,7 @@ const sensitiveKeys=[
   "CIEAV_APPLE_NOTARY_KEY_B64","APPLE_NOTARY_KEY_B64"
 ];
 for(const key of sensitiveKeys)delete env[key];
+env.PYTHONPYCACHEPREFIX=path.join(ROOT,"release","reports","pycache");
 const run=(file,extra=[])=>{const r=spawnSync(process.execPath,[file,...extra],{cwd:ROOT,env,stdio:"inherit",shell:false});if(r.error)throw r.error;if(r.status!==0)process.exit(r.status??1)};
 run(path.join(ROOT,"scripts/platform-boundary-static.mjs"));
 run(path.join(ROOT,"scripts/package-namespace-smoke.mjs"));
