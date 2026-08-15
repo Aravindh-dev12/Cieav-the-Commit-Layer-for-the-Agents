@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build-runtime:
@@ -39,11 +40,20 @@ jobs:
     env:
       CIEAV_CLOUD_URL: ${{ inputs.cloud_url || vars.CIEAV_CLOUD_URL || vars.LATCH_CLOUD_URL }}
       CIEAV_DOWNLOAD_BASE_URL: ${{ inputs.download_base_url || vars.CIEAV_DOWNLOAD_BASE_URL || vars.LATCH_DOWNLOAD_BASE_URL }}
+      CIEAV_WINDOWS_SIGNING_PROVIDER: ${{ vars.CIEAV_WINDOWS_SIGNING_PROVIDER || 'pfx' }}
+      CIEAV_WINDOWS_CODE_SIGN_SUBJECT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_SUBJECT }}
       WINDOWS_PFX_B64: ${{ secrets.CIEAV_WINDOWS_CODE_SIGN_PFX_B64 }}
       WINDOWS_PFX_PASSWORD: ${{ secrets.CIEAV_WINDOWS_CODE_SIGN_PFX_PASSWORD }}
       WINDOWS_CERT_THUMBPRINT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT }}
       WINDOWS_TIMESTAMP_URL: ${{ vars.CIEAV_WINDOWS_TIMESTAMP_URL }}
       CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT }}
+      CIEAV_WINDOWS_TIMESTAMP_URL: ${{ vars.CIEAV_WINDOWS_TIMESTAMP_URL }}
+      ARTIFACT_SIGNING_ENDPOINT: ${{ vars.CIEAV_ARTIFACT_SIGNING_ENDPOINT }}
+      ARTIFACT_SIGNING_ACCOUNT: ${{ vars.CIEAV_ARTIFACT_SIGNING_ACCOUNT }}
+      ARTIFACT_SIGNING_PROFILE: ${{ vars.CIEAV_ARTIFACT_SIGNING_PROFILE }}
+      AZURE_CLIENT_ID: ${{ vars.CIEAV_ARTIFACT_SIGNING_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.CIEAV_ARTIFACT_SIGNING_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.CIEAV_ARTIFACT_SIGNING_SUBSCRIPTION_ID }}
       MACOS_CERT_P12_B64: ${{ secrets.CIEAV_MACOS_DEVELOPER_ID_P12_B64 }}
       MACOS_CERT_PASSWORD: ${{ secrets.CIEAV_MACOS_DEVELOPER_ID_P12_PASSWORD }}
       MACOS_SIGNING_IDENTITY: ${{ vars.CIEAV_MACOS_SIGNING_IDENTITY }}
@@ -95,30 +105,51 @@ jobs:
           $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $vs) { throw 'Visual C++ build tools not found' }
           $devcmd = Join-Path $vs 'Common7\Tools\VsDevCmd.bat'
-          $command = '"' + $devcmd + '" -arch=x64 -host_arch=x64 && cl /nologo /std:c++17 /O2 /EHsc /DUNICODE /D_UNICODE native\windows\cdp-win-bridge.cpp /Fe:dist\cdp-win-bridge.exe /link /DYNAMICBASE /NXCOMPAT'
+          $command = '"' + $devcmd + '" -arch=x64 -host_arch=x64 && cl /nologo /std:c++17 /O2 /EHsc /DUNICODE /D_UNICODE /Fo:dist\cdp-win-bridge.obj native\windows\cdp-win-bridge.cpp /Fe:dist\cdp-win-bridge.exe /link /DYNAMICBASE /NXCOMPAT'
           cmd.exe /d /s /c $command
           if ($LASTEXITCODE -ne 0 -or -not (Test-Path dist/cdp-win-bridge.exe)) { throw 'Windows CDP bridge build failed' }
-      - name: Authenticode sign and pin Windows executables
-        if: runner.os == 'Windows'
+      - name: Azure login for Artifact Signing
+        if: runner.os == 'Windows' && env.CIEAV_WINDOWS_SIGNING_PROVIDER == 'artifact-signing'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign Windows executables with Artifact Signing
+        if: runner.os == 'Windows' && env.CIEAV_WINDOWS_SIGNING_PROVIDER == 'artifact-signing'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ env.ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ env.ARTIFACT_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ env.ARTIFACT_SIGNING_PROFILE }}
+          files: |
+            ${{ github.workspace }}\dist\cieav.exe
+            ${{ github.workspace }}\dist\cdp-win-bridge.exe
+          file-digest: SHA256
+          timestamp-rfc3161: ${{ env.CIEAV_WINDOWS_TIMESTAMP_URL || 'http://timestamp.acs.microsoft.com' }}
+          timestamp-digest: SHA256
+      - name: Sign Windows executables with PFX
+        if: runner.os == 'Windows' && env.CIEAV_WINDOWS_SIGNING_PROVIDER == 'pfx'
         shell: pwsh
         run: |
-          if (-not $env:WINDOWS_PFX_B64 -or -not $env:WINDOWS_PFX_PASSWORD -or -not $env:WINDOWS_CERT_THUMBPRINT -or -not $env:WINDOWS_TIMESTAMP_URL) { throw 'Windows production signing configuration is incomplete' }
+          if (-not $env:WINDOWS_PFX_B64 -or -not $env:WINDOWS_PFX_PASSWORD -or -not $env:WINDOWS_CERT_THUMBPRINT -or -not $env:WINDOWS_TIMESTAMP_URL) { throw 'Windows PFX signing configuration is incomplete' }
           $pfx = Join-Path $env:RUNNER_TEMP 'cieav-code-sign.pfx'
           try {
             [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_PFX_B64))
-            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } | Sort-Object FullName -Descending | Select-Object -First 1
-            if (-not $signtool) { throw 'signtool.exe not found' }
-            $expected = ($env:WINDOWS_CERT_THUMBPRINT -replace '\s','').ToUpperInvariant()
-            foreach ($exe in @('dist/cieav.exe','dist/cdp-win-bridge.exe')) {
-              & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_PFX_PASSWORD /tr $env:WINDOWS_TIMESTAMP_URL /td SHA256 $exe
-              if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed for $exe" }
-              & $signtool.FullName verify /pa /all /v $exe
-              if ($LASTEXITCODE -ne 0) { throw "Authenticode verification failed for $exe" }
-              $sig = Get-AuthenticodeSignature $exe
-              if ($sig.Status -ne 'Valid' -or -not $sig.SignerCertificate) { throw "Invalid Authenticode status for $exe" }
-              if (($sig.SignerCertificate.Thumbprint -replace '\s','').ToUpperInvariant() -ne $expected) { throw "Windows signer certificate thumbprint mismatch for $exe" }
-            }
+            & ./scripts/sign-windows-release.ps1 -Provider pfx -PfxPath $pfx -PfxPassword $env:WINDOWS_PFX_PASSWORD -TimestampUrl $env:WINDOWS_TIMESTAMP_URL -ExpectedThumbprint $env:WINDOWS_CERT_THUMBPRINT
           } finally { Remove-Item -Force -ErrorAction SilentlyContinue $pfx }
+      - name: Sign Windows executables with certificate store or HSM
+        if: runner.os == 'Windows' && env.CIEAV_WINDOWS_SIGNING_PROVIDER == 'store'
+        shell: pwsh
+        run: ./scripts/sign-windows-release.ps1 -Provider store -TimestampUrl $env:WINDOWS_TIMESTAMP_URL -ExpectedThumbprint $env:WINDOWS_CERT_THUMBPRINT
+      - name: Verify managed Windows signatures and bind release thumbprint
+        if: runner.os == 'Windows' && env.CIEAV_WINDOWS_SIGNING_PROVIDER == 'artifact-signing'
+        shell: pwsh
+        run: ./scripts/sign-windows-release.ps1 -Provider artifact-signing -ExpectedSubject $env:CIEAV_WINDOWS_CODE_SIGN_SUBJECT
+      - name: Reject unsupported Windows signing provider
+        if: runner.os == 'Windows' && env.CIEAV_WINDOWS_SIGNING_PROVIDER != 'pfx' && env.CIEAV_WINDOWS_SIGNING_PROVIDER != 'store' && env.CIEAV_WINDOWS_SIGNING_PROVIDER != 'artifact-signing'
+        shell: pwsh
+        run: throw "Unsupported CIEAV_WINDOWS_SIGNING_PROVIDER=$env:CIEAV_WINDOWS_SIGNING_PROVIDER"
       - name: Developer ID sign and pin macOS executable
         if: runner.os == 'macOS'
         shell: bash
@@ -175,7 +206,9 @@ jobs:
     needs: build-runtime
     runs-on: ubuntu-latest
     env:
+      CIEAV_WINDOWS_SIGNING_PROVIDER: ${{ vars.CIEAV_WINDOWS_SIGNING_PROVIDER || 'pfx' }}
       CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT }}
+      CIEAV_WINDOWS_CODE_SIGN_SUBJECT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_SUBJECT }}
       CIEAV_MACOS_SIGNING_IDENTITY: ${{ vars.CIEAV_MACOS_SIGNING_IDENTITY }}
     steps:
       - uses: actions/checkout@v4
