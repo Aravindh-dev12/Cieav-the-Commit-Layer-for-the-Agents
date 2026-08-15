@@ -49,16 +49,15 @@ const control=async(pathname,options={})=>{const r=await fetch(`http://127.0.0.1
 const evalJs=async expression=>(await control("/api/test/eval",{method:"POST",body:JSON.stringify({expression})})).value;
 const click=selector=>control("/api/test/click",{method:"POST",body:JSON.stringify({selector})});
 try{
-  const status=await waitFor(async()=>{try{const s=await control("/api/status");return s.ok&&s.browserConnected?s:null}catch{return null}},"authenticated Windows private-pipe control server");
+  const status=await waitFor(async()=>{try{const s=await control("/api/status");return s.ok&&s.browserConnected&&s.protectedPages>0?s:null}catch{return null}},"authenticated protected Windows private-pipe control server");
   if(status.browserControlTransport!=="private-windows-handle-pipe")throw new Error(`unexpected browser transport ${status.browserControlTransport}`);
-  await waitFor(async()=>{try{return await evalJs("document.readyState==='complete'")}catch{return false}},"test page");
-  await sleep(500);
+  await waitFor(async()=>{try{return await evalJs("document.readyState==='complete'")}catch{return false}},"protected test page");
   await evalJs("document.body.innerHTML='<button id=pay>Pay 500</button><span id=paid></span>';window.payCount=0;document.querySelector('#pay').addEventListener('click',function(){window.payCount++;document.querySelector('#paid').textContent='paid'});true");
   await click("#pay");
   await waitFor(()=>evalJs("window.payCount===1"),"trusted replay payment");
   const receipt=await waitFor(async()=>{const r=await control("/api/receipts");return r.receipts.find(x=>x.manifest.actionType==="financial.commit")},"financial receipt");
   if(receipt.status!=="COMMITTED"||receipt.manifest.risk!=="CRITICAL"||receipt.manifest.reversibility!=="IRREVERSIBLE")throw new Error("payment receipt contract failed");
-  console.log("CIEAV Windows Browser E2E passed: normal-shell bridge build + private CDP + trusted replay + default receipt persistence");
+  console.log("CIEAV Windows Browser E2E passed: normal-shell bridge build + protection readiness + private CDP + trusted replay + default receipt persistence");
 }finally{
   child.kill("SIGTERM");await sleep(500);await rm(state,{recursive:true,force:true});
 }
