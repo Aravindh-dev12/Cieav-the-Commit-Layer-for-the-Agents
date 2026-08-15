@@ -17,6 +17,7 @@ LAUNCHD_LABEL = "ai.cieav.gateway"
 LEGACY_LAUNCHD_LABEL = "ai.latch.gateway"
 WINDOWS_TASK = "CIEAV Gateway"
 LEGACY_WINDOWS_TASK = "LATCH Gateway"
+WINDOWS_LAUNCHER = "gateway-service.ps1"
 
 
 def _python() -> str:
@@ -86,7 +87,7 @@ def uninstall(settings: Settings) -> str:
     system = _system()
     if system == "linux": return _uninstall_systemd()
     if system == "darwin": return _uninstall_launchd()
-    if system == "windows": return _uninstall_windows()
+    if system == "windows": return _uninstall_windows(settings)
     raise RuntimeError(f"Unsupported platform: {platform.system()}")
 
 
@@ -147,6 +148,7 @@ def _systemd_unit() -> Path: return Path.home()/".config"/"systemd"/"user"/f"{SE
 def _legacy_systemd_unit() -> Path: return Path.home()/".config"/"systemd"/"user"/f"{LEGACY_SERVICE_NAME}.service"
 def _launchd_plist() -> Path: return Path.home()/"Library"/"LaunchAgents"/f"{LAUNCHD_LABEL}.plist"
 def _legacy_launchd_plist() -> Path: return Path.home()/"Library"/"LaunchAgents"/f"{LEGACY_LAUNCHD_LABEL}.plist"
+def _windows_launcher(settings: Settings) -> Path: return settings.state_dir/WINDOWS_LAUNCHER
 
 def _require_systemd_unit() -> None:
     if not _systemd_unit().exists(): raise RuntimeError("CIEAV Gateway is not installed. Run: cieav gateway install")
@@ -157,6 +159,7 @@ def _require_windows_task() -> None:
 
 def _escape_systemd(value:str)->str: return value.replace("\\","\\\\").replace('"','\\"')
 def _quote_systemd(value:str)->str: return '"'+_escape_systemd(value)+'"'
+def _quote_powershell(value: str) -> str: return "'" + value.replace("'", "''") + "'"
 
 def _remove_legacy_linux() -> None:
     subprocess.run(["systemctl","--user","disable","--now",LEGACY_SERVICE_NAME],check=False,capture_output=True)
@@ -196,11 +199,33 @@ def _uninstall_launchd()->str:
 
 def _install_windows(settings:Settings)->str:
     subprocess.run(["schtasks","/End","/TN",LEGACY_WINDOWS_TASK],check=False,capture_output=True); subprocess.run(["schtasks","/Delete","/F","/TN",LEGACY_WINDOWS_TASK],check=False,capture_output=True)
-    command=subprocess.list2cmdline(_module_command(settings)); env_prefix=" && ".join(f'set "{k}={v}"' for k,v in _env(settings).items()); wrapped=f'cmd /d /c "cd /d {subprocess.list2cmdline([str(settings.root)])} && {env_prefix} && {command}"'
-    subprocess.run(["schtasks","/Create","/F","/SC","ONLOGON","/TN",WINDOWS_TASK,"/TR",wrapped],check=True); subprocess.run(["schtasks","/Run","/TN",WINDOWS_TASK],check=False)
-    return "Installed CIEAV Gateway as a per-user logon task"
+    launcher=_windows_launcher(settings); launcher.parent.mkdir(parents=True,exist_ok=True)
+    env_lines=[f"$env:{key}={_quote_powershell(value)}" for key,value in _env(settings).items()]
+    command=_module_command(settings)
+    invoke="& "+" ".join(_quote_powershell(part) for part in command)
+    script="\r\n".join([
+        "$ErrorActionPreference='Stop'",
+        *env_lines,
+        f"Set-Location -LiteralPath {_quote_powershell(str(settings.root))}",
+        invoke,
+        "exit $LASTEXITCODE",
+        "",
+    ])
+    launcher.write_text(script,"utf-8-sig")
+    task_action=subprocess.list2cmdline(["powershell.exe","-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",str(launcher)])
+    if len(task_action)>261:
+        launcher.unlink(missing_ok=True)
+        raise RuntimeError(f"Windows scheduled-task launcher path is too long ({len(task_action)} characters); move CIEAV state to a shorter path")
+    try:
+        subprocess.run(["schtasks","/Create","/F","/SC","ONLOGON","/TN",WINDOWS_TASK,"/TR",task_action],check=True)
+    except Exception:
+        launcher.unlink(missing_ok=True)
+        raise
+    subprocess.run(["schtasks","/Run","/TN",WINDOWS_TASK],check=False)
+    return f"Installed CIEAV Gateway as a per-user logon task using {launcher}"
 
-def _uninstall_windows()->str:
+def _uninstall_windows(settings:Settings)->str:
     for task in (WINDOWS_TASK,LEGACY_WINDOWS_TASK):
         subprocess.run(["schtasks","/End","/TN",task],check=False); subprocess.run(["schtasks","/Delete","/F","/TN",task],check=False)
+    _windows_launcher(settings).unlink(missing_ok=True)
     return "Removed CIEAV Gateway scheduled task"
