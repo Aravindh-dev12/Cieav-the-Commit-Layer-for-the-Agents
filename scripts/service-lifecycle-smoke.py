@@ -16,6 +16,8 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 REPORTS=ROOT/"release"/"reports"
 MAX_CAPTURE=48_000
+WINDOWS_RUN_KEY=r"Software\Microsoft\Windows\CurrentVersion\Run"
+WINDOWS_RUN_VALUE="CIEAV Gateway"
 
 
 def canonical(value):
@@ -48,7 +50,14 @@ def service_present()->bool:
     system=platform.system()
     if system=="Linux":return (Path.home()/".config/systemd/user/cieav-gateway.service").exists()
     if system=="Darwin":return (Path.home()/"Library/LaunchAgents/ai.cieav.gateway.plist").exists()
-    if system=="Windows":return subprocess.run(["schtasks","/Query","/TN","CIEAV Gateway"],capture_output=True).returncode==0
+    if system=="Windows":
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,WINDOWS_RUN_KEY,0,winreg.KEY_READ) as key:
+                value,_=winreg.QueryValueEx(key,WINDOWS_RUN_VALUE)
+                return bool(str(value).strip())
+        except FileNotFoundError:
+            return False
     raise RuntimeError(f"Unsupported platform: {system}")
 
 
