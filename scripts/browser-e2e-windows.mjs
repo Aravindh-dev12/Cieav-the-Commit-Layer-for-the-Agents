@@ -12,10 +12,10 @@ const API_PORT=18887,PROBE_PORT=18886,CONTROL_PORT=18890,CONTROL_TOKEN="browser-
 const source=path.join(ROOT,"native","windows","cdp-win-bridge.cpp");
 const standalone=path.join(ROOT,"apps","api","standalone.mjs");
 const buildDir=path.join(ROOT,".cieav","windows-e2e");
-const bridge=path.join(buildDir,"cdp-win-bridge.exe");
+const bridge=path.join(buildDir,"cdp-win-bridge.exe"),object=path.join(buildDir,"cdp-win-bridge.obj");
 await mkdir(buildDir,{recursive:true});
 const exists=async file=>{try{await access(file);return true}catch{return false}};
-const compileArgs=["/nologo","/std:c++17","/O2","/EHsc","/DUNICODE","/D_UNICODE",source,`/Fe:${bridge}`,"/link","/DYNAMICBASE","/NXCOMPAT"];
+const compileArgs=["/nologo","/std:c++17","/O2","/EHsc","/DUNICODE","/D_UNICODE",`/Fo:${object}`,source,`/Fe:${bridge}`,"/link","/DYNAMICBASE","/NXCOMPAT"];
 const run=(command,args,options={})=>spawnSync(command,args,{cwd:ROOT,encoding:"utf8",windowsHide:true,maxBuffer:8*1024*1024,...options});
 const waitJson=async(url,label,tries=120)=>{let last;for(let i=0;i<tries;i++){try{const r=await fetch(url,{redirect:"error"});if(r.ok)return await r.json();last=new Error(`${r.status} ${await r.text()}`)}catch(e){last=e}await sleep(100)}throw new Error(`Timed out waiting for ${label}: ${last?.message??"no response"}`)};
 
@@ -35,7 +35,7 @@ if(!built){
   const devcmd=path.join(install,"Common7","Tools","VsDevCmd.bat");
   if(!await exists(devcmd))throw new Error(`VsDevCmd.bat not found: ${devcmd}`);
   const q=s=>`"${String(s).replace(/"/g,'""')}"`;
-  const command=`call ${q(devcmd)} -arch=x64 -host_arch=x64 >nul && cl /nologo /std:c++17 /O2 /EHsc /DUNICODE /D_UNICODE ${q(source)} /Fe:${q(bridge)} /link /DYNAMICBASE /NXCOMPAT`;
+  const command=`call ${q(devcmd)} -arch=x64 -host_arch=x64 >nul && cl /nologo /std:c++17 /O2 /EHsc /DUNICODE /D_UNICODE /Fo:${q(object)} ${q(source)} /Fe:${q(bridge)} /link /DYNAMICBASE /NXCOMPAT`;
   const fallback=run(process.env.ComSpec??"cmd.exe",["/d","/s","/c",command],{windowsVerbatimArguments:true});
   if(fallback.status!==0||!await exists(bridge))throw new Error(`Windows private CDP bridge build failed (${fallback.status}): ${fallback.stderr||fallback.stdout||"unknown compiler failure"}`);
 }
