@@ -61,10 +61,32 @@ def service_present()->bool:
     raise RuntimeError(f"Unsupported platform: {system}")
 
 
-def find_archive(release_dir:Path,target:str)->Path:
-    matches=sorted(release_dir.glob(f"cieav-runtime-*-{target}.zip"),key=lambda p:p.stat().st_mtime,reverse=True)
-    if not matches:raise RuntimeError(f"No runtime archive for {target} in {release_dir}")
+def archive_runtime_metadata(archive:Path)->dict:
+    with zipfile.ZipFile(archive) as zf:
+        try: raw=zf.read("cieav-runtime/runtime.json")
+        except KeyError as exc: raise RuntimeError("runtime archive is missing cieav-runtime/runtime.json") from exc
+    try: value=json.loads(raw.decode("utf-8"))
+    except Exception as exc: raise RuntimeError("runtime archive metadata is unreadable") from exc
+    if not isinstance(value,dict):raise RuntimeError("runtime archive metadata is not an object")
+    return value
+
+
+def find_archive(release_dir:Path,target:str,version:str)->Path:
+    matches=sorted(release_dir.glob(f"cieav-runtime-{version}-{target}.zip"),key=lambda p:p.stat().st_mtime,reverse=True)
+    if not matches:raise RuntimeError(f"No runtime archive for CIEAV {version} {target} in {release_dir}")
     return matches[0]
+
+
+def validate_archive(archive:Path,*,version:str,target:str)->dict:
+    meta=archive_runtime_metadata(archive)
+    if meta.get("brand")!="CIEAV":raise RuntimeError("runtime archive brand mismatch")
+    if meta.get("version")!=version:raise RuntimeError(f"runtime archive version {meta.get('version')} != source version {version}")
+    if meta.get("platform")!=target:raise RuntimeError(f"runtime archive target {meta.get('platform')} != host {target}")
+    if int(meta.get("bundleFormat",0))<8:raise RuntimeError("runtime archive is stale: bundleFormat < 8; rebuild the current managed Agent/Commitment runtime before service qualification")
+    agent_runtime=meta.get("agentRuntime") or {}
+    if not all(agent_runtime.get(key) is True for key in ("managed","commitmentRuntime","toolBroker","proactiveScheduler","apiBundled")):
+        raise RuntimeError("runtime archive does not contain the managed Agent/Commitment runtime")
+    return meta
 
 
 def exe_name()->str:return "cieav.exe" if os.name=="nt" else "cieav"
@@ -103,9 +125,10 @@ def main()->None:
     dirty=subprocess.run(["git","status","--porcelain"],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
     if dirty:raise SystemExit("Service lifecycle qualification requires a clean git worktree")
     commit=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
-    package=json.loads((ROOT/"package.json").read_text("utf-8"));target=host_target();archive=(args.archive or find_archive(args.release_dir.resolve(),target)).resolve()
+    package=json.loads((ROOT/"package.json").read_text("utf-8"));target=host_target();archive=(args.archive or find_archive(args.release_dir.resolve(),target,package["version"])).resolve()
     if not archive.exists():raise SystemExit(f"Archive not found: {archive}")
-    archive_identity={"filename":archive.name,"sha256":sha256_file(archive),"size":archive.stat().st_size}
+    runtime_meta=validate_archive(archive,version=package["version"],target=target)
+    archive_identity={"filename":archive.name,"sha256":sha256_file(archive),"size":archive.stat().st_size,"bundleFormat":runtime_meta["bundleFormat"]}
     checks={};installed=False
     with tempfile.TemporaryDirectory(prefix="cieav-service-lifecycle-") as td:
         root=Path(td)/"runtime";state=Path(td)/"state"
@@ -121,14 +144,20 @@ def main()->None:
             if not service_present():raise RuntimeError("Gateway service was not installed")
             live=wait_active(exe,runtime,env,True);checks["install"]=True;checks["status"]=bool(live.get("service",{}).get("installed")) and bool(live.get("service",{}).get("active")) and live.get("gateway")!="offline"
             if not checks["status"]:raise RuntimeError("installed service did not expose a live Gateway")
-            run([str(exe),"gateway","stop"],cwd=runtime,env=env);wait_active(exe,runtime,env,False);checks["stop"]=True
-            run([str(exe),"gateway","start"],cwd=runtime,env=env);wait_active(exe,runtime,env,True);checks["start"]=True
-            run([str(exe),"gateway","restart"],cwd=runtime,env=env);wait_active(exe,runtime,env,True);checks["restart"]=True
-            run([str(exe),"gateway","uninstall"],cwd=runtime,env=env);installed=False;time.sleep(.3)
+            if bool(live.get("surfaceRunning")):raise RuntimeError("headless Gateway service unexpectedly auto-started a browser surface")
+            checks["headlessByDefault"]=True
+            run([str(exe),"gateway","stop"],cwd=runtime,env=env,timeout=20);wait_active(exe,runtime,env,False);checks["stop"]=True
+            run([str(exe),"gateway","start"],cwd=runtime,env=env,timeout=20);live=wait_active(exe,runtime,env,True);checks["start"]=True
+            if bool(live.get("surfaceRunning")):raise RuntimeError("headless Gateway restart unexpectedly auto-started a browser surface")
+            run([str(exe),"gateway","restart"],cwd=runtime,env=env,timeout=25);live=wait_active(exe,runtime,env,True);checks["restart"]=True
+            if bool(live.get("surfaceRunning")):raise RuntimeError("headless Gateway restart unexpectedly auto-started a browser surface")
+            run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,timeout=20);installed=False;time.sleep(.3)
             if service_present():raise RuntimeError("Gateway service still exists after uninstall")
             post=status_payload(exe,runtime,env);checks["uninstall"]=not bool(post.get("service",{}).get("installed"))
         finally:
-            if installed or service_present():subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=30)
+            if installed or service_present():
+                try:subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=20)
+                except subprocess.TimeoutExpired:pass
         if service_present():raise RuntimeError("cleanup failed: CIEAV service still present")
         checks["cleanup"]=True
     evidence={"schemaVersion":1,"product":"CIEAV","version":package["version"],"mode":args.mode,"target":target,"commit":commit,"archive":archive_identity,"verifiedAt":__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),"checks":checks}
