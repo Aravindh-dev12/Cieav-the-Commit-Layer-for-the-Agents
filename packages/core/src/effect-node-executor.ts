@@ -24,5 +24,10 @@ async function filesystemWrite(input:unknown,tool:ToolDescriptor):Promise<Effect
 export async function executeEffectNodeTool(proposal:EffectProposal,tool:ToolDescriptor):Promise<EffectNodeExecutionResult>{
   if(tool.provider!=="EFFECT_NODE")return{ok:false,definitiveFailure:true,errorClass:"wrong_provider",error:"Effect Node executor only accepts EFFECT_NODE descriptors."};
   const kind=String(tool.metadata.capabilityKind??"");
-  try{if(kind==="PROCESS"&&tool.sourceOperation==="run")return runProcess(proposal.input,tool);if(kind==="FILESYSTEM"&&tool.sourceOperation==="read")return filesystemRead(proposal.input,tool);if(kind==="FILESYSTEM"&&tool.sourceOperation==="write")return filesystemWrite(proposal.input,tool);return{ok:false,definitiveFailure:true,errorClass:"operation_not_supported",error:`Unsupported Effect Node operation ${kind}.${tool.sourceOperation}.`}}catch(error){return{ok:false,definitiveFailure:true,errorClass:"input_or_execution_error",error:error instanceof Error?error.message:String(error)}}
+  try{
+    if(kind==="PROCESS"&&tool.sourceOperation==="run")return await runProcess(proposal.input,tool);
+    if(kind==="FILESYSTEM"&&tool.sourceOperation==="read")return await filesystemRead(proposal.input,tool);
+    if(kind==="FILESYSTEM"&&tool.sourceOperation==="write")return await filesystemWrite(proposal.input,tool);
+    return{ok:false,definitiveFailure:true,errorClass:"operation_not_supported",error:`Unsupported Effect Node operation ${kind}.${tool.sourceOperation}.`};
+  }catch(error){return{ok:false,definitiveFailure:true,errorClass:"input_or_execution_error",error:error instanceof Error?error.message:String(error)}}
 }
