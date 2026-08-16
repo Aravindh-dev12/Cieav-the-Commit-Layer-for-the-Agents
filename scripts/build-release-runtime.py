@@ -19,7 +19,7 @@ def verify_release_boundaries(root:Path)->None:
     node=shutil.which("node.exe" if platform.system()=="Windows" else "node") or shutil.which("node")
     if not node:raise SystemExit("Node is required to verify CIEAV release boundaries")
     env=dict(os.environ)
-    for key in ("CIEAV_AGENT_TOKEN","LATCH_AGENT_TOKEN","CIEAV_A2A_CLIENT_TOKEN","LATCH_A2A_CLIENT_TOKEN","CIEAV_MCP_CLIENT_TOKEN","LATCH_MCP_CLIENT_TOKEN","CIEAV_AGENT_SESSION_TOKEN","LATCH_AGENT_SESSION_TOKEN","CIEAV_NODE_TOKEN","CIEAV_GATEWAY_AUTHORITY_PUBLIC_KEY_FILE"):env.pop(key,None)
+    for key in ("CIEAV_AGENT_TOKEN","LATCH_AGENT_TOKEN","CIEAV_A2A_CLIENT_TOKEN","LATCH_A2A_CLIENT_TOKEN","CIEAV_MCP_CLIENT_TOKEN","LATCH_MCP_CLIENT_TOKEN","CIEAV_AGENT_SESSION_TOKEN","LATCH_AGENT_SESSION_TOKEN","CIEAV_NODE_TOKEN","CIEAV_GATEWAY_AUTHORITY_PUBLIC_KEY_FILE","CIEAV_CLOUD_MODEL_API_KEY"):env.pop(key,None)
     for relative in ("scripts/platform-boundary-static.mjs","scripts/package-namespace-smoke.mjs"):
         script=root/relative
         if not script.exists():raise SystemExit(f"Missing CIEAV release-boundary verifier: {relative}")
@@ -35,6 +35,7 @@ def _esbuild(root:Path,source:Path,output:Path,label:str)->Path:
     output.parent.mkdir(parents=True,exist_ok=True);subprocess.run([npx,"esbuild",str(source),"--bundle","--platform=node","--format=esm","--target=node22",f"--outfile={output}"],cwd=root,check=True)
     if not output.exists():raise SystemExit(f"CIEAV {label} bundle was not produced")
     return output
+def bundle_api(root:Path)->Path:return _esbuild(root,root/"apps/api/src/server.ts",root/"apps/api/dist/server.release.js","production API")
 def bundle_mcp(root:Path)->Path:return _esbuild(root,root/"apps/mcp/src/index.ts",root/"apps/mcp/dist/index.js","MCP bridge")
 def bundle_node(root:Path)->Path:return _esbuild(root,root/"apps/node/src/index.ts",root/"apps/node/dist/index.js","Effect Node")
 def a2a_source(root:Path)->Path:
@@ -48,8 +49,7 @@ def main()->None:
     if not cieav_exe.exists():raise SystemExit(f"Missing CIEAV executable: {cieav_exe}")
     if not node_exe.exists():raise SystemExit(f"Missing Node executable: {node_exe}")
     if key.startswith("windows-") and (cdp_win_bridge is None or not cdp_win_bridge.exists()):raise SystemExit("Windows release requires --cdp-win-bridge with the signed native CDP bridge")
-    if not (root/"apps/api/dist/server.js").exists():raise SystemExit("Missing bundled apps/api/dist/server.js")
-    mcp_bundle=bundle_mcp(root);node_bundle=bundle_node(root);a2a=a2a_source(root)
+    api_bundle=bundle_api(root);mcp_bundle=bundle_mcp(root);node_bundle=bundle_node(root);a2a=a2a_source(root)
     with tempfile.TemporaryDirectory() as td:
         stage=Path(td)/"cieav-runtime";(stage/"bin").mkdir(parents=True);(stage/"runtime").mkdir(parents=True);(stage/"apps/api/dist").mkdir(parents=True);(stage/"apps/mcp/dist").mkdir(parents=True);(stage/"apps/a2a/dist").mkdir(parents=True);(stage/"apps/node/dist").mkdir(parents=True)
         exe_name="cieav.exe" if key.startswith("windows-") else "cieav";node_name="node.exe" if key.startswith("windows-") else "node";shutil.copy2(cieav_exe,stage/"bin"/exe_name);shutil.copy2(node_exe,stage/"runtime"/node_name)
@@ -57,16 +57,16 @@ def main()->None:
             for p in (stage/"bin"/exe_name,stage/"runtime"/node_name):p.chmod(p.stat().st_mode|stat.S_IXUSR|stat.S_IXGRP|stat.S_IXOTH)
         copy_tree(root/"apps/browser",stage/"apps/browser")
         if cdp_win_bridge is not None:shutil.copy2(cdp_win_bridge,stage/"apps/browser/cdp-win-bridge.exe")
-        shutil.copy2(root/"apps/api/dist/server.js",stage/"apps/api/dist/server.js");shutil.copy2(mcp_bundle,stage/"apps/mcp/dist/index.js");shutil.copy2(a2a,stage/"apps/a2a/dist/index.mjs");shutil.copy2(node_bundle,stage/"apps/node/dist/index.js")
+        shutil.copy2(api_bundle,stage/"apps/api/dist/server.js");shutil.copy2(mcp_bundle,stage/"apps/mcp/dist/index.js");shutil.copy2(a2a,stage/"apps/a2a/dist/index.mjs");shutil.copy2(node_bundle,stage/"apps/node/dist/index.js")
         for name in ("package.json","PRIVACY.md","SECURITY.md","README.md","EFFECT-NODE.md","TOOL-BROKER.md","PRODUCTION-TOOL-RUNTIME.md"):
             src=root/name
             if src.exists():shutil.copy2(src,stage/name)
-        runtime_meta={"brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":7,"legacyBrand":"LATCH","privateCdpTransport":"windows-handle-pipe" if key.startswith("windows-") else "posix-fd-pipe","agentProtocols":{"mcp":"2026-07-28","a2a":"1.0","effectNode":"1"},"effectNode":{"entry":"apps/node/dist/index.js","signedAuthority":True,"replayProtected":True,"remoteTlsRequired":True},"a2aExposure":"loopback-authenticated","platformBoundaryVerified":True,"releaseBoundaryVerified":True,"canonicalNamespaceVerified":True,"controlCenterRealityBoundaryVerified":True}
+        runtime_meta={"brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":8,"legacyBrand":"LATCH","privateCdpTransport":"windows-handle-pipe" if key.startswith("windows-") else "posix-fd-pipe","agentProtocols":{"mcp":"2026-07-28","a2a":"1.0","effectNode":"1"},"agentRuntime":{"managed":True,"commitmentRuntime":True,"toolBroker":True,"proactiveScheduler":True,"apiBundled":True},"effectNode":{"entry":"apps/node/dist/index.js","signedAuthority":True,"replayProtected":True,"remoteTlsRequired":True},"a2aExposure":"loopback-authenticated","platformBoundaryVerified":True,"releaseBoundaryVerified":True,"canonicalNamespaceVerified":True,"controlCenterRealityBoundaryVerified":True}
         (stage/"runtime.json").write_text(json.dumps(runtime_meta,indent=2)+"\n","utf-8");archive=out/f"cieav-runtime-{args.version}-{key}.zip"
         with zipfile.ZipFile(archive,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=9) as zf:
             for file in sorted(stage.rglob("*")):
                 if file.is_dir():continue
                 arc=Path("cieav-runtime")/file.relative_to(stage);info=zipfile.ZipInfo.from_file(file,arc.as_posix());info.date_time=(2026,1,1,0,0,0)
                 with file.open("rb") as f:zf.writestr(info,f.read(),compress_type=zipfile.ZIP_DEFLATED,compresslevel=9)
-    metadata={"brand":"CIEAV","platform":key,"filename":archive.name,"sha256":sha256(archive),"size":archive.stat().st_size,"version":args.version,"platformBoundaryVerified":True,"releaseBoundaryVerified":True,"bundleFormat":7};(out/f"metadata-{key}.json").write_text(json.dumps(metadata,indent=2)+"\n","utf-8");print(json.dumps(metadata))
+    metadata={"brand":"CIEAV","platform":key,"filename":archive.name,"sha256":sha256(archive),"size":archive.stat().st_size,"version":args.version,"platformBoundaryVerified":True,"releaseBoundaryVerified":True,"bundleFormat":8};(out/f"metadata-{key}.json").write_text(json.dumps(metadata,indent=2)+"\n","utf-8");print(json.dumps(metadata))
 if __name__=="__main__":main()
