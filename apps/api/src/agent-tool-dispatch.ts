@@ -1,12 +1,12 @@
 import crypto from "node:crypto";
-import type {AgentDispatchReceipt,AgentPlanStep,AgentTask,Commitment,ToolCatalog} from "@cieav/contracts";
+import type {AgentDispatchReceipt,AgentPlanStep,AgentTask,Commitment,EffectSettlement,ToolCatalog} from "@cieav/contracts";
 import {buildEffectProposal,consequenceGraphDigest,proofObligationDigest} from "@cieav/core";
 import type {AgentStepDispatcher} from "./agent-runtime.js";
-import {CieavCommitmentStore} from "./commitment-store.js";
 import {CieavEffectAuthority} from "./effect-authority.js";
 import {CieavEffectDispatcher} from "./effect-dispatch.js";
 
-export interface GovernedToolDispatchOptions {catalog:()=>Promise<ToolCatalog>;commitment:(id:string)=>Promise<Commitment|null>;commitments:CieavCommitmentStore;authority:CieavEffectAuthority;effects:CieavEffectDispatcher}
+export interface CommitmentLifecycleStore {transition(id:string,to:Commitment["state"]):Promise<Commitment>;finalizeEffect(id:string,effect:EffectSettlement):Promise<unknown>}
+export interface GovernedToolDispatchOptions {catalog:()=>Promise<ToolCatalog>;commitment:(id:string)=>Promise<Commitment|null>;commitments:CommitmentLifecycleStore;authority:CieavEffectAuthority;effects:CieavEffectDispatcher}
 const transport=(provider:string):AgentDispatchReceipt["transport"]=>provider==="EFFECT_NODE"?"NODE":provider==="BROWSER"?"BROWSER":provider==="MCP"?"MCP":provider==="A2A"?"A2A":"LOCAL";
 
 export function createGovernedToolStepDispatcher(options:GovernedToolDispatchOptions):AgentStepDispatcher{
