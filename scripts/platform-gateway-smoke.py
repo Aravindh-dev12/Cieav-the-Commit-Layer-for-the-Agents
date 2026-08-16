@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 import tempfile
+import threading
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -97,6 +99,17 @@ def main() -> int:
         assert health["platform"] in {"CIEAV Gateway", "LATCH Gateway"}
         assert health["paused"] is False
         assert health["surfaceRunning"] is False
+        assert health["surfaceRequested"] is False
+
+        # The always-on Gateway is headless. Starting/supervising it must never
+        # attach Chromium unless an explicit local surface request occurs.
+        headless = Gateway(a)
+        with patch.object(headless,"start_semantic") as start_semantic, patch.object(headless,"start_surface") as start_surface:
+            t=threading.Thread(target=headless.supervise,daemon=True);t.start();time.sleep(.08);headless.stop_event.set();t.join(timeout=2)
+            assert not t.is_alive()
+            start_semantic.assert_called_once()
+            start_surface.assert_not_called()
+            assert headless.surface_requested is False
 
         with patch.dict(os.environ,{"CIEAV_TEST_AUTO_APPROVE":"1","LATCH_TEST_AUTO_APPROVE":"1","CIEAV_BROWSER_CONTROL_TOKEN":"polluted","LATCH_BROWSER_CONTROL_TOKEN":"polluted-legacy"},clear=False):
             base_env=g._base_env()
@@ -131,6 +144,7 @@ def main() -> int:
                 raise AssertionError("paused Gateway must not open protected URLs")
 
     print("CIEAV Python Gateway smoke test passed")
+    print("CIEAV headless Gateway startup invariant passed")
     print("CIEAV per-user local authority isolation passed")
     print("CIEAV production test-auto suppression passed")
     print("CIEAV per-surface browser control capability isolation passed")
