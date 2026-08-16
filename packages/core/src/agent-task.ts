@@ -8,11 +8,11 @@ const transitions:Record<AgentTaskState,ReadonlySet<AgentTaskState>>={
   WAITING_FOR_AUTHORITY:new Set(["QUEUED","RUNNING","WAITING","CANCELLED","FAILED","RECOVERY_REQUIRED"]),
   RUNNING:new Set(["OBSERVING","WAITING","FAILED","CANCELLED","RECOVERY_REQUIRED"]),
   OBSERVING:new Set(["COMPLETED","WAITING","FAILED","RECOVERY_REQUIRED"]),
-  WAITING:new Set(["QUEUED","PLANNING","RUNNING","OBSERVING","FAILED","CANCELLED","RECOVERY_REQUIRED"]),
+  WAITING:new Set(["QUEUED","PLANNING","RUNNING","OBSERVING","FAILED","CANCELLED","RECOVERY_REQUIRED","WAITING_FOR_AUTHORITY"]),
   COMPLETED:new Set(),
-  FAILED:new Set(["QUEUED","RECOVERY_REQUIRED"]),
+  FAILED:new Set(["WAITING","RECOVERY_REQUIRED"]),
   CANCELLED:new Set(),
-  RECOVERY_REQUIRED:new Set(["QUEUED","PLANNING","WAITING_FOR_AUTHORITY","OBSERVING","FAILED","CANCELLED"])
+  RECOVERY_REQUIRED:new Set(["QUEUED","PLANNING","WAITING_FOR_AUTHORITY","OBSERVING","FAILED","CANCELLED","WAITING"])
 };
 
 export function isTerminalAgentTaskState(state:AgentTaskState){return terminal.has(state)}
@@ -28,12 +28,14 @@ export function transitionAgentTask(task:AgentTask,to:AgentTaskState,at=new Date
 }
 
 export function requireCommitment(task:AgentTask,at=new Date().toISOString(),reason="consequential action requires local authority"):{task:AgentTask;event:Omit<AgentTaskEvent,"id"|"sequence">}{
-  if(isTerminalAgentTaskState(task.state))throw new Error("terminal agent task cannot require a new commitment");
+  if(!["PLANNING","WAITING","RECOVERY_REQUIRED"].includes(task.state))throw new Error(`agent task cannot require a new commitment from state ${task.state}`);
+  assertAgentTaskTransition(task.state,"WAITING_FOR_AUTHORITY");
   const next={...task,commitmentRequired:true,commitmentId:undefined,authoritySatisfiedAt:undefined,updatedAt:at,openLoop:true,state:"WAITING_FOR_AUTHORITY" as const};
   return{task:next,event:{taskId:task.id,type:"COMMITMENT_REQUIRED",at,fromState:task.state,toState:"WAITING_FOR_AUTHORITY",reason,data:{}}};
 }
 
 export function bindTaskCommitment(task:AgentTask,commitment:Pick<Commitment,"id"|"state">,at=new Date().toISOString()):{task:AgentTask;event:Omit<AgentTaskEvent,"id"|"sequence">}{
+  if(task.state!=="WAITING_FOR_AUTHORITY")throw new Error("agent task must be WAITING_FOR_AUTHORITY before binding a commitment");
   if(!task.commitmentRequired)throw new Error("agent task has not declared a commitment requirement");
   if(commitment.state!=="AUTHORIZED")throw new Error("agent task requires an AUTHORIZED commitment before authority can be satisfied");
   const next={...task,commitmentId:commitment.id,authoritySatisfiedAt:at,updatedAt:at};
@@ -42,7 +44,8 @@ export function bindTaskCommitment(task:AgentTask,commitment:Pick<Commitment,"id
 
 export function scheduleRetry(task:AgentTask,nextRunAt:string,at=new Date().toISOString(),reason="retry scheduled"):{task:AgentTask;event:Omit<AgentTaskEvent,"id"|"sequence">}{
   if(task.retryCount>=task.maxRetries)throw new Error("agent task retry budget exhausted");
-  if(isTerminalAgentTaskState(task.state)&&task.state!=="FAILED")throw new Error("terminal agent task cannot be retried");
+  if(!["FAILED","WAITING","RECOVERY_REQUIRED"].includes(task.state))throw new Error(`agent task cannot schedule retry from state ${task.state}`);
+  assertAgentTaskTransition(task.state,"WAITING");
   const retryCount=task.retryCount+1,next={...task,retryCount,nextRunAt,updatedAt:at,state:"WAITING" as const,openLoop:true};
   return{task:next,event:{taskId:task.id,type:"RETRY_SCHEDULED",at,fromState:task.state,toState:"WAITING",reason,data:{retryCount,nextRunAt}}};
 }
