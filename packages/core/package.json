@@ -9,13 +9,10 @@
     "./reality": {"types": "./dist/reality.d.ts", "import": "./dist/reality.js"},
     "./proof": {"types": "./dist/proof.d.ts", "import": "./dist/proof.js"},
     "./reconciliation": {"types": "./dist/reconciliation.d.ts", "import": "./dist/reconciliation.js"},
-    "./policy": {"types": "./dist/policy.d.ts", "import": "./dist/policy.js"}
+    "./policy": {"types": "./dist/policy.d.ts", "import": "./dist/policy.js"},
+    "./commitment": {"types": "./dist/commitment.d.ts", "import": "./dist/commitment.js"}
   },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
-  },
-  "dependencies": {"@cieav/contracts": "*"},
-  "devDependencies": {"typescript": "^5.7.0", "vitest": "^2.1.0"}
+  "scripts": {"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit","test":"vitest run"},
+  "dependencies": {"@cieav/contracts":"*"},
+  "devDependencies": {"typescript":"^5.7.0","vitest":"^2.1.0"}
 }
