@@ -1,0 +1,79 @@
+import {z} from "zod";
+
+export const EffectNodeStateSchema=z.enum(["PAIRING","ONLINE","DEGRADED","OFFLINE","QUARANTINED"]);
+export type EffectNodeState=z.infer<typeof EffectNodeStateSchema>;
+
+export const EffectNodePlatformSchema=z.enum(["WINDOWS","LINUX","MACOS","OTHER"]);
+export type EffectNodePlatform=z.infer<typeof EffectNodePlatformSchema>;
+
+export const EffectNodeCapabilityKindSchema=z.enum(["PROCESS","FILESYSTEM","BROWSER","MCP","A2A","DATABASE","CLOUD","CUSTOM"]);
+export type EffectNodeCapabilityKind=z.infer<typeof EffectNodeCapabilityKindSchema>;
+
+export const EffectNodeCapabilitySchema=z.object({
+  id:z.string().min(1).max(200),
+  kind:EffectNodeCapabilityKindSchema,
+  operations:z.array(z.string().min(1).max(200)).min(1).max(100),
+  roots:z.array(z.string().min(1).max(2000)).max(50).default([]),
+  hosts:z.array(z.string().min(1).max(500)).max(50).default([]),
+  commands:z.array(z.string().min(1).max(500)).max(100).default([]),
+  maxRuntimeMs:z.number().int().min(100).max(3_600_000).optional(),
+  metadata:z.record(z.union([z.string().max(1000),z.number(),z.boolean(),z.null()])).default({})
+}).strict();
+export type EffectNodeCapability=z.infer<typeof EffectNodeCapabilitySchema>;
+
+export const EffectNodeAdvertisementSchema=z.object({
+  version:z.literal(1),
+  nodeId:z.string().uuid(),
+  installId:z.string().min(12).max(200),
+  displayName:z.string().min(1).max(200),
+  platform:EffectNodePlatformSchema,
+  architecture:z.string().min(1).max(80),
+  runtimeVersion:z.string().min(1).max(80),
+  publicKey:z.string().min(32).max(4096),
+  capabilities:z.array(EffectNodeCapabilitySchema).max(200),
+  issuedAt:z.string().datetime(),
+  nonce:z.string().min(24).max(256)
+}).strict();
+export type EffectNodeAdvertisement=z.infer<typeof EffectNodeAdvertisementSchema>;
+
+export const SignedEffectNodeAdvertisementSchema=z.object({
+  advertisement:EffectNodeAdvertisementSchema,
+  signature:z.string().min(32).max(4096),
+  signatureAlgorithm:z.literal("ed25519")
+}).strict();
+export type SignedEffectNodeAdvertisement=z.infer<typeof SignedEffectNodeAdvertisementSchema>;
+
+export const EffectNodeRecordSchema=z.object({
+  nodeId:z.string().uuid(),
+  installId:z.string().min(12).max(200),
+  displayName:z.string().min(1).max(200),
+  platform:EffectNodePlatformSchema,
+  architecture:z.string().min(1).max(80),
+  runtimeVersion:z.string().min(1).max(80),
+  publicKey:z.string().min(32).max(4096),
+  state:EffectNodeStateSchema,
+  capabilities:z.array(EffectNodeCapabilitySchema).max(200),
+  pairedAt:z.string().datetime(),
+  lastSeenAt:z.string().datetime(),
+  advertisementDigest:z.string().regex(/^[0-9a-f]{64}$/),
+  quarantineReason:z.string().max(2000).optional()
+}).strict();
+export type EffectNodeRecord=z.infer<typeof EffectNodeRecordSchema>;
+
+export const EffectNodeHeartbeatSchema=z.object({
+  nodeId:z.string().uuid(),
+  observedAt:z.string().datetime(),
+  runtimeVersion:z.string().min(1).max(80),
+  capabilityDigest:z.string().regex(/^[0-9a-f]{64}$/),
+  load:z.object({inFlight:z.number().int().min(0).max(100000),capacity:z.number().int().min(1).max(100000)}).strict(),
+  nonce:z.string().min(24).max(256),
+  signature:z.string().min(32).max(4096),
+  signatureAlgorithm:z.literal("ed25519")
+}).strict();
+export type EffectNodeHeartbeat=z.infer<typeof EffectNodeHeartbeatSchema>;
+
+export const EffectNodePairingRequestSchema=z.object({
+  advertisement:SignedEffectNodeAdvertisementSchema,
+  pairingCode:z.string().regex(/^[A-Z0-9]{8}$/)
+}).strict();
+export type EffectNodePairingRequest=z.infer<typeof EffectNodePairingRequestSchema>;
