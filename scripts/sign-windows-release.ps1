@@ -60,7 +60,7 @@ foreach ($file in $resolvedFiles) {
   & $signtool verify /pa /all /v $file
   if ($LASTEXITCODE -ne 0) { throw "Authenticode verification failed for $file" }
   $sig = Get-AuthenticodeSignature -LiteralPath $file
-  if ($sig.Status -ne "Valid" -or -not $sig.SignerCertificate) { throw "Invalid Authenticode status for $file: $($sig.Status)" }
+  if ($sig.Status -ne "Valid" -or -not $sig.SignerCertificate) { throw "Invalid Authenticode status for ${file}: $($sig.Status)" }
   $thumb = Normalize-Thumbprint ([string]$sig.SignerCertificate.Thumbprint)
   $subject = ([string]$sig.SignerCertificate.Subject).Trim()
   if ($thumb -notmatch '^[0-9A-F]{40,64}$') { throw "Invalid signer thumbprint for $file" }
