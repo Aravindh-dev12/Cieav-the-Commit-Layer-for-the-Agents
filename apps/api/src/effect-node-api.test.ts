@@ -1,0 +1,11 @@
+import {mkdtemp,rm} from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import {afterEach,describe,expect,it} from "vitest";
+import {CieavEffectNodeHost} from "@cieav/core";
+import {CieavEffectAuthority} from "./effect-authority.js";
+import {CieavEffectNodeApi} from "./effect-node-api.js";
+import {CieavEffectNodeRegistry} from "./effect-node-registry.js";
+const dirs:string[]=[];afterEach(async()=>{await Promise.all(dirs.splice(0).map(d=>rm(d,{recursive:true,force:true})))});
+const fakeReq=(value:unknown)=>{const body=Buffer.from(JSON.stringify(value));return{async *[Symbol.asyncIterator](){yield body}} as any};
+describe("Effect Node Gateway control plane",()=>{it("pairs signed node identity and derives stable transport auth without storing it in node record",async()=>{const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-node-api-"));dirs.push(dir);const registry=new CieavEffectNodeRegistry(path.join(dir,"nodes.json"),"s".repeat(48)),authority=new CieavEffectAuthority(path.join(dir,"authority.json")),api=new CieavEffectNodeApi(registry,authority,"t".repeat(48)),host=new CieavEffectNodeHost({identityFile:path.join(dir,"node-id.json"),installId:"install-123456789",displayName:"test",platform:"WINDOWS",architecture:"x64",runtimeVersion:"1",endpoint:"http://127.0.0.1:8793",capabilities:[{id:"proc",kind:"PROCESS",operations:["run"],roots:[dir],hosts:[],commands:["node"],metadata:{}}]}),code=registry.issuePairingCode().code,result=await api.handlePair(fakeReq({advertisement:await host.signedAdvertisement(),pairingCode:code})) as any;expect(result.status).toBe(201);expect(result.body.node.nodeId).toBe(await host.nodeId());expect(result.body.nodeTransportToken).toHaveLength(43);expect(result.body.node).not.toHaveProperty("transportToken");expect(api.transportToken(await host.nodeId())).toBe(result.body.nodeTransportToken);expect(result.body.gatewayAuthority.publicKeyPem).toMatch(/BEGIN PUBLIC KEY/)})});
