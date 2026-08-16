@@ -1,0 +1,87 @@
+import crypto from "node:crypto";
+import type {AgentDispatchReceipt,AgentPlanStep,AgentRuntimePlan,AgentStepKind,AgentTask,Commitment} from "@cieav/contracts";
+import {nextRunnableStep,redactText,stablePlanDigest} from "@cieav/core";
+import {CieavAgentKernelStore} from "./agent-kernel.js";
+import {CieavAgentRuntimeStore} from "./agent-runtime-store.js";
+
+export interface ModelFabricPlanOutput {
+  provider:string;
+  model:string;
+  protocolVersion:string;
+  steps:Array<Omit<AgentPlanStep,"state"|"attemptCount"|"commitmentId"|"lastAttemptAt"|"nextAttemptAt"|"lastError">>;
+}
+export interface AgentModelFabricPlanner {plan(input:{taskId:string;goal:string;metadata:AgentTask["metadata"]}):Promise<ModelFabricPlanOutput>}
+export interface AgentDispatchResult {ok:boolean;observation:"PROVEN"|"DISPROVEN"|"UNKNOWN";result?:unknown;error?:string}
+export interface AgentStepDispatcher {dispatch(input:{task:AgentTask;step:AgentPlanStep}):Promise<AgentDispatchResult>}
+export type AgentDispatcherRegistry=Partial<Record<AgentStepKind,AgentStepDispatcher>>;
+
+function resultDigest(value:unknown){return crypto.createHash("sha256").update(JSON.stringify(value??null)).digest("hex")}
+
+export class CieavAgentRuntime{
+  constructor(private readonly tasks:CieavAgentKernelStore,private readonly runtime:CieavAgentRuntimeStore,private readonly planner:AgentModelFabricPlanner,private readonly dispatchers:AgentDispatcherRegistry){}
+
+  async recoverOnStartup(){const [tasks,steps]=await Promise.all([this.tasks.recoverOnStartup(),this.runtime.recoverInFlight()]);return{tasks,steps}}
+
+  async dueTasks(now=new Date()){
+    const tasks=await this.tasks.list();
+    return tasks.filter(task=>{
+      if(task.state==="QUEUED")return true;
+      if(task.state!=="WAITING")return false;
+      return !task.nextRunAt||Date.parse(task.nextRunAt)<=now.getTime();
+    });
+  }
+
+  private async ensurePlan(task:AgentTask):Promise<AgentRuntimePlan>{
+    const existing=await this.runtime.getPlan(task.id);if(existing)return existing;
+    if(task.state==="QUEUED")task=(await this.tasks.transition(task.id,"PLANNING","Runtime selected task for model planning.")).task;
+    if(task.state!=="PLANNING")throw new Error(`agent runtime cannot plan task from ${task.state}`);
+    const goal=redactText(task.goal),out=await this.planner.plan({taskId:task.id,goal,metadata:task.metadata}),plannedAt=new Date().toISOString();
+    if(!out.steps.length)throw new Error("agent planner returned no steps");
+    const steps=out.steps.map((step,index)=>({...step,sequence:index+1,state:"PENDING" as const,attemptCount:0}));
+    const body={version:1 as const,taskId:task.id,plannedAt,planner:{provider:out.provider,model:out.model,protocolVersion:out.protocolVersion,executionAuthority:false as const,privacyReduced:true as const},steps};
+    return this.runtime.putPlan({...body,planDigest:stablePlanDigest(body)});
+  }
+
+  async bindCommitment(taskId:string,stepId:string,commitment:Pick<Commitment,"id"|"state">){
+    await this.tasks.bindCommitment(taskId,commitment);
+    const step=await this.runtime.bindCommitment(taskId,stepId,commitment);
+    const task=(await this.tasks.transition(taskId,"RUNNING","Authorized Commitment bound to current consequential step.")).task;
+    return{task,step};
+  }
+
+  private async prepareStep(task:AgentTask,plan:AgentRuntimePlan):Promise<AgentPlanStep|null>{
+    let step=nextRunnableStep(plan);if(!step){const pending=[...plan.steps].sort((a,b)=>a.sequence-b.sequence).find(s=>s.state==="PENDING");if(!pending)return null;step=pending}
+    if(step.state==="PENDING"&&step.consequential&&!step.commitmentId){await this.runtime.requireCommitment(task.id,step.id);if(task.state!=="WAITING_FOR_AUTHORITY")await this.tasks.requireCommitment(task.id,`Step ${step.id} requires governed authority: ${step.summary}`);return null}
+    if(step.state==="PENDING")step=await this.runtime.transitionStep(task.id,step.id,"READY");
+    return step;
+  }
+
+  private async settleTaskAfterStep(taskId:string){
+    const plan=await this.runtime.getPlan(taskId);if(!plan)throw new Error("agent_plan_not_found");
+    if(plan.steps.some(s=>s.state==="FAILED")){const task=await this.tasks.get(taskId);if(task&&task.state!=="FAILED")return this.tasks.transition(taskId,"FAILED","A runtime step failed.");return null}
+    if(plan.steps.some(s=>s.state==="UNKNOWN")){const task=await this.tasks.get(taskId);if(task&&task.state!=="RECOVERY_REQUIRED")return this.tasks.transition(taskId,"RECOVERY_REQUIRED","A dispatched step has unknown settlement and requires governed recovery.");return null}
+    if(plan.steps.every(s=>s.state==="COMPLETED")){let task=await this.tasks.get(taskId);if(!task)return null;if(task.state==="RUNNING")task=(await this.tasks.transition(taskId,"OBSERVING","All planned steps finished; verifying task-level completion.")).task;if(task.state==="OBSERVING")return this.tasks.transition(taskId,"COMPLETED","All runtime steps completed with observation.");}
+    return null;
+  }
+
+  async runOnce(taskId:string):Promise<{task:AgentTask;plan:AgentRuntimePlan;receipt?:AgentDispatchReceipt}|null>{
+    let task=await this.tasks.get(taskId);if(!task)throw new Error("agent_task_not_found");
+    if(task.state==="WAITING"&&(!task.nextRunAt||Date.parse(task.nextRunAt)<=Date.now()))task=(await this.tasks.transition(task.id,"QUEUED","Scheduled wait elapsed; task re-queued.")).task;
+    const plan=await this.ensurePlan(task);task=await this.tasks.get(taskId)??task;
+    const step=await this.prepareStep(task,plan);if(!step)return{task:(await this.tasks.get(taskId))!,plan:(await this.runtime.getPlan(taskId))!};
+    if(task.state==="PLANNING")task=(await this.tasks.transition(task.id,"RUNNING","Plan accepted for governed runtime execution.")).task;
+    if(task.state!=="RUNNING")return{task,plan:(await this.runtime.getPlan(taskId))!};
+    const dispatcher=this.dispatchers[step.kind];if(!dispatcher){await this.runtime.transitionStep(task.id,step.id,"FAILED");await this.settleTaskAfterStep(task.id);return{task:(await this.tasks.get(taskId))!,plan:(await this.runtime.getPlan(taskId))!}}
+    const dispatched=await this.runtime.transitionStep(task.id,step.id,"DISPATCHED"),started=dispatched.lastAttemptAt??new Date().toISOString();
+    let result:AgentDispatchResult;try{result=await dispatcher.dispatch({task,step:dispatched})}catch(error){result={ok:false,observation:"UNKNOWN",error:error instanceof Error?error.message:String(error)}}
+    const completedAt=new Date().toISOString(),receipt:AgentDispatchReceipt={id:crypto.randomUUID(),taskId:task.id,stepId:step.id,kind:step.kind,dispatchedAt:started,completedAt,ok:result.ok,transport:step.kind==="MCP_GOVERNANCE"?"MCP":step.kind==="A2A_GOVERNANCE"?"A2A":step.kind==="MODEL"?"MODEL":"LOCAL",executionAuthority:false,...(step.commitmentId?{commitmentId:step.commitmentId}:{}),...(result.result!==undefined?{resultDigest:resultDigest(result.result)}:{}),...(result.error?{error:result.error.slice(0,2000)}:{})};
+    await this.runtime.appendReceipt(receipt);
+    if(!result.ok){await this.runtime.transitionStep(task.id,step.id,result.observation==="UNKNOWN"?"UNKNOWN":"FAILED");await this.settleTaskAfterStep(task.id);return{task:(await this.tasks.get(taskId))!,plan:(await this.runtime.getPlan(taskId))!,receipt}}
+    await this.runtime.transitionStep(task.id,step.id,"OBSERVING");
+    await this.runtime.transitionStep(task.id,step.id,result.observation==="PROVEN"?"COMPLETED":result.observation==="DISPROVEN"?"FAILED":"UNKNOWN");
+    await this.settleTaskAfterStep(task.id);
+    return{task:(await this.tasks.get(taskId))!,plan:(await this.runtime.getPlan(taskId))!,receipt};
+  }
+
+  async tick(now=new Date(),maxTasks=16){const due=(await this.dueTasks(now)).slice(0,Math.max(1,Math.min(100,maxTasks))),results=[];for(const task of due)results.push(await this.runOnce(task.id));return results}
+}
