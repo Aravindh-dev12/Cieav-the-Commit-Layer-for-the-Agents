@@ -32,7 +32,8 @@ export class CieavAgentRuntime{
   }
 
   private async ensurePlan(task:AgentTask):Promise<AgentRuntimePlan>{
-    const existing=await this.runtime.getPlan(task.id);if(existing)return existing;
+    const existing=await this.runtime.getPlan(task.id);
+    if(existing){if(task.state==="QUEUED")await this.tasks.transition(task.id,"PLANNING","Runtime resumed persisted plan after queueing.");return existing}
     if(task.state==="QUEUED")task=(await this.tasks.transition(task.id,"PLANNING","Runtime selected task for model planning.")).task;
     if(task.state!=="PLANNING")throw new Error(`agent runtime cannot plan task from ${task.state}`);
     const goal=redactText(task.goal),out=await this.planner.plan({taskId:task.id,goal,metadata:task.metadata}),plannedAt=new Date().toISOString();
@@ -51,7 +52,12 @@ export class CieavAgentRuntime{
 
   private async prepareStep(task:AgentTask,plan:AgentRuntimePlan):Promise<AgentPlanStep|null>{
     let step=nextRunnableStep(plan);if(!step){const pending=[...plan.steps].sort((a,b)=>a.sequence-b.sequence).find(s=>s.state==="PENDING");if(!pending)return null;step=pending}
-    if(step.state==="PENDING"&&step.consequential&&!step.commitmentId){await this.runtime.requireCommitment(task.id,step.id);if(task.state!=="WAITING_FOR_AUTHORITY")await this.tasks.requireCommitment(task.id,`Step ${step.id} requires governed authority: ${step.summary}`);return null}
+    if(step.state==="PENDING"&&step.consequential&&!step.commitmentId){
+      await this.runtime.requireCommitment(task.id,step.id);
+      if(task.state==="RUNNING")task=(await this.tasks.transition(task.id,"WAITING","Runtime paused between steps before requesting new authority.")).task;
+      if(task.state!=="WAITING_FOR_AUTHORITY")await this.tasks.requireCommitment(task.id,`Step ${step.id} requires governed authority: ${step.summary}`);
+      return null;
+    }
     if(step.state==="PENDING")step=await this.runtime.transitionStep(task.id,step.id,"READY");
     return step;
   }
