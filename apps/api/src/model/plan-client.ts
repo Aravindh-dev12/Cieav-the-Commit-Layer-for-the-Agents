@@ -4,6 +4,7 @@ import type {StructuredModelFabricClient} from "../agent-runtime-planner.js";
 export interface OpenAIPlanningClientOptions {baseUrl:string;model:string;apiKey?:string;timeoutMs:number;provider?:string}
 const loopback=(host:string)=>host==="127.0.0.1"||host==="localhost"||host==="::1"||host==="[::1]";
 function root(raw:string){let url:URL;try{url=new URL(raw)}catch{throw new Error("agent_planner_invalid_base_url")};if(url.username||url.password||url.search||url.hash)throw new Error("agent_planner_base_url_must_not_embed_credentials_query_or_fragment");if(url.protocol!=="https:"&&!(url.protocol==="http:"&&loopback(url.hostname.toLowerCase())))throw new Error("agent_planner_requires_https_except_loopback");return raw.replace(/\/$/,"")}
+// Execution constraints and source metadata are intentionally omitted from model-visible tools.
 function plannerTool(tool:ToolDescriptor){return{id:tool.id,provider:tool.provider,name:tool.name,description:tool.description,consequences:tool.consequences,requiresCommitment:tool.requiresCommitment,readOnly:tool.readOnly,externalEffect:tool.externalEffect,inputSchema:tool.inputSchema}}
 function minimizedCatalog(catalog?:ToolCatalog){if(!catalog)return undefined;return{version:1,catalogDigest:catalog.catalogDigest,executionAuthority:false as const,tools:catalog.tools.map(plannerTool)}}
 function content(json:any){const value=json?.choices?.[0]?.message?.content;if(typeof value==="string")return value;if(value&&typeof value==="object")return JSON.stringify(value);throw new Error("agent_planner_no_content")}
