@@ -49,3 +49,4 @@ export * from "./agent-task.js";
 export * from "./agent-runtime.js";
 export * from "./effect-node.js";
 export * from "./tool-broker.js";
+export * from "./effect-dispatch.js";
