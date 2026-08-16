@@ -1,5 +1,6 @@
 export * from "./policy.js";
 export * from "./redaction.js";
+export * from "./commitment.js";
 
 import type {ActionContext,ActionManifest,Reversibility,RiskLevel} from "@cieav/contracts";
 
