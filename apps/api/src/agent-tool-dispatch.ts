@@ -5,7 +5,7 @@ import type {AgentStepDispatcher} from "./agent-runtime.js";
 import {CieavEffectAuthority} from "./effect-authority.js";
 import {CieavEffectDispatcher} from "./effect-dispatch.js";
 
-export interface CommitmentLifecycleStore {transition(id:string,to:Commitment["state"]):Promise<Commitment>;finalizeEffect(id:string,effect:EffectSettlement):Promise<unknown>}
+export interface CommitmentLifecycleStore {transition(id:string,to:Commitment["state"]):Promise<Commitment>;finalizeEffect(id:string,effect:EffectSettlement):Promise<unknown>;markUnknown(id:string,reason?:string):Promise<Commitment>}
 export interface GovernedToolDispatchOptions {catalog:()=>Promise<ToolCatalog>;commitment:(id:string)=>Promise<Commitment|null>;commitments:CommitmentLifecycleStore;authority:CieavEffectAuthority;effects:CieavEffectDispatcher}
 const transport=(provider:string):AgentDispatchReceipt["transport"]=>provider==="EFFECT_NODE"?"NODE":provider==="BROWSER"?"BROWSER":provider==="MCP"?"MCP":provider==="A2A"?"A2A":"LOCAL";
 
@@ -18,7 +18,7 @@ export function createGovernedToolStepDispatcher(options:GovernedToolDispatchOpt
     const [catalog,commitment]=await Promise.all([options.catalog(),options.commitment(step.commitmentId)]);if(!commitment)return{ok:false,observation:"UNKNOWN" as const,error:"Bound Commitment could not be resolved"};const tool=catalog.tools.find(t=>t.id===toolId);if(!tool)return{ok:false,observation:"UNKNOWN" as const,error:"Selected tool is no longer present in the governed catalog"};
     const proposal=buildEffectProposal({version:1,requestId:crypto.randomUUID(),taskId:task.id,stepId:step.id,commitmentId:commitment.id,toolId:tool.id,provider:tool.provider,sourceId:tool.sourceId,sourceOperation:tool.sourceOperation,actionType:step.actionType??`tool.${tool.sourceOperation}`,...(step.target?{target:step.target}:{}),input,catalogDigest:catalog.catalogDigest,consequenceGraphDigest:consequenceGraphDigest(commitment),proofObligationDigest:proofObligationDigest(commitment),createdAt:new Date().toISOString()}),authorization=await options.authority.issue(commitment,proposal);
     await options.commitments.transition(commitment.id,"DISPATCHED");
-    const result=await options.effects.dispatch({proposal,authorization,commitment,catalog});await options.commitments.finalizeEffect(commitment.id,result.settlement);const status=result.settlement.status;
-    return{ok:status==="PROVEN",observation:status,result:{effectReceiptId:result.receipt.id,settlement:status,proposalDigest:result.receipt.proposalDigest},transport:transport(tool.provider),...(status==="PROVEN"?{}:{error:result.settlement.reason})};
+    try{const result=await options.effects.dispatch({proposal,authorization,commitment,catalog});await options.commitments.finalizeEffect(commitment.id,result.settlement);const status=result.settlement.status;return{ok:status==="PROVEN",observation:status,result:{effectReceiptId:result.receipt.id,settlement:status,proposalDigest:result.receipt.proposalDigest},transport:transport(tool.provider),...(status==="PROVEN"?{}:{error:result.settlement.reason})}}
+    catch(error){const message=(error instanceof Error?error.message:String(error)).slice(0,1000);try{await options.commitments.markUnknown(commitment.id,`Effect dispatch or settlement raised an exception after authority was consumed: ${message}`)}catch{}return{ok:false,observation:"UNKNOWN" as const,error:message,transport:transport(tool.provider)}}
   }}
 }
