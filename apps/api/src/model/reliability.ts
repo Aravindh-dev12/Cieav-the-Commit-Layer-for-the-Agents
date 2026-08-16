@@ -46,6 +46,8 @@ export interface InferenceReceipt {
 type State={state:CircuitState;consecutiveFailures:number;inFlight:number;openedAt?:number;lastFailureAt?:number;lastSuccessAt?:number;lastError?:string;halfOpenProbeInFlight:boolean};
 
 const DEFAULT_POLICY:ReliabilityPolicy={failureThreshold:3,cooldownMs:15_000,maxConcurrent:32};
+function boundedEnv(name:string,fallback:number,min:number,max:number){const n=Number(process.env[name]??fallback);return Number.isFinite(n)?Math.max(min,Math.min(max,Math.floor(n))):fallback}
+export function reliabilityPolicyFromEnv():ReliabilityPolicy{return{failureThreshold:boundedEnv("CIEAV_MODEL_FAILURE_THRESHOLD",DEFAULT_POLICY.failureThreshold,1,20),cooldownMs:boundedEnv("CIEAV_MODEL_COOLDOWN_MS",DEFAULT_POLICY.cooldownMs,1_000,300_000),maxConcurrent:boundedEnv("CIEAV_MODEL_MAX_CONCURRENT",DEFAULT_POLICY.maxConcurrent,1,1024)}}
 
 export class ProviderReliabilityManager {
   private readonly states=new Map<string,State>();
@@ -86,4 +88,4 @@ export function createInferenceReceipt(input:{requestId:string;role:PrivateModel
   return{receiptType:"CIEAV_INFERENCE_RECEIPT",receiptVersion:"1",receiptId:randomUUID(),requestId:input.requestId,role:input.role,model:input.model,...(input.modelRevision?{modelRevision:input.modelRevision}:{}),...(input.modelDigest?{modelDigest:input.modelDigest}:{}),provider:"cieav-private-inference",protocolVersion:input.protocolVersion,startedAt:new Date(input.startedAt).toISOString(),completedAt:new Date(input.completedAt).toISOString(),latencyMs:Math.max(0,input.completedAt-input.startedAt),ok:input.ok,zeroRetention:true,executionAuthority:false,fallbackUsed:input.fallbackUsed,degraded:input.degraded,circuitState:input.circuitState,...(input.error?{error:input.error.slice(0,300)}:{})};
 }
 
-export const privateInferenceReliability=new ProviderReliabilityManager();
+export const privateInferenceReliability=new ProviderReliabilityManager(reliabilityPolicyFromEnv());
