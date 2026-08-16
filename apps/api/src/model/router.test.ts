@@ -2,9 +2,10 @@ import * as http from "node:http";
 import {afterEach,describe,expect,it} from "vitest";
 import type {ActionContext,ActionManifest} from "@cieav/contracts";
 import {analyzeWithCloudModel,selectPrivateModelRole} from "./cloud.js";
+import {privateInferenceReliability} from "./reliability.js";
 
 const servers:http.Server[]=[];
-afterEach(async()=>{await Promise.all(servers.splice(0).map(server=>new Promise<void>(resolve=>server.close(()=>resolve()))))});
+afterEach(async()=>{privateInferenceReliability.reset();await Promise.all(servers.splice(0).map(server=>new Promise<void>(resolve=>server.close(()=>resolve()))))});
 
 async function listen(handler:http.RequestListener){
   const server=http.createServer(handler);servers.push(server);
@@ -39,6 +40,8 @@ describe("CIEAV Model Router v1",()=>{
     expect(seen).toEqual(["primary:primary-test","verifier:verifier-test"]);
     expect(out.meta.verifierUsed).toBe(true);
     expect(out.meta.disagreement).toBeGreaterThan(0);
+    expect(out.meta.receipts).toHaveLength(2);
+    expect(out.meta.receipts.every(x=>x.executionAuthority===false&&x.zeroRetention===true)).toBe(true);
     expect(out.result.risk).toBe("CRITICAL");
     expect(out.result.reversibility).toBe("IRREVERSIBLE");
     expect(out.result.needsDeepReview).toBe(true);
@@ -58,6 +61,7 @@ describe("CIEAV Model Router v1",()=>{
     expect(seen[0]).toBe("primary:primary-broken");
     expect(out.meta.fallbackUsed).toBe(true);
     expect(out.meta.degraded).toBe(true);
+    expect(out.meta.receipts.some(x=>!x.ok)).toBe(true);
     expect(out.result.risk).toBe("HIGH");
     expect(out.result.confidence).toBeLessThanOrEqual(.65);
     expect(out.result.needsDeepReview).toBe(true);
