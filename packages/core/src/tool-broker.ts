@@ -1,0 +1,30 @@
+import crypto from "node:crypto";
+import type {EffectNodeCapability,ToolBrokerPolicy,ToolCatalog,ToolConsequence,ToolDescriptor} from "@cieav/contracts";
+
+const canonical=(x:unknown):string=>Array.isArray(x)?`[${x.map(canonical).join(",")}]`:x&&typeof x==="object"?`{${Object.keys(x as Record<string,unknown>).sort().map(k=>`${JSON.stringify(k)}:${canonical((x as Record<string,unknown>)[k])}`).join(",")}}`:JSON.stringify(x);
+export const toolCatalogDigest=(tools:readonly ToolDescriptor[])=>crypto.createHash("sha256").update(canonical([...tools].sort((a,b)=>a.id.localeCompare(b.id)))).digest("hex");
+
+const mutatingOps=/(write|create|delete|remove|update|publish|share|grant|revoke|send|execute|run|deploy|purchase|transfer|commit)/i;
+const consequenceFor=(operation:string):ToolConsequence=>/delete|remove/i.test(operation)?"DELETE":/publish/i.test(operation)?"PUBLISH":/share/i.test(operation)?"SHARE":/grant/i.test(operation)?"GRANT_ACCESS":/revoke/i.test(operation)?"REVOKE_ACCESS":/deploy/i.test(operation)?"DEPLOY":/execute|run/i.test(operation)?"EXECUTE_CODE":/purchase/i.test(operation)?"PURCHASE":/transfer/i.test(operation)?"TRANSFER_VALUE":/send|message|email/i.test(operation)?"COMMUNICATE":/create/i.test(operation)?"CREATE":/update|write/i.test(operation)?"UPDATE":"READ";
+
+export function descriptorFromEffectNode(nodeId:string,capability:EffectNodeCapability,operation:string):ToolDescriptor{
+  const external=capability.kind!=="FILESYSTEM"&&capability.kind!=="PROCESS";
+  const mutating=mutatingOps.test(operation);
+  return{ id:`node:${nodeId}:${capability.id}:${operation}`,provider:"EFFECT_NODE",sourceId:nodeId,sourceOperation:operation,name:`${capability.id}.${operation}`,description:`Verified Effect Node capability ${capability.id} operation ${operation}.`,inputSchema:{},consequences:[consequenceFor(operation)],requiresCommitment:mutating||external,readOnly:!mutating,externalEffect:external||mutating,trust:"VERIFIED_NODE",available:true,constraints:{roots:capability.roots,hosts:capability.hosts,commands:capability.commands,...(capability.maxRuntimeMs?{maxRuntimeMs:capability.maxRuntimeMs}:{})},metadata:{capabilityKind:capability.kind}}
+}
+
+export function filterToolDescriptors(input:readonly ToolDescriptor[],policy:ToolBrokerPolicy):ToolDescriptor[]{
+  const providers=policy.allowedProviders?new Set(policy.allowedProviders):null,ids=policy.allowedToolIds?new Set(policy.allowedToolIds):null,cons=policy.allowedConsequences?new Set(policy.allowedConsequences):null;
+  const unique=new Map<string,ToolDescriptor>();
+  for(const tool of input){
+    if(!tool.available)continue;if(providers&&!providers.has(tool.provider))continue;if(ids&&!ids.has(tool.id))continue;
+    if(!policy.allowExternalEffects&&tool.externalEffect)continue;if(!policy.allowCommitmentRequired&&tool.requiresCommitment)continue;
+    if(cons&&tool.consequences.some(c=>!cons.has(c)))continue;
+    const current=unique.get(tool.id);if(!current)unique.set(tool.id,tool);else if(canonical(current)!==canonical(tool))throw new Error(`conflicting tool descriptor: ${tool.id}`);
+  }
+  return[...unique.values()].sort((a,b)=>a.id.localeCompare(b.id)).slice(0,policy.maximumTools);
+}
+
+export function buildToolCatalog(input:readonly ToolDescriptor[],policy:ToolBrokerPolicy,generatedAt=new Date().toISOString()):ToolCatalog{
+  const tools=filterToolDescriptors(input,policy);return{version:1,generatedAt,tools,catalogDigest:toolCatalogDigest(tools),executionAuthority:false};
+}
