@@ -53,6 +53,10 @@ class Gateway:
     health, and privileged local control. Chromium never receives provider tokens,
     the Gateway bearer token, receipt/API signing keys, or the browser-control
     capability used between the Gateway and the Node mediator.
+
+    The service is headless by default. A protected browser surface is attached
+    only after an explicit local surface request such as dashboard/test-lab or
+    restart-surface. Starting/installing the Gateway must never open a browser.
     """
 
     def __init__(self, settings: Settings):
@@ -64,6 +68,7 @@ class Gateway:
         self.hf = HuggingFaceSemanticProvider(hf_cfg)
         self.stop_event = threading.Event()
         self.paused = False
+        self.surface_requested = False
         self.semantic: subprocess.Popen | None = None
         self.surface: subprocess.Popen | None = None
         self.surface_control_token: str | None = None
@@ -174,9 +179,21 @@ class Gateway:
         if not token: raise RuntimeError("Browser control capability is unavailable")
         return _request_json(f"http://127.0.0.1:{self.s.control_port}{path}",method=method,payload=payload,timeout=timeout,token=token)
 
+    def _wait_surface(self, timeout: float = 8.0) -> bool:
+        deadline=time.time()+timeout
+        while time.time()<deadline and not self.stop_event.is_set():
+            health=self._browser_health()
+            if health.get("ok"):return True
+            with self._lock:
+                if self.surface and self.surface.poll() is not None:return False
+            time.sleep(.12)
+        return False
+
     def start_surface(self) -> None:
         with self._lock:
-            if self.paused or self.stop_event.is_set() or (self.surface and self.surface.poll() is None): return
+            if self.paused: raise RuntimeError("CIEAV protection is paused")
+            self.surface_requested=True
+            if self.stop_event.is_set() or (self.surface and self.surface.poll() is None): return
             if not self.browser_entry.exists(): raise RuntimeError("Browser mediator entry is missing")
         health=self._semantic_health()
         if not health.get("ok") or health.get("service")!="cieav-local-api": raise RuntimeError("Refusing protected surface without the managed CIEAV local API")
@@ -195,29 +212,37 @@ class Gateway:
         self._write_runtime()
 
     def pause(self) -> None:
-        self.paused=True; self.stop_surface(); self._log("protection paused by local control"); self._write_runtime()
+        self.paused=True; self.surface_requested=False; self.stop_surface(); self._log("protection paused by local control"); self._write_runtime()
 
     def resume(self) -> None:
         self.paused=False
         if not self._semantic_health().get("ok"): self.start_semantic()
-        self.start_surface(); self._log("protection resumed by local control"); self._write_runtime()
+        self._log("protection resumed by local control; Gateway remains headless until an explicit surface request"); self._write_runtime()
 
     def restart_surface(self) -> None:
-        self.stop_surface()
-        if not self.paused: self.start_surface()
+        if self.paused: raise RuntimeError("CIEAV protection is paused")
+        self.surface_requested=True; self.stop_surface(); self.start_surface()
+
+    def _ensure_surface(self) -> None:
+        if self.paused: raise RuntimeError("CIEAV protection is paused")
+        self.start_surface()
+        if not self._wait_surface():
+            self.surface_requested=False
+            self.stop_surface()
+            raise RuntimeError("Protected browser surface failed its managed health check")
 
     def open_surface_url(self, url: str) -> dict:
         if self.paused: raise RuntimeError("CIEAV protection is paused")
         try: parts=urlsplit(url)
         except Exception: raise RuntimeError("Invalid protected URL")
         if parts.scheme not in {"http","https"} or not parts.netloc or parts.username or parts.password: raise RuntimeError("Only credential-free http/https URLs can be opened in the protected surface")
-        browser=self._browser_health()
-        if not browser.get("ok"): raise RuntimeError("Protected browser surface is not ready")
+        self._ensure_surface()
         result=self._browser_request("/api/open",method="POST",payload={"url":url},timeout=3.0)
         self._log(f"opened protected surface URL {_redacted_url(url)}")
         return {"ok":True,"url":_redacted_url(url),"surface":result}
 
     def dashboard_url(self) -> str:
+        self._ensure_surface()
         result=self._browser_request("/api/bootstrap",timeout=2.0)
         url=result.get("url")
         if not isinstance(url,str): raise RuntimeError("Browser did not issue a dashboard bootstrap URL")
@@ -236,7 +261,7 @@ class Gateway:
     def public_health(self) -> dict:
         semantic=self._semantic_health()
         with self._lock:
-            return {"ok":True,"platform":"CIEAV Gateway","gatewayPid":os.getpid(),"paused":self.paused,"semanticRunning":bool(self.semantic and self.semantic.poll() is None),"semanticHealthy":bool(semantic.get("ok") and semantic.get("service")=="cieav-local-api"),"surfaceRunning":bool(self.surface and self.surface.poll() is None)}
+            return {"ok":True,"platform":"CIEAV Gateway","gatewayPid":os.getpid(),"paused":self.paused,"semanticRunning":bool(self.semantic and self.semantic.poll() is None),"semanticHealthy":bool(semantic.get("ok") and semantic.get("service")=="cieav-local-api"),"surfaceRunning":bool(self.surface and self.surface.poll() is None),"surfaceRequested":self.surface_requested}
 
     def status(self) -> dict:
         with self._lock:
@@ -245,7 +270,7 @@ class Gateway:
             semantic_uptime=int(time.time()-self.semantic_started_at) if semantic_running and self.semantic_started_at else 0
             surface_uptime=int(time.time()-self.surface_started_at) if surface_running and self.surface_started_at else 0
         browser=self._browser_health() if surface_running else {"ok":False,"browserConnected":False}; semantic_health=self._semantic_health() if semantic_running else {"ok":False}
-        return {"ok":True,"platform":"CIEAV Gateway","runtime":"python","gatewayPid":os.getpid(),"paused":self.paused,"nodeRuntime":self.node_executable(),"semanticRunning":semantic_running,"semanticHealthy":bool(semantic_health.get("ok") and semantic_health.get("service")=="cieav-local-api"),"semanticService":semantic_health.get("service"),"semanticPid":semantic.pid if semantic_running and semantic else None,"semanticUptimeSeconds":semantic_uptime,"semanticRestartCount":self.semantic_restart_count,"semanticLastExitCode":self.semantic_last_exit,"surfaceRunning":surface_running,"surfacePid":surface.pid if surface_running and surface else None,"surfaceUptimeSeconds":surface_uptime,"surfaceRestartCount":self.surface_restart_count,"surfaceLastExitCode":self.surface_last_exit,"browserConnected":bool(browser.get("browserConnected")),"protectedPages":int(browser.get("protectedPages") or 0),"productionApiRequired":bool(browser.get("productionApiRequired",True)),"modelEnabled":bool(self.hf.configured or browser.get("modelEnabled") or semantic_health.get("modelEnabled")),"huggingFace":self.hf.status(),"attention":browser.get("attention",{}),"controlUrl":f"http://127.0.0.1:{self.s.control_port}","testLabUrl":self.test_lab_url,"browserControlAuthenticated":surface_running}
+        return {"ok":True,"platform":"CIEAV Gateway","runtime":"python","gatewayPid":os.getpid(),"paused":self.paused,"headless":not surface_running,"surfaceRequested":self.surface_requested,"nodeRuntime":self.node_executable(),"semanticRunning":semantic_running,"semanticHealthy":bool(semantic_health.get("ok") and semantic_health.get("service")=="cieav-local-api"),"semanticService":semantic_health.get("service"),"semanticPid":semantic.pid if semantic_running and semantic else None,"semanticUptimeSeconds":semantic_uptime,"semanticRestartCount":self.semantic_restart_count,"semanticLastExitCode":self.semantic_last_exit,"surfaceRunning":surface_running,"surfacePid":surface.pid if surface_running and surface else None,"surfaceUptimeSeconds":surface_uptime,"surfaceRestartCount":self.surface_restart_count,"surfaceLastExitCode":self.surface_last_exit,"browserConnected":bool(browser.get("browserConnected")),"protectedPages":int(browser.get("protectedPages") or 0),"productionApiRequired":bool(browser.get("productionApiRequired",True)),"modelEnabled":bool(self.hf.configured or browser.get("modelEnabled") or semantic_health.get("modelEnabled")),"huggingFace":self.hf.status(),"attention":browser.get("attention",{}),"controlUrl":f"http://127.0.0.1:{self.s.control_port}","testLabUrl":self.test_lab_url,"browserControlAuthenticated":surface_running}
 
     def _write_runtime(self) -> None:
         try: self.s.write_runtime(self.status())
@@ -255,10 +280,9 @@ class Gateway:
         semantic_backoff=1.0; surface_backoff=1.0
         try:
             self.start_semantic()
-            if not self.paused: self.start_surface()
         except Exception as exc: self._log(f"initial runtime start failed: {exc}")
         while not self.stop_event.wait(.5):
-            with self._lock: semantic=self.semantic; surface=self.surface
+            with self._lock: semantic=self.semantic; surface=self.surface; surface_requested=self.surface_requested
             semantic_alive=bool(semantic and semantic.poll() is None)
             if not semantic_alive:
                 if semantic:
@@ -269,11 +293,11 @@ class Gateway:
                 if self.stop_event.wait(semantic_backoff): break
                 try:
                     self.start_semantic(); semantic_backoff=1.0
-                    if not self.paused: self.start_surface()
+                    if surface_requested and not self.paused: self.start_surface()
                 except Exception as exc: self._log(f"semantic restart failed: {exc}"); semantic_backoff=min(semantic_backoff*2,20.0)
                 continue
             if self.semantic_started_at and time.time()-self.semantic_started_at>30: semantic_backoff=1.0
-            if self.paused:
+            if self.paused or not surface_requested:
                 if surface and surface.poll() is None: self.stop_surface()
                 surface_backoff=1.0; continue
             surface_alive=bool(surface and surface.poll() is None)
@@ -289,7 +313,7 @@ class Gateway:
             elif self.surface_started_at and time.time()-self.surface_started_at>30: surface_backoff=1.0
 
     def shutdown(self) -> None:
-        self.stop_event.set(); self.stop_surface(); self.stop_semantic(); self._log("gateway stopped")
+        self.stop_event.set(); self.surface_requested=False; self.stop_surface(); self.stop_semantic(); self._log("gateway stopped")
 
 
 class ControlHandler(BaseHTTPRequestHandler):
@@ -345,7 +369,7 @@ def run_gateway(settings: Settings | None = None) -> int:
     for sig in (signal.SIGINT,signal.SIGTERM):
         try: signal.signal(sig,stop)
         except (ValueError,OSError): pass
-    gateway._log(f"listening on 127.0.0.1:{s.gateway_port} · semantic router configured={gateway.hf.configured}"); thread.start()
+    gateway._log(f"listening headlessly on 127.0.0.1:{s.gateway_port} · semantic router configured={gateway.hf.configured}"); thread.start()
     try: server.serve_forever(poll_interval=.5)
     finally: server.server_close(); gateway.shutdown(); thread.join(timeout=8)
     return 0
