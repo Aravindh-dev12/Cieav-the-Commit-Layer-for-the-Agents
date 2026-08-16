@@ -45,3 +45,4 @@ export const DeviceRegisterSchema=z.object({installId:z.string().min(12).max(200
 export const DeviceRegisterResponseSchema=z.object({deviceId:z.string(),token:z.string(),expiresAt:z.string().datetime()});
 
 export * from "./commitment.js";
+export * from "./agent-task.js";
