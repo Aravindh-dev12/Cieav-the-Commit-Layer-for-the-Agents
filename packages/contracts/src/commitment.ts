@@ -1,5 +1,7 @@
 import {z} from "zod";
-import {RiskLevelSchema,ReversibilitySchema} from "./index.js";
+
+const CommitmentRiskLevelSchema=z.enum(["LOW","MEDIUM","HIGH","CRITICAL"]);
+const CommitmentReversibilitySchema=z.enum(["REVERSIBLE","DELAYABLE","COMPENSABLE","IRREVERSIBLE","UNKNOWN"]);
 
 export const PrincipalKindSchema=z.enum(["HUMAN","AGENT","SERVICE","ORGANIZATION","DEVICE"]);
 export type PrincipalKind=z.infer<typeof PrincipalKindSchema>;
@@ -29,8 +31,8 @@ export const ConsequenceNodeSchema=z.object({
   target:z.string().min(1).max(500).optional(),
   affectedEntities:z.array(z.string().min(1).max(300)).max(50).default([]),
   dataCategories:z.array(z.string().min(1).max(120)).max(30).default([]),
-  risk:RiskLevelSchema,
-  reversibility:ReversibilitySchema,
+  risk:CommitmentRiskLevelSchema,
+  reversibility:CommitmentReversibilitySchema,
   external:z.boolean().default(false),
   monetaryAmount:z.object({currency:z.string().regex(/^[A-Z]{3}$/),value:z.number().nonnegative()}).optional(),
   dependsOn:z.array(z.string().min(1).max(160)).max(50).default([])
@@ -86,7 +88,7 @@ export const CommitmentSchema=z.object({
   createdAt:z.string().datetime(),
   expectedBy:z.string().datetime().optional(),
   state:CommitmentStateSchema,
-  risk:RiskLevelSchema,
+  risk:CommitmentRiskLevelSchema,
   consequenceGraph:ConsequenceGraphSchema,
   proofObligation:ProofObligationSchema,
   recovery:RecoveryPolicySchema,
@@ -128,7 +130,7 @@ export const CommitCapabilitySchema=z.object({
   proofObligationDigest:z.string().regex(/^[0-9a-f]{64}$/),
   allowedActionType:z.string().min(1).max(200),
   allowedTarget:z.string().min(1).max(1000).optional(),
-  maxRisk:RiskLevelSchema,
+  maxRisk:CommitmentRiskLevelSchema,
   issuedAt:z.string().datetime(),
   expiresAt:z.string().datetime(),
   singleUse:z.literal(true),
