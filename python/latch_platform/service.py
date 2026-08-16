@@ -258,10 +258,34 @@ def _windows_process_path(pid: int) -> str | None:
     value=(proc.stdout or "").strip()
     return value or None
 
+def _windows_process_env(settings: Settings) -> dict[str, str]:
+    env=dict(os.environ)
+    env.update(_env(settings))
+    return env
+
+def _service_log_tail(settings: Settings, limit: int = 5000) -> str:
+    parts=[]
+    for name in ("gateway-service.out.log","gateway-service.err.log"):
+        path=settings.state_dir/name
+        try:
+            text=path.read_text("utf-8",errors="replace")[-limit:]
+        except OSError:
+            continue
+        if text.strip():parts.append(f"{name}:\n{text}")
+    return "\n".join(parts)[-limit:]
+
 def _start_windows(settings: Settings) -> None:
     if _windows_gateway_health(settings):return
-    creationflags=(getattr(subprocess,"DETACHED_PROCESS",0x00000008)|getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200)|getattr(subprocess,"CREATE_NO_WINDOW",0x08000000))
-    subprocess.Popen(_windows_launcher_command(settings),cwd=settings.root,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,close_fds=True,creationflags=creationflags)
+    settings.state_dir.mkdir(parents=True,exist_ok=True)
+    out_path=settings.state_dir/"gateway-service.out.log";err_path=settings.state_dir/"gateway-service.err.log"
+    creationflags=(getattr(subprocess,"CREATE_NEW_PROCESS_GROUP",0x00000200)|getattr(subprocess,"CREATE_NO_WINDOW",0x08000000))
+    with out_path.open("ab") as out, err_path.open("ab") as err:
+        child=subprocess.Popen(_module_command(settings),cwd=settings.root,env=_windows_process_env(settings),stdin=subprocess.DEVNULL,stdout=out,stderr=err,close_fds=True,creationflags=creationflags)
+    time.sleep(.2)
+    code=child.poll()
+    if code is not None:
+        tail=_service_log_tail(settings)
+        raise RuntimeError(f"CIEAV Gateway exited during Windows startup with code {code}"+(f"\n{tail}" if tail else ""))
 
 def _stop_windows(settings: Settings) -> None:
     health=_windows_gateway_health(settings)
