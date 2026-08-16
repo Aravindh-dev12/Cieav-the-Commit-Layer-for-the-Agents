@@ -70,8 +70,8 @@ foreach ($file in $resolvedFiles) {
   $subjects += $subject
 }
 
-if (($thumbprints | Select-Object -Unique).Count -ne 1) { throw "Windows release executables were not signed by the same leaf certificate" }
-if (($subjects | Select-Object -Unique).Count -ne 1) { throw "Windows release executables have different signer subjects" }
+if (@($thumbprints | Select-Object -Unique).Count -ne 1) { throw "Windows release executables were not signed by the same leaf certificate" }
+if (@($subjects | Select-Object -Unique).Count -ne 1) { throw "Windows release executables have different signer subjects" }
 $actualThumb = $thumbprints[0]
 if ($env:GITHUB_ENV) { Add-Content -LiteralPath $env:GITHUB_ENV -Value "CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT=$actualThumb" -Encoding utf8 }
 Write-Host "CIEAV Windows signing verified · provider=$Provider · thumbprint=$actualThumb"
