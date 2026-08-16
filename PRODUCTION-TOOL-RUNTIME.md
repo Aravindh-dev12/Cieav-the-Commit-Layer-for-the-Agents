@@ -1,6 +1,6 @@
 # CIEAV Production Tool Runtime v1
 
-CIEAV treats tools as **capability metadata**, not authority. Models may select from a policy-filtered Tool Catalog, but every `TOOL` step is locally gated before it can change or inspect reality.
+CIEAV treats tools as **capability metadata**, not authority. Models may select from a policy-filtered Tool Catalog, but every managed `TOOL` step is locally gated before it can inspect or change reality.
 
 ## Runtime flow
 
@@ -9,18 +9,67 @@ AgentTask
   -> privacy-reduced Model Fabric plan
   -> governed ToolCatalog (executionAuthority=false)
   -> TOOL step (consequential=true)
-  -> Commitment / Consequence Graph / Proof Obligation
+  -> durable PROPOSED Commitment
+  -> local operator AUTHORIZED Commitment
   -> Gateway Ed25519 one-use CommitCapability
   -> exact EffectProposal digest
-  -> durable authority reservation (before execution)
-  -> local or remote Effect Node / MCP / A2A / Browser adapter
+  -> durable authority reservation before execution
+  -> verified Effect Node
   -> CLAIMED_COMPLETE | FAILED | UNKNOWN
-  -> independent observations
+  -> independent observation
   -> PROVEN | DISPROVEN | UNKNOWN
   -> task settlement or RECOVERY_REQUIRED
 ```
 
 `CLAIMED_COMPLETE` is never equivalent to `PROVEN`. If execution may have happened but CIEAV cannot independently establish the required reality, the result remains `UNKNOWN` and requires governed recovery.
+
+## Managed Agent + Commitment Runtime
+
+The local-authority API starts a long-lived managed Agent Runtime inside the Gateway-supervised Node service. The scheduler owns durable AgentTask, plan/receipt, Commitment, and Effect Dispatch stores. Interrupted dispatched work is reconciled to `UNKNOWN`; a consumed effect is never silently replayed.
+
+Gateway-authenticated administration is intentionally placed under the existing local node-control authority surface:
+
+```text
+GET  /v1/nodes/runtime/status
+GET  /v1/nodes/runtime/tools
+GET  /v1/nodes/runtime/tasks
+POST /v1/nodes/runtime/tasks
+GET  /v1/nodes/runtime/tasks/<task-id>
+GET  /v1/nodes/runtime/commitments
+POST /v1/nodes/runtime/commitments/<commitment-id>/authorize
+POST /v1/nodes/runtime/commitments/<commitment-id>/cancel
+```
+
+These routes require the local Gateway bearer. They are **not** exposed by the optional remote Effect Node TLS ingress.
+
+For this production runtime version, managed plans are deliberately restricted to `TOOL` steps. The underlying Agent Kernel has broader step contracts, but MODEL/WAIT/OBSERVE/MCP/A2A planning will not be admitted into the always-on managed scheduler until those step types have equally complete production dispatch/settlement assemblies.
+
+## Model Fabric
+
+The selected primary open-weight model is:
+
+```text
+Qwen/Qwen3.6-27B
+```
+
+Model choice is not part of the authority boundary. CIEAV talks to models through an OpenAI-compatible `/v1/chat/completions` contract, so the same Agent Runtime can use a local/self-hosted CPU or GPU server, private infrastructure, or a compatible hosted provider such as Hugging Face Inference Providers.
+
+Examples:
+
+```text
+# local/private OpenAI-compatible server
+CIEAV_CLOUD_MODEL_BASE_URL=http://127.0.0.1:8000/v1
+CIEAV_CLOUD_MODEL=Qwen/Qwen3.6-27B
+
+# hosted Hugging Face Inference Providers
+CIEAV_CLOUD_MODEL_BASE_URL=https://router.huggingface.co/v1
+CIEAV_CLOUD_MODEL=Qwen/Qwen3.6-27B
+CIEAV_CLOUD_MODEL_API_KEY=<fine-grained inference token>
+```
+
+Remote model endpoints require HTTPS. The model-visible Tool Catalog is minimized before inference: CIEAV sends semantic tool identity, consequences, commitment requirements and input schema, but does not send Effect Node endpoints, filesystem roots, command allowlists, host allowlists, runtime limits, authority tokens or signing material.
+
+The planner has `executionAuthority=false`; model output can never authorize a Commitment or mint a CommitCapability.
 
 ## Effect Node
 
@@ -69,7 +118,7 @@ Example Windows build node:
 
 A command not listed in `commands` is rejected. A path outside `roots` is rejected. Process execution uses `shell=false`, bounded arguments/runtime/output, and a stripped child environment that excludes Gateway/model/browser/node authority secrets.
 
-### Pairing
+### Pairing and heartbeats
 
 A local Gateway operator creates a one-time pairing code through the Gateway-authenticated endpoint:
 
@@ -84,72 +133,40 @@ Then on the node:
 cieav-node pair ABCD2345
 ```
 
-The node submits a fresh signed advertisement to `/v1/nodes/pair`. The Gateway validates the one-time code, signature, nonce, timestamp, identity key, capabilities, and advertised endpoint. The response contains the Gateway Effect Authority public key and a node-specific transport token derived from a local Gateway secret. The raw transport token is not stored in the node registry.
+The node submits a fresh signed advertisement. The Gateway validates the one-time code, signature, nonce, timestamp, identity key, capabilities and signed advertised endpoint. The response contains the Gateway Effect Authority public key and a node-specific transport token derived from a local Gateway secret. The raw transport token is not stored in the node registry.
 
-### Heartbeats
-
-`cieav-node serve` emits signed heartbeats every 15 seconds to `/v1/nodes/heartbeat`. Heartbeats are nonce- and freshness-checked and bind the previously paired capability digest. A heartbeat cannot add capabilities. A quarantined node remains quarantined even if its heartbeat is healthy.
+`cieav-node serve` emits signed heartbeats every 15 seconds. Heartbeats are nonce- and freshness-checked and bind the previously paired capability digest. A heartbeat cannot add capabilities. A quarantined node remains quarantined even if its heartbeat is healthy.
 
 ### Remote nodes
 
-Loopback development may use HTTP. A node bound to a non-loopback address fails closed unless TLS certificate/key files are configured and `CIEAV_NODE_ADVERTISE_URL` is an HTTPS URL.
+Loopback development may use HTTP. A node bound to a non-loopback address fails closed unless TLS certificate/key files are configured and `CIEAV_NODE_ADVERTISE_URL` is HTTPS.
 
-Required/important environment variables:
+The local authority API remains loopback-only. Optional remote pairing/heartbeat uses a separate TLS-only ingress configured with:
 
 ```text
-CIEAV_NODE_CAPABILITIES_FILE
-CIEAV_NODE_STATE_DIR
-CIEAV_NODE_NAME
-CIEAV_NODE_BIND
-CIEAV_NODE_PORT
-CIEAV_NODE_ADVERTISE_URL
-CIEAV_GATEWAY_URL
-CIEAV_NODE_TLS_CERT_FILE
-CIEAV_NODE_TLS_KEY_FILE
-CIEAV_NODE_CAPACITY
+CIEAV_NODE_INGRESS_BIND
+CIEAV_NODE_INGRESS_PORT
+CIEAV_NODE_INGRESS_TLS_CERT_FILE
+CIEAV_NODE_INGRESS_TLS_KEY_FILE
 ```
 
-`CIEAV_NODE_TOKEN` and `CIEAV_GATEWAY_AUTHORITY_PUBLIC_KEY_FILE` can be supplied explicitly, but normal pairing stores their node-local equivalents with restricted permissions.
+That ingress exposes only signed pairing and heartbeat endpoints.
 
 ## Exact effect authority
 
-The Gateway's `CieavEffectAuthority` owns a separate persistent Ed25519 keypair. Every execution capability binds:
+The Gateway's `CieavEffectAuthority` owns a separate persistent Ed25519 keypair. Every execution capability binds the Commitment ID/actor, exact EffectProposal digest, Consequence Graph digest, Proof Obligation digest, action type/target, risk ceiling, short expiry, nonce, and single-use requirement.
 
-- Commitment ID and actor
-- exact EffectProposal digest
-- Consequence Graph digest
-- Proof Obligation digest
-- action type and optional target
-- risk ceiling
-- short expiration (5–300 seconds; default 90)
-- random nonce
-- single-use requirement
+The Gateway dispatch store persists capability consumption **before** invoking an adapter. The Effect Node independently persists its replay marker before execution. A consumed grant cannot be replayed at either boundary.
 
-The Gateway dispatch store persists capability consumption **before** invoking an adapter. The Effect Node also persists its own replay marker before execution. A consumed grant cannot be replayed at either boundary.
+If either process crashes after authority consumption but before durable settlement, Agent step, Effect Receipt and Commitment recovery all become `UNKNOWN`; CIEAV does not auto-repeat the effect.
 
-If either process crashes after authority consumption but before a durable terminal receipt, restart recovery records `UNKNOWN`; CIEAV does not auto-repeat the effect.
+## Tool Broker and proof
 
-## Tool Broker
+Tool sources are normalized into `ToolDescriptor` objects from verified Effect Nodes and explicit trusted registrations. Policy can narrow providers, tool IDs, consequences, external effects and catalog size; it cannot invent capabilities. Conflicting descriptors fail closed.
 
-Tool sources are normalized into `ToolDescriptor` objects from:
+Every generic managed `TOOL` step is consequential in v1, including reads. This is deliberately conservative until CIEAV has a separately scoped read-capability primitive.
 
-- verified Effect Nodes
-- explicitly registered local tools
-- MCP governance tools
-- A2A governance operations
-- browser capabilities
-
-Policy can narrow providers, tool IDs, consequences, external effects, and maximum catalog size. Policy cannot invent a capability. Conflicting descriptors with the same ID fail closed.
-
-The model receives only the governed catalog and must select an exact catalog tool ID. Tool descriptions are untrusted metadata; model instructions explicitly prohibit following instructions embedded in descriptions.
-
-In v1 every generic `TOOL` step is treated as consequential, including reads, so it must pass local authority before dispatch. This is intentionally conservative until a separately scoped read-capability primitive exists.
-
-## Proof and recovery
-
-Adapters report execution claims. Independent observers evaluate the configured Proof Obligation. Current local observers include Tool Result and Filesystem readback. Existing CIEAV proof settlement enforces confidence and actor-independence requirements.
-
-Results:
+Adapters report execution claims. Independent observers evaluate the predefined Proof Obligation. Current local observation supports exact Tool Result evidence and filesystem readback for **loopback/local Effect Nodes only**. A remote filesystem path is never read from the Gateway machine and presented as proof; remote filesystem effects remain `UNKNOWN` unless an independent remote/connector observer is configured.
 
 ```text
 PROVEN      -> runtime may complete the step
@@ -161,6 +178,6 @@ Recovery is a new governed proposal; it cannot reuse the consumed capability.
 
 ## Production qualification
 
-The Effect Node workspace participates in root build, typecheck, test, selftest, platform-boundary verification, and release bundling. Release runtime format 7 includes the bundled node daemon and records signed-authority/replay/TLS requirements in `runtime.json`.
+The release builder creates self-contained bundled production API, MCP and Effect Node JavaScript entrypoints. Runtime bundle format **8** records managed Agent Runtime, durable Commitment Runtime, Tool Broker, proactive scheduler, signed Effect Node authority, replay resistance and remote-TLS requirements.
 
-Before promoting this branch, run the full local qualification sequence supplied with the branch handoff. Packaged production promotion still requires the repository's existing clean-runtime, service-lifecycle, signing, installer, and cross-platform qualification gates.
+Source PASS alone is not release evidence. Packaged production promotion still requires the repository's clean-runtime extraction test, service-lifecycle test, signing, installer and cross-platform qualification gates.
