@@ -3,6 +3,7 @@ export * from "./redaction.js";
 export * from "./commitment.js";
 export * from "./agent-task.js";
 export * from "./agent-runtime.js";
+export * from "./effect-node.js";
 
 import type {ActionContext,ActionManifest,Reversibility,RiskLevel} from "@cieav/contracts";
 
