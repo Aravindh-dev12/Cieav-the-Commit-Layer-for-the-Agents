@@ -2,6 +2,7 @@ import type {ActionContext,ActionManifest,RiskLevel,Reversibility} from "@cieav/
 import {stricterRisk,stricterReversibility} from "@cieav/core";
 import {gateSchema} from "./schemas.js";
 import type {GateResult} from "./types.js";
+import {createInferenceReceipt,privateInferenceReliability,providerKey,type CircuitState,type InferenceReceipt} from "./reliability.js";
 
 export const CIEAV_PRIVATE_INFERENCE_PROTOCOL="cieav-private-inference-v1";
 export type PrivateModelRole="fast"|"primary"|"verifier";
@@ -22,6 +23,9 @@ export interface PrivateInferenceStageMeta {
   model:string;
   ok:boolean;
   latencyMs:number;
+  startedAt:number;
+  completedAt:number;
+  circuitState:CircuitState;
   error?:string;
 }
 
@@ -41,6 +45,7 @@ export interface PrivateInferenceMeta {
   degraded:boolean;
   disagreement:number;
   stages:PrivateInferenceStageMeta[];
+  receipts:InferenceReceipt[];
 }
 
 const sensitive=new Set(["CREDENTIAL","FINANCIAL","IDENTITY","HEALTH","BIOMETRIC"]);
@@ -108,9 +113,11 @@ export function mergePrivateGateResults(base:ActionManifest,a:GateResult,b:GateR
 }
 
 async function attempt(ctx:ActionContext,base:ActionManifest,opt:CloudModelOptions,role:PrivateModelRole,model:string):Promise<{ok:true;result:GateResult;stage:PrivateInferenceStageMeta}|{ok:false;stage:PrivateInferenceStageMeta}>{
-  const started=Date.now(),ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),Math.max(2000,opt.timeoutMs));
+  const startedAt=Date.now(),root=validatedBaseUrl(opt.baseUrl),key=providerKey(root,model),lease=privateInferenceReliability.acquire(key);
+  if(!lease.ok){const completedAt=Date.now();return{ok:false,stage:{role,model,ok:false,latencyMs:completedAt-startedAt,startedAt,completedAt,circuitState:lease.state,error:`private_inference_${lease.reason}`}}}
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),Math.max(2000,opt.timeoutMs));
   try{
-    const root=validatedBaseUrl(opt.baseUrl),url=`${root}/chat/completions`;
+    const url=`${root}/chat/completions`;
     const headers:Record<string,string>={"content-type":"application/json","accept":"application/json","x-cieav-inference-protocol":CIEAV_PRIVATE_INFERENCE_PROTOCOL,"x-cieav-model-role":role};
     if(opt.apiKey)headers.authorization=`Bearer ${opt.apiKey}`;
     const body={model,messages:[{role:"system",content:systemPrompt(base)},{role:"user",content:`PRIVACY_REDUCED_ACTION_CONTEXT:\n${JSON.stringify(ctx)}`}],response_format:{type:"json_schema",json_schema:{name:"cieav_action_gate",schema:gateSchema,strict:true}},temperature:0,max_tokens:650};
@@ -119,9 +126,14 @@ async function attempt(ctx:ActionContext,base:ActionManifest,opt:CloudModelOptio
     let parsed:any;try{parsed=JSON.parse(outputText(JSON.parse(raw)))}catch{throw new Error("private_inference_invalid_json")}
     const result=parsed as GateResult;
     if(!result||typeof result.actionType!=="string"||!['LOW','MEDIUM','HIGH','CRITICAL'].includes(result.risk)||!['REVERSIBLE','DELAYABLE','COMPENSABLE','IRREVERSIBLE','UNKNOWN'].includes(result.reversibility)||typeof result.confidence!=="number"||typeof result.needsDeepReview!=="boolean"||typeof result.promptInjectionSuspected!=="boolean"||!Array.isArray(result.reasons))throw new Error("private_inference_invalid_gate");
-    return{ok:true,result:clampToDeterministicBaseline(base,{...result,reasons:result.reasons.filter(x=>typeof x==="string").slice(0,8)}),stage:{role,model,ok:true,latencyMs:Date.now()-started}};
-  }catch(error){return{ok:false,stage:{role,model,ok:false,latencyMs:Date.now()-started,error:(error instanceof Error?error.message:String(error)).slice(0,300)}}}
-  finally{clearTimeout(timer)}
+    privateInferenceReliability.success(key);
+    const completedAt=Date.now(),circuitState=privateInferenceReliability.snapshot(key).state;
+    return{ok:true,result:clampToDeterministicBaseline(base,{...result,reasons:result.reasons.filter(x=>typeof x==="string").slice(0,8)}),stage:{role,model,ok:true,latencyMs:completedAt-startedAt,startedAt,completedAt,circuitState}};
+  }catch(error){
+    const message=(error instanceof Error?error.message:String(error)).slice(0,300);privateInferenceReliability.failure(key,message);
+    const completedAt=Date.now(),circuitState=privateInferenceReliability.snapshot(key).state;
+    return{ok:false,stage:{role,model,ok:false,latencyMs:completedAt-startedAt,startedAt,completedAt,circuitState,error:message}};
+  }finally{clearTimeout(timer);lease.release()}
 }
 
 export async function analyzeWithCloudModel(ctx:ActionContext,base:ActionManifest,opt:CloudModelOptions):Promise<{result:GateResult;meta:PrivateInferenceMeta}>{
@@ -130,13 +142,12 @@ export async function analyzeWithCloudModel(ctx:ActionContext,base:ActionManifes
   let fallbackUsed=false,degraded=false,verifierUsed=false,disagreement=0;
   let first=await attempt(ctx,base,opt,selectedRole,selectedModel);stages.push(first.stage);
   if(!first.ok){
-    const candidates:[PrivateModelRole,string][] = selectedRole==="fast"?[["primary",primaryModel],["verifier",verifierModel]]:[["verifier",verifierModel],["fast",fastModel]];
+    const candidates:[PrivateModelRole,string][]=selectedRole==="fast"?[["primary",primaryModel],["verifier",verifierModel]]:[["verifier",verifierModel],["fast",fastModel]];
     const fallback=candidates.find(([,model])=>model!==selectedModel);
     if(!fallback)throw new Error(`private_inference_${selectedRole}_unavailable:${first.stage.error??"unknown"}`);
     const retry=await attempt(ctx,base,opt,fallback[0],fallback[1]);stages.push(retry.stage);fallbackUsed=true;degraded=true;
     if(!retry.ok)throw new Error(`private_inference_router_unavailable:${first.stage.error??"unknown"};${retry.stage.error??"unknown"}`);
-    first=retry;
-    first={...first,result:{...first.result,confidence:Math.min(first.result.confidence,.65),needsDeepReview:true,reasons:[...new Set([...first.result.reasons,"Primary routing role was unavailable; CIEAV used a degraded fallback model."])].slice(0,8)}};
+    first={...retry,result:{...retry.result,confidence:Math.min(retry.result.confidence,.65),needsDeepReview:true,reasons:[...new Set([...retry.result.reasons,"Primary routing role was unavailable; CIEAV used a degraded fallback model."])].slice(0,8)}};
   }
   let result=first.result;
   const needsVerifier=verifierRequired(base,result),independentVerifier=verifierModel!==first.stage.model;
@@ -144,5 +155,6 @@ export async function analyzeWithCloudModel(ctx:ActionContext,base:ActionManifes
     const verification=await attempt(ctx,base,opt,"verifier",verifierModel);stages.push(verification.stage);
     if(verification.ok){const merged=mergePrivateGateResults(base,result,verification.result);result=merged.result;disagreement=merged.disagreement;verifierUsed=true}else{degraded=true;result={...result,confidence:Math.min(result.confidence,.7),needsDeepReview:true,reasons:[...new Set([...result.reasons,"Independent verifier was unavailable; deterministic CIEAV policy remains authoritative."])].slice(0,8)}}
   }else if(needsVerifier&&!independentVerifier){degraded=true;result={...result,confidence:Math.min(result.confidence,.75),needsDeepReview:true,reasons:[...new Set([...result.reasons,"No independent verifier model is configured; deterministic CIEAV policy remains authoritative."])].slice(0,8)}}
-  return{result:clampToDeterministicBaseline(base,result),meta:{model:first.stage.model,...(opt.modelRevision?{modelRevision:opt.modelRevision}:{}),...(opt.modelDigest?{modelDigest:opt.modelDigest}:{}),latencyMs:Date.now()-started,provider:"cieav-private-inference",protocolVersion:CIEAV_PRIVATE_INFERENCE_PROTOCOL,zeroRetention:true,executionAuthority:false,selectedRole,verifierRequired:needsVerifier,verifierUsed,fallbackUsed,degraded,disagreement,stages}};
+  const receipts=stages.map((stage,index)=>createInferenceReceipt({requestId:ctx.requestId,role:stage.role,model:stage.model,...(opt.modelRevision?{modelRevision:opt.modelRevision}:{}),...(opt.modelDigest?{modelDigest:opt.modelDigest}:{}),protocolVersion:CIEAV_PRIVATE_INFERENCE_PROTOCOL,startedAt:stage.startedAt,completedAt:stage.completedAt,ok:stage.ok,fallbackUsed:index>0&&stage.role!=="verifier",degraded:degraded||!stage.ok,circuitState:stage.circuitState,...(stage.error?{error:stage.error}:{})}));
+  return{result:clampToDeterministicBaseline(base,result),meta:{model:first.stage.model,...(opt.modelRevision?{modelRevision:opt.modelRevision}:{}),...(opt.modelDigest?{modelDigest:opt.modelDigest}:{}),latencyMs:Date.now()-started,provider:"cieav-private-inference",protocolVersion:CIEAV_PRIVATE_INFERENCE_PROTOCOL,zeroRetention:true,executionAuthority:false,selectedRole,verifierRequired:needsVerifier,verifierUsed,fallbackUsed,degraded,disagreement,stages,receipts}};
 }
