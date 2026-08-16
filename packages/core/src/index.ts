@@ -8,6 +8,7 @@ export * from "./tool-broker.js";
 export * from "./effect-dispatch.js";
 export * from "./effect-node-executor.js";
 export * from "./effect-node-host.js";
+export * from "./tool-commitment.js";
 
 import type {ActionContext,ActionManifest,Reversibility,RiskLevel} from "@cieav/contracts";
 
