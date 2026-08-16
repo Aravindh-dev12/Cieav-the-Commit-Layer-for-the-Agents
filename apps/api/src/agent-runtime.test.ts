@@ -2,6 +2,7 @@ import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {afterEach,describe,expect,it} from "vitest";
+import {stablePlanDigest} from "@cieav/core";
 import {CieavAgentKernelStore} from "./agent-kernel.js";
 import {CieavAgentRuntimeStore} from "./agent-runtime-store.js";
 import {CieavAgentRuntime} from "./agent-runtime.js";
@@ -42,8 +43,9 @@ describe("CIEAV Agent Kernel Runtime v1",()=>{
   });
 
   it("recovers DISPATCHED steps as UNKNOWN after restart and rejects tampered runtime state",async()=>{
-    const {dir,tasks,runtime}=await stores(),created=await tasks.create({owner:principal,actor:principal,goal:"Govern action",maxRetries:2,metadata:{}});await tasks.transition(created.task.id,"QUEUED","test");
-    const kernel=new CieavAgentRuntime(tasks,runtime,planner(false),{});await kernel.runOnce(created.task.id);const plan=await runtime.getPlan(created.task.id);expect(plan?.steps[0]?.state).toBe("FAILED");
+    const {dir,runtime}=await stores(),taskId="00000000-0000-4000-8000-000000000010",plannedAt="2026-08-16T11:30:00.000Z";
+    const body={version:1 as const,taskId,plannedAt,planner:{provider:"test",model:"test",protocolVersion:"v1",executionAuthority:false as const,privacyReduced:true as const},steps:[{id:"step-1",sequence:1,kind:"MCP_GOVERNANCE" as const,summary:"Evaluate",consequential:false,state:"DISPATCHED" as const,attemptCount:1,lastAttemptAt:plannedAt,metadata:{operation:"evaluate_action",inputJson:"{}"}}]};
+    await runtime.putPlan({...body,planDigest:stablePlanDigest(body)});const recovered=await runtime.recoverInFlight();expect(recovered[0]?.state).toBe("UNKNOWN");expect((await runtime.getPlan(taskId))?.steps[0]?.state).toBe("UNKNOWN");
     const file=path.join(dir,"runtime.json"),raw=await readFile(file,"utf8"),parsed=JSON.parse(raw);parsed.payload.plans[0].planner.model="tampered";await writeFile(file,JSON.stringify(parsed));
     const reopened=new CieavAgentRuntimeStore(file,"s".repeat(48));await expect(reopened.listPlans()).rejects.toThrow(/corrupt|unauthenticated|integrity/i);
   });
