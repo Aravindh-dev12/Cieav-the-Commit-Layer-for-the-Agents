@@ -6,6 +6,7 @@ export * from "./agent-runtime.js";
 export * from "./effect-node.js";
 export * from "./tool-broker.js";
 export * from "./effect-dispatch.js";
+export * from "./effect-node-executor.js";
 
 import type {ActionContext,ActionManifest,Reversibility,RiskLevel} from "@cieav/contracts";
 
