@@ -15,10 +15,10 @@ export function canTransitionAgentStep(from:AgentStepState,to:AgentStepState){re
 export function assertAgentStepTransition(from:AgentStepState,to:AgentStepState){if(!canTransitionAgentStep(from,to))throw new Error(`invalid agent step transition: ${from} -> ${to}`)}
 
 export function transitionAgentStep(step:AgentPlanStep,to:AgentStepState,at=new Date().toISOString()):AgentPlanStep{
+  if(to==="COMPLETED"&&step.state!=="OBSERVING")throw new Error("agent step cannot complete without observation");
   assertAgentStepTransition(step.state,to);
   if(to==="READY"&&step.consequential&&!step.commitmentId)throw new Error("consequential agent step cannot become READY before commitment binding");
   if(to==="DISPATCHED"&&step.consequential&&!step.commitmentId)throw new Error("consequential agent step cannot dispatch before commitment binding");
-  if(to==="COMPLETED"&&step.state!=="OBSERVING")throw new Error("agent step cannot complete without observation");
   return{...step,state:to,...(to==="DISPATCHED"?{attemptCount:step.attemptCount+1,lastAttemptAt:at}:{}),lastError:to==="FAILED"?step.lastError:undefined};
 }
 
