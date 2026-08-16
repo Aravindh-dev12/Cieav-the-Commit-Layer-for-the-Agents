@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type {CommitCapability,Commitment,CommitmentEvidence,EffectObservation,EffectProposal,EffectReceipt,EffectSettlement,ToolDescriptor} from "@cieav/contracts";
+import type {CommitCapability,Commitment,CommitmentEvidence,EffectObservation,EffectProposal,EffectReceipt,EffectSettlement,SignedCommitCapability,ToolDescriptor} from "@cieav/contracts";
 import {settleCommitment} from "./commitment.js";
 
 const canonical=(x:unknown):string=>Array.isArray(x)?`[${x.map(canonical).join(",")}]`:x&&typeof x==="object"?`{${Object.keys(x as Record<string,unknown>).sort().map(k=>`${JSON.stringify(k)}:${canonical((x as Record<string,unknown>)[k])}`).join(",")}}`:JSON.stringify(x);
@@ -8,6 +8,13 @@ export const effectInputDigest=(input:unknown)=>sha256Digest(input);
 export const effectProposalDigest=(proposal:EffectProposal)=>sha256Digest(proposal);
 export const consequenceGraphDigest=(commitment:Pick<Commitment,"consequenceGraph">)=>sha256Digest(commitment.consequenceGraph);
 export const proofObligationDigest=(commitment:Pick<Commitment,"proofObligation">)=>sha256Digest(commitment.proofObligation);
+export const commitCapabilitySigningPayload=(capability:CommitCapability)=>Buffer.from(canonical(capability),"utf8");
+export const authorityKeyId=(publicKeyPem:string)=>crypto.createHash("sha256").update(publicKeyPem.trim()).digest("hex").slice(0,32);
+
+export function verifySignedCommitCapability(signed:SignedCommitCapability,pinnedPublicKeyPem:string,pinnedKeyId=authorityKeyId(pinnedPublicKeyPem)):boolean{
+  if(signed.signatureAlgorithm!=="ed25519"||signed.authorityKeyId!==pinnedKeyId)return false;
+  try{return crypto.verify(null,commitCapabilitySigningPayload(signed.capability),crypto.createPublicKey(pinnedPublicKeyPem),Buffer.from(signed.signature,"base64url"))}catch{return false}
+}
 
 export function buildEffectProposal(input:Omit<EffectProposal,"inputDigest">):EffectProposal{return{...input,inputDigest:effectInputDigest(input.input)}}
 
