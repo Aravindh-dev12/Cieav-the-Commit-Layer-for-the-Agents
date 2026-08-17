@@ -348,6 +348,8 @@ class ControlHandler(BaseHTTPRequestHandler):
         if not self._authorized(): self._send(401,{"error":"unauthorized"}); return
         path=self.path.split("?",1)[0]
         try:
+            if path=="/v1/shutdown":
+                self.gateway.stop_event.set(); self._send(202,{"ok":True,"shuttingDown":True}); threading.Thread(target=self.server.shutdown,daemon=True).start(); return
             if path=="/v1/pause": self.gateway.pause(); self._send(200,self.gateway.status()); return
             if path=="/v1/resume": self.gateway.resume(); self._send(200,self.gateway.status()); return
             if path=="/v1/restart-surface": self.gateway.restart_surface(); self._send(200,self.gateway.status()); return
