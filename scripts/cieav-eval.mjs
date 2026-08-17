@@ -5,8 +5,9 @@ import process from "node:process";
 import {spawn} from "node:child_process";
 import net from "node:net";
 import crypto from "node:crypto";
+import {fileURLToPath} from "node:url";
 
-const ROOT=path.resolve(new URL("..",import.meta.url).pathname);
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const env=(primary,legacy)=>process.env[primary]??process.env[legacy];
 const CORPUS=path.resolve(env("CIEAV_EVAL_CORPUS","LATCH_EVAL_CORPUS")??path.join(ROOT,"evals/cases.v1.json"));
 const OUTPUT=path.resolve(env("CIEAV_EVAL_OUTPUT","LATCH_EVAL_OUTPUT")??path.join(ROOT,".cieav/eval-report.json"));
