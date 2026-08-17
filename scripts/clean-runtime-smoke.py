@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse,hashlib,json,os,platform,shutil,stat,subprocess,tempfile,zipfile
+import argparse,hashlib,json,os,platform,shutil,stat,subprocess,tempfile,time,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];REPORTS=ROOT/"release"/"reports";MAX_CAPTURE=64_000
 
@@ -20,9 +20,21 @@ def find_archive(release_dir:Path,target:str)->Path:
     matches=sorted(release_dir.glob(f"cieav-runtime-*-{target}.zip"),key=lambda p:p.stat().st_mtime,reverse=True)
     if not matches:raise RuntimeError(f"No CIEAV runtime archive for {target} found in {release_dir}")
     return matches[0]
-def run(cmd:list[str],*,cwd:Path,env:dict[str,str]|None=None)->dict:
-    proc=subprocess.run(cmd,cwd=cwd,env=env,capture_output=True,text=True,timeout=45);out=(proc.stdout or "")[-MAX_CAPTURE:];err=(proc.stderr or "")[-MAX_CAPTURE:]
-    if proc.returncode!=0:raise RuntimeError(f"command failed ({proc.returncode}): {' '.join(cmd)}\nstdout:\n{out}\nstderr:\n{err}")
+def run(cmd:list[str],*,cwd:Path,env:dict[str,str]|None=None,timeout:int=45,label:str|None=None)->dict:
+    name=label or Path(cmd[0]).name
+    printable=" ".join(cmd)
+    print(f"[clean-runtime] START {name}: {printable}",flush=True)
+    started=time.monotonic()
+    try:
+        proc=subprocess.run(cmd,cwd=cwd,env=env,capture_output=True,text=True,timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        elapsed=time.monotonic()-started
+        out=exc.stdout.decode(errors="replace") if isinstance(exc.stdout,bytes) else (exc.stdout or "")
+        err=exc.stderr.decode(errors="replace") if isinstance(exc.stderr,bytes) else (exc.stderr or "")
+        raise RuntimeError(f"command timed out after {elapsed:.1f}s ({name}): {printable}\nstdout:\n{out[-MAX_CAPTURE:]}\nstderr:\n{err[-MAX_CAPTURE:]}") from exc
+    out=(proc.stdout or "")[-MAX_CAPTURE:];err=(proc.stderr or "")[-MAX_CAPTURE:]
+    if proc.returncode!=0:raise RuntimeError(f"command failed ({proc.returncode}) ({name}): {printable}\nstdout:\n{out}\nstderr:\n{err}")
+    print(f"[clean-runtime] PASS  {name} ({time.monotonic()-started:.1f}s)",flush=True)
     return{"command":cmd,"stdout":out,"stderr":err}
 def inspect_archive_names(archive:Path)->list[str]:
     forbidden_exact={"gateway-token","local-api-signing-secret","receipt-signing-secret","hf-token","cieav-release-private.pem","cieav-code-sign.pfx","cieav-developer-id.p12"};forbidden_suffixes=(".pfx",".p12",".key","private.pem");bad=[]
@@ -44,7 +56,7 @@ def check_windows_signature(path:Path,thumbprint:str|None)->dict|None:
     return data
 def check_macos_signature(path:Path,identity:str|None)->dict|None:
     if platform.system()!="Darwin":return None
-    run(["codesign","--verify","--strict","--verbose=2",str(path)],cwd=path.parent);proc=subprocess.run(["codesign","-dv","--verbose=4",str(path)],capture_output=True,text=True,timeout=30);text=(proc.stderr or "")+(proc.stdout or "")
+    run(["codesign","--verify","--strict","--verbose=2",str(path)],cwd=path.parent,label=f"codesign:{path.name}");proc=subprocess.run(["codesign","-dv","--verbose=4",str(path)],capture_output=True,text=True,timeout=30);text=(proc.stderr or "")+(proc.stdout or "")
     if proc.returncode!=0:raise RuntimeError(f"codesign identity inspection failed for {path}")
     if identity and f"Authority={identity}" not in text:raise RuntimeError(f"macOS signer identity mismatch for {path.name}")
     return{"identityPinned":bool(identity),"identity":identity}
@@ -81,13 +93,14 @@ def main()->None:
         checks["runtimeMetadata"]=True
         exe=runtime/"bin"/("cieav.exe" if os.name=="nt" else "cieav");node=runtime/"runtime"/("node.exe" if os.name=="nt" else "node")
         if not exe.exists() or not node.exists():raise RuntimeError("runtime executable or bundled Node is missing")
-        executable(exe);executable(node);checks["cieavHelp"]=bool(run([str(exe),"--help"],cwd=runtime));checks["nodeVersion"]=bool(run([str(node),"--version"],cwd=runtime))
+        executable(exe);executable(node);checks["cieavHelp"]=bool(run([str(exe),"--help"],cwd=runtime,timeout=120,label="cieav --help"));checks["nodeVersion"]=bool(run([str(node),"--version"],cwd=runtime,label="node --version"))
         for label,rel in {"browserWrapperSyntax":"apps/browser/main.mjs","browserCoreSyntax":"apps/browser/main-core.mjs","semanticApiSyntax":"apps/api/dist/server.js","mcpSyntax":"apps/mcp/dist/index.js","a2aSyntax":"apps/a2a/dist/index.mjs","effectNodeSyntax":"apps/node/dist/index.js"}.items():
             file=runtime/rel
             if not file.exists():raise RuntimeError(f"packaged runtime missing {rel}")
-            run([str(node),"--check",str(file)],cwd=runtime);checks[label]=True
-        run([str(node),str(runtime/"apps/node/dist/index.js")],cwd=runtime);checks["effectNodeHelp"]=True
-        for command in (["companion","--help"],["lab","--help"],["a2a","--help"],["mcp","--help"],["gateway","--help"]):run([str(exe),*command],cwd=runtime)
+            run([str(node),"--check",str(file)],cwd=runtime,label=label);checks[label]=True
+        run([str(node),str(runtime/"apps/node/dist/index.js")],cwd=runtime,label="effect-node help");checks["effectNodeHelp"]=True
+        for command in (["companion","--help"],["lab","--help"],["a2a","--help"],["mcp","--help"],["gateway","--help"]):
+            run([str(exe),*command],cwd=runtime,timeout=120,label=f"cieav {command[0]} --help")
         checks["cliSurfaces"]=True
         win_sig=check_windows_signature(exe,args.windows_signer_thumbprint or None)
         if platform.system()=="Windows":
@@ -96,6 +109,6 @@ def main()->None:
             bridge_sig=check_windows_signature(bridge,args.windows_signer_thumbprint or None);checks["windowsAuthenticode"]={"cieav":win_sig,"cdpBridge":bridge_sig}
         mac_sig=check_macos_signature(exe,args.macos_signing_identity or None)
         if mac_sig is not None:checks["macosCodeSign"]=mac_sig
-        relocated_parent=Path(td)/"relocated"/"deep"/"path";relocated_parent.mkdir(parents=True);relocated=relocated_parent/"cieav-runtime";shutil.copytree(runtime,relocated);relocated_exe=relocated/"bin"/exe.name;executable(relocated_exe);run([str(relocated_exe),"--help"],cwd=relocated);checks["relocation"]=True
+        relocated_parent=Path(td)/"relocated"/"deep"/"path";relocated_parent.mkdir(parents=True);relocated=relocated_parent/"cieav-runtime";shutil.copytree(runtime,relocated);relocated_exe=relocated/"bin"/exe.name;executable(relocated_exe);run([str(relocated_exe),"--help"],cwd=relocated,timeout=120,label="relocated cieav --help");checks["relocation"]=True
     evidence={"schemaVersion":1,"product":"CIEAV","version":package["version"],"mode":args.mode,"target":target,"commit":git,"archive":{"filename":archive.name,"sha256":sha256_file(archive),"size":archive.stat().st_size},"verifiedAt":__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),"checks":checks};digest=hashlib.sha256(canonical(evidence).encode("utf-8")).hexdigest();attestation={**evidence,"digestAlgorithm":"SHA-256","digest":digest};REPORTS.mkdir(parents=True,exist_ok=True);filename=f"cieav-runtime-smoke-{package['version']}-{args.mode}-{target}-{git[:12]}.json";(REPORTS/filename).write_text(json.dumps(attestation,indent=2)+"\n","utf-8");(REPORTS/"latest-runtime-smoke.json").write_text(json.dumps(attestation,indent=2)+"\n","utf-8");print(json.dumps({"ok":True,"report":str(REPORTS/filename),"target":target,"archive":archive.name,"digest":digest},indent=2))
 if __name__=="__main__":main()
