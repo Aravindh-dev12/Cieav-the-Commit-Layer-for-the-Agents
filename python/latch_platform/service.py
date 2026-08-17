@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from .config import Settings
 
@@ -287,6 +287,29 @@ def _start_windows(settings: Settings) -> None:
         tail=_service_log_tail(settings)
         raise RuntimeError(f"CIEAV Gateway exited during Windows startup with code {code}"+(f"\n{tail}" if tail else ""))
 
+def _request_windows_shutdown(settings: Settings) -> bool:
+    req=Request(
+        f"http://127.0.0.1:{settings.gateway_port}/v1/shutdown",
+        data=b"{}",
+        headers={"accept":"application/json","content-type":"application/json","authorization":f"Bearer {settings.token()}"},
+        method="POST",
+    )
+    try:
+        with urlopen(req,timeout=1.5) as response:
+            raw=response.read(4097)
+        if len(raw)>4096:return False
+        value=json.loads(raw.decode("utf-8") or "{}")
+        return isinstance(value,dict) and value.get("ok") is True and value.get("shuttingDown") is True
+    except Exception:
+        return False
+
+def _wait_windows_offline(settings: Settings, timeout: float) -> bool:
+    deadline=time.time()+timeout
+    while time.time()<deadline:
+        if not _windows_gateway_health(settings):return True
+        time.sleep(.15)
+    return not bool(_windows_gateway_health(settings))
+
 def _stop_windows(settings: Settings) -> None:
     health=_windows_gateway_health(settings)
     if not health:return
@@ -295,11 +318,11 @@ def _stop_windows(settings: Settings) -> None:
     expected=_python()
     if not actual or os.path.normcase(str(Path(actual).resolve()))!=os.path.normcase(str(Path(expected).resolve())):
         raise RuntimeError(f"Refusing to stop PID {pid}: process image does not match the CIEAV runtime")
-    subprocess.run(["taskkill","/PID",str(pid),"/T","/F"],check=False,capture_output=True,text=True)
-    deadline=time.time()+6.0
-    while time.time()<deadline:
-        if not _windows_gateway_health(settings):return
-        time.sleep(.15)
+    if _request_windows_shutdown(settings) and _wait_windows_offline(settings,6.0):return
+    # Bounded force-kill is a recovery fallback only after authenticated graceful
+    # shutdown failed or the verified Gateway did not exit in time.
+    subprocess.run(["taskkill","/PID",str(pid),"/T","/F"],check=False,capture_output=True,text=True,timeout=8)
+    if _wait_windows_offline(settings,6.0):return
     raise RuntimeError("CIEAV Gateway did not stop before timeout")
 
 def _write_windows_launcher(settings: Settings) -> Path:
