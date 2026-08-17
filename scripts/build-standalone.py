@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import platform
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -16,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OFFICIAL_PYPI = "https://pypi.org/simple"
-PYINSTALLER_VERSION = "6.22.0"
+PYINSTALLER_VERSION = "6.21.0"
 HOOKS_VERSION = "2026.6"
 TOOLCHAIN = [
     f"pyinstaller=={PYINSTALLER_VERSION}",
