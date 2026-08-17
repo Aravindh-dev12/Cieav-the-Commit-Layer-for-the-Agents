@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,7 @@ from .cloud_provider import CloudSemanticProvider
 RISK = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
 REVERSIBILITY = {"REVERSIBLE", "DELAYABLE", "COMPENSABLE", "IRREVERSIBLE", "UNKNOWN"}
 DEFAULT_MODEL = "Qwen/Qwen3-32B"
+PROVIDER_STATUS_BUDGET_SECONDS = 0.9
 
 GATE_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -150,14 +152,70 @@ class HuggingFaceSemanticProvider:
     def configured(self) -> bool:
         return self.cloud.configured or self.local_configured or self.hosted_configured
 
+    def _provider_statuses(self) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Probe configured provider health without letting remote I/O block local control.
+
+        Gateway /v1/status is a local-authority operation. Provider diagnostics are
+        useful context, but a slow/unreachable cloud or local model must not make
+        the Gateway itself appear offline. Cloud/local probes therefore share one
+        short wall-clock budget; timed-out probes are explicitly reported.
+        """
+        results: dict[str, dict[str, Any]] = {}
+        jobs: list[tuple[str, threading.Thread]] = []
+
+        def start(name: str, fn: Callable[[], dict[str, Any]]) -> None:
+            def work() -> None:
+                try:
+                    value = fn()
+                    results[name] = value if isinstance(value, dict) else {"configured": True, "healthy": False, "error": "provider status returned non-object"}
+                except Exception as exc:
+                    results[name] = {"configured": True, "healthy": False, "error": f"{type(exc).__name__}: {exc}"[:500]}
+            thread = threading.Thread(target=work, name=f"cieav-{name}-status", daemon=True)
+            jobs.append((name, thread)); thread.start()
+
+        start("cloud", self.cloud.status)
+        if self.local is not None:
+            start("local", self.local.status)
+
+        deadline = time.monotonic() + PROVIDER_STATUS_BUDGET_SECONDS
+        for _, thread in jobs:
+            thread.join(max(0.0, deadline - time.monotonic()))
+
+        cloud = results.get("cloud")
+        if cloud is None:
+            cloud = {
+                "brand": "CIEAV",
+                "configured": self.cloud.configured,
+                "baseUrl": self.cloud.config.base_url,
+                "enrolled": False,
+                "healthy": False,
+                "healthTimedOut": True,
+                "lastSuccessAt": self.cloud.last_success_at,
+                "lastLatencyMs": self.cloud.last_latency_ms,
+                "lastError": self.cloud.last_error,
+            }
+        local = results.get("local") if self.local is not None else {"configured": False, "healthy": False}
+        if self.local is not None and local is None:
+            local = {
+                "configured": True,
+                "healthy": False,
+                "healthTimedOut": True,
+                "model": self.local.config.model,
+                "baseUrl": self.local.config.base_url,
+                "mode": "local-openai-compatible",
+                "lastSuccessAt": self.local.last_success_at,
+                "lastLatencyMs": self.local.last_latency_ms,
+                "lastError": self.local.last_error,
+            }
+        return cloud, local
+
     def status(self) -> dict[str, Any]:
-        cloud_status = self.cloud.status()
-        local_status = self.local.status() if self.local is not None else {"configured": False, "healthy": False}
+        cloud_status, local_status = self._provider_statuses()
         active = (
             "latch-cloud"
-            if cloud_status.get("healthy")
+            if cloud_status.get("healthy") or (cloud_status.get("configured") and cloud_status.get("healthTimedOut"))
             else "local"
-            if local_status.get("healthy")
+            if local_status.get("healthy") or (local_status.get("configured") and local_status.get("healthTimedOut"))
             else "hosted-hf"
             if self.hosted_configured
             else "deterministic"
@@ -165,6 +223,7 @@ class HuggingFaceSemanticProvider:
         return {
             "configured": self.configured,
             "activeTier": active,
+            "providerStatusBudgetMs": int(PROVIDER_STATUS_BUDGET_SECONDS * 1000),
             "cloud": cloud_status,
             "local": local_status,
             "hostedFallback": {
