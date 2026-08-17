@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import platform
+import socket
 import stat
 import subprocess
 import tempfile
@@ -39,6 +40,20 @@ def host_target()->str:
     system={"Windows":"windows","Darwin":"macos","Linux":"linux"}.get(platform.system(),platform.system().lower())
     machine=platform.machine().lower();arch="arm64" if machine in {"arm64","aarch64"} else "x64" if machine in {"x86_64","amd64"} else machine
     return f"{system}-{arch}"
+
+
+def allocate_loopback_ports(count:int=3)->list[int]:
+    """Reserve distinct ephemeral loopback ports long enough to choose a test set."""
+    holders=[];ports=[]
+    try:
+        for _ in range(count):
+            s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            s.setsockopt(socket.SOL_SOCKET,socket.SO_EXCLUSIVEADDRUSE,1) if os.name=="nt" and hasattr(socket,"SO_EXCLUSIVEADDRUSE") else None
+            s.bind(("127.0.0.1",0));s.listen(1);holders.append(s);ports.append(int(s.getsockname()[1]))
+    finally:
+        for s in holders:s.close()
+    if len(ports)!=count or len(set(ports))!=count or any(port<=0 for port in ports):raise RuntimeError("Could not allocate distinct loopback ports for service lifecycle qualification")
+    return ports
 
 
 def run(cmd:list[str],*,cwd:Path,env:dict[str,str],ok=(0,),timeout=45)->subprocess.CompletedProcess:
@@ -77,7 +92,6 @@ def windows_gateway_health(port:int=8791)->dict|None:
 
 
 def windows_process_info(pid:int)->dict|None:
-    ps=os.environ.get("COMSPEC")
     powershell="powershell.exe"
     script=(f"$p=Get-CimInstance Win32_Process -Filter 'ProcessId = {pid}';"
             "if($p){[pscustomobject]@{ExecutablePath=[string]$p.ExecutablePath;CommandLine=[string]$p.CommandLine}|ConvertTo-Json -Compress}")
@@ -118,18 +132,24 @@ def kill_lifecycle_gateway_if_verified(port:int=8791)->bool:
 
 
 def recover_stale_lifecycle_service()->bool:
-    """Recover only a stale service created by this smoke harness.
+    """Recover only the registry mutation proven to belong to this smoke harness.
 
-    A real/user CIEAV installation remains protected by the clean-machine refusal.
-    Recovery is allowed only when the HKCU Run command carries this harness's
-    unique temporary-directory prefix. Any live process must independently prove
-    the same prefix before it may be terminated.
+    A stale lifecycle HKCU Run value is safe to remove based on its unique
+    temporary-directory marker alone. A live process is a separate authority
+    boundary: it is terminated only if its own process metadata proves it is a
+    lifecycle-test CIEAV executable. Unverified processes are left untouched.
+    New lifecycle runs use isolated ephemeral ports, so an unrelated/default-port
+    Gateway cannot be mistaken for the candidate under test.
     """
     if platform.system()!="Windows":return False
     registered=windows_registered_command()
     if not is_lifecycle_owned_text(registered):return False
-    if not kill_lifecycle_gateway_if_verified():
-        raise RuntimeError("Refusing stale lifecycle cleanup: live Gateway process is not verified as lifecycle-test owned")
+    health=windows_gateway_health()
+    if health:
+        if kill_lifecycle_gateway_if_verified():
+            print("Stopped verified stale CIEAV lifecycle-test Gateway",flush=True)
+        else:
+            print("Left unverified/default-port Gateway process untouched while removing stale lifecycle registration",flush=True)
     delete_windows_registration()
     if windows_registered_command():raise RuntimeError("Failed to remove stale lifecycle-test HKCU startup registration")
     print("Recovered stale CIEAV service-lifecycle test registration",flush=True)
@@ -138,25 +158,25 @@ def recover_stale_lifecycle_service()->bool:
 
 def cleanup_current_lifecycle_service(exe:Path,runtime:Path,env:dict[str,str],state:Path)->None:
     """Best-effort product uninstall followed by verified test-owned fallback cleanup."""
-    if not service_present() and not windows_gateway_health(int(env.get("CIEAV_GATEWAY_PORT","8791"))):return
+    port=int(env.get("CIEAV_GATEWAY_PORT","8791"))
+    if not service_present() and not windows_gateway_health(port):return
     errors=[]
     try:
         p=subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=20)
         if p.returncode!=0:errors.append(f"gateway uninstall rc={p.returncode}: {((p.stderr or p.stdout) or '').strip()[-2000:]}")
     except subprocess.TimeoutExpired:errors.append("gateway uninstall timed out")
     except Exception as exc:errors.append(f"gateway uninstall failed: {type(exc).__name__}: {exc}")
-    if not service_present():return
+    if not service_present() and not windows_gateway_health(port):return
     if platform.system()=="Windows":
         registered=windows_registered_command();expected_marker=str(state/"gateway-service.ps1").lower()
-        if not registered or expected_marker not in registered.lower() or not is_lifecycle_owned_text(registered):
+        if registered and (expected_marker not in registered.lower() or not is_lifecycle_owned_text(registered)):
             raise RuntimeError("; ".join(errors+["refusing fallback cleanup: registration is not owned by this lifecycle run"]))
-        port=int(env.get("CIEAV_GATEWAY_PORT","8791"))
-        if not kill_lifecycle_gateway_if_verified(port):
+        if windows_gateway_health(port) and not kill_lifecycle_gateway_if_verified(port):
             raise RuntimeError("; ".join(errors+["refusing fallback cleanup: Gateway process ownership could not be verified"]))
-        delete_windows_registration()
-        if service_present():raise RuntimeError("; ".join(errors+["fallback cleanup could not remove HKCU startup registration"]))
+        if registered:delete_windows_registration()
+        if service_present() or windows_gateway_health(port):raise RuntimeError("; ".join(errors+["fallback cleanup could not remove the lifecycle service/process"]))
         return
-    raise RuntimeError("; ".join(errors+["service remains installed after lifecycle cleanup"]))
+    if service_present():raise RuntimeError("; ".join(errors+["service remains installed after lifecycle cleanup"]))
 
 
 def archive_runtime_metadata(archive:Path)->dict:
@@ -219,8 +239,7 @@ def main()->None:
     ap.add_argument("--confirm-service-mutation",action="store_true",help="Required acknowledgement: this test installs/removes the per-user CIEAV Gateway service")
     args=ap.parse_args()
     if not args.confirm_service_mutation:raise SystemExit("Refusing OS service mutation without --confirm-service-mutation")
-    if service_present():
-        recover_stale_lifecycle_service()
+    if service_present():recover_stale_lifecycle_service()
     if service_present():
         detail=f" Registered command: {windows_registered_command()}" if platform.system()=="Windows" else ""
         raise SystemExit("Refusing to overwrite an existing CIEAV Gateway service. Use a clean test user/machine and uninstall CIEAV first."+detail)
@@ -238,7 +257,16 @@ def main()->None:
         runtime=root/"cieav-runtime";exe=runtime/"bin"/exe_name()
         if not exe.exists():raise RuntimeError("packaged CIEAV executable missing")
         executable(exe)
-        env=dict(os.environ);env.update({"CIEAV_HOME":str(runtime),"LATCH_HOME":str(runtime),"CIEAV_STATE_DIR":str(state),"LATCH_STATE_DIR":str(state),"CIEAV_CLOUD_URL":"https://example.invalid","LATCH_CLOUD_URL":"https://example.invalid"})
+        gateway_port,control_port,api_port=allocate_loopback_ports(3)
+        env=dict(os.environ);env.update({
+            "CIEAV_HOME":str(runtime),"LATCH_HOME":str(runtime),
+            "CIEAV_STATE_DIR":str(state),"LATCH_STATE_DIR":str(state),
+            "CIEAV_GATEWAY_PORT":str(gateway_port),"LATCH_GATEWAY_PORT":str(gateway_port),
+            "CIEAV_CONTROL_PORT":str(control_port),"LATCH_CONTROL_PORT":str(control_port),
+            "CIEAV_API_PORT":str(api_port),"LATCH_API_PORT":str(api_port),
+            "CIEAV_CLOUD_URL":"https://example.invalid","LATCH_CLOUD_URL":"https://example.invalid"
+        })
+        checks["isolatedLoopbackPorts"]={"gateway":gateway_port,"control":control_port,"api":api_port,"distinct":len({gateway_port,control_port,api_port})==3}
         failure:BaseException|None=None;cleanup_failure:BaseException|None=None
         try:
             pre=status_payload(exe,runtime,env);checks["preInstallStatus"]=not bool(pre.get("service",{}).get("installed")) and not service_present()
@@ -260,10 +288,11 @@ def main()->None:
         except BaseException as exc:
             failure=exc
         finally:
-            if installed or service_present():
+            if installed or service_present() or (platform.system()=="Windows" and windows_gateway_health(gateway_port)):
                 try:cleanup_current_lifecycle_service(exe,runtime,env,state);installed=False
                 except BaseException as exc:cleanup_failure=exc
         if service_present() and cleanup_failure is None:cleanup_failure=RuntimeError("cleanup failed: CIEAV service still present")
+        if platform.system()=="Windows" and windows_gateway_health(gateway_port) and cleanup_failure is None:cleanup_failure=RuntimeError("cleanup failed: lifecycle Gateway is still reachable")
         if failure is not None:
             if cleanup_failure is not None:raise RuntimeError(f"{failure}\nAdditionally lifecycle cleanup failed: {cleanup_failure}") from failure
             raise failure
