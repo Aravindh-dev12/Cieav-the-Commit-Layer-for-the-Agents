@@ -261,6 +261,10 @@ def _windows_process_path(pid: int) -> str | None:
 def _windows_process_env(settings: Settings) -> dict[str, str]:
     env=dict(os.environ)
     env.update(_env(settings))
+    # Frozen one-file Gateway children are independent CIEAV instances that
+    # must outlive the CLI start/restart process that spawns them.
+    if getattr(sys, "frozen", False):
+        env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     return env
 
 def _service_log_tail(settings: Settings, limit: int = 5000) -> str:

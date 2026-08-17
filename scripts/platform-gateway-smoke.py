@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
+from latch_platform import service as gateway_service
 from latch_platform.cli import build_parser
 from latch_platform.config import Settings
 from latch_platform.gateway import Gateway
@@ -65,6 +66,14 @@ def main() -> int:
         base = Path(td)
         a = settings_for(root, base / "user-a", 0)
         b = settings_for(root, base / "user-b", 20)
+
+        # PyInstaller 6.9+ treats a same-executable child as a worker unless the
+        # child environment requests a fresh top-level bootloader instance.
+        # CIEAV's frozen Gateway child must outlive the start/restart CLI.
+        with patch.object(gateway_service.sys, "frozen", True, create=True):
+            with patch.dict(os.environ, {"PYINSTALLER_RESET_ENVIRONMENT": "polluted"}, clear=False):
+                frozen_child_env = gateway_service._windows_process_env(a)
+            assert frozen_child_env["PYINSTALLER_RESET_ENVIRONMENT"] == "1"
 
         a_token = a.token()
         a_api = a.local_api_secret()
@@ -144,6 +153,7 @@ def main() -> int:
                 raise AssertionError("paused Gateway must not open protected URLs")
 
     print("CIEAV Python Gateway smoke test passed")
+    print("CIEAV frozen Gateway child independence passed")
     print("CIEAV headless Gateway startup invariant passed")
     print("CIEAV per-user local authority isolation passed")
     print("CIEAV production test-auto suppression passed")
