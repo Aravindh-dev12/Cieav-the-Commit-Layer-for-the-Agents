@@ -12,12 +12,14 @@ import tempfile
 import time
 import zipfile
 from pathlib import Path
+from urllib.request import urlopen
 
 ROOT=Path(__file__).resolve().parents[1]
 REPORTS=ROOT/"release"/"reports"
 MAX_CAPTURE=48_000
 WINDOWS_RUN_KEY=r"Software\Microsoft\Windows\CurrentVersion\Run"
 WINDOWS_RUN_VALUE="CIEAV Gateway"
+WINDOWS_TEST_PREFIX="cieav-service-lifecycle-"
 
 
 def canonical(value):
@@ -46,19 +48,115 @@ def run(cmd:list[str],*,cwd:Path,env:dict[str,str],ok=(0,),timeout=45)->subproce
     return p
 
 
+def windows_registered_command()->str|None:
+    if platform.system()!="Windows":return None
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,WINDOWS_RUN_KEY,0,winreg.KEY_READ) as key:
+            value,_=winreg.QueryValueEx(key,WINDOWS_RUN_VALUE)
+            return str(value).strip() or None
+    except FileNotFoundError:
+        return None
+
+
 def service_present()->bool:
     system=platform.system()
     if system=="Linux":return (Path.home()/".config/systemd/user/cieav-gateway.service").exists()
     if system=="Darwin":return (Path.home()/"Library/LaunchAgents/ai.cieav.gateway.plist").exists()
-    if system=="Windows":
-        try:
-            import winreg
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,WINDOWS_RUN_KEY,0,winreg.KEY_READ) as key:
-                value,_=winreg.QueryValueEx(key,WINDOWS_RUN_VALUE)
-                return bool(str(value).strip())
-        except FileNotFoundError:
-            return False
+    if system=="Windows":return bool(windows_registered_command())
     raise RuntimeError(f"Unsupported platform: {system}")
+
+
+def windows_gateway_health(port:int=8791)->dict|None:
+    try:
+        with urlopen(f"http://127.0.0.1:{port}/health",timeout=.8) as response:raw=response.read(65537)
+        if len(raw)>65536:return None
+        value=json.loads(raw.decode("utf-8") or "{}")
+        return value if isinstance(value,dict) and value.get("platform")=="CIEAV Gateway" else None
+    except Exception:return None
+
+
+def windows_process_info(pid:int)->dict|None:
+    ps=os.environ.get("COMSPEC")
+    powershell="powershell.exe"
+    script=(f"$p=Get-CimInstance Win32_Process -Filter 'ProcessId = {pid}';"
+            "if($p){[pscustomobject]@{ExecutablePath=[string]$p.ExecutablePath;CommandLine=[string]$p.CommandLine}|ConvertTo-Json -Compress}")
+    try:
+        p=subprocess.run([powershell,"-NoProfile","-NonInteractive","-Command",script],capture_output=True,text=True,timeout=8)
+        if p.returncode!=0 or not (p.stdout or "").strip():return None
+        value=json.loads((p.stdout or "").strip().splitlines()[-1]);return value if isinstance(value,dict) else None
+    except Exception:return None
+
+
+def delete_windows_registration()->None:
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,WINDOWS_RUN_KEY,0,winreg.KEY_SET_VALUE) as key:winreg.DeleteValue(key,WINDOWS_RUN_VALUE)
+    except FileNotFoundError:pass
+
+
+def is_lifecycle_owned_text(value:str|None)->bool:
+    text=(value or "").lower()
+    return WINDOWS_TEST_PREFIX in text and "gateway-service.ps1" in text
+
+
+def kill_lifecycle_gateway_if_verified(port:int=8791)->bool:
+    health=windows_gateway_health(port)
+    if not health:return True
+    pid=health.get("gatewayPid")
+    if not isinstance(pid,int) or pid<=0:return False
+    info=windows_process_info(pid) or {};image=str(info.get("ExecutablePath") or "").lower();command=str(info.get("CommandLine") or "").lower()
+    owned=WINDOWS_TEST_PREFIX in image or WINDOWS_TEST_PREFIX in command
+    if not owned or "cieav.exe" not in (image+" "+command):return False
+    try:subprocess.run(["taskkill","/PID",str(pid),"/T","/F"],capture_output=True,text=True,timeout=8)
+    except Exception:return False
+    deadline=time.time()+6
+    while time.time()<deadline:
+        if not windows_gateway_health(port):return True
+        time.sleep(.15)
+    return not bool(windows_gateway_health(port))
+
+
+def recover_stale_lifecycle_service()->bool:
+    """Recover only a stale service created by this smoke harness.
+
+    A real/user CIEAV installation remains protected by the clean-machine refusal.
+    Recovery is allowed only when the HKCU Run command carries this harness's
+    unique temporary-directory prefix. Any live process must independently prove
+    the same prefix before it may be terminated.
+    """
+    if platform.system()!="Windows":return False
+    registered=windows_registered_command()
+    if not is_lifecycle_owned_text(registered):return False
+    if not kill_lifecycle_gateway_if_verified():
+        raise RuntimeError("Refusing stale lifecycle cleanup: live Gateway process is not verified as lifecycle-test owned")
+    delete_windows_registration()
+    if windows_registered_command():raise RuntimeError("Failed to remove stale lifecycle-test HKCU startup registration")
+    print("Recovered stale CIEAV service-lifecycle test registration",flush=True)
+    return True
+
+
+def cleanup_current_lifecycle_service(exe:Path,runtime:Path,env:dict[str,str],state:Path)->None:
+    """Best-effort product uninstall followed by verified test-owned fallback cleanup."""
+    if not service_present() and not windows_gateway_health(int(env.get("CIEAV_GATEWAY_PORT","8791"))):return
+    errors=[]
+    try:
+        p=subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=20)
+        if p.returncode!=0:errors.append(f"gateway uninstall rc={p.returncode}: {((p.stderr or p.stdout) or '').strip()[-2000:]}")
+    except subprocess.TimeoutExpired:errors.append("gateway uninstall timed out")
+    except Exception as exc:errors.append(f"gateway uninstall failed: {type(exc).__name__}: {exc}")
+    if not service_present():return
+    if platform.system()=="Windows":
+        registered=windows_registered_command();expected_marker=str(state/"gateway-service.ps1").lower()
+        if not registered or expected_marker not in registered.lower() or not is_lifecycle_owned_text(registered):
+            raise RuntimeError("; ".join(errors+["refusing fallback cleanup: registration is not owned by this lifecycle run"]))
+        port=int(env.get("CIEAV_GATEWAY_PORT","8791"))
+        if not kill_lifecycle_gateway_if_verified(port):
+            raise RuntimeError("; ".join(errors+["refusing fallback cleanup: Gateway process ownership could not be verified"]))
+        delete_windows_registration()
+        if service_present():raise RuntimeError("; ".join(errors+["fallback cleanup could not remove HKCU startup registration"]))
+        return
+    raise RuntimeError("; ".join(errors+["service remains installed after lifecycle cleanup"]))
 
 
 def archive_runtime_metadata(archive:Path)->dict:
@@ -121,7 +219,11 @@ def main()->None:
     ap.add_argument("--confirm-service-mutation",action="store_true",help="Required acknowledgement: this test installs/removes the per-user CIEAV Gateway service")
     args=ap.parse_args()
     if not args.confirm_service_mutation:raise SystemExit("Refusing OS service mutation without --confirm-service-mutation")
-    if service_present():raise SystemExit("Refusing to overwrite an existing CIEAV Gateway service. Use a clean test user/machine and uninstall CIEAV first.")
+    if service_present():
+        recover_stale_lifecycle_service()
+    if service_present():
+        detail=f" Registered command: {windows_registered_command()}" if platform.system()=="Windows" else ""
+        raise SystemExit("Refusing to overwrite an existing CIEAV Gateway service. Use a clean test user/machine and uninstall CIEAV first."+detail)
     dirty=subprocess.run(["git","status","--porcelain"],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
     if dirty:raise SystemExit("Service lifecycle qualification requires a clean git worktree")
     commit=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
@@ -130,13 +232,14 @@ def main()->None:
     runtime_meta=validate_archive(archive,version=package["version"],target=target)
     archive_identity={"filename":archive.name,"sha256":sha256_file(archive),"size":archive.stat().st_size,"bundleFormat":runtime_meta["bundleFormat"]}
     checks={};installed=False
-    with tempfile.TemporaryDirectory(prefix="cieav-service-lifecycle-") as td:
+    with tempfile.TemporaryDirectory(prefix=WINDOWS_TEST_PREFIX) as td:
         root=Path(td)/"runtime";state=Path(td)/"state"
         with zipfile.ZipFile(archive) as zf:zf.extractall(root)
         runtime=root/"cieav-runtime";exe=runtime/"bin"/exe_name()
         if not exe.exists():raise RuntimeError("packaged CIEAV executable missing")
         executable(exe)
         env=dict(os.environ);env.update({"CIEAV_HOME":str(runtime),"LATCH_HOME":str(runtime),"CIEAV_STATE_DIR":str(state),"LATCH_STATE_DIR":str(state),"CIEAV_CLOUD_URL":"https://example.invalid","LATCH_CLOUD_URL":"https://example.invalid"})
+        failure:BaseException|None=None;cleanup_failure:BaseException|None=None
         try:
             pre=status_payload(exe,runtime,env);checks["preInstallStatus"]=not bool(pre.get("service",{}).get("installed")) and not service_present()
             if not checks["preInstallStatus"]:raise RuntimeError("pre-install service status is not clean")
@@ -154,11 +257,17 @@ def main()->None:
             run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,timeout=20);installed=False;time.sleep(.3)
             if service_present():raise RuntimeError("Gateway service still exists after uninstall")
             post=status_payload(exe,runtime,env);checks["uninstall"]=not bool(post.get("service",{}).get("installed"))
+        except BaseException as exc:
+            failure=exc
         finally:
             if installed or service_present():
-                try:subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=20)
-                except subprocess.TimeoutExpired:pass
-        if service_present():raise RuntimeError("cleanup failed: CIEAV service still present")
+                try:cleanup_current_lifecycle_service(exe,runtime,env,state);installed=False
+                except BaseException as exc:cleanup_failure=exc
+        if service_present() and cleanup_failure is None:cleanup_failure=RuntimeError("cleanup failed: CIEAV service still present")
+        if failure is not None:
+            if cleanup_failure is not None:raise RuntimeError(f"{failure}\nAdditionally lifecycle cleanup failed: {cleanup_failure}") from failure
+            raise failure
+        if cleanup_failure is not None:raise cleanup_failure
         checks["cleanup"]=True
     evidence={"schemaVersion":1,"product":"CIEAV","version":package["version"],"mode":args.mode,"target":target,"commit":commit,"archive":archive_identity,"verifiedAt":__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),"checks":checks}
     digest=hashlib.sha256(canonical(evidence).encode()).hexdigest();out={**evidence,"digestAlgorithm":"SHA-256","digest":digest}
