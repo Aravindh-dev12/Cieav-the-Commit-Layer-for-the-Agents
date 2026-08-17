@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import os
 import platform
 import re
 import time
 import uuid
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +16,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+from .secret_store import SecretStore
 
 
 def _env(primary: str, legacy: str | None = None, default: str = "") -> str:
@@ -65,8 +70,7 @@ def _validate_cloud_url(raw: str | None) -> str | None:
         raise ValueError("CIEAV_CLOUD_URL must use HTTPS except for loopback tests")
     if not parts.netloc:
         raise ValueError("CIEAV_CLOUD_URL must include a host")
-    path = parts.path.rstrip("/")
-    return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path.rstrip("/"), "", ""))
 
 
 _EMAIL = re.compile(r"\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
@@ -75,18 +79,56 @@ _CARD = re.compile(r"\b(?:\d[ -]*?){13,19}\b")
 _OTP = re.compile(r"(?<!\d)\d{6}(?!\d)")
 _SECRET = re.compile(r"(?:sk|pk|api)[-_][A-Za-z0-9_-]{16,}", re.I)
 _BEARER = re.compile(r"\bBearer\s+[A-Za-z0-9._~+/\-]{16,}={0,2}\b", re.I)
+_JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")
+_AWS_ACCESS_KEY = re.compile(r"\b(?:AKIA|ASIA|AIDA|AROA|AIPA|ANPA|ANVA|ASCA)[A-Z0-9]{16}\b")
+_GITHUB_TOKEN = re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,255}|github_pat_[A-Za-z0-9_]{20,255})\b", re.I)
+_SLACK_TOKEN = re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b", re.I)
+_NPM_TOKEN = re.compile(r"\bnpm_[A-Za-z0-9]{20,}\b")
+_GOOGLE_API_KEY = re.compile(r"\bAIza[0-9A-Za-z_-]{30,}\b")
+_PRIVATE_KEY = re.compile(r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----", re.I)
+_LABELED_SECRET = re.compile(r"\b(password|passwd|secret|client_secret|api[_-]?key|access[_-]?token|refresh[_-]?token|token)\s*[:=]\s*[\"']?([^\s\"'&,;]{8,})[\"']?", re.I)
+_ENTROPY_CANDIDATE = re.compile(r"\b[A-Za-z0-9_+/=.-]{32,256}\b")
 
 
-def _clean_text(value: Any, limit: int) -> str | None:
+def _entropy(value: str) -> float:
+    counts = Counter(value)
+    total = len(value)
+    return -sum((n / total) * math.log2(n / total) for n in counts.values())
+
+
+def _looks_high_entropy_secret(value: str) -> bool:
+    if not 32 <= len(value) <= 256:
+        return False
+    if re.fullmatch(r"[a-f0-9]{40}|[a-f0-9]{64}", value, re.I):
+        return False
+    classes = sum(bool(re.search(pattern, value)) for pattern in (r"[a-z]", r"[A-Z]", r"\d", r"[_+/=.-]"))
+    return classes >= 3 and _entropy(value) >= 4.15
+
+
+def _redact_entropy(value: str) -> str:
+    return _ENTROPY_CANDIDATE.sub(lambda m: "[POSSIBLE_HIGH_ENTROPY_SECRET]" if _looks_high_entropy_secret(m.group(0)) else m.group(0), value)
+
+
+def _clean_text(value: Any, limit: int, detect_entropy: bool = True) -> str | None:
     if not isinstance(value, str):
         return None
-    value = _EMAIL.sub("[EMAIL]", value)
-    value = _PHONE.sub("[PHONE]", value)
-    value = _CARD.sub("[POSSIBLE_CARD]", value)
-    value = _OTP.sub("[POSSIBLE_OTP]", value)
-    value = _SECRET.sub("[POSSIBLE_SECRET]", value)
-    value = _BEARER.sub("[POSSIBLE_BEARER]", value)
+    for pattern, marker in (
+        (_PRIVATE_KEY, "[PRIVATE_KEY]"), (_JWT, "[JWT]"), (_AWS_ACCESS_KEY, "[AWS_ACCESS_KEY]"),
+        (_GITHUB_TOKEN, "[GITHUB_TOKEN]"), (_SLACK_TOKEN, "[SLACK_TOKEN]"), (_NPM_TOKEN, "[NPM_TOKEN]"),
+        (_GOOGLE_API_KEY, "[GOOGLE_API_KEY]"), (_EMAIL, "[EMAIL]"), (_PHONE, "[PHONE]"),
+        (_CARD, "[POSSIBLE_CARD]"), (_OTP, "[POSSIBLE_OTP]"), (_SECRET, "[POSSIBLE_SECRET]"),
+        (_BEARER, "[POSSIBLE_BEARER]"),
+    ):
+        value = pattern.sub(marker, value)
+    value = _LABELED_SECRET.sub("[LABELED_SECRET]", value)
+    if detect_entropy:
+        value = _redact_entropy(value)
     return value[:limit]
+
+
+def _pseudonymous_request_id(value: Any) -> str:
+    raw = value if isinstance(value, str) else str(uuid.uuid4())
+    return "privacy-" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
 
 
 def _strip_url(value: Any) -> str | None:
@@ -113,31 +155,31 @@ def _privacy_reduce_context(context: dict[str, Any]) -> dict[str, Any]:
     origin_parts = urlsplit(url)
     origin = f"{origin_parts.scheme}://{origin_parts.netloc}"
     element_raw = context.get("element") if isinstance(context.get("element"), dict) else {}
-    element: dict[str, Any] = {"tag": _clean_text(element_raw.get("tag"), 50) or "unknown"}
+    element: dict[str, Any] = {"tag": _clean_text(element_raw.get("tag"), 50, False) or "unknown"}
     for key, limit in (("role",80),("text",700),("ariaLabel",300),("name",200),("inputType",80),("method",20),("declaredActionType",160),("declaredSummary",300),("declaredReversibility",40)):
-        value = _clean_text(element_raw.get(key), limit)
-        if value:
-            element[key] = value
+        cleaned = _clean_text(element_raw.get(key), limit, key not in {"role","name","inputType","method","declaredActionType","declaredReversibility"})
+        if cleaned:
+            element[key] = cleaned
     for key in ("href", "action"):
-        value = _strip_url(element_raw.get(key))
-        if value:
-            element[key] = value
+        cleaned_url = _strip_url(element_raw.get(key))
+        if cleaned_url:
+            element[key] = cleaned_url
     reduced: dict[str, Any] = {
-        "requestId": _clean_text(context.get("requestId"), 128) or f"cloud-{uuid.uuid4()}",
-        "url": url,
-        "origin": origin,
-        "element": element,
+        "requestId": _pseudonymous_request_id(context.get("requestId")),
+        "url": url, "origin": origin, "element": element,
         "timestamp": context.get("timestamp") if isinstance(context.get("timestamp"), str) else datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "clientVersion": _clean_text(context.get("clientVersion"), 50) or "unknown",
+        "clientVersion": _clean_text(context.get("clientVersion"), 50, False) or "unknown",
     }
     title = _clean_text(context.get("title"), 300)
     nearby = _clean_text(context.get("nearbyText"), 1800)
-    if title: reduced["title"] = title
-    if nearby: reduced["nearbyText"] = nearby
+    if title:
+        reduced["title"] = title
+    if nearby:
+        reduced["nearbyText"] = nearby
     form_raw = context.get("form")
     if isinstance(form_raw, dict):
         form: dict[str, Any] = {"fields": [], "fileNames": []}
-        method = _clean_text(form_raw.get("method"), 20)
+        method = _clean_text(form_raw.get("method"), 20, False)
         action = _strip_url(form_raw.get("action"))
         submitter = _clean_text(form_raw.get("submitterText"), 300)
         if method: form["method"] = method
@@ -146,7 +188,7 @@ def _privacy_reduce_context(context: dict[str, Any]) -> dict[str, Any]:
         for field in (form_raw.get("fields") if isinstance(form_raw.get("fields"), list) else [])[:100]:
             if not isinstance(field, dict):
                 continue
-            item: dict[str, Any] = {"name": _clean_text(field.get("name"),160) or "field", "type": _clean_text(field.get("type"),80) or "unknown", "redacted": True}
+            item: dict[str, Any] = {"name": _clean_text(field.get("name"),160,False) or "field", "type": _clean_text(field.get("type"),80,False) or "unknown", "redacted": True}
             label = _clean_text(field.get("label"),220)
             if label: item["label"] = label
             if isinstance(field.get("required"), bool): item["required"] = field["required"]
@@ -199,7 +241,9 @@ class CloudSemanticProvider:
     def __init__(self, config: CloudConfig | None = None):
         self.config = config or CloudConfig.load()
         self.install_id_file = self.config.state_dir / "install-id"
+        # Legacy plaintext path is retained only as a migration source. SecretStore verifies the secure write before deleting it.
         self.device_token_file = self.config.state_dir / "cloud-device-token"
+        self.secret_store = SecretStore(self.config.state_dir)
         self.last_success_at: float | None = None
         self.last_latency_ms: int | None = None
         self.last_error: str | None = None
@@ -218,7 +262,10 @@ class CloudSemanticProvider:
         return value
 
     def _token(self) -> str | None:
-        return _env("CIEAV_CLOUD_TOKEN", "LATCH_CLOUD_TOKEN") or _read(self.device_token_file)
+        configured = _env("CIEAV_CLOUD_TOKEN", "LATCH_CLOUD_TOKEN")
+        if configured:
+            return configured
+        return self.secret_store.get("cloud-device-token", self.device_token_file)
 
     def _request(self, path: str, *, payload: dict[str, Any] | None = None, token: str | None = None, timeout: float | None = None) -> dict[str, Any]:
         if not self.config.base_url:
@@ -255,11 +302,16 @@ class CloudSemanticProvider:
         existing = None if force else self._token()
         if existing:
             return {"ok": True, "enrolled": True, "tokenStored": True}
+        # Rotation is transactional from the client's perspective: the old token remains until a fresh registration succeeds.
         result = self._request("/v1/devices/register", payload={"installId": self._install_id(), "deviceName": f"CIEAV {platform.system()} {platform.machine()}"})
         token = result.get("token")
         if not isinstance(token, str) or len(token) < 32:
             raise RuntimeError("CIEAV Cloud did not issue a valid device token")
-        _private_write(self.device_token_file, token)
+        self.secret_store.set("cloud-device-token", token)
+        try:
+            self.device_token_file.unlink()
+        except FileNotFoundError:
+            pass
         return {"ok": True, "enrolled": True, "deviceId": result.get("deviceId"), "expiresAt": result.get("expiresAt"), "tokenStored": True}
 
     def health(self) -> dict[str, Any]:
@@ -274,7 +326,13 @@ class CloudSemanticProvider:
 
     def status(self) -> dict[str, Any]:
         health = self.health()
-        return {"brand": "CIEAV", "configured": self.configured, "baseUrl": self.config.base_url, "enrolled": bool(self._token()), "healthy": bool(health.get("ok")), "model": health.get("model") or self.last_model, "privacyMode": health.get("privacyMode"), "lastSuccessAt": self.last_success_at, "lastLatencyMs": self.last_latency_ms, "lastError": self.last_error or health.get("error")}
+        secret_status = self.secret_store.status
+        return {
+            "brand": "CIEAV", "configured": self.configured, "baseUrl": self.config.base_url, "enrolled": bool(self._token()),
+            "healthy": bool(health.get("ok")), "model": health.get("model") or self.last_model, "privacyMode": health.get("privacyMode"),
+            "credentialStorage": {"backend": secret_status.backend, "encryptedAtRest": secret_status.encrypted_at_rest, "fallback": secret_status.fallback},
+            "lastSuccessAt": self.last_success_at, "lastLatencyMs": self.last_latency_ms, "lastError": self.last_error or health.get("error")
+        }
 
     def analyze(self, context: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
         started = time.perf_counter()
@@ -294,7 +352,10 @@ class CloudSemanticProvider:
                 if "unauthorized" not in str(first).lower() and "expired" not in str(first).lower():
                     raise
                 self.enroll(force=True)
-                result = self._request("/v1/inference/analyze", payload=payload, token=self._token())
+                refreshed = self._token()
+                if not refreshed:
+                    raise RuntimeError("CIEAV Cloud credential rotation failed")
+                result = self._request("/v1/inference/analyze", payload=payload, token=refreshed)
             gate = result.get("result")
             if not isinstance(gate, dict):
                 raise RuntimeError("CIEAV Cloud returned no semantic result")
