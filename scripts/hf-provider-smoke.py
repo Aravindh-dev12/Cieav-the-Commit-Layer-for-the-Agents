@@ -4,11 +4,13 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 from latch_platform.config import Settings
 from latch_platform.gateway import Gateway
-from latch_platform.hf_provider import HFConfig, HuggingFaceSemanticProvider
+from latch_platform.hf_provider import HFConfig, HuggingFaceSemanticProvider, PROVIDER_STATUS_BUDGET_SECONDS
 
 
 class _Message:
@@ -37,6 +39,17 @@ class FakeClient:
         return _Response()
 
 
+class SlowCloud:
+    configured = True
+    config = SimpleNamespace(base_url="https://example.invalid")
+    last_success_at = None
+    last_latency_ms = None
+    last_error = None
+    def status(self):
+        time.sleep(PROVIDER_STATUS_BUDGET_SECONDS + 1.0)
+        return {"configured":True,"healthy":False,"baseUrl":self.config.base_url}
+
+
 def main() -> None:
     cfg=HFConfig("hf_test_secret_never_log","Qwen/Qwen3-32B","auto",None,5)
     provider=HuggingFaceSemanticProvider(cfg,client_factory=FakeClient)
@@ -47,6 +60,18 @@ def main() -> None:
     assert fmt["type"] == "json_schema" and fmt["json_schema"]["strict"] is True
     prompt=json.dumps(FakeClient.last_kwargs["messages"])
     assert "untrusted" in prompt.lower() and "deterministic baseline" in prompt.lower()
+
+    # A remote model/cloud provider is diagnostic context, never part of local
+    # Gateway availability. Slow external status must return a bounded UNKNOWN
+    # view rather than blocking the local authority/control plane.
+    slow=HuggingFaceSemanticProvider(cfg,client_factory=FakeClient)
+    slow.cloud=SlowCloud()
+    started=time.monotonic();status=slow.status();elapsed=time.monotonic()-started
+    assert elapsed < PROVIDER_STATUS_BUDGET_SECONDS + 0.6, elapsed
+    assert status["cloud"]["configured"] is True
+    assert status["cloud"]["healthy"] is False
+    assert status["cloud"]["healthTimedOut"] is True
+    assert status["providerStatusBudgetMs"] == int(PROVIDER_STATUS_BUDGET_SECONDS*1000)
 
     with tempfile.TemporaryDirectory() as td:
         root=Path.cwd().resolve(); state=Path(td)
@@ -82,6 +107,7 @@ def main() -> None:
             else: os.environ["HF_TOKEN"]=old
 
     print("CIEAV Hugging Face provider smoke passed")
+    print("CIEAV provider status latency boundary passed")
 
 if __name__ == "__main__":
     main()
