@@ -60,6 +60,7 @@ jobs:
           node --check scripts/a2a-e2e.mjs
           node --check scripts/platform-boundary-static.mjs
           node --check scripts/release-gate.mjs
+          node --check scripts/agent-kernel-release.mjs
           node --check scripts/repository-governance-check.mjs
           node --check scripts/browser-e2e.mjs
           sh -n distribution/install.sh
@@ -83,6 +84,8 @@ jobs:
           node scripts/noinstall-selftest.mjs
       - run: npm install
       - run: npm run build
+      - name: Verify Agent Kernel authority, recovery, durability and proof settlement
+        run: npm run test:agent-kernel
       - run: npm run test:ai-orchestration
       - run: npm run typecheck
       - run: npm run test:core
