@@ -3,7 +3,7 @@ import type {AgentTask,Commitment} from "@cieav/contracts";
 import {bindTaskCommitment,bindTaskProof,detectAgentOpenLoop,enforceTaskDeadline,recoverInterruptedTask,requireCommitment,scheduleRetry,settleAgentTask,transitionAgentTask} from "./agent-task.js";
 
 const now="2026-08-16T11:15:00.000Z";
-function task(overrides:Partial<AgentTask>={}):AgentTask{return{id:"11111111-1111-4111-8111-111111111111",version:1,intentId:"33333333-3333-4333-8333-333333333333",owner:{id:"user-1",kind:"HUMAN"},actor:{id:"agent-1",kind:"AGENT"},goal:"Complete governed work",state:"CREATED",createdAt:now,updatedAt:now,retryCount:0,maxRetries:2,commitmentRequired:false,openLoop:false,metadata:{},...overrides}}
+function task(overrides:Partial<AgentTask>={}):AgentTask{return{id:"11111111-1111-4111-8111-111111111111",version:1,scopeDeviceId:"dev_test_12345678",intentId:"33333333-3333-4333-8333-333333333333",owner:{id:"user-1",kind:"HUMAN"},actor:{id:"agent-1",kind:"AGENT"},goal:"Complete governed work",state:"CREATED",createdAt:now,updatedAt:now,retryCount:0,maxRetries:2,commitmentRequired:false,openLoop:false,metadata:{},...overrides}}
 const authorized:Pick<Commitment,"id"|"state">={id:"22222222-2222-4222-8222-222222222222",state:"AUTHORIZED"};
 
 describe("CIEAV Agent Kernel Core v1",()=>{
