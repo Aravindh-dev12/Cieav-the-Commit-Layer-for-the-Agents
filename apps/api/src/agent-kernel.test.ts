@@ -8,6 +8,7 @@ const dirs:string[]=[];
 afterEach(async()=>{await Promise.all(dirs.splice(0).map(dir=>rm(dir,{recursive:true,force:true})))});
 async function store(){const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-agent-kernel-"));dirs.push(dir);return{dir,file:path.join(dir,"tasks.json"),kernel:new CieavAgentKernelStore(path.join(dir,"tasks.json"),"k".repeat(64))}}
 const create={scopeDeviceId:"dev_test_12345678",intentId:"33333333-3333-4333-8333-333333333333",owner:{id:"user-1",kind:"HUMAN" as const},actor:{id:"agent-1",kind:"AGENT" as const},goal:"Prepare and send the governed customer update",maxRetries:2,metadata:{source:"test"}};
+async function authorizeRunning(kernel:CieavAgentKernelStore,id:string){await kernel.transition(id,"QUEUED");await kernel.transition(id,"PLANNING");await kernel.requireCommitment(id,"execution requires authority");await kernel.bindCommitmentTrusted(id,{id:"22222222-2222-4222-8222-222222222222",state:"AUTHORIZED"});return kernel.transition(id,"RUNNING")}
 
 describe("CIEAV durable Agent Kernel store",()=>{
   it("persists device-scoped tasks and append-only ordered events across reload",async()=>{
@@ -17,15 +18,17 @@ describe("CIEAV durable Agent Kernel store",()=>{
     const raw=await readFile(s.file,"utf8");expect(raw).toContain('"mac"');await reopened.close();
   });
 
-  it("recovers interrupted RUNNING work as RECOVERY_REQUIRED and surfaces an open loop",async()=>{
-    const s=await store(),created=await s.kernel.create(create);await s.kernel.transition(created.task.id,"QUEUED");await s.kernel.transition(created.task.id,"PLANNING");await s.kernel.transition(created.task.id,"RUNNING");
+  it("recovers interrupted authorized RUNNING work as RECOVERY_REQUIRED and surfaces an open loop",async()=>{
+    const s=await store(),created=await s.kernel.create(create);await authorizeRunning(s.kernel,created.task.id);
     const recovered=await s.kernel.recoverOnStartup(),loops=await s.kernel.openLoops();
     expect(recovered).toHaveLength(1);expect(recovered[0]?.state).toBe("RECOVERY_REQUIRED");expect(loops[0]?.reasons).toContain("RECOVERY_REQUIRED");
     const events=await s.kernel.listEvents(created.task.id);expect(events.at(-1)?.type).toBe("RECOVERY_REQUIRED");
   });
 
-  it("refuses consequential execution until trusted authority binds an AUTHORIZED Commitment",async()=>{
-    const s=await store(),created=await s.kernel.create(create);await s.kernel.transition(created.task.id,"QUEUED");await s.kernel.transition(created.task.id,"PLANNING");const required=await s.kernel.requireCommitment(created.task.id,"send has external consequence");
+  it("refuses agent execution until trusted authority binds an AUTHORIZED Commitment",async()=>{
+    const s=await store(),created=await s.kernel.create(create);await s.kernel.transition(created.task.id,"QUEUED");await s.kernel.transition(created.task.id,"PLANNING");
+    await expect(s.kernel.transition(created.task.id,"RUNNING")).rejects.toThrow(/trusted authority/i);
+    const required=await s.kernel.requireCommitment(created.task.id,"send has external consequence");
     await expect(s.kernel.transition(created.task.id,"RUNNING")).rejects.toThrow(/authority/i);
     await expect(s.kernel.bindCommitmentTrusted(created.task.id,{id:"22222222-2222-4222-8222-222222222222",state:"PROPOSED"})).rejects.toThrow(/AUTHORIZED/);
     const bound=await s.kernel.bindCommitmentTrusted(created.task.id,{id:"22222222-2222-4222-8222-222222222222",state:"AUTHORIZED"});expect(bound.task.commitmentId).toBeTruthy();
@@ -33,7 +36,7 @@ describe("CIEAV durable Agent Kernel store",()=>{
   });
 
   it("requires bound proof before trusted settlement can complete a task",async()=>{
-    const s=await store(),created=await s.kernel.create(create);await s.kernel.transition(created.task.id,"QUEUED");await s.kernel.transition(created.task.id,"PLANNING");await s.kernel.transition(created.task.id,"RUNNING");await s.kernel.transition(created.task.id,"OBSERVING");
+    const s=await store(),created=await s.kernel.create(create);await authorizeRunning(s.kernel,created.task.id);await s.kernel.transition(created.task.id,"OBSERVING");
     await expect(s.kernel.settleTrusted(created.task.id,"PROVEN")).rejects.toThrow(/bound proof/i);
     await s.kernel.bindProofTrusted(created.task.id,"44444444-4444-4444-8444-444444444444");
     const settled=await s.kernel.settleTrusted(created.task.id,"PROVEN");expect(settled.task.state).toBe("COMPLETED");expect(settled.task.settlement).toBe("PROVEN");
