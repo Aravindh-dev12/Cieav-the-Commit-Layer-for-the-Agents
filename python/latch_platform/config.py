@@ -79,6 +79,7 @@ class Settings:
     token_file: Path
     local_api_secret_file: Path
     receipt_signing_secret_file: Path
+    agent_kernel_secret_file: Path
     hf_token_file: Path
     runtime_file: Path
     log_file: Path
@@ -95,6 +96,7 @@ class Settings:
             token_file=state / "gateway-token",
             local_api_secret_file=state / "local-api-signing-secret",
             receipt_signing_secret_file=state / "receipt-signing-secret",
+            agent_kernel_secret_file=state / "agent-kernel-state-secret",
             hf_token_file=state / "hf-token",
             runtime_file=state / "gateway-runtime.json",
             log_file=state / "gateway.log",
@@ -138,8 +140,6 @@ class Settings:
 
     def token(self) -> str:
         value=self._get_or_create_secret("gateway-token",self.token_file,bytes_count=32)
-        # Managed Gateway startup loads this first. Keep the audit HMAC key only
-        # in trusted runtime process environments; Chromium strips it before spawn.
         os.environ["CIEAV_AUDIT_INTEGRITY_KEY"]=self.audit_integrity_secret()
         return value
 
@@ -148,6 +148,9 @@ class Settings:
 
     def receipt_signing_secret(self) -> str:
         return self._get_or_create_secret("receipt-signing-secret",self.receipt_signing_secret_file)
+
+    def agent_kernel_secret(self) -> str:
+        return self._get_or_create_secret("agent-kernel-state-secret",self.agent_kernel_secret_file)
 
     def read_hf_token(self) -> str | None:
         value = os.environ.get("HF_TOKEN", "").strip()
