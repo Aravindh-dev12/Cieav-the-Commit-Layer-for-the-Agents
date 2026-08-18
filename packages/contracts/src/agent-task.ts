@@ -7,7 +7,7 @@ export const AgentTaskStateSchema=z.enum([
 export type AgentTaskState=z.infer<typeof AgentTaskStateSchema>;
 
 export const AgentTaskEventTypeSchema=z.enum([
-  "TASK_CREATED","STATE_CHANGED","COMMITMENT_REQUIRED","AUTHORITY_BOUND","RETRY_SCHEDULED","DEADLINE_EXCEEDED","CANCELLED","RECOVERY_REQUIRED","OPEN_LOOP_DETECTED"
+  "TASK_CREATED","STATE_CHANGED","COMMITMENT_REQUIRED","AUTHORITY_BOUND","RETRY_SCHEDULED","DEADLINE_EXCEEDED","CANCELLED","RECOVERY_REQUIRED","OPEN_LOOP_DETECTED","PROOF_BOUND","SETTLED"
 ]);
 export type AgentTaskEventType=z.infer<typeof AgentTaskEventTypeSchema>;
 
@@ -16,6 +16,7 @@ const AgentTaskMetadataValueSchema=z.union([z.string().max(2000),z.number(),z.bo
 export const AgentTaskSchema=z.object({
   id:z.string().uuid(),
   version:z.literal(1),
+  intentId:z.string().uuid(),
   sessionId:z.string().uuid().optional(),
   owner:CommitmentPrincipalSchema,
   actor:CommitmentPrincipalSchema,
@@ -30,16 +31,22 @@ export const AgentTaskSchema=z.object({
   commitmentRequired:z.boolean(),
   commitmentId:z.string().uuid().optional(),
   authoritySatisfiedAt:z.string().datetime().optional(),
+  proofCaseId:z.string().uuid().optional(),
+  settlement:z.enum(["PROVEN","DISPROVEN","UNKNOWN"]).optional(),
+  settledAt:z.string().datetime().optional(),
   openLoop:z.boolean(),
   lastError:z.string().max(2000).optional(),
   metadata:z.record(AgentTaskMetadataValueSchema).default({})
 }).superRefine((task,ctx)=>{
   if(task.authoritySatisfiedAt&&!task.commitmentId)ctx.addIssue({code:z.ZodIssueCode.custom,path:["commitmentId"],message:"authoritySatisfiedAt requires commitmentId"});
   if(!task.commitmentRequired&&(task.commitmentId||task.authoritySatisfiedAt))ctx.addIssue({code:z.ZodIssueCode.custom,path:["commitmentRequired"],message:"commitment binding requires commitmentRequired=true"});
+  if(task.settledAt&&!task.settlement)ctx.addIssue({code:z.ZodIssueCode.custom,path:["settlement"],message:"settledAt requires settlement"});
+  if(task.state==="COMPLETED"&&task.settlement!=="PROVEN")ctx.addIssue({code:z.ZodIssueCode.custom,path:["settlement"],message:"COMPLETED requires PROVEN settlement"});
 });
 export type AgentTask=z.infer<typeof AgentTaskSchema>;
 
 export const AgentTaskCreateSchema=z.object({
+  intentId:z.string().uuid(),
   sessionId:z.string().uuid().optional(),
   owner:CommitmentPrincipalSchema,
   actor:CommitmentPrincipalSchema,
