@@ -22,6 +22,7 @@ export function assertAgentTaskTransition(from:AgentTaskState,to:AgentTaskState)
 export function transitionAgentTask(task:AgentTask,to:AgentTaskState,at=new Date().toISOString(),reason="state transition"):{task:AgentTask;event:Omit<AgentTaskEvent,"id"|"sequence">}{
   if(to==="COMPLETED")throw new Error("agent task completion requires trusted proof settlement");
   assertAgentTaskTransition(task.state,to);
+  if(to==="RUNNING"&&task.actor.kind==="AGENT"&&!task.authoritySatisfiedAt)throw new Error("agent task cannot enter execution before trusted authority is satisfied");
   if(to==="RUNNING"&&task.commitmentRequired&&!task.authoritySatisfiedAt)throw new Error("agent task cannot run consequential work before authority is satisfied");
   const next:AgentTask={...task,state:to,updatedAt:at,openLoop:["WAITING_FOR_AUTHORITY","WAITING","OBSERVING","RECOVERY_REQUIRED"].includes(to)};
   return{task:next,event:{taskId:task.id,type:to==="CANCELLED"?"CANCELLED":to==="RECOVERY_REQUIRED"?"RECOVERY_REQUIRED":"STATE_CHANGED",at,fromState:task.state,toState:to,reason,data:{}}};
