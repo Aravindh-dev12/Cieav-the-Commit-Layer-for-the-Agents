@@ -62,22 +62,24 @@ jobs:
       APPLE_NOTARY_KEY_ID: ${{ vars.CIEAV_APPLE_NOTARY_KEY_ID }}
       APPLE_NOTARY_ISSUER: ${{ vars.CIEAV_APPLE_NOTARY_ISSUER }}
     steps:
-      - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: {node-version: 22}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with: {python-version: '3.11'}
       - name: Verify runner target
         shell: bash
         run: |
           ACTUAL=$(python -c 'import platform; s={"Darwin":"macos","Windows":"windows","Linux":"linux"}[platform.system()]; m=platform.machine().lower(); a="arm64" if m in {"arm64","aarch64"} else "x64" if m in {"x86_64","amd64"} else m; print(f"{s}-{a}")')
           test "$ACTUAL" = '${{ matrix.target }}' || { echo "Runner target $ACTUAL does not match required ${{ matrix.target }}"; exit 2; }
-      - name: Install Node dependencies without source mutation
+      - name: Install locked Node dependencies without source mutation
         shell: bash
         run: |
-          npm install --package-lock=false
-          npm install --no-save --package-lock=false esbuild
+          npm ci
+          npm audit --audit-level=high
           test -z "$(git status --porcelain)" || { git status --short; exit 2; }
       - name: Run publish source and platform release gate
         shell: bash
@@ -86,7 +88,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p apps/api/dist
-          npx esbuild apps/api/src/server.ts --bundle --platform=node --format=esm --target=node22 --external:pg-native --outfile=apps/api/dist/server.js
+          ./node_modules/.bin/esbuild apps/api/src/server.ts --bundle --platform=node --format=esm --target=node22 --external:pg-native --outfile=apps/api/dist/server.js
       - name: Build standalone CIEAV executable in isolated pinned toolchain
         shell: bash
         run: python scripts/build-standalone.py
@@ -105,14 +107,14 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or -not (Test-Path dist/cdp-win-bridge.exe)) { throw 'Windows CDP bridge build failed' }
       - name: Azure login for Artifact Signing
         if: runner.os == 'Windows' && env.CIEAV_WINDOWS_SIGNING_PROVIDER == 'artifact-signing'
-        uses: azure/login@v3
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ env.AZURE_CLIENT_ID }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
       - name: Sign Windows executables with Artifact Signing
         if: runner.os == 'Windows' && env.CIEAV_WINDOWS_SIGNING_PROVIDER == 'artifact-signing'
-        uses: azure/artifact-signing-action@v2
+        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
         with:
           endpoint: ${{ env.ARTIFACT_SIGNING_ENDPOINT }}
           signing-account-name: ${{ env.ARTIFACT_SIGNING_ACCOUNT }}
@@ -192,9 +194,9 @@ jobs:
       - name: Qualify current publish target
         shell: bash
         run: node scripts/qualify-publish-candidate.mjs --require '${{ matrix.target }}'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: {name: 'runtime-${{ steps.identity.outputs.key }}', path: 'release-out/*', if-no-files-found: error}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: {name: 'qualification-evidence-${{ steps.identity.outputs.key }}', path: 'release/reports/*.json', if-no-files-found: error}
 
   qualify-release:
@@ -206,16 +208,18 @@ jobs:
       CIEAV_WINDOWS_CODE_SIGN_SUBJECT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_SUBJECT }}
       CIEAV_MACOS_SIGNING_IDENTITY: ${{ vars.CIEAV_MACOS_SIGNING_IDENTITY }}
     steps:
-      - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: {node-version: 22}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: {pattern: 'qualification-evidence-*', path: release/reports, merge-multiple: true}
       - name: Require matching publish evidence on Windows, macOS and Linux
         shell: bash
         run: npm run release:qualify:publish
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: publish-candidate-qualification
           path: |
@@ -236,15 +240,17 @@ jobs:
       RELEASE_SIGNING_PUBLIC_KEY_B64: ${{ vars.CIEAV_RELEASE_SIGNING_PUBLIC_KEY_B64 }}
       CIEAV_RELEASE_SIGNING_KEY_ID: ${{ vars.CIEAV_RELEASE_SIGNING_KEY_ID }}
     steps:
-      - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: {node-version: 22}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with: {python-version: '3.11'}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: {pattern: 'runtime-*', path: release-out, merge-multiple: true}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with: {name: publish-candidate-qualification, path: release/reports}
       - name: Build and qualify signed publish layout
         shell: bash
@@ -254,9 +260,9 @@ jobs:
           printf '%s' "$RELEASE_SIGNING_PRIVATE_KEY_B64" | base64 -d > "$PRIVATE"; printf '%s' "$RELEASE_SIGNING_PUBLIC_KEY_B64" | base64 -d > "$PUBLIC"; chmod 0600 "$PRIVATE"
           node scripts/build-publish-layout.mjs --replace --private-key "$PRIVATE" --public-key "$PUBLIC"
           npm run release:qualify:layout
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: {name: cieav-cdn-publish-layout, path: 'publish/**', if-no-files-found: error}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: {name: signed-publish-layout-evidence, path: release/reports/latest-publish-layout.json, if-no-files-found: error}
       - name: Stage assets in draft GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
