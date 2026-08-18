@@ -7,13 +7,13 @@ import {CieavAgentKernelStore} from "./agent-kernel.js";
 const dirs:string[]=[];
 afterEach(async()=>{await Promise.all(dirs.splice(0).map(dir=>rm(dir,{recursive:true,force:true})))});
 async function store(){const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-agent-kernel-"));dirs.push(dir);return{dir,file:path.join(dir,"tasks.json"),kernel:new CieavAgentKernelStore(path.join(dir,"tasks.json"),"k".repeat(64))}}
-const create={intentId:"33333333-3333-4333-8333-333333333333",owner:{id:"user-1",kind:"HUMAN" as const},actor:{id:"agent-1",kind:"AGENT" as const},goal:"Prepare and send the governed customer update",maxRetries:2,metadata:{source:"test"}};
+const create={scopeDeviceId:"dev_test_12345678",intentId:"33333333-3333-4333-8333-333333333333",owner:{id:"user-1",kind:"HUMAN" as const},actor:{id:"agent-1",kind:"AGENT" as const},goal:"Prepare and send the governed customer update",maxRetries:2,metadata:{source:"test"}};
 
 describe("CIEAV durable Agent Kernel store",()=>{
-  it("persists tasks and append-only ordered events across reload",async()=>{
+  it("persists device-scoped tasks and append-only ordered events across reload",async()=>{
     const s=await store(),created=await s.kernel.create(create);await s.kernel.transition(created.task.id,"QUEUED","ready");await s.kernel.transition(created.task.id,"PLANNING","planner started");await s.kernel.close();
     const reopened=new CieavAgentKernelStore(s.file,"k".repeat(64)),task=await reopened.get(created.task.id),events=await reopened.listEvents(created.task.id);
-    expect(task?.state).toBe("PLANNING");expect(task?.intentId).toBe(create.intentId);expect(events.map(e=>e.sequence)).toEqual([1,2,3]);expect(events.map(e=>e.type)).toEqual(["TASK_CREATED","STATE_CHANGED","STATE_CHANGED"]);
+    expect(task?.state).toBe("PLANNING");expect(task?.intentId).toBe(create.intentId);expect(task?.scopeDeviceId).toBe(create.scopeDeviceId);expect(events.map(e=>e.sequence)).toEqual([1,2,3]);expect(events.map(e=>e.type)).toEqual(["TASK_CREATED","STATE_CHANGED","STATE_CHANGED"]);
     const raw=await readFile(s.file,"utf8");expect(raw).toContain('"mac"');await reopened.close();
   });
 
