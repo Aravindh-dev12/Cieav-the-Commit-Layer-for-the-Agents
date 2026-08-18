@@ -16,6 +16,7 @@ const AgentTaskMetadataValueSchema=z.union([z.string().max(2000),z.number(),z.bo
 export const AgentTaskSchema=z.object({
   id:z.string().uuid(),
   version:z.literal(1),
+  scopeDeviceId:z.string().min(8).max(200),
   intentId:z.string().uuid(),
   sessionId:z.string().uuid().optional(),
   owner:CommitmentPrincipalSchema,
@@ -46,6 +47,7 @@ export const AgentTaskSchema=z.object({
 export type AgentTask=z.infer<typeof AgentTaskSchema>;
 
 export const AgentTaskCreateSchema=z.object({
+  scopeDeviceId:z.string().min(8).max(200),
   intentId:z.string().uuid(),
   sessionId:z.string().uuid().optional(),
   owner:CommitmentPrincipalSchema,
