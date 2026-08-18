@@ -25,5 +25,6 @@ run(path.join(ROOT,"scripts/release-workflow-static.mjs"));
 run("--check",[path.join(ROOT,"apps/browser/main.mjs")]);
 run("--check",[path.join(ROOT,"apps/browser/main-core.mjs")]);
 run("--check",[path.join(ROOT,"scripts/dashboard-reality-smoke.mjs")]);
+if(!args.includes("--plan"))run(path.join(ROOT,"scripts/agent-kernel-release.mjs"));
 run(path.join(ROOT,"scripts/release-verify.mjs"),args);
 if(!args.includes("--plan"))run(path.join(ROOT,"scripts/attest-platform-gate.mjs"),args);

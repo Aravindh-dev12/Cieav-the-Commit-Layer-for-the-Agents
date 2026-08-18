@@ -138,8 +138,6 @@ class Settings:
 
     def token(self) -> str:
         value=self._get_or_create_secret("gateway-token",self.token_file,bytes_count=32)
-        # Managed Gateway startup loads this first. Keep the audit HMAC key only
-        # in trusted runtime process environments; Chromium strips it before spawn.
         os.environ["CIEAV_AUDIT_INTEGRITY_KEY"]=self.audit_integrity_secret()
         return value
 
