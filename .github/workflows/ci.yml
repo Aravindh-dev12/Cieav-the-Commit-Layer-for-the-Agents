@@ -21,6 +21,10 @@ jobs:
         run: node scripts/windows-tpm-cng-release.mjs
       - name: Verify live Windows TPM/MAA collector boundary
         run: node scripts/windows-tpm-maa-collector-release.mjs
+      - name: Verify macOS Secure Enclave provider source boundary
+        run: node scripts/macos-secure-enclave-release.mjs
+      - name: Verify Linux PKCS11 provider boundary
+        run: node scripts/linux-pkcs11-release.mjs
       - name: Verify CIEAV package namespace
         run: node scripts/package-namespace-smoke.mjs
       - name: Verify Python platform package
@@ -69,6 +73,8 @@ jobs:
           node --check scripts/openclaw-no-deps-static.mjs
           node --check scripts/windows-tpm-cng-release.mjs
           node --check scripts/windows-tpm-maa-collector-release.mjs
+          node --check scripts/macos-secure-enclave-release.mjs
+          node --check scripts/linux-pkcs11-release.mjs
           node --check scripts/release-gate.mjs
           node --check scripts/agent-kernel-release.mjs
           node --check scripts/repository-governance-check.mjs
