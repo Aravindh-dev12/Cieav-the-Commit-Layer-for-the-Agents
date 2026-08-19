@@ -7,6 +7,7 @@
   "exports": {
     ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
     "./reality": {"types": "./dist/reality.d.ts", "import": "./dist/reality.js"},
+    "./intent-reality": {"types": "./dist/intent-reality.d.ts", "import": "./dist/intent-reality.js"},
     "./approval": {"types": "./dist/approval.d.ts", "import": "./dist/approval.js"},
     "./proof": {"types": "./dist/proof.d.ts", "import": "./dist/proof.js"},
     "./business": {"types": "./dist/business.d.ts", "import": "./dist/business.js"},
