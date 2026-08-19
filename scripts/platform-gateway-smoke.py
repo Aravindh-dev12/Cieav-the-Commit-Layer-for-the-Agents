@@ -5,12 +5,16 @@ import json
 import os
 import secrets
 import tempfile
+import threading
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 from latch_platform.cli import build_parser
 from latch_platform.config import Settings
-from latch_platform.gateway import Gateway
+from latch_platform.gateway import ControlHandler, Gateway
 
 
 def settings_for(root: Path, state: Path, offset: int = 0) -> Settings:
@@ -32,6 +36,13 @@ def settings_for(root: Path, state: Path, offset: int = 0) -> Settings:
 def assert_private(path: Path) -> None:
     if os.name != "nt":
         assert (path.stat().st_mode & 0o077) == 0, f"{path} must not be group/world accessible"
+
+
+def http_status(port: int, path: str, token: str, method: str = "GET") -> int:
+    req=Request(f"http://127.0.0.1:{port}{path}",method=method,headers={"authorization":f"Bearer {token}"})
+    try:
+        with urlopen(req,timeout=2) as response: return response.status
+    except HTTPError as exc: return exc.code
 
 
 def main() -> int:
@@ -112,6 +123,19 @@ def main() -> int:
         assert health["platform"] in {"CIEAV Gateway", "LATCH Gateway"}
         assert health["paused"] is False
         assert health["surfaceRunning"] is False
+
+        ControlHandler.gateway=g
+        scope_server=ThreadingHTTPServer(("127.0.0.1",0),ControlHandler)
+        scope_thread=threading.Thread(target=scope_server.serve_forever,daemon=True)
+        scope_thread.start()
+        try:
+            scope_port=int(scope_server.server_address[1])
+            assert http_status(scope_port,"/v1/hf/status",g.semantic_router_token)==200
+            assert http_status(scope_port,"/v1/pause",g.semantic_router_token,"POST")==401
+            assert g.paused is False
+            assert http_status(scope_port,"/v1/status",g.token)==200
+        finally:
+            scope_server.shutdown(); scope_server.server_close(); scope_thread.join(timeout=2)
 
         with patch.dict(os.environ,{"CIEAV_TEST_AUTO_APPROVE":"1","LATCH_TEST_AUTO_APPROVE":"1","CIEAV_BROWSER_CONTROL_TOKEN":"polluted","LATCH_BROWSER_CONTROL_TOKEN":"polluted-legacy"},clear=False):
             base_env=g._base_env()
