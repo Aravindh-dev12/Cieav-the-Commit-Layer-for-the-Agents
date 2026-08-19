@@ -15,6 +15,8 @@ export const RealityStateWitnessSchema=z.object({
   id:z.string().uuid(),
   observedAt:z.string().datetime(),
   source:z.string().min(1).max(300),
+  trust:z.enum(["TRUSTED_LOCAL_OBSERVER","TRUSTED_ADAPTER","HUMAN_ATTESTATION"]),
+  observerId:z.string().min(1).max(300).optional(),
   facts:z.array(RealityStateFactSchema).min(1).max(200),
   stateHash:Hex64Schema
 }).strict();
