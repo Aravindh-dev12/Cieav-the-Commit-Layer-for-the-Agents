@@ -10,7 +10,8 @@
     "./proof": {"types": "./dist/proof.d.ts", "import": "./dist/proof.js"},
     "./reconciliation": {"types": "./dist/reconciliation.d.ts", "import": "./dist/reconciliation.js"},
     "./policy": {"types": "./dist/policy.d.ts", "import": "./dist/policy.js"},
-    "./commitment": {"types": "./dist/commitment.d.ts", "import": "./dist/commitment.js"}
+    "./commitment": {"types": "./dist/commitment.d.ts", "import": "./dist/commitment.js"},
+    "./execution-fabric": {"types": "./dist/execution-fabric.d.ts", "import": "./dist/execution-fabric.js"}
   },
   "scripts": {"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit","test":"vitest run"},
   "dependencies": {"@cieav/contracts":"*"},
