@@ -128,9 +128,9 @@ The strong root secret from which Agent Kernel subsystem state keys are domain-s
 
 Production secure-storage policy refuses an unencrypted file backend unless an explicit diagnostic override is configured. Legacy private-file secrets are migrated with read-back verification before deletion.
 
-The Python Gateway strips inherited signing-secret variables, reads the protected `receipt-signing-secret`, injects it only into the managed Node semantic authority, and removes it from the browser surface environment. Hardware signing therefore does not depend on a plaintext application secret file in normal packaged production operation.
+The Python Gateway strips inherited signing and Gateway-capability variables from the managed semantic environment. Production starts `apps/api/dist/managed-entry.js` with a private anonymous stdin pipe, sends a bounded one-shot JSON bootstrap containing the JWT root, receipt-signing root and Gateway bearer capability, closes the pipe immediately, and never places those values in child arguments. The managed entry refuses TTY/no-pipe startup, rejects oversized, weak, malformed, duplicated or unexpected bootstrap fields, consumes the bootstrap before importing `server.js`, and fails if the same credentials also appear in the process environment. The browser surface still receives none of these authority roots.
 
-This still does not mean the root is directly TPM/Secure-Enclave/HSM sealed on every platform. Hardware sealing, secret rotation, removing process-environment exposure and moving Credential Authority/hardware-signing operations behind a narrower broker process remain further hardening work.
+This materially reduces ambient secret exposure compared with inherited environment variables, but it is **not same-user process isolation**. The Gateway and semantic process still hold authority material in memory, and provider-native keys remain usable according to their underlying OS/HSM access policy. Direct hardware sealing, secret rotation, stronger provider ACLs and a narrowly privileged signer/credential broker remain further hardening work.
 
 ## CI and release qualification
 
@@ -143,6 +143,7 @@ The cross-platform GitHub matrix executes provider, lifecycle and root-secret ga
 - Linux PKCS #11 C++ compilation plus fail-closed unconfigured probe;
 - Gateway-only credential/hardware lifecycle and no raw verified-evidence import;
 - DPAPI/Keychain/Secret-Service production root-secret storage wiring and browser-secret isolation;
+- bounded one-shot private Gateway→semantic secret bootstrap, including executable missing/weak-bootstrap rejection;
 - full Agent Kernel and trusted-adapter regressions.
 
 The Node dependency gate rejects high/critical production dependency advisories and critical advisories anywhere in the test/build graph.
