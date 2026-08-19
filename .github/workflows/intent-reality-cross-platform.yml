@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: intent-reality-cross-platform-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   intent-reality:
     name: Intent-to-Reality · ${{ matrix.os }}
@@ -23,6 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Verify OS-backed root secret boundary
+        run: node scripts/os-secret-root-release.mjs
       - name: Verify OpenClaw zero-dependency consumer boundary
         run: node scripts/openclaw-no-deps-static.mjs
       - name: Parse Windows consumer installer
@@ -39,10 +45,18 @@ jobs:
         run: node scripts/windows-tpm-cng-release.mjs
       - name: Verify live Windows TPM/MAA collector boundary
         run: node scripts/windows-tpm-maa-collector-release.mjs
+      - name: Verify macOS Secure Enclave native provider boundary
+        run: node scripts/macos-secure-enclave-release.mjs
+      - name: Verify Linux PKCS11 native provider boundary
+        run: node scripts/linux-pkcs11-release.mjs
       - name: Install workspaces
         run: npm install
       - name: Build local authority packages
         run: npm run build:api
+      - name: Verify private managed secret bootstrap
+        run: node scripts/managed-secret-pipe-release.mjs
+      - name: Verify Gateway credential and hardware lifecycle
+        run: node scripts/credential-hardware-admin-release.mjs
       - name: Verify Intent-to-Reality production invariants
         run: node scripts/intent-reality-release.mjs
       - name: Verify trusted downstream execution adapters

@@ -26,8 +26,8 @@ void checkAtt(const char* op,att_result r){if(att_result_failed(r))throw std::ru
 NCRYPT_PROV_HANDLE openPlatformProvider(){NCRYPT_PROV_HANDLE p=0;checkNcrypt("NCryptOpenStorageProvider",NCryptOpenStorageProvider(&p,MS_PLATFORM_CRYPTO_PROVIDER,0));DWORD impl=0,cb=0;checkNcrypt("NCryptGetProperty",NCryptGetProperty(p,NCRYPT_IMPL_TYPE_PROPERTY,reinterpret_cast<PBYTE>(&impl),sizeof(impl),&cb,0));if((impl&NCRYPT_IMPL_HARDWARE_FLAG)==0||(impl&NCRYPT_IMPL_SOFTWARE_FLAG)!=0){NCryptFreeObject(p);throw std::runtime_error("Platform Crypto Provider hardware invariant failed");}return p;}
 NCRYPT_KEY_HANDLE openNamedKey(NCRYPT_PROV_HANDLE provider,const std::string& name,DWORD flags){NCRYPT_KEY_HANDLE key=0;auto w=widen(name);checkNcrypt("NCryptOpenKey",NCryptOpenKey(provider,&key,w.c_str(),0,NCRYPT_SILENT_FLAG|flags));return key;}
 
-struct Args{std::string aik;std::string requestKey;std::string rpId;std::string nonce;bool aikMachine{true};};
-Args parseArgs(int argc,char** argv){if(argc<2||std::string(argv[1])!="collect")throw std::runtime_error("expected collect command");Args out;for(int i=2;i<argc;++i){std::string a=argv[i];auto value=[&](){if(i+1>=argc)throw std::runtime_error("missing argument value");return std::string(argv[++i]);};if(a=="--aik")out.aik=value();else if(a=="--request-key")out.requestKey=value();else if(a=="--rp-id")out.rpId=value();else if(a=="--nonce")out.nonce=value();else if(a=="--aik-user")out.aikMachine=false;else throw std::runtime_error("unknown argument");}if(out.aik.empty()||out.requestKey.empty()||out.rpId.empty()||out.nonce.empty())throw std::runtime_error("collector arguments incomplete");if(out.aik.size()>200||out.requestKey.size()>200||out.rpId.size()>1000||out.nonce.size()>4096)throw std::runtime_error("collector argument too large");return out;}
+struct Args{std::string aik;std::string requestKey;std::string otherKey;std::string rpId;std::string nonce;bool aikMachine{true};};
+Args parseArgs(int argc,char** argv){if(argc<2||std::string(argv[1])!="collect")throw std::runtime_error("expected collect command");Args out;for(int i=2;i<argc;++i){std::string a=argv[i];auto value=[&](){if(i+1>=argc)throw std::runtime_error("missing argument value");return std::string(argv[++i]);};if(a=="--aik")out.aik=value();else if(a=="--request-key")out.requestKey=value();else if(a=="--other-key")out.otherKey=value();else if(a=="--rp-id")out.rpId=value();else if(a=="--nonce")out.nonce=value();else if(a=="--aik-user")out.aikMachine=false;else throw std::runtime_error("unknown argument");}if(out.aik.empty()||out.requestKey.empty()||out.rpId.empty()||out.nonce.empty())throw std::runtime_error("collector arguments incomplete");if(out.aik.size()>200||out.requestKey.size()>200||out.otherKey.size()>200||out.rpId.size()>1000||out.nonce.size()>4096)throw std::runtime_error("collector argument too large");return out;}
 
 std::vector<std::uint8_t> attestServiceExchange(const std::uint8_t* data,size_t size){
   auto credential=std::make_shared<Azure::Identity::ClientSecretCredential>(requiredEnv("AZURE_TENANT_ID"),requiredEnv("AZURE_CLIENT_ID"),requiredEnv("AZURE_CLIENT_SECRET"));
@@ -41,10 +41,14 @@ std::vector<std::uint8_t> collectReport(const Args& args){
   NcryptHandle provider(openPlatformProvider());
   NcryptHandle aik(openNamedKey(static_cast<NCRYPT_PROV_HANDLE>(provider.h),args.aik,args.aikMachine?NCRYPT_MACHINE_KEY_FLAG:0));
   NcryptHandle requestKey(openNamedKey(static_cast<NCRYPT_PROV_HANDLE>(provider.h),args.requestKey,0));
+  NcryptHandle otherKey;
+  if(!args.otherKey.empty())otherKey.h=openNamedKey(static_cast<NCRYPT_PROV_HANDLE>(provider.h),args.otherKey,0);
   att_tpm_aik attAik=ATT_TPM_AIK_NCRYPT(static_cast<NCRYPT_KEY_HANDLE>(aik.h));
   att_tpm_key attKey=ATT_TPM_KEY_NCRYPT(static_cast<NCRYPT_KEY_HANDLE>(requestKey.h));
+  att_tpm_key attOther{};
+  if(otherKey.h)attOther=ATT_TPM_KEY_NCRYPT(static_cast<NCRYPT_KEY_HANDLE>(otherKey.h));
   std::vector<std::uint8_t> nonce(args.nonce.begin(),args.nonce.end());
-  att_session_params_tpm params{nonce.data(),nonce.size(),args.rpId.c_str(),&attAik,&attKey,nullptr,0};
+  att_session_params_tpm params{nonce.data(),nonce.size(),args.rpId.c_str(),&attAik,&attKey,otherKey.h?&attOther:nullptr,otherKey.h?1u:0u};
   att_session session{};checkAtt("att_create_session",att_create_session(ATT_SESSION_TYPE_TPM,&params,&session));
   bool complete=false;std::vector<std::uint8_t> serverReply;
   while(!complete){att_buffer outbound=nullptr;size_t outboundSize=0;checkAtt("att_attest",att_attest(session.get(),serverReply.data(),serverReply.size(),&outbound,&outboundSize,&complete));if(outboundSize>0){if(outboundSize>4*1024*1024)throw std::runtime_error("attestation request too large");serverReply=attestServiceExchange(outbound.get(),outboundSize);if(serverReply.size()>4*1024*1024)throw std::runtime_error("attestation response too large");}}

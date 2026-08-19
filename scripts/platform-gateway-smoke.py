@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import os
+import secrets
 import tempfile
+import threading
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 from latch_platform.cli import build_parser
 from latch_platform.config import Settings
-from latch_platform.gateway import Gateway
+from latch_platform.gateway import ControlHandler, Gateway
 
 
 def settings_for(root: Path, state: Path, offset: int = 0) -> Settings:
@@ -30,6 +36,13 @@ def settings_for(root: Path, state: Path, offset: int = 0) -> Settings:
 def assert_private(path: Path) -> None:
     if os.name != "nt":
         assert (path.stat().st_mode & 0o077) == 0, f"{path} must not be group/world accessible"
+
+
+def http_status(port: int, path: str, token: str, method: str = "GET") -> int:
+    req=Request(f"http://127.0.0.1:{port}{path}",method=method,headers={"authorization":f"Bearer {token}"})
+    try:
+        with urlopen(req,timeout=2) as response: return response.status
+    except HTTPError as exc: return exc.code
 
 
 def main() -> int:
@@ -93,15 +106,42 @@ def main() -> int:
 
         g = Gateway(a)
         assert g.test_lab_url == "http://127.0.0.1:18791/test-lab"
+        assert len(g.semantic_router_token)>=43
+        assert not secrets.compare_digest(g.semantic_router_token,g.token)
+        bootstrap=g._semantic_bootstrap()
+        try:
+            parsed_bootstrap=json.loads(bytes(bootstrap).decode("utf-8"))
+            assert parsed_bootstrap["gatewayToken"]==g.token
+            assert parsed_bootstrap["semanticRouterToken"]==g.semantic_router_token
+            assert parsed_bootstrap["semanticRouterToken"]!=parsed_bootstrap["gatewayToken"]
+            assert len(parsed_bootstrap["jwtSecret"])>=32
+            assert len(parsed_bootstrap["receiptSigningSecret"])>=32
+            assert parsed_bootstrap["jwtSecret"]!=parsed_bootstrap["receiptSigningSecret"]
+        finally:
+            bootstrap[:]=b"\0"*len(bootstrap)
         health = g.public_health()
         assert health["platform"] in {"CIEAV Gateway", "LATCH Gateway"}
         assert health["paused"] is False
         assert health["surfaceRunning"] is False
 
+        ControlHandler.gateway=g
+        scope_server=ThreadingHTTPServer(("127.0.0.1",0),ControlHandler)
+        scope_thread=threading.Thread(target=scope_server.serve_forever,daemon=True)
+        scope_thread.start()
+        try:
+            scope_port=int(scope_server.server_address[1])
+            assert http_status(scope_port,"/v1/hf/status",g.semantic_router_token)==200
+            assert http_status(scope_port,"/v1/pause",g.semantic_router_token,"POST")==401
+            assert g.paused is False
+            assert http_status(scope_port,"/v1/status",g.token)==200
+        finally:
+            scope_server.shutdown(); scope_server.server_close(); scope_thread.join(timeout=2)
+
         with patch.dict(os.environ,{"CIEAV_TEST_AUTO_APPROVE":"1","LATCH_TEST_AUTO_APPROVE":"1","CIEAV_BROWSER_CONTROL_TOKEN":"polluted","LATCH_BROWSER_CONTROL_TOKEN":"polluted-legacy"},clear=False):
             base_env=g._base_env()
             dedicated="C"*64
             surface_env=g._surface_env(dedicated)
+            semantic_env=g._semantic_env()
             assert "CIEAV_TEST_AUTO_APPROVE" not in base_env
             assert "LATCH_TEST_AUTO_APPROVE" not in base_env
             assert "CIEAV_BROWSER_CONTROL_TOKEN" not in base_env
@@ -111,6 +151,9 @@ def main() -> int:
             assert surface_env["CIEAV_REQUIRE_PRODUCTION_API"] == "1"
             assert surface_env["CIEAV_BROWSER_CONTROL_TOKEN"] == dedicated
             assert surface_env["CIEAV_BROWSER_CONTROL_TOKEN"] != g.token
+            for secret_name in ("JWT_SECRET","RECEIPT_SIGNING_SECRET","CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN"):
+                assert secret_name not in semantic_env
+                assert secret_name not in surface_env
 
         first=g._surface_env()["CIEAV_BROWSER_CONTROL_TOKEN"]
         second=g._surface_env()["CIEAV_BROWSER_CONTROL_TOKEN"]
@@ -134,6 +177,7 @@ def main() -> int:
     print("CIEAV per-user local authority isolation passed")
     print("CIEAV production test-auto suppression passed")
     print("CIEAV per-surface browser control capability isolation passed")
+    print("CIEAV semantic/admin Gateway capability split passed")
     print("CIEAV audit verification command is available")
     return 0
 
