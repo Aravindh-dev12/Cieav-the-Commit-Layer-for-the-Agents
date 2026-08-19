@@ -50,7 +50,7 @@ export type FormalAuthorizationDecision=z.infer<typeof FormalAuthorizationDecisi
 
 export const ExecutionProposalSchema=z.object({
   id:z.string().uuid(),version:z.literal(1),taskId:z.string().uuid(),intentId:z.string().uuid(),scopeDeviceId:z.string().min(8).max(200),subjectId:z.string().min(1).max(240),
-  identityAttestationId:z.string().uuid(),credentialLeaseId:z.string().uuid(),toolId:z.string().min(1).max(240),protocol:ToolProtocolSchema,operation:z.string().min(1).max(240),target:z.string().max(1000).optional(),
+  identityAttestationId:z.string().uuid(),credentialLeaseId:z.string().uuid(),toolId:z.string().min(1).max(240),protocol:ToolProtocolSchema,operation:z.string().min(1).max(240),target:z.string().max(1000).optional(),risk:RiskSchema,
   normalizedArgumentsDigest:DigestSchema,semanticEffect:SemanticEffectSchema,realityWitness:RealityWitnessSchema,expectedPostStateDigest:DigestSchema,proofObligationDigest:DigestSchema,
   attenuationWitnessIds:z.array(z.string().uuid()).max(32).default([]),createdAt:z.string().datetime()
 }).strict();
