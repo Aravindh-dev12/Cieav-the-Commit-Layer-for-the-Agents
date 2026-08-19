@@ -1,5 +1,11 @@
 import type {IncomingMessage} from "node:http";
-import {AgentTaskStateSchema,AuthorityEnvelopeSchema,CommitmentSchema,RealityWitnessSchema,SemanticEffectSchema} from "@cieav/contracts";
+import {
+  AgentTaskStateSchema,
+  AuthorityEnvelopeSchema,
+  CommitmentSchema,
+  RealityWitnessSchema,
+  SemanticEffectSchema
+} from "@cieav/contracts";
 import type {AgentTokenPayload} from "./auth.js";
 import type {CieavProofApi} from "./proof-api.js";
 import type {CieavRealityApi,RealityRouteResult} from "./reality-api.js";
@@ -7,9 +13,23 @@ import {CieavAgentKernelStore} from "./agent-kernel.js";
 import {createAttenuationWitness} from "./intent-reality-engine.js";
 
 const MAX_BODY=256_000;
-async function parseBody(req:IncomingMessage){const chunks:Buffer[]=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>MAX_BODY)throw new Error("body_too_large");chunks.push(b)}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{} }
-const owns=(task:{scopeDeviceId:string;sessionId?:string;intentId:string},identity:AgentTokenPayload)=>task.scopeDeviceId===identity.scopeDeviceId&&task.sessionId===identity.sessionId&&identity.allowedIntentIds.includes(task.intentId);
+
+async function parseBody(req:IncomingMessage){
+  const chunks:Buffer[]=[];
+  let size=0;
+  for await(const chunk of req){
+    const b=Buffer.from(chunk);
+    size+=b.length;
+    if(size>MAX_BODY)throw new Error("body_too_large");
+    chunks.push(b);
+  }
+  return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{};
+}
+
+const owns=(task:{scopeDeviceId:string;sessionId?:string;intentId:string},identity:AgentTokenPayload)=>
+  task.scopeDeviceId===identity.scopeDeviceId&&task.sessionId===identity.sessionId&&identity.allowedIntentIds.includes(task.intentId);
 const principalMatches=(a:{id:string;kind:string},b:{id:string;kind:string})=>a.id===b.id&&a.kind===b.kind;
+const conflict=(err:unknown):RealityRouteResult=>({status:409,body:{error:String((err as any)?.message??err)}});
 
 export class CieavAgentKernelApi{
   constructor(readonly store:CieavAgentKernelStore,private readonly reality:CieavRealityApi,private readonly proof:CieavProofApi){}
@@ -17,16 +37,82 @@ export class CieavAgentKernelApi{
 
   async handleAgent(req:IncomingMessage,pathname:string,identity:AgentTokenPayload):Promise<RealityRouteResult|null>{
     if(req.method==="POST"&&pathname==="/v1/agent/tasks"){
-      const raw=await parseBody(req);if(typeof raw?.intentId!=="string"||!identity.allowedIntentIds.includes(raw.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};if(raw?.actor?.kind!=="AGENT"||raw?.actor?.id!==identity.agentId)return{status:403,body:{error:"agent_identity_mismatch"}};const intent=await this.reality.store.getIntent(identity.scopeDeviceId,raw.intentId);if(!intent)return{status:404,body:{error:"intent_not_found"}};return{status:201,body:await this.store.create({...raw,scopeDeviceId:identity.scopeDeviceId,sessionId:identity.sessionId,owner:intent.owner})};
+      const raw=await parseBody(req);
+      if(typeof raw?.intentId!=="string"||!identity.allowedIntentIds.includes(raw.intentId))return{status:403,body:{error:"agent_intent_not_allowed"}};
+      if(raw?.actor?.kind!=="AGENT"||raw?.actor?.id!==identity.agentId)return{status:403,body:{error:"agent_identity_mismatch"}};
+      const intent=await this.reality.store.getIntent(identity.scopeDeviceId,raw.intentId);
+      if(!intent)return{status:404,body:{error:"intent_not_found"}};
+      return{status:201,body:await this.store.create({...raw,scopeDeviceId:identity.scopeDeviceId,sessionId:identity.sessionId,owner:intent.owner})};
     }
+
     if(req.method==="GET"&&pathname==="/v1/agent/tasks")return{status:200,body:{tasks:(await this.store.list()).filter(t=>owns(t,identity))}};
-    if(req.method==="GET"&&pathname==="/v1/agent/tasks/open-loops"){const allowed=new Set((await this.store.list()).filter(t=>owns(t,identity)).map(t=>t.id));return{status:200,body:{openLoops:(await this.store.openLoops()).filter(x=>allowed.has(x.taskId))}}}
-    const executionAuthorize=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)\/execution\/authorize$/i);if(req.method==="POST"&&executionAuthorize?.[1]){const task=await this.store.get(executionAuthorize[1]);if(!task)return{status:404,body:{error:"not_found"}};if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};const raw=await parseBody(req),proposal={...(raw?.proposal??raw),taskId:task.id,intentId:task.intentId,scopeDeviceId:task.scopeDeviceId,subjectId:identity.agentId};try{const result=await this.store.executionFabric.authorize(proposal);return{status:result.decision.decision==="BLOCK"?403:result.decision.decision==="ASK"?202:200,body:result}}catch(err:any){return{status:409,body:{error:String(err?.message??err)}}}}
-    const taskMatch=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)$/i);if(req.method==="GET"&&taskMatch?.[1]){const task=await this.store.get(taskMatch[1]);if(!task)return{status:404,body:{error:"not_found"}};if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};return{status:200,body:{task}}}
-    const eventMatch=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)\/events$/i);if(req.method==="GET"&&eventMatch?.[1]){const task=await this.store.get(eventMatch[1]);if(!task)return{status:404,body:{error:"not_found"}};if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};return{status:200,body:{events:await this.store.listEvents(task.id)}}}
-    const transition=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)\/transition$/i);if(req.method==="POST"&&transition?.[1]){const task=await this.store.get(transition[1]);if(!task)return{status:404,body:{error:"not_found"}};if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};const raw=await parseBody(req),parsed=AgentTaskStateSchema.safeParse(raw?.to);if(!parsed.success)return{status:400,body:{error:"invalid_agent_task_state"}};if(["COMPLETED","CANCELLED"].includes(parsed.data))return{status:403,body:{error:"trusted_authority_transition_required"}};if(parsed.data==="RUNNING"&&!task.authoritySatisfiedAt)return{status:409,body:{error:"agent_execution_requires_trusted_authority"}};if(parsed.data==="RUNNING"&&task.commitmentRequired&&!task.realityCommitConsumedAt)return{status:409,body:{error:"agent_execution_requires_reality_bound_commit"}};if(parsed.data==="RUNNING"&&task.effectQuarantined)return{status:409,body:{error:"semantic_effect_quarantined"}};return{status:200,body:await this.store.transition(task.id,parsed.data,String(raw?.reason??"agent transition"))}}
-    const require=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)\/require-commitment$/i);if(req.method==="POST"&&require?.[1]){const task=await this.store.get(require[1]);if(!task)return{status:404,body:{error:"not_found"}};if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};const raw=await parseBody(req);return{status:200,body:await this.store.requireCommitment(task.id,String(raw?.reason??"consequential work requires authority"))}}
-    const retry=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)\/retry$/i);if(req.method==="POST"&&retry?.[1]){const task=await this.store.get(retry[1]);if(!task)return{status:404,body:{error:"not_found"}};if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};if(task.effectQuarantined)return{status:409,body:{error:"semantic_effect_quarantined",effectKey:task.effectKey}};const raw=await parseBody(req),nextRunAt=String(raw?.nextRunAt??"");if(!Number.isFinite(Date.parse(nextRunAt)))return{status:400,body:{error:"invalid_next_run_at"}};return{status:200,body:await this.store.retry(task.id,nextRunAt,String(raw?.reason??"agent retry"))}}
+    if(req.method==="GET"&&pathname==="/v1/agent/tasks/open-loops"){
+      const allowed=new Set((await this.store.list()).filter(t=>owns(t,identity)).map(t=>t.id));
+      return{status:200,body:{openLoops:(await this.store.openLoops()).filter(x=>allowed.has(x.taskId))}};
+    }
+
+    const executionAuthorize=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)\/execution\/authorize$/i);
+    if(req.method==="POST"&&executionAuthorize?.[1]){
+      const task=await this.store.get(executionAuthorize[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};
+      const raw=await parseBody(req);
+      const proposal={...(raw?.proposal??raw),taskId:task.id,intentId:task.intentId,scopeDeviceId:task.scopeDeviceId,subjectId:identity.agentId};
+      try{
+        const result=await this.store.executionFabric.authorize(proposal);
+        return{status:result.decision.decision==="BLOCK"?403:result.decision.decision==="ASK"?202:200,body:result};
+      }catch(err){return conflict(err)}
+    }
+
+    const taskMatch=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)$/i);
+    if(req.method==="GET"&&taskMatch?.[1]){
+      const task=await this.store.get(taskMatch[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};
+      return{status:200,body:{task}};
+    }
+
+    const eventMatch=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)\/events$/i);
+    if(req.method==="GET"&&eventMatch?.[1]){
+      const task=await this.store.get(eventMatch[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};
+      return{status:200,body:{events:await this.store.listEvents(task.id)}};
+    }
+
+    const transition=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)\/transition$/i);
+    if(req.method==="POST"&&transition?.[1]){
+      const task=await this.store.get(transition[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};
+      const raw=await parseBody(req),parsed=AgentTaskStateSchema.safeParse(raw?.to);
+      if(!parsed.success)return{status:400,body:{error:"invalid_agent_task_state"}};
+      if(["COMPLETED","CANCELLED"].includes(parsed.data))return{status:403,body:{error:"trusted_authority_transition_required"}};
+      if(parsed.data==="RUNNING"&&!task.authoritySatisfiedAt)return{status:409,body:{error:"agent_execution_requires_trusted_authority"}};
+      if(parsed.data==="RUNNING"&&task.commitmentRequired&&!task.realityCommitConsumedAt)return{status:409,body:{error:"agent_execution_requires_reality_bound_commit"}};
+      if(parsed.data==="RUNNING"&&task.effectQuarantined)return{status:409,body:{error:"semantic_effect_quarantined"}};
+      return{status:200,body:await this.store.transition(task.id,parsed.data,String(raw?.reason??"agent transition"))};
+    }
+
+    const require=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)\/require-commitment$/i);
+    if(req.method==="POST"&&require?.[1]){
+      const task=await this.store.get(require[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};
+      const raw=await parseBody(req);
+      return{status:200,body:await this.store.requireCommitment(task.id,String(raw?.reason??"consequential work requires authority"))};
+    }
+
+    const retry=pathname.match(/^\/v1\/agent\/tasks\/([0-9a-f-]+)\/retry$/i);
+    if(req.method==="POST"&&retry?.[1]){
+      const task=await this.store.get(retry[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      if(!owns(task,identity))return{status:403,body:{error:"agent_task_not_allowed"}};
+      if(task.effectQuarantined)return{status:409,body:{error:"semantic_effect_quarantined",effectKey:task.effectKey}};
+      const raw=await parseBody(req),nextRunAt=String(raw?.nextRunAt??"");
+      if(!Number.isFinite(Date.parse(nextRunAt)))return{status:400,body:{error:"invalid_next_run_at"}};
+      return{status:200,body:await this.store.retry(task.id,nextRunAt,String(raw?.reason??"agent retry"))};
+    }
     return null;
   }
 
@@ -37,34 +123,166 @@ export class CieavAgentKernelApi{
     if(req.method==="GET"&&pathname==="/v1/agent-kernel/autonomy-candidates")return{status:200,body:{candidates:await this.store.intentReality.listAutonomy()}};
     if(req.method==="GET"&&pathname==="/v1/agent-kernel/reversibility-escrows")return{status:200,body:{escrows:await this.store.intentReality.listReversibilityEscrows()}};
 
-    if(pathname==="/v1/agent-kernel/execution-fabric/attestations"){if(req.method==="GET")return{status:200,body:{attestations:await this.store.executionFabric.listAttestations()}};if(req.method==="POST")return{status:201,body:{attestation:await this.store.executionFabric.registerAttestation(await parseBody(req))}}}
-    if(pathname==="/v1/agent-kernel/execution-fabric/tools"){if(req.method==="GET")return{status:200,body:{tools:await this.store.executionFabric.listTools()}};if(req.method==="POST")return{status:201,body:{tool:await this.store.executionFabric.putTool(await parseBody(req))}}}
-    if(pathname==="/v1/agent-kernel/execution-fabric/credential-leases"){if(req.method==="GET")return{status:200,body:{leases:await this.store.executionFabric.listLeases()}};if(req.method==="POST")return{status:201,body:{lease:await this.store.executionFabric.issueLease(await parseBody(req))}}}
-    const revokeLease=pathname.match(/^\/v1\/agent-kernel\/execution-fabric\/credential-leases\/([0-9a-f-]+)\/revoke$/i);if(req.method==="POST"&&revokeLease?.[1])return{status:200,body:{lease:await this.store.executionFabric.revokeLease(revokeLease[1])}};
-    if(pathname==="/v1/agent-kernel/execution-fabric/permission-graphs"){if(req.method==="GET")return{status:200,body:{graphs:await this.store.executionFabric.listPermissionGraphs()}};if(req.method==="POST")return{status:201,body:{graph:await this.store.executionFabric.putPermissionGraph(await parseBody(req))}}}
+    if(pathname==="/v1/agent-kernel/execution-fabric/attestations"){
+      if(req.method==="GET")return{status:200,body:{attestations:await this.store.executionFabric.listAttestations()}};
+      if(req.method==="POST")return{status:201,body:{attestation:await this.store.executionFabric.registerAttestation(await parseBody(req))}};
+    }
+    if(pathname==="/v1/agent-kernel/execution-fabric/tools"){
+      if(req.method==="GET")return{status:200,body:{tools:await this.store.executionFabric.listTools()}};
+      if(req.method==="POST")return{status:201,body:{tool:await this.store.executionFabric.putTool(await parseBody(req))}};
+    }
+    if(pathname==="/v1/agent-kernel/execution-fabric/credential-leases"){
+      if(req.method==="GET")return{status:200,body:{leases:await this.store.executionFabric.listLeases()}};
+      if(req.method==="POST")return{status:201,body:{lease:await this.store.executionFabric.issueLease(await parseBody(req))}};
+    }
+    const revokeLease=pathname.match(/^\/v1\/agent-kernel\/execution-fabric\/credential-leases\/([0-9a-f-]+)\/revoke$/i);
+    if(req.method==="POST"&&revokeLease?.[1])return{status:200,body:{lease:await this.store.executionFabric.revokeLease(revokeLease[1])}};
+
+    if(pathname==="/v1/agent-kernel/execution-fabric/permission-graphs"){
+      if(req.method==="GET")return{status:200,body:{graphs:await this.store.executionFabric.listPermissionGraphs()}};
+      if(req.method==="POST")return{status:201,body:{graph:await this.store.executionFabric.putPermissionGraph(await parseBody(req))}};
+    }
     if(req.method==="GET"&&pathname==="/v1/agent-kernel/execution-fabric/tickets")return{status:200,body:{tickets:await this.store.executionFabric.listTickets()}};
     if(req.method==="GET"&&pathname==="/v1/agent-kernel/execution-fabric/audit")return{status:200,body:{audit:await this.store.executionFabric.listAudit()}};
-    const issueTicket=pathname.match(/^\/v1\/agent-kernel\/execution-fabric\/proposals\/([0-9a-f-]+)\/ticket$/i);if(req.method==="POST"&&issueTicket?.[1]){const raw=await parseBody(req);try{return{status:201,body:{ticket:await this.store.executionFabric.issueTicket(issueTicket[1],String(raw?.realityBoundCommitId??""),Number(raw?.ttlSeconds??30))}}}catch(err:any){return{status:409,body:{error:String(err?.message??err)}}}}
-    const consumeTicket=pathname.match(/^\/v1\/agent-kernel\/execution-fabric\/tickets\/([0-9a-f-]+)\/consume$/i);if(req.method==="POST"&&consumeTicket?.[1]){const raw=await parseBody(req);if(raw?.normalizedArguments===undefined)return{status:400,body:{error:"normalized_arguments_required"}};try{return{status:200,body:await this.store.executionFabric.consumeTicket(consumeTicket[1],raw.normalizedArguments)}catch(err:any){return{status:409,body:{error:String(err?.message??err)}}}}
 
-    const resolveQ=pathname.match(/^\/v1\/agent-kernel\/quarantines\/([0-9a-f-]+)\/resolve$/i);if(req.method==="POST"&&resolveQ?.[1]){const raw=await parseBody(req),resolution=String(raw?.resolution??"").trim();if(!resolution)return{status:400,body:{error:"resolution_required"}};const q=await this.store.intentReality.resolveQuarantine(resolveQ[1],resolution),tasks=await this.store.clearEffectQuarantineTrusted(q.effectKey,q.id);return{status:200,body:{quarantine:q,tasks}}}
-    const attenuation=pathname.match(/^\/v1\/agent-kernel\/intents\/([0-9a-f-]+)\/attenuation$/i);if(attenuation?.[1]){if(req.method==="GET")return{status:200,body:{witnesses:await this.store.intentReality.listAttenuation(attenuation[1])}};if(req.method==="POST"){const raw=await parseBody(req),parent=AuthorityEnvelopeSchema.parse(raw?.parent),child=AuthorityEnvelopeSchema.parse(raw?.child),parentDigest=String(raw?.parentDigest??"");if(!/^[0-9a-f]{64}$/.test(parentDigest))return{status:400,body:{error:"invalid_parent_digest"}};return{status:201,body:{witness:await this.store.intentReality.recordAttenuation(createAttenuationWitness(attenuation[1],parent,child,parentDigest,Number(raw?.depth??1)))}}}}
-    const drift=pathname.match(/^\/v1\/agent-kernel\/intents\/([0-9a-f-]+)\/drift$/i);if(drift?.[1]){if(req.method==="GET")return{status:200,body:{drift:await this.store.intentReality.getConsequenceDrift(drift[1])}};if(req.method==="POST"){const raw=await parseBody(req),record=await this.store.intentReality.recordConsequenceDrift(drift[1],Number(raw?.increment),Number(raw?.budget),String(raw?.basis??""));return{status:record.exceeded?409:200,body:{drift:record}}}}
+    const issueTicket=pathname.match(/^\/v1\/agent-kernel\/execution-fabric\/proposals\/([0-9a-f-]+)\/ticket$/i);
+    if(req.method==="POST"&&issueTicket?.[1]){
+      const raw=await parseBody(req);
+      try{return{status:201,body:{ticket:await this.store.executionFabric.issueTicket(issueTicket[1],String(raw?.realityBoundCommitId??""),Number(raw?.ttlSeconds??30))}}}
+      catch(err){return conflict(err)}
+    }
 
-    if(req.method==="POST"&&pathname==="/v1/agent-kernel/autonomy-candidates"){const raw=await parseBody(req),proposedEnvelope=AuthorityEnvelopeSchema.parse(raw?.proposedEnvelope),candidate=await this.store.intentReality.proposeAutonomy({scopeDeviceId:String(raw?.scopeDeviceId??""),actionClass:String(raw?.actionClass??""),proposedEnvelope,evidence:{proven:Number(raw?.evidence?.proven??0),disproven:Number(raw?.evidence?.disproven??0),unknown:Number(raw?.evidence?.unknown??0),undone:Number(raw?.evidence?.undone??0)},historicalReplay:{evaluated:Number(raw?.historicalReplay?.evaluated??0),previouslyDeniedWouldAllow:Number(raw?.historicalReplay?.previouslyDeniedWouldAllow??0),criticalWouldAllow:Number(raw?.historicalReplay?.criticalWouldAllow??0)}});return{status:201,body:{candidate}}}
-    const decide=pathname.match(/^\/v1\/agent-kernel\/autonomy-candidates\/([0-9a-f-]+)\/(ratify|reject)$/i);if(req.method==="POST"&&decide?.[1]&&decide?.[2])return{status:200,body:{candidate:await this.store.intentReality.decideAutonomy(decide[1],decide[2].toLowerCase()==="ratify"?"RATIFIED":"REJECTED")}};
+    const consumeTicket=pathname.match(/^\/v1\/agent-kernel\/execution-fabric\/tickets\/([0-9a-f-]+)\/consume$/i);
+    if(req.method==="POST"&&consumeTicket?.[1]){
+      const raw=await parseBody(req);
+      if(raw?.normalizedArguments===undefined)return{status:400,body:{error:"normalized_arguments_required"}};
+      try{return{status:200,body:await this.store.executionFabric.consumeTicket(consumeTicket[1],raw.normalizedArguments)}}
+      catch(err){return conflict(err)}
+    }
 
-    const read=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)$/i);if(req.method==="GET"&&read?.[1]){const task=await this.store.get(read[1]);return task?{status:200,body:{task,events:await this.store.listEvents(task.id)}}:{status:404,body:{error:"not_found"}}}
-    const cancel=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/cancel$/i);if(req.method==="POST"&&cancel?.[1]){const task=await this.store.get(cancel[1]);return task?{status:200,body:await this.store.transition(task.id,"CANCELLED","trusted local authority cancelled task")}:{status:404,body:{error:"not_found"}}}
-    const bind=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/bind-commitment$/i);if(req.method==="POST"&&bind?.[1]){const raw=await parseBody(req),commitment=CommitmentSchema.parse(raw?.commitment);if(commitment.state!=="AUTHORIZED")return{status:409,body:{error:"commitment_not_authorized"}};const task=await this.store.get(bind[1]);if(!task)return{status:404,body:{error:"not_found"}};if(commitment.intentId!==task.intentId)return{status:409,body:{error:"commitment_intent_mismatch"}};if(!principalMatches(commitment.owner,task.owner))return{status:409,body:{error:"commitment_owner_mismatch"}};if(!principalMatches(commitment.actor,task.actor))return{status:409,body:{error:"commitment_actor_mismatch"}};return{status:200,body:await this.store.bindCommitmentTrusted(task.id,commitment)}}
+    const resolveQ=pathname.match(/^\/v1\/agent-kernel\/quarantines\/([0-9a-f-]+)\/resolve$/i);
+    if(req.method==="POST"&&resolveQ?.[1]){
+      const raw=await parseBody(req),resolution=String(raw?.resolution??"").trim();
+      if(!resolution)return{status:400,body:{error:"resolution_required"}};
+      const q=await this.store.intentReality.resolveQuarantine(resolveQ[1],resolution),tasks=await this.store.clearEffectQuarantineTrusted(q.effectKey,q.id);
+      return{status:200,body:{quarantine:q,tasks}};
+    }
 
-    const escrowRoute=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/reversibility-escrow$/i);if(req.method==="POST"&&escrowRoute?.[1]){const raw=await parseBody(req),task=await this.store.get(escrowRoute[1]);if(!task)return{status:404,body:{error:"not_found"}};const effect=SemanticEffectSchema.parse(raw?.effect),escrow=await this.store.intentReality.reserveReversibilityEscrow({taskId:task.id,intentId:task.intentId,effect,inverseKind:raw?.inverseKind,inverseDescriptor:raw?.inverseDescriptor,preEffectSnapshot:raw?.preEffectSnapshot,inverseCapability:raw?.inverseCapability,reversibleUntil:raw?.reversibleUntil,reason:String(raw?.reason??"")});return{status:201,body:{escrow}}}
+    const attenuation=pathname.match(/^\/v1\/agent-kernel\/intents\/([0-9a-f-]+)\/attenuation$/i);
+    if(attenuation?.[1]){
+      if(req.method==="GET")return{status:200,body:{witnesses:await this.store.intentReality.listAttenuation(attenuation[1])}};
+      if(req.method==="POST"){
+        const raw=await parseBody(req),parent=AuthorityEnvelopeSchema.parse(raw?.parent),child=AuthorityEnvelopeSchema.parse(raw?.child),parentDigest=String(raw?.parentDigest??"");
+        if(!/^[0-9a-f]{64}$/.test(parentDigest))return{status:400,body:{error:"invalid_parent_digest"}};
+        return{status:201,body:{witness:await this.store.intentReality.recordAttenuation(createAttenuationWitness(attenuation[1],parent,child,parentDigest,Number(raw?.depth??1)))}};
+      }
+    }
 
-    const issueReality=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/reality-commit$/i);if(req.method==="POST"&&issueReality?.[1]){const raw=await parseBody(req),task=await this.store.get(issueReality[1]);if(!task)return{status:404,body:{error:"not_found"}};if(!task.commitmentId||!task.authoritySatisfiedAt)return{status:409,body:{error:"trusted_commitment_not_bound"}};if(raw?.proposal===undefined)return{status:400,body:{error:"proposal_required"}};const commitment=CommitmentSchema.parse(raw?.commitment);if(commitment.id!==task.commitmentId||commitment.intentId!==task.intentId)return{status:409,body:{error:"bound_commitment_mismatch"}};if(!principalMatches(commitment.owner,task.owner)||!principalMatches(commitment.actor,task.actor))return{status:409,body:{error:"commitment_principal_mismatch"}};const effect=SemanticEffectSchema.parse(raw?.effect),preState=RealityWitnessSchema.parse(raw?.preState),expectedPostState=RealityWitnessSchema.parse(raw?.expectedPostState),realityCommit=await this.store.intentReality.issueRealityBoundCommit({taskId:task.id,intentId:task.intentId,commitment,proposal:raw.proposal,effect,preState,expectedPostState,ttlSeconds:Number(raw?.ttlSeconds??45),...(raw?.reversibilityEscrowId?{reversibilityEscrowId:String(raw.reversibilityEscrowId)}:{})}),bound=await this.store.bindRealityCommitTrusted(task.id,realityCommit.id,realityCommit.effectKey);return{status:201,body:{realityCommit,task:bound.task,event:bound.event}}}
+    const drift=pathname.match(/^\/v1\/agent-kernel\/intents\/([0-9a-f-]+)\/drift$/i);
+    if(drift?.[1]){
+      if(req.method==="GET")return{status:200,body:{drift:await this.store.intentReality.getConsequenceDrift(drift[1])}};
+      if(req.method==="POST"){
+        const raw=await parseBody(req),record=await this.store.intentReality.recordConsequenceDrift(drift[1],Number(raw?.increment),Number(raw?.budget),String(raw?.basis??""));
+        return{status:record.exceeded?409:200,body:{drift:record}};
+      }
+    }
 
-    const consumeReality=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/consume-reality-commit$/i);if(req.method==="POST"&&consumeReality?.[1]){const raw=await parseBody(req),task=await this.store.get(consumeReality[1]);if(!task)return{status:404,body:{error:"not_found"}};if(!task.realityBoundCommitId)return{status:409,body:{error:"reality_bound_commit_not_bound"}};try{const consumed=await this.store.intentReality.consumeRealityBoundCommit(task.realityBoundCommitId,RealityWitnessSchema.parse(raw?.currentState)),updated=await this.store.consumeRealityCommitTrusted(task.id,consumed.id);return{status:200,body:{realityCommit:consumed,task:updated.task,event:updated.event}}}catch(err:any){if(String(err?.message??err)==="reality_changed_since_authorization"&&task.effectKey){const q=(await this.store.intentReality.listQuarantines()).find(x=>x.effectKey===task.effectKey&&x.status==="OPEN");if(q)await this.store.quarantineEffectTrusted(task.id,q.id);return{status:409,body:{error:"reality_changed_since_authorization",quarantine:q}}}throw err}}
+    if(req.method==="POST"&&pathname==="/v1/agent-kernel/autonomy-candidates"){
+      const raw=await parseBody(req),proposedEnvelope=AuthorityEnvelopeSchema.parse(raw?.proposedEnvelope);
+      const candidate=await this.store.intentReality.proposeAutonomy({scopeDeviceId:String(raw?.scopeDeviceId??""),actionClass:String(raw?.actionClass??""),proposedEnvelope,evidence:{proven:Number(raw?.evidence?.proven??0),disproven:Number(raw?.evidence?.disproven??0),unknown:Number(raw?.evidence?.unknown??0),undone:Number(raw?.evidence?.undone??0)},historicalReplay:{evaluated:Number(raw?.historicalReplay?.evaluated??0),previouslyDeniedWouldAllow:Number(raw?.historicalReplay?.previouslyDeniedWouldAllow??0),criticalWouldAllow:Number(raw?.historicalReplay?.criticalWouldAllow??0)}});
+      return{status:201,body:{candidate}};
+    }
+    const decide=pathname.match(/^\/v1\/agent-kernel\/autonomy-candidates\/([0-9a-f-]+)\/(ratify|reject)$/i);
+    if(req.method==="POST"&&decide?.[1]&&decide?.[2])return{status:200,body:{candidate:await this.store.intentReality.decideAutonomy(decide[1],decide[2].toLowerCase()==="ratify"?"RATIFIED":"REJECTED")}};
 
-    const settle=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/settle$/i);if(req.method==="POST"&&settle?.[1]){const raw=await parseBody(req),task=await this.store.get(settle[1]);if(!task)return{status:404,body:{error:"not_found"}};const proofId=String(raw?.proofCaseId??""),proof=await this.proof.store.get(task.scopeDeviceId,proofId);if(!proof)return{status:404,body:{error:"proof_not_found"}};if(proof.intentId!==task.intentId)return{status:409,body:{error:"proof_intent_mismatch"}};if(task.state!=="OBSERVING")return{status:409,body:{error:"task_not_observing"}};if(!task.proofCaseId)await this.store.bindProofTrusted(task.id,proof.id);else if(task.proofCaseId!==proof.id)return{status:409,body:{error:"different_proof_already_bound"}};const status=proof.assessment.status==="PROVEN"?"PROVEN":proof.assessment.status==="CONTRADICTED"||proof.assessment.status==="FAILED"?"DISPROVEN":"UNKNOWN",settled=await this.store.settleTrusted(task.id,status),commit=(await this.store.intentReality.listRealityBoundCommits()).find(x=>x.taskId===task.id&&x.status==="CONSUMED");let escrow;if(commit?.reversibilityEscrowId){escrow=status==="PROVEN"?await this.store.intentReality.activateReversibilityEscrow(commit.reversibilityEscrowId):status==="DISPROVEN"?await this.store.intentReality.releaseReversibilityEscrow(commit.reversibilityEscrowId):undefined}if(status==="UNKNOWN"&&task.effectKey){const quarantine=await this.store.intentReality.quarantineUnknown(task.effectKey,task.id,task.intentId),quarantined=await this.store.quarantineEffectTrusted(task.id,quarantine.id);return{status:200,body:{...settled,task:quarantined.task,quarantine,...(escrow?{escrow}:{})}}}return{status:200,body:{...settled,...(escrow?{escrow}:{})}}}
+    const read=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)$/i);
+    if(req.method==="GET"&&read?.[1]){
+      const task=await this.store.get(read[1]);
+      return task?{status:200,body:{task,events:await this.store.listEvents(task.id)}}:{status:404,body:{error:"not_found"}};
+    }
+    const cancel=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/cancel$/i);
+    if(req.method==="POST"&&cancel?.[1]){
+      const task=await this.store.get(cancel[1]);
+      return task?{status:200,body:await this.store.transition(task.id,"CANCELLED","trusted local authority cancelled task")}:{status:404,body:{error:"not_found"}};
+    }
+
+    const bind=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/bind-commitment$/i);
+    if(req.method==="POST"&&bind?.[1]){
+      const raw=await parseBody(req),commitment=CommitmentSchema.parse(raw?.commitment);
+      if(commitment.state!=="AUTHORIZED")return{status:409,body:{error:"commitment_not_authorized"}};
+      const task=await this.store.get(bind[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      if(commitment.intentId!==task.intentId)return{status:409,body:{error:"commitment_intent_mismatch"}};
+      if(!principalMatches(commitment.owner,task.owner))return{status:409,body:{error:"commitment_owner_mismatch"}};
+      if(!principalMatches(commitment.actor,task.actor))return{status:409,body:{error:"commitment_actor_mismatch"}};
+      return{status:200,body:await this.store.bindCommitmentTrusted(task.id,commitment)};
+    }
+
+    const escrowRoute=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/reversibility-escrow$/i);
+    if(req.method==="POST"&&escrowRoute?.[1]){
+      const raw=await parseBody(req),task=await this.store.get(escrowRoute[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      const effect=SemanticEffectSchema.parse(raw?.effect);
+      const escrow=await this.store.intentReality.reserveReversibilityEscrow({taskId:task.id,intentId:task.intentId,effect,inverseKind:raw?.inverseKind,inverseDescriptor:raw?.inverseDescriptor,preEffectSnapshot:raw?.preEffectSnapshot,inverseCapability:raw?.inverseCapability,reversibleUntil:raw?.reversibleUntil,reason:String(raw?.reason??"")});
+      return{status:201,body:{escrow}};
+    }
+
+    const issueReality=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/reality-commit$/i);
+    if(req.method==="POST"&&issueReality?.[1]){
+      const raw=await parseBody(req),task=await this.store.get(issueReality[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      if(!task.commitmentId||!task.authoritySatisfiedAt)return{status:409,body:{error:"trusted_commitment_not_bound"}};
+      if(raw?.proposal===undefined)return{status:400,body:{error:"proposal_required"}};
+      const commitment=CommitmentSchema.parse(raw?.commitment);
+      if(commitment.id!==task.commitmentId||commitment.intentId!==task.intentId)return{status:409,body:{error:"bound_commitment_mismatch"}};
+      if(!principalMatches(commitment.owner,task.owner)||!principalMatches(commitment.actor,task.actor))return{status:409,body:{error:"commitment_principal_mismatch"}};
+      const effect=SemanticEffectSchema.parse(raw?.effect),preState=RealityWitnessSchema.parse(raw?.preState),expectedPostState=RealityWitnessSchema.parse(raw?.expectedPostState);
+      const realityCommit=await this.store.intentReality.issueRealityBoundCommit({taskId:task.id,intentId:task.intentId,commitment,proposal:raw.proposal,effect,preState,expectedPostState,ttlSeconds:Number(raw?.ttlSeconds??45),...(raw?.reversibilityEscrowId?{reversibilityEscrowId:String(raw.reversibilityEscrowId)}:{})});
+      const bound=await this.store.bindRealityCommitTrusted(task.id,realityCommit.id,realityCommit.effectKey);
+      return{status:201,body:{realityCommit,task:bound.task,event:bound.event}};
+    }
+
+    const consumeReality=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/consume-reality-commit$/i);
+    if(req.method==="POST"&&consumeReality?.[1]){
+      const raw=await parseBody(req),task=await this.store.get(consumeReality[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      if(!task.realityBoundCommitId)return{status:409,body:{error:"reality_bound_commit_not_bound"}};
+      try{
+        const consumed=await this.store.intentReality.consumeRealityBoundCommit(task.realityBoundCommitId,RealityWitnessSchema.parse(raw?.currentState));
+        const updated=await this.store.consumeRealityCommitTrusted(task.id,consumed.id);
+        return{status:200,body:{realityCommit:consumed,task:updated.task,event:updated.event}};
+      }catch(err:any){
+        if(String(err?.message??err)==="reality_changed_since_authorization"&&task.effectKey){
+          const q=(await this.store.intentReality.listQuarantines()).find(x=>x.effectKey===task.effectKey&&x.status==="OPEN");
+          if(q)await this.store.quarantineEffectTrusted(task.id,q.id);
+          return{status:409,body:{error:"reality_changed_since_authorization",quarantine:q}};
+        }
+        throw err;
+      }
+    }
+
+    const settle=pathname.match(/^\/v1\/agent-kernel\/tasks\/([0-9a-f-]+)\/settle$/i);
+    if(req.method==="POST"&&settle?.[1]){
+      const raw=await parseBody(req),task=await this.store.get(settle[1]);
+      if(!task)return{status:404,body:{error:"not_found"}};
+      const proofId=String(raw?.proofCaseId??""),proof=await this.proof.store.get(task.scopeDeviceId,proofId);
+      if(!proof)return{status:404,body:{error:"proof_not_found"}};
+      if(proof.intentId!==task.intentId)return{status:409,body:{error:"proof_intent_mismatch"}};
+      if(task.state!=="OBSERVING")return{status:409,body:{error:"task_not_observing"}};
+      if(!task.proofCaseId)await this.store.bindProofTrusted(task.id,proof.id);
+      else if(task.proofCaseId!==proof.id)return{status:409,body:{error:"different_proof_already_bound"}};
+      const status=proof.assessment.status==="PROVEN"?"PROVEN":proof.assessment.status==="CONTRADICTED"||proof.assessment.status==="FAILED"?"DISPROVEN":"UNKNOWN";
+      const settled=await this.store.settleTrusted(task.id,status),commit=(await this.store.intentReality.listRealityBoundCommits()).find(x=>x.taskId===task.id&&x.status==="CONSUMED");
+      let escrow;
+      if(commit?.reversibilityEscrowId){
+        escrow=status==="PROVEN"?await this.store.intentReality.activateReversibilityEscrow(commit.reversibilityEscrowId):status==="DISPROVEN"?await this.store.intentReality.releaseReversibilityEscrow(commit.reversibilityEscrowId):undefined;
+      }
+      if(status==="UNKNOWN"&&task.effectKey){
+        const quarantine=await this.store.intentReality.quarantineUnknown(task.effectKey,task.id,task.intentId),quarantined=await this.store.quarantineEffectTrusted(task.id,quarantine.id);
+        return{status:200,body:{...settled,task:quarantined.task,quarantine,...(escrow?{escrow}:{})}};
+      }
+      return{status:200,body:{...settled,...(escrow?{escrow}:{})}};
+    }
     return null;
   }
 }
