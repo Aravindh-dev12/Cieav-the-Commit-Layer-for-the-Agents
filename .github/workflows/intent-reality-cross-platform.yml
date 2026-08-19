@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: intent-reality-cross-platform-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   intent-reality:
     name: Intent-to-Reality · ${{ matrix.os }}
