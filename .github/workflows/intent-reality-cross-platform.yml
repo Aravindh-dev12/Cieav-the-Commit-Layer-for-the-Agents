@@ -41,5 +41,7 @@ jobs:
         run: npm run build:api
       - name: Verify Intent-to-Reality production invariants
         run: node scripts/intent-reality-release.mjs
+      - name: Verify trusted downstream execution adapters
+        run: node scripts/trusted-execution-adapters-release.mjs
       - name: Verify full Agent Kernel regression gate
         run: node scripts/agent-kernel-release.mjs
