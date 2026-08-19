@@ -32,3 +32,4 @@ export * from "./execution-fabric.js";
 export * from "./control-plane.js";
 export * from "./framework-interop.js";
 export * from "./credential-authority.js";
+export * from "./hardware-key-provider.js";
