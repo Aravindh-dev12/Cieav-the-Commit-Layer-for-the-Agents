@@ -31,3 +31,4 @@ export * from "./intent-reality.js";
 export * from "./execution-fabric.js";
 export * from "./control-plane.js";
 export * from "./framework-interop.js";
+export * from "./credential-authority.js";

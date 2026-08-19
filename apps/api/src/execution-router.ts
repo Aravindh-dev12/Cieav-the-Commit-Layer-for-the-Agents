@@ -3,7 +3,9 @@ import type {ExecutionProposal,ExecutionTicket,FederatedTool} from "@cieav/contr
 import {digest} from "@cieav/core/execution-fabric";
 import type {CieavExecutionFabricStore} from "./execution-fabric.js";
 import type {CieavControlPlaneStore} from "./control-plane.js";
+import type {CieavCredentialAuthority} from "./credential-authority.js";
 import {loadTrustedHttpFamilyAdaptersSync} from "./trusted-http-adapter.js";
+import {loadTrustedOAuthHttpAdaptersSync} from "./trusted-oauth-http-adapter.js";
 import {loadTrustedMcpStdioAdaptersSync} from "./trusted-mcp-adapter.js";
 import {loadTrustedMcpHttpAdaptersSync} from "./trusted-mcp-http-adapter.js";
 import {loadTrustedA2aTaskAdaptersSync} from "./trusted-a2a-adapter.js";
@@ -23,9 +25,9 @@ export interface CieavExecutionAdapter{
 
 export class CieavExecutionRouter{
   private readonly adapters=new Map<ToolProtocol,CieavExecutionAdapter[]>();
-  constructor(private readonly fabric:CieavExecutionFabricStore,adapters:CieavExecutionAdapter[]=[],private readonly controlPlane?:CieavControlPlaneStore){
+  constructor(private readonly fabric:CieavExecutionFabricStore,adapters:CieavExecutionAdapter[]=[],private readonly controlPlane?:CieavControlPlaneStore,private readonly credentialAuthority?:CieavCredentialAuthority){
     const stateDir=process.env.CIEAV_STATE_DIR?.trim()||process.env.LATCH_STATE_DIR?.trim();
-    const initial=adapters.length?adapters:(stateDir?[...loadTrustedHttpFamilyAdaptersSync(stateDir,process.env),...loadTrustedMcpStdioAdaptersSync(stateDir,process.env),...loadTrustedMcpHttpAdaptersSync(stateDir,process.env),...loadTrustedA2aTaskAdaptersSync(stateDir,process.env)]:[]);
+    const initial=adapters.length?adapters:(stateDir?[...loadTrustedHttpFamilyAdaptersSync(stateDir,process.env),...(credentialAuthority?loadTrustedOAuthHttpAdaptersSync(stateDir,credentialAuthority,process.env):[]),...loadTrustedMcpStdioAdaptersSync(stateDir,process.env),...loadTrustedMcpHttpAdaptersSync(stateDir,process.env),...loadTrustedA2aTaskAdaptersSync(stateDir,process.env)]:[]);
     for(const adapter of initial)this.register(adapter);
   }
   register(adapter:CieavExecutionAdapter){const list=this.adapters.get(adapter.protocol)??[];if(list.includes(adapter))throw new Error(`execution_adapter_already_registered:${adapter.protocol}`);list.push(adapter);this.adapters.set(adapter.protocol,list)}
