@@ -9,15 +9,27 @@
       "timeoutMs": 8000,
       "maxResponseBytes": 65536,
       "allowLoopback": false,
-      "staticHeaders": {
-        "accept": "application/json"
-      },
-      "credential": {
-        "kind": "BEARER_ENV",
-        "env": "CIEAV_EXAMPLE_PROVIDER_TOKEN"
-      },
+      "staticHeaders": {"accept": "application/json"},
+      "credential": {"kind": "BEARER_ENV", "env": "CIEAV_EXAMPLE_PROVIDER_TOKEN"},
       "successStatusMin": 200,
       "successStatusMax": 299
+    }
+  ],
+  "mcpStdio": [
+    {
+      "toolId": "cieav.example.mcp.send",
+      "serverId": "example-local-server",
+      "downstreamToolName": "send_message",
+      "command": "/absolute/path/to/trusted/runtime",
+      "commandSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "args": ["/absolute/path/to/trusted-mcp-server.js"],
+      "staticEnv": {},
+      "envBindings": {"PROVIDER_TOKEN": "CIEAV_EXAMPLE_PROVIDER_TOKEN"},
+      "timeoutMs": 15000,
+      "connectTimeoutMs": 8000,
+      "maxMessageBytes": 1048576,
+      "maxArgumentBytes": 262144,
+      "maxStderrBytes": 32768
     }
   ]
 }

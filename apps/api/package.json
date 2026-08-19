@@ -12,12 +12,15 @@
   "dependencies": {
     "@cieav/contracts": "*",
     "@cieav/core": "*",
+    "@modelcontextprotocol/client": "^2.0.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "zod4": "npm:zod@^4.0.0"
   }
 }

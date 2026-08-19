@@ -1,136 +1,154 @@
 # CIEAV Trusted Execution Adapters
 
-CIEAV's authorization plane is intentionally separate from its downstream execution adapters. An ALLOW decision, Reality-Bound Commit, Operation Mandate, or Execution Ticket does not itself create an external effect. The final effect must cross the in-process `CieavExecutionRouter` into a registered trusted adapter.
+CIEAV's authorization plane is intentionally separate from downstream execution. An ALLOW decision, Reality-Bound Commit, Operation Mandate, or Execution Ticket does not itself create an external effect. The final effect must cross the in-process `CieavExecutionRouter` into a registered trusted adapter.
 
-## Current qualified built-ins
+## Current built-ins
 
-The first built-in transport family covers `HTTP`, `A2A`, and `CLOUD_API` tools through a hardened HTTP transport. The adapter is configured from the local authority state directory at `execution-adapters.json`, or from an explicitly configured `CIEAV_EXECUTION_ADAPTERS_FILE` path.
+The current runtime contains:
 
-The runtime remains fail-closed when the file is absent: no external adapter is registered. If `CIEAV_EXECUTION_ADAPTERS_FILE` is explicitly set and cannot be read or parsed, local authority startup/adapter construction fails rather than silently dropping enforcement.
+- hardened `HTTP`, `A2A`, and `CLOUD_API` transport adapters;
+- a dedicated downstream **MCP stdio** client adapter using the official Model Context Protocol client SDK.
 
-## Adapter configuration
-
-Example:
-
-```json
-{
-  "version": 1,
-  "http": [
-    {
-      "toolId": "cieav.github.merge",
-      "protocol": "HTTP",
-      "endpoint": "https://api.github.com/repos/acme/service/merges",
-      "method": "POST",
-      "timeoutMs": 8000,
-      "maxResponseBytes": 65536,
-      "allowLoopback": false,
-      "staticHeaders": {
-        "accept": "application/vnd.github+json"
-      },
-      "credential": {
-        "kind": "BEARER_ENV",
-        "env": "CIEAV_GITHUB_TOKEN"
-      }
-    }
-  ]
-}
-```
-
-The `FederatedTool.downstreamRef` registered in the Execution Fabric must exactly equal the configured endpoint. A proposal cannot substitute a different URL.
-
-## Trusted arguments
-
-The hardened HTTP family accepts only:
-
-```json
-{
-  "body": {},
-  "query": {}
-}
-```
-
-Agents cannot provide arbitrary request headers, methods, origins, proxy configuration, credentials, or redirect targets. Method, endpoint, static headers, credential source, timeout, response cap and status-success range come from the trusted local adapter catalog.
+Adapters are configured from `<CIEAV_STATE_DIR>/execution-adapters.json`, or from an explicitly configured `CIEAV_EXECUTION_ADAPTERS_FILE` path. If the normal file is absent, no external adapters are registered. If an explicit file is configured and cannot be read or parsed, adapter construction fails closed.
 
 ## Preflight-before-authority invariant
 
-The router performs tool-specific adapter preflight before consuming any one-use authority:
+Every adapter performs tool-specific preflight before CIEAV consumes one-use execution authority:
 
 ```text
-inspect ticket
-    ↓
-find protocol adapter
-    ↓
+inspect Execution Ticket
+        ↓
+find trusted protocol adapter
+        ↓
 adapter preflight
-  - tool config exists
-  - exact endpoint matches
-  - credential is present
-  - scheme is permitted
-  - DNS resolves to permitted addresses
-  - normalized arguments are valid
-    ↓
+        ↓
 ONLY THEN
 consume Operation Mandate
-    ↓
+        ↓
 consume Execution Ticket
-    ↓
-transport attempt
+        ↓
+downstream transport attempt
 ```
 
-A missing adapter, missing credential, endpoint mismatch, invalid scheme, or blocked destination therefore does not consume the one-use permit.
+A missing adapter, missing credential, executable mismatch, endpoint mismatch, invalid argument envelope, blocked destination or other deterministic configuration problem therefore does not spend the one-use authority.
 
-After authority has been consumed, transport exceptions are treated as `UNKNOWN`, because the external consequence may have occurred even when the client did not receive a trustworthy result.
+Once the consequential downstream request has been sent, uncertainty is handled differently: a timeout, connection loss or ambiguous tool error is `UNKNOWN`, because the real-world consequence may already have occurred.
 
-## SSRF and origin controls
+## Hardened HTTP / A2A / Cloud API transport
 
-Internet execution requires HTTPS. Cleartext HTTP is allowed only when a tool explicitly sets `allowLoopback: true` and DNS resolves to loopback.
+The HTTP family accepts only trusted normalized data:
 
-The adapter:
+```json
+{"body": {}, "query": {}}
+```
 
-- rejects URL userinfo;
-- resolves the hostname before dispatch;
-- rejects private, link-local, multicast and other non-public destination ranges unless explicit loopback mode is active;
-- pins the connection lookup to the validated address for the request, reducing DNS-rebinding exposure;
-- never follows redirects;
-- does not use agent-supplied Host, Authorization, Cookie, proxy, connection, content-length or transfer-encoding headers;
-- caps response bytes;
-- uses explicit request timeouts.
+Agents cannot provide request origins, methods, credentials, proxy configuration, raw headers, redirect targets or arbitrary downstream URLs. Those properties come from the local adapter catalog and must match the `FederatedTool.downstreamRef` exactly.
 
-A `3xx` response is `REJECTED`; it is never automatically followed to a second origin.
+Internet execution requires HTTPS. Cleartext HTTP is allowed only for explicit loopback adapters. The adapter rejects URL userinfo, private/link-local/multicast destinations, follows no redirects, pins the validated DNS address to the actual connection, caps response bytes and uses bounded timeouts. This reduces SSRF and DNS-rebinding exposure.
+
+Provider credentials are injected inside CIEAV through `BEARER_ENV` or `HEADER_ENV` mappings when the tool declares `CIEAV_INJECTED`. Raw response bodies are not retained: CIEAV keeps bounded status metadata and a SHA-256 body digest.
+
+## Trusted downstream MCP stdio
+
+For local MCP servers, the catalog binds a CIEAV `toolId` to one exact trusted server/tool pair:
+
+```text
+CIEAV tool ID
+    ↓
+serverId
+    ↓
+absolute executable
+    ↓
+expected executable SHA-256
+    ↓
+static trusted argv
+    ↓
+exact downstream MCP tool name
+```
+
+The Execution Fabric's downstream reference must match:
+
+```text
+mcp+stdio:<serverId>#<toolName>
+```
+
+The agent cannot supply an executable, argv, working directory, downstream MCP tool name, or child environment. The stdio adapter requires an absolute executable and verifies its SHA-256 before authority is consumed and again before process launch. This prevents a mutable PATH lookup or binary substitution from silently changing the program that receives authority.
+
+The child receives only the MCP SDK's conservative inherited environment plus explicitly configured static environment variables and CIEAV-controlled environment bindings. Dangerous process-injection variables such as `NODE_OPTIONS`, `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES`, `PYTHONPATH`, and equivalents are rejected from adapter configuration.
+
+Execution lifecycle:
+
+```text
+static/binary/argument preflight
+        ↓
+Operation Mandate + Ticket consumption
+        ↓
+spawn trusted MCP server (shell=false)
+        ↓
+MCP handshake
+        ↓
+tools/list
+        ↓
+configured tool advertised?
+    no → REJECTED, no tools/call sent
+    yes
+        ↓
+tools/call exact configured name + ticket-bound arguments
+        ↓
+result digest only
+```
+
+The official SDK's stdio transport spawns the child without a shell and enforces a bounded message buffer. CIEAV additionally bounds normalized argument size, connection/tool-call timeouts and stderr accounting.
+
+Critically:
+
+```text
+MCP tools/call returned
+        ≠
+real-world consequence proven
+```
+
+A successful MCP tool result is only transport acceptance. It remains `PENDING` until Proof Mesh independently establishes the intended external state.
+
+If `tools/call` has already been sent and the MCP server returns `isError`, times out, disconnects, or otherwise produces an ambiguous result, CIEAV reports `UNKNOWN` rather than assuming the action had no effect. Epistemic Retry Quarantine can then block an equivalent action through another MCP, API, browser or agent until reality is reconciled.
 
 ## Credential isolation
 
-Supported credential modes in this initial adapter family are:
+Current transport credentials:
 
-- `NONE`
-- `CIEAV_INJECTED` backed by `BEARER_ENV` or `HEADER_ENV`
+- HTTP/A2A/Cloud: `NONE` or `CIEAV_INJECTED` via trusted environment mapping;
+- MCP stdio: `NONE` or `CIEAV_INJECTED` via child environment bindings.
 
-Secrets are resolved inside the trusted adapter and injected only at dispatch. They are not returned to the agent, stored in the execution attempt metadata, or copied into Proof Mesh evidence.
+Secrets are resolved only inside trusted adapters. They are not returned to agents, included in attempt metadata, or copied into Proof Mesh observations.
 
-`DOWNSTREAM_OAUTH`, `MTLS`, and `SIGNED_REQUEST` remain fail-closed until dedicated implementations are added and qualified.
+`DOWNSTREAM_OAUTH`, `MTLS`, and `SIGNED_REQUEST` remain fail closed until dedicated implementations are added.
 
-## Response handling and proof
+## Response and proof boundary
 
-The adapter does not persist response bodies. It records only bounded transport metadata such as HTTP status, response size, content type, request/correlation ID when available, and a SHA-256 digest of the body.
+Adapters persist only bounded transport metadata and digests. A provider response, MCP result, HTTP 2xx, A2A task state, or process exit is not independently sufficient to complete a CIEAV Agent Task.
 
 ```text
-HTTP 2xx / A2A transport accepted
-          ≠
-Intent proven
+transport accepted
+      ↓
+Execution Attempt Receipt
+      ↓
+Proof Mesh
+      ↓
+PROVEN / DISPROVEN / UNKNOWN
 ```
-
-Transport acceptance creates an execution attempt that remains `PENDING` until independent Proof Mesh settlement. A network timeout, response-cap breach, connection reset or adapter exception after dispatch becomes `UNKNOWN` and must be reconciled before an equivalent semantic retry.
 
 ## Protocol status
 
 | Protocol | Current adapter status |
 |---|---|
-| HTTP | built-in hardened transport |
-| A2A | built-in hardened HTTP transport; higher-level A2A task proof remains separate |
-| CLOUD_API | built-in hardened HTTP transport |
-| MCP | pending dedicated downstream MCP client/proxy adapter |
-| BROWSER | existing browser control path; Universal Execution Fabric adapter qualification pending |
+| HTTP | hardened exact-origin transport implemented |
+| A2A | hardened HTTP transport implemented; A2A semantic task adapter still pending |
+| CLOUD_API | hardened HTTP transport implemented; provider-specific auth modes pending |
+| MCP stdio | dedicated trusted client adapter implemented |
+| MCP Streamable HTTP | pending pinned-network client transport |
+| BROWSER | existing browser control path; Universal Execution Fabric qualification pending |
 | CLI | pending allowlisted process adapter |
-| FILESYSTEM | pending sandbox/root-bound filesystem adapter |
-| DATABASE | pending transaction-bound database adapter |
+| FILESYSTEM | pending root-bound/symlink-safe filesystem adapter |
+| DATABASE | pending transaction/template-bound database adapter |
 
-These remaining adapters are intentionally not represented as production-qualified until their concrete execution and recovery semantics are implemented and tested.
+The remaining rows are intentionally not represented as production-qualified until their concrete execution, proof and recovery semantics are implemented and tested.
