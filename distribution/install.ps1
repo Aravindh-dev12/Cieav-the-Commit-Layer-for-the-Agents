@@ -138,7 +138,7 @@ try {
     Set-Content -Path (Join-Path $binRoot "cieav.cmd") -Encoding ASCII -Value "@echo off`r`n`"$runtimeCieav`" %*`r`n"; Set-Content -Path (Join-Path $binRoot "latch.cmd") -Encoding ASCII -Value "@echo off`r`n`"$runtimeCieav`" %*`r`n"
     $userPath=[Environment]::GetEnvironmentVariable("Path","User"); $parts=@($userPath -split ';'|Where-Object { $_ }); if ($parts -notcontains $binRoot) { [Environment]::SetEnvironmentVariable("Path",(($parts+$binRoot)-join ';'),"User") }; $env:Path="$(Join-Path $installRoot 'runtime');$binRoot;$env:Path"
   } else {
-    foreach ($name in @("cieav","latch")) { $shim=Join-Path $binRoot $name; $script="#!/bin/sh`nexec `"$runtimeCieav`" `"`$@`"`n"; Set-Content -Path $shim -Encoding UTF8 -NoNewline -Value $script; & chmod 0755 $shim }; & chmod 0755 $runtimeCieav $runtimeNode; $env:PATH="$(Join-Path $installRoot 'runtime'):$binRoot:$env:PATH"
+    foreach ($name in @("cieav","latch")) { $shim=Join-Path $binRoot $name; $script="#!/bin/sh`nexec `"$runtimeCieav`" `"`$@`"`n"; Set-Content -Path $shim -Encoding UTF8 -NoNewline -Value $script; & chmod 0755 $shim }; & chmod 0755 $runtimeCieav $runtimeNode; $env:PATH="$(Join-Path $installRoot 'runtime');${binRoot}:$env:PATH"
   }
   $env:CIEAV_HOME=$installRoot; $env:CIEAV_CLOUD_URL=$PinnedCloudUrl; $env:CIEAV_VERSION=$PinnedReleaseVersion; $env:LATCH_HOME=$installRoot; $env:LATCH_CLOUD_URL=$PinnedCloudUrl; $env:LATCH_VERSION=$PinnedReleaseVersion
   Write-Host "CIEAV · running runtime self-check"; & $runtimeCieav doctor; if ($LASTEXITCODE -ne 0) { Fail "runtime self-check failed" }
