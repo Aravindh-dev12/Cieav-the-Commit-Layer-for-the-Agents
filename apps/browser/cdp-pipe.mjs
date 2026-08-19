@@ -1,9 +1,10 @@
 const MAX_MESSAGE_BYTES=32*1024*1024;
 
 export class CDPPipe{
-  constructor(readable,writable,{timeoutMs=12_000}={}){
+  constructor(readable,writable,{timeoutMs=12_000,firstCommandTimeoutMs=15_000}={}){
     if(!readable||typeof readable.on!=="function"||!writable||typeof writable.write!=="function")throw new Error("CDP pipe requires readable and writable streams");
-    this.readable=readable;this.writable=writable;this.timeoutMs=timeoutMs;this.nextId=0;this.pending=new Map();this.listeners=new Set();this.buffer=Buffer.alloc(0);this.closed=false;
+    if(!Number.isFinite(timeoutMs)||timeoutMs<=0||!Number.isFinite(firstCommandTimeoutMs)||firstCommandTimeoutMs<timeoutMs)throw new Error("CDP pipe timeout policy is invalid");
+    this.readable=readable;this.writable=writable;this.timeoutMs=timeoutMs;this.firstCommandTimeoutMs=firstCommandTimeoutMs;this.nextId=0;this.pending=new Map();this.listeners=new Set();this.buffer=Buffer.alloc(0);this.closed=false;
     readable.on("data",chunk=>this._data(chunk));
     readable.on("error",err=>this._close(err));
     readable.on("end",()=>this._close(new Error("CDP pipe ended")));
@@ -36,7 +37,8 @@ export class CDPPipe{
     if(this.closed)return Promise.reject(new Error("CDP pipe is closed"));
     const id=++this.nextId,msg={id,method,params};if(sessionId)msg.sessionId=sessionId;
     return new Promise((resolve,reject)=>{
-      const timer=setTimeout(()=>{if(this.pending.delete(id))reject(new Error(`CDP timeout: ${method}`))},this.timeoutMs);
+      const timeoutMs=id===1?this.firstCommandTimeoutMs:this.timeoutMs;
+      const timer=setTimeout(()=>{if(this.pending.delete(id))reject(new Error(`CDP timeout: ${method}`))},timeoutMs);
       this.pending.set(id,{resolve,reject,timer});
       const data=Buffer.from(JSON.stringify(msg)+"\0","utf8");
       this.writable.write(data,err=>{if(err){const pending=this.pending.get(id);if(pending){this.pending.delete(id);clearTimeout(timer);pending.reject(err)}}});
