@@ -6,6 +6,7 @@ import type {CieavControlPlaneStore} from "./control-plane.js";
 import {loadTrustedHttpFamilyAdaptersSync} from "./trusted-http-adapter.js";
 import {loadTrustedMcpStdioAdaptersSync} from "./trusted-mcp-adapter.js";
 import {loadTrustedMcpHttpAdaptersSync} from "./trusted-mcp-http-adapter.js";
+import {loadTrustedA2aTaskAdaptersSync} from "./trusted-a2a-adapter.js";
 
 export type ToolProtocol=FederatedTool["protocol"];
 export type AdapterEvidenceSeed={kind:string;source:string;summary:string;externalRef?:string};
@@ -24,7 +25,7 @@ export class CieavExecutionRouter{
   private readonly adapters=new Map<ToolProtocol,CieavExecutionAdapter[]>();
   constructor(private readonly fabric:CieavExecutionFabricStore,adapters:CieavExecutionAdapter[]=[],private readonly controlPlane?:CieavControlPlaneStore){
     const stateDir=process.env.CIEAV_STATE_DIR?.trim()||process.env.LATCH_STATE_DIR?.trim();
-    const initial=adapters.length?adapters:(stateDir?[...loadTrustedHttpFamilyAdaptersSync(stateDir,process.env),...loadTrustedMcpStdioAdaptersSync(stateDir,process.env),...loadTrustedMcpHttpAdaptersSync(stateDir,process.env)]:[]);
+    const initial=adapters.length?adapters:(stateDir?[...loadTrustedHttpFamilyAdaptersSync(stateDir,process.env),...loadTrustedMcpStdioAdaptersSync(stateDir,process.env),...loadTrustedMcpHttpAdaptersSync(stateDir,process.env),...loadTrustedA2aTaskAdaptersSync(stateDir,process.env)]:[]);
     for(const adapter of initial)this.register(adapter);
   }
   register(adapter:CieavExecutionAdapter){const list=this.adapters.get(adapter.protocol)??[];if(list.includes(adapter))throw new Error(`execution_adapter_already_registered:${adapter.protocol}`);list.push(adapter);this.adapters.set(adapter.protocol,list)}
