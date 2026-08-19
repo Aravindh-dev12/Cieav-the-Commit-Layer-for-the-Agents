@@ -56,11 +56,11 @@ args    = openclaw serve --intent <intent-id> --max-risk HIGH
 
 It does not use `npx`, an npm package, a source checkout, a Python interpreter, or an externally installed Node runtime.
 
-The default managed OpenClaw Intent Contract permits arbitrary semantic action names through an explicit `*` action envelope, but that wildcard does not bypass CIEAV's other constraints. Risk ceilings, human-approval thresholds, enterprise policy, proof requirements, Reality-Bound Commit enforcement, retry quarantine, and settlement rules remain authoritative.
+The default managed OpenClaw Intent Contract permits arbitrary semantic action names through an explicit `*` action envelope, but that wildcard does not bypass CIEAV's other constraints. Risk ceilings, human-approval thresholds, enterprise policy, formal permission graphs, scoped credential leases, proof requirements, Reality-Bound Commit enforcement, retry quarantine, and settlement rules remain authoritative.
 
 ## Tokenless-at-rest OpenClaw configuration
 
-CIEAV does not save a long-lived CIEAV agent bearer token in OpenClaw configuration.
+CIEAV does not save a long-lived CIEAV agent bearer token or downstream provider credentials in OpenClaw configuration.
 
 When OpenClaw starts the registered CIEAV MCP server:
 
@@ -70,6 +70,8 @@ When OpenClaw starts the registered CIEAV MCP server:
 4. The CIEAV MCP launcher removes Gateway, browser-control, audit, signing, model-provider, and other privileged secrets from the child environment.
 5. Only the short-lived scoped agent token and loopback API address are given to the MCP bridge.
 6. The MCP bridge exits with the OpenClaw stdio session; a future launch gets a new scoped token.
+
+Provider credentials for a CIEAV-controlled downstream adapter remain in CIEAV/OS-protected storage and are referenced by digest/handle from the Execution Fabric. They are not copied into the OpenClaw process.
 
 ## Commands
 
@@ -84,9 +86,55 @@ cieav openclaw disconnect
 
 `disconnect` removes the CIEAV MCP registration from OpenClaw. It does not uninstall CIEAV or destroy unrelated OpenClaw configuration.
 
+## Governed execution transaction
+
+For consequence-capable work, CIEAV's Universal Execution Fabric adds a second boundary beyond ordinary MCP registration:
+
+```text
+OpenClaw agent session
+       |
+       v
+Agent Kernel task + root Intent
+       |
+       v
+CIEAV Agent Identity Attestation
+       |
+       v
+short-lived Scoped Credential Lease
+       |
+       v
+Formal Permission Graph (DENY by default)
+       |
+       v
+Execution Proposal
+       |
+       v
+ALLOW / ASK / BLOCK
+       |
+       v
+Reality Witness + Reality-Bound Commit
+       |
+       v
+state revalidation + commit consumption
+       |
+       v
+single-use Execution Ticket
+       |
+       v
+CIEAV-controlled downstream adapter
+       |
+       v
+real-world effect
+       |
+       v
+Proof Mesh → PROVEN / DISPROVEN / UNKNOWN
+```
+
+A formal ALLOW result is not enough to execute. The one-use Execution Ticket is issued only when the proposal remains bound to the same Agent Kernel task, root Intent, semantic effect, pre-state, expected post-state, proof obligation, active credential lease, and consumed Reality-Bound Commit.
+
 ## Execution boundary
 
-The OpenClaw registration described here is a governed CIEAV MCP server. It gives OpenClaw access to CIEAV authorization, commitment, proof, recovery, and settlement mechanisms without handing OpenClaw the Gateway authority secret.
+The OpenClaw registration described here is a governed CIEAV MCP server. It gives OpenClaw access to CIEAV authorization, commitment, proof, recovery, settlement, identity, formal authorization, and Execution Fabric mechanisms without handing OpenClaw the Gateway authority secret or provider credentials.
 
 It is **not** a claim that every other OpenClaw tool becomes automatically interposed. If OpenClaw is separately configured with a direct Gmail, payment, filesystem, GitHub, browser, or other consequential MCP/tool path, that separate path can remain callable unless OpenClaw policy removes it or the tool is placed behind CIEAV.
 
@@ -96,16 +144,30 @@ The mandatory-mediation production topology is:
 OpenClaw
    |
    v
-CIEAV mandatory MCP gateway / execution proxy
+CIEAV Universal Execution Fabric
    |
-   +--> Intent + policy
-   +--> Reality-Bound Commit
-   +--> one-use execution authority
-   +--> downstream MCP/tool adapter
-   +--> Proof Mesh settlement
+   +--> verified agent identity
+   +--> scoped credential lease
+   +--> formal permission graph
+   +--> Intent attenuation
+   +--> state-sensitive Reality-Bound Commit
+   +--> single-use Execution Ticket
+   +--> tamper-evident audit
+   |
+   v
+CIEAV-controlled downstream MCP/A2A/API/tool adapter
    |
    v
 Gmail / payment / GitHub / filesystem / browser / other effect surface
+   |
+   v
+Proof Mesh
+   |
+   +--> PROVEN
+   +--> DISPROVEN
+   +--> UNKNOWN → cross-channel quarantine
 ```
 
-That proxy topology is the target for technically preventing bypass; the zero-dependency installer and OpenClaw registration are the deployment foundation for it.
+For a bypass-resistant OpenClaw deployment, consequence-capable direct MCP/tool registrations must be removed or denied and their credentials must not be available to OpenClaw. The only consequence path should be the CIEAV-controlled downstream adapter path.
+
+See `EXECUTION-FABRIC.md` for the protocol and security invariants.
