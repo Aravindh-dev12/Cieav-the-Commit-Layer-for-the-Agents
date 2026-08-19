@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Verify OS-backed root secret boundary
+        run: node scripts/os-secret-root-release.mjs
       - name: Verify OpenClaw zero-dependency consumer boundary
         run: node scripts/openclaw-no-deps-static.mjs
       - name: Parse Windows consumer installer
