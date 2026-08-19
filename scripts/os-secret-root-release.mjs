@@ -21,6 +21,7 @@ const gateway=expect("python/latch_platform/gateway.py",[
   'for key in ("JWT_SECRET","RECEIPT_SIGNING_SECRET","CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN")'
 ]);
 for(const forbidden of ['env["JWT_SECRET"]','env["RECEIPT_SIGNING_SECRET"]','env["CIEAV_GATEWAY_TOKEN"]'])if(gateway.includes(forbidden))fail(`Gateway reintroduced inherited semantic secret: ${forbidden}`);
-expect("apps/api/src/managed-entry.ts",["MAX_BOOTSTRAP_BYTES=16*1024","installManagedSecrets(bootstrap)"]);
+const managedEntry=expect("apps/api/src/managed-entry.ts",["MAX_BOOTSTRAP_BYTES=16*1024","installManagedSecrets(parsed)","encoded?.fill(0)","chunk.fill(0)"]);
+if(managedEntry.includes("const bootstrap=await"))fail("managed API reintroduced a module-lifetime bootstrap object");
 expect("apps/api/src/config.ts",["consumeManagedSecrets()","must not be duplicated in process environment"]);
-console.log(`CIEAV OS secret-root gate PASS · platform=${process.platform} · DPAPI/Keychain/Secret-Service at-rest backends + production plaintext refusal + bounded one-shot Gateway-to-Node private-pipe bootstrap + browser secret stripping verified`);
+console.log(`CIEAV OS secret-root gate PASS · platform=${process.platform} · DPAPI/Keychain/Secret-Service at-rest backends + production plaintext refusal + bounded one-shot Gateway-to-Node private-pipe bootstrap with transient Node buffer overwrite + browser secret stripping verified`);
