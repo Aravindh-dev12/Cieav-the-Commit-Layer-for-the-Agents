@@ -21,7 +21,7 @@ for(const rawUse of ["config.gatewayToken,","config.gatewayToken)","config.gatew
 const npm=process.platform==="win32"?"npm.cmd":"npm";
 function runNpm(args){const exe=process.platform==="win32"?(process.env.ComSpec||"cmd.exe"):npm,finalArgs=process.platform==="win32"?["/d","/s","/c",`${npm} ${args.join(" ")}`]:args,r=spawnSync(exe,finalArgs,{cwd:ROOT,encoding:"utf8",stdio:"pipe",shell:false});if(r.error)fail(`${npm} ${args.join(" ")} failed: ${r.error.message}`);if(r.status!==0)fail(`${npm} ${args.join(" ")} exited ${r.status}:\n${r.stdout??""}\n${r.stderr??""}`)}
 runNpm(["run","build:api"]);
-runNpm(["run","test","-w","@cieav/api","--","managed-secrets.test.ts","gateway-auth.test.ts"]);
+runNpm(["run","test","-w","@cieav/api","--","managed-secrets.test.ts","gateway-auth.test.ts","config.test.ts"]);
 const entry=path.join(ROOT,"apps/api/dist/managed-entry.js"),baseEnv={...process.env,CIEAV_MANAGED_SECRET_PIPE:"1"};
 for(const key of ["JWT_SECRET","RECEIPT_SIGNING_SECRET","CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN"])delete baseEnv[key];
 const empty=spawnSync(process.execPath,[entry],{cwd:ROOT,env:baseEnv,input:"",encoding:"utf8",timeout:5000});
