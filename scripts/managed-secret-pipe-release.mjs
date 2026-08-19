@@ -14,10 +14,10 @@ for(const forbidden of ['env["JWT_SECRET"]','env["RECEIPT_SIGNING_SECRET"]','env
 const entrySource=expect("apps/api/src/managed-entry.ts",["MAX_BOOTSTRAP_BYTES=16*1024","process.stdin.isTTY","cieav_managed_secret_bootstrap_missing","installBootstrapFromPrivatePipe","installManagedSecrets(parsed)","encoded?.fill(0)","chunk.fill(0)",'await import("./server.js")']);
 if(entrySource.includes("const bootstrap=await"))fail("managed API reintroduced a module-lifetime bootstrap object");
 expect("apps/api/src/managed-secrets.ts",["semanticRouterToken","scopes_must_be_distinct","bootstrap_already_installed","bootstrap_fields_invalid","roots_must_be_distinct","pending=undefined"]);
-expect("apps/api/src/config.ts",["consumeManagedSecrets()","gatewayBearerDigest(gatewayToken)","semanticRouterToken","managed semantic router capability must be distinct","managed local authority requires private bootstrap secrets","must not be duplicated in process environment"]);
+expect("apps/api/src/config.ts",["consumeManagedSecrets()","gatewayBearerDigest(gatewayToken)","gatewayTokenDigest","semanticRouterToken","managed semantic router capability must be distinct","managed local authority requires private bootstrap secrets","must not be duplicated in process environment"]);
 expect("apps/api/src/gateway-auth.ts",["gatewayBearerDigest","timingSafeEqual","verifyGatewayAuthorization"]);
 const server=expect("apps/api/src/server.ts",["verifyGatewayAuthorization(req.headers.authorization,config.gatewayTokenDigest)","config.semanticRouterToken"]);
-if(server.includes("config.gatewayToken"))fail("Node server reintroduced long-lived raw privileged Gateway bearer");
+for(const rawUse of ["config.gatewayToken,","config.gatewayToken)","config.gatewayToken}","config.gatewayToken "])if(server.includes(rawUse))fail(`Node server reintroduced long-lived raw privileged Gateway bearer: ${rawUse}`);
 const npm=process.platform==="win32"?"npm.cmd":"npm";
 function runNpm(args){const exe=process.platform==="win32"?(process.env.ComSpec||"cmd.exe"):npm,finalArgs=process.platform==="win32"?["/d","/s","/c",`${npm} ${args.join(" ")}`]:args,r=spawnSync(exe,finalArgs,{cwd:ROOT,encoding:"utf8",stdio:"pipe",shell:false});if(r.error)fail(`${npm} ${args.join(" ")} failed: ${r.error.message}`);if(r.status!==0)fail(`${npm} ${args.join(" ")} exited ${r.status}:\n${r.stdout??""}\n${r.stderr??""}`)}
 runNpm(["run","build:api"]);
