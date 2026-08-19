@@ -48,3 +48,4 @@ export * from "./commitment.js";
 export * from "./agent-task.js";
 export * from "./intent-reality.js";
 export * from "./execution-fabric.js";
+export * from "./control-plane.js";
