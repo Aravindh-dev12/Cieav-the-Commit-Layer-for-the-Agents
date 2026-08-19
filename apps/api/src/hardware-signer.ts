@@ -25,7 +25,6 @@ const defaultRunner:HardwareBridgeRunner=async(executable,args,timeoutMs,maxOutp
 function parseSignature(raw:unknown,algorithm:"ES256"|"RS256"){const body=raw as Record<string,unknown>;if(body?.protocol!=="CIEAV_KEY_PROVIDER_V1")throw new Error("hardware_signer_protocol_mismatch");const expectedOp=algorithm==="ES256"?"sign-es256":"sign-rs256";if(body.operation!==expectedOp)throw new Error("hardware_signer_operation_mismatch");if(typeof body.signature!=="string"||!body.signature)throw new Error("hardware_signer_signature_missing");let signature:Buffer;try{signature=Buffer.from(body.signature,"base64url")}catch{throw new Error("hardware_signer_signature_encoding_invalid")};if(algorithm==="ES256"&&signature.length!==64)throw new Error("hardware_signer_es256_signature_length_invalid");if(algorithm==="RS256"&&signature.length<128)throw new Error("hardware_signer_rs256_signature_length_invalid");return signature}
 function parseDescribedJwk(raw:unknown,key:HardwareKeyRegistration):HardwarePublicJwk{const body=raw as Record<string,unknown>;if(body?.protocol!=="CIEAV_KEY_PROVIDER_V1")throw new Error("hardware_signer_describe_protocol_mismatch");const expectedOp=key.algorithm==="ES256"?"describe":"describe-rsa";if(body.operation!==expectedOp)throw new Error("hardware_signer_describe_operation_mismatch");if(body.keyName!==undefined&&body.keyName!==key.providerKeyRef)throw new Error("hardware_signer_provider_key_ref_mismatch");const jwk=body.publicJwk as HardwarePublicJwk|undefined;if(!jwk||typeof jwk!=="object")throw new Error("hardware_signer_describe_public_jwk_missing");return jwk}
 function publicKeyFromJwk(jwk:HardwarePublicJwk){try{return crypto.createPublicKey({key:jwk as JsonWebKey,format:"jwk"})}catch{throw new Error("hardware_signer_public_key_invalid")}}
-function verifySignature(key:HardwareKeyRegistration,digest32:Buffer,signature:Buffer){const publicKey=publicKeyFromJwk(key.publicJwk),ok=key.algorithm==="ES256"?crypto.verify(null,digest32,{key:publicKey,dsaEncoding:"ieee-p1363"},signature):crypto.verify("RSA-SHA256",digest32,publicKey,signature);if(!ok)throw new Error("hardware_signer_signature_verification_failed")}
 
 export class CieavHardwareSigner{
   constructor(private readonly registry:CieavHardwareKeyProviderRegistry,private readonly runner:HardwareBridgeRunner=defaultRunner,private readonly timeoutMs=5000){}
@@ -40,12 +39,12 @@ export class CieavHardwareSigner{
     const command=key.algorithm==="ES256"?"sign-es256":"sign-rs256";
     const body=await this.runner(manifest.executablePath,[command,key.providerKeyRef,digest32.toString("hex")],this.timeoutMs,16*1024);
     const signature=parseSignature(body,key.algorithm);
-    verifySignature(key,digest32,signature);
     return{key,signature,algorithm:key.algorithm};
   }
   async signJws(keyId:string,purpose:HardwareSignPurpose,protectedHeader:Record<string,unknown>,payload:Record<string,unknown>):Promise<string>{
     const {key}=await this.assertReady(keyId,purpose);
-    const header=Buffer.from(JSON.stringify({...protectedHeader,alg:"ES256",jwk:key.publicJwk})).toString("base64url"),body=Buffer.from(JSON.stringify(payload)).toString("base64url"),input=`${header}.${body}`,digest=crypto.createHash("sha256").update(input).digest(),signed=await this.signDigest(keyId,purpose,digest);
+    const header=Buffer.from(JSON.stringify({...protectedHeader,alg:"ES256",jwk:key.publicJwk})).toString("base64url"),body=Buffer.from(JSON.stringify(payload)).toString("base64url"),input=`${header}.${body}`,digest=crypto.createHash("sha256").update(input).digest(),signed=await this.signDigest(keyId,purpose,digest),publicKey=publicKeyFromJwk(key.publicJwk);
+    if(!crypto.verify("sha256",Buffer.from(input),{key:publicKey,dsaEncoding:"ieee-p1363"},signed.signature))throw new Error("hardware_signer_signature_verification_failed");
     return`${input}.${signed.signature.toString("base64url")}`;
   }
 }
