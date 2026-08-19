@@ -119,7 +119,7 @@ jobs:
           google-chrome --version || chromium --version
           node scripts/browser-e2e.mjs
           node scripts/noinstall-selftest.mjs
-      - run: npm install
+      - run: npm ci
       - name: Audit Node dependency security
         run: |
           npm audit --omit=dev --audit-level=high

@@ -76,8 +76,7 @@ jobs:
       - name: Install Node dependencies without source mutation
         shell: bash
         run: |
-          npm install --package-lock=false
-          npm install --no-save --package-lock=false esbuild
+          npm ci
           test -z "$(git status --porcelain)" || { git status --short; exit 2; }
       - name: Run publish source and platform release gate
         shell: bash
@@ -91,7 +90,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p apps/api/dist
-          npx esbuild apps/api/src/server.ts --bundle --platform=node --format=esm --target=node22 --external:pg-native --outfile=apps/api/dist/server.js
+          npm exec --no -- esbuild apps/api/src/server.ts --bundle --platform=node --format=esm --target=node22 --external:pg-native --outfile=apps/api/dist/server.js
       - name: Build standalone CIEAV executable
         shell: bash
         run: pyinstaller --noconfirm --clean --onefile --name cieav --paths python python/cieav_platform/__main__.py

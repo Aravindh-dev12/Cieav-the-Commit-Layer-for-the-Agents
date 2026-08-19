@@ -3,7 +3,10 @@
   "version": "0.8.0",
   "private": true,
   "description": "CIEAV — always-on commit infrastructure for consequential digital actions.",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "start": "npm run build:api && node scripts/start-production.mjs",
     "start:browser": "node apps/browser/main.mjs",
@@ -62,6 +65,11 @@
     "release:qualify:current:publish": "node scripts/qualify-current-publish.mjs",
     "release:build:publish-layout": "node scripts/build-publish-layout.mjs"
   },
-  "engines": {"node": ">=22"},
-  "license": "Apache-2.0"
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
 }

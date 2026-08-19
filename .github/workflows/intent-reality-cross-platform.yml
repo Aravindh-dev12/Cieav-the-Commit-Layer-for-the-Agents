@@ -50,7 +50,7 @@ jobs:
       - name: Verify Linux PKCS11 native provider boundary
         run: node scripts/linux-pkcs11-release.mjs
       - name: Install workspaces
-        run: npm install
+        run: npm ci
       - name: Build local authority packages
         run: npm run build:api
       - name: Verify private managed secret bootstrap
