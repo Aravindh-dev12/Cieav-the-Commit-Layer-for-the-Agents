@@ -49,6 +49,8 @@ jobs:
         run: npm install
       - name: Build local authority packages
         run: npm run build:api
+      - name: Verify private managed secret bootstrap
+        run: node scripts/managed-secret-pipe-release.mjs
       - name: Verify Gateway credential and hardware lifecycle
         run: node scripts/credential-hardware-admin-release.mjs
       - name: Verify Intent-to-Reality production invariants
