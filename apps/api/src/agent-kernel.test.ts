@@ -8,7 +8,8 @@ const dirs:string[]=[];
 afterEach(async()=>{await Promise.all(dirs.splice(0).map(dir=>rm(dir,{recursive:true,force:true})))});
 async function store(){const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-agent-kernel-"));dirs.push(dir);return{dir,file:path.join(dir,"tasks.json"),kernel:new CieavAgentKernelStore(path.join(dir,"tasks.json"),"k".repeat(64))}}
 const create={scopeDeviceId:"dev_test_12345678",intentId:"33333333-3333-4333-8333-333333333333",owner:{id:"user-1",kind:"HUMAN" as const},actor:{id:"agent-1",kind:"AGENT" as const},goal:"Prepare and send the governed customer update",maxRetries:2,metadata:{source:"test"}};
-async function authorizeRunning(kernel:CieavAgentKernelStore,id:string){await kernel.transition(id,"QUEUED");await kernel.transition(id,"PLANNING");await kernel.requireCommitment(id,"execution requires authority");await kernel.bindCommitmentTrusted(id,{id:"22222222-2222-4222-8222-222222222222",state:"AUTHORIZED"});return kernel.transition(id,"RUNNING")}
+const realityCommitId="66666666-6666-4666-8666-666666666666",effectKey="a".repeat(64);
+async function authorizeRunning(kernel:CieavAgentKernelStore,id:string){await kernel.transition(id,"QUEUED");await kernel.transition(id,"PLANNING");await kernel.requireCommitment(id,"execution requires authority");await kernel.bindCommitmentTrusted(id,{id:"22222222-2222-4222-8222-222222222222",state:"AUTHORIZED"});await kernel.bindRealityCommitTrusted(id,realityCommitId,effectKey);await kernel.consumeRealityCommitTrusted(id,realityCommitId);return kernel.transition(id,"RUNNING")}
 
 describe("CIEAV durable Agent Kernel store",()=>{
   it("persists device-scoped tasks and append-only ordered events across reload",async()=>{
@@ -25,13 +26,17 @@ describe("CIEAV durable Agent Kernel store",()=>{
     const events=await s.kernel.listEvents(created.task.id);expect(events.at(-1)?.type).toBe("RECOVERY_REQUIRED");
   });
 
-  it("refuses agent execution until trusted authority binds an AUTHORIZED Commitment",async()=>{
+  it("requires both trusted authority and consumed reality-bound commit before execution",async()=>{
     const s=await store(),created=await s.kernel.create(create);await s.kernel.transition(created.task.id,"QUEUED");await s.kernel.transition(created.task.id,"PLANNING");
     await expect(s.kernel.transition(created.task.id,"RUNNING")).rejects.toThrow(/trusted authority/i);
     const required=await s.kernel.requireCommitment(created.task.id,"send has external consequence");
     await expect(s.kernel.transition(created.task.id,"RUNNING")).rejects.toThrow(/authority/i);
     await expect(s.kernel.bindCommitmentTrusted(created.task.id,{id:"22222222-2222-4222-8222-222222222222",state:"PROPOSED"})).rejects.toThrow(/AUTHORIZED/);
     const bound=await s.kernel.bindCommitmentTrusted(created.task.id,{id:"22222222-2222-4222-8222-222222222222",state:"AUTHORIZED"});expect(bound.task.commitmentId).toBeTruthy();
+    await expect(s.kernel.transition(created.task.id,"RUNNING")).rejects.toThrow(/reality-bound commit/i);
+    await s.kernel.bindRealityCommitTrusted(created.task.id,realityCommitId,effectKey);
+    await expect(s.kernel.transition(created.task.id,"RUNNING")).rejects.toThrow(/reality-bound commit/i);
+    await s.kernel.consumeRealityCommitTrusted(created.task.id,realityCommitId);
     expect((await s.kernel.transition(created.task.id,"RUNNING")).task.state).toBe("RUNNING");expect(required.event.type).toBe("COMMITMENT_REQUIRED");
   });
 
@@ -40,6 +45,13 @@ describe("CIEAV durable Agent Kernel store",()=>{
     await expect(s.kernel.settleTrusted(created.task.id,"PROVEN")).rejects.toThrow(/bound proof/i);
     await s.kernel.bindProofTrusted(created.task.id,"44444444-4444-4444-8444-444444444444");
     const settled=await s.kernel.settleTrusted(created.task.id,"PROVEN");expect(settled.task.state).toBe("COMPLETED");expect(settled.task.settlement).toBe("PROVEN");
+  });
+
+  it("blocks retries while a semantic effect is quarantined",async()=>{
+    const s=await store(),created=await s.kernel.create(create);await authorizeRunning(s.kernel,created.task.id);await s.kernel.transition(created.task.id,"OBSERVING");await s.kernel.bindProofTrusted(created.task.id,"44444444-4444-4444-8444-444444444444");await s.kernel.settleTrusted(created.task.id,"UNKNOWN");
+    const q=await s.kernel.intentReality.quarantineUnknown(effectKey,created.task.id,create.intentId);await s.kernel.quarantineEffectTrusted(created.task.id,q.id);
+    await expect(s.kernel.retry(created.task.id,"2026-08-19T01:00:00.000Z")).rejects.toThrow(/quarantined/i);
+    expect((await s.kernel.openLoops())[0]?.reasons).toContain("EFFECT_QUARANTINED");
   });
 
   it("fails closed when durable state integrity is corrupted",async()=>{
