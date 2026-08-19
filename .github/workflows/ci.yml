@@ -15,6 +15,8 @@ jobs:
           python-version: '3.11'
       - name: Verify platform authority boundaries
         run: node scripts/platform-boundary-static.mjs
+      - name: Verify OS-backed root secret boundary
+        run: node scripts/os-secret-root-release.mjs
       - name: Verify OpenClaw zero-dependency consumer boundary
         run: node scripts/openclaw-no-deps-static.mjs
       - name: Verify Windows TPM/CNG native provider boundary
@@ -70,6 +72,7 @@ jobs:
           node --check apps/api/standalone.mjs
           node --check scripts/a2a-e2e.mjs
           node --check scripts/platform-boundary-static.mjs
+          node --check scripts/os-secret-root-release.mjs
           node --check scripts/openclaw-no-deps-static.mjs
           node --check scripts/windows-tpm-cng-release.mjs
           node --check scripts/windows-tpm-maa-collector-release.mjs
