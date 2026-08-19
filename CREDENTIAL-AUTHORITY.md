@@ -23,95 +23,84 @@ Credential Authority derives minimum credential
       ↓
 trusted adapter uses credential
       ↓
-credential disappears from execution memory
-      ↓
-only derivation receipt/digests persist
+only derivation receipts/digests persist
       ↓
 Proof Mesh settles reality
 ```
 
-Agents never receive a private key, refresh token, subject token, actor token, access token, client secret, DPoP signing oracle, arbitrary signing API, or TLS key handle that can be dereferenced outside trusted CIEAV execution.
+Agents never receive private keys, refresh tokens, subject/actor tokens, access tokens, client secrets, DPoP signing oracles, or arbitrary signing APIs.
+
+## Explicit key source
+
+JOSE signing is selected explicitly as `LOCAL` or `HARDWARE`; CIEAV does not infer the source from an ID.
+
+- `LOCAL` uses `LOCAL_WRAPPED_P256`, an AES-256-GCM-wrapped software P-256 key.
+- `HARDWARE` uses a verified `HardwareKeyRegistration` through `CieavHardwareSigner` and an exact provider-native `providerKeyRef`.
+
+> **No hardware-to-software fallback.**
+
+If `HARDWARE` is configured and attestation, bridge integrity, purpose, provider-key binding, algorithm, or native signing fails, the derivation fails. A valid local key is not substituted.
+
+Hardware JOSE signing revalidates the provider bridge SHA-256, current verified attestation, public-key fingerprint, purpose and algorithm immediately before the signature. The native bridge receives only the operation, opaque provider key reference and 32-byte SHA-256 digest. Hardware private key material never enters CIEAV state.
 
 ## Credential readiness vs derivation
 
-Credential readiness is checked before one-use consequence authority is spent. CIEAV validates that the OAuth profile exists, the token endpoint is allowed and resolvable, required source credentials exist, and the selected key handle can perform the required operation.
+Credential readiness is checked before one-use consequence authority is spent. CIEAV validates the OAuth profile, exact token endpoint policy, source credentials and selected local/hardware key capability.
 
-Actual token acquisition happens only after the trusted router has consumed the Operation Mandate and Execution Ticket. The derivation contract is bound to the proposal, task, Intent, Reality-Bound Commit, credential lease, exact route, tool/operation, and normalized argument digest.
+Actual token acquisition occurs only after the trusted router consumes the Operation Mandate and Execution Ticket. The derivation contract binds proposal, task, Intent, Reality-Bound Commit, credential lease, route, tool/operation, normalized arguments, sender constraint and explicit key source.
 
-This prevents a credential for one authorized proposal from being reused for a different payload.
+## OAuth and sender-constrained credentials
 
-## Key handles
+Implemented OAuth modes include:
 
-`KeyHandle` is the public reference to a cryptographic capability. The concrete software provider is `LOCAL_WRAPPED_P256`:
-
-- P-256 / ES256 key pairs can be generated inside CIEAV;
-- existing enterprise P-256 keys can be imported one way into CIEAV for migration and mTLS use;
-- private PKCS#8 material is encrypted at rest with AES-256-GCM under a key derived from the local Agent Kernel state secret;
-- `exportable` is always `false` through the CIEAV authority API;
-- only public JWK/fingerprint metadata leaves the credential authority;
-- key purpose is explicit (`DPOP`, `OAUTH_CLIENT_ASSERTION`, `MTLS_CLIENT_AUTH`, etc.);
-- revocation and optional expiration are enforced before use.
-
-`LOCAL_WRAPPED_P256` is **software-wrapped**, not hardware-backed. The contracts reserve `TPM`, `SECURE_ENCLAVE`, `SPIFFE`, and `EXTERNAL_KMS` providers, but they are not yet concrete qualified providers. CIEAV must not describe the software provider as TPM-, Secure-Enclave-, HSM-, or KMS-backed.
-
-## OAuth support
-
-The Credential Authority supports:
-
-- OAuth client-credentials grants;
+- client-credentials grants;
 - RFC 8693-style token exchange with subject token and optional actor token;
 - resource-bound token requests;
-- `private_key_jwt`-style ES256 client assertions;
-- DPoP proofs at the token endpoint and protected resource;
-- certificate-bound mTLS token acquisition and protected-resource execution;
-- legacy client-secret Basic authentication only when a trusted environment mapping explicitly configures it;
-- strict token-endpoint HTTPS outside explicit non-mTLS loopback fixtures;
-- DNS validation/pinning, private/link-local/multicast blocking, response caps, and timeouts;
-- access-token non-persistence: only SHA-256 token digests and derivation metadata are stored.
+- ES256 `private_key_jwt` client authentication using either `LOCAL` or verified `HARDWARE` signing;
+- DPoP at the token endpoint and protected resource using either `LOCAL` or verified `HARDWARE` signing;
+- certificate-bound mTLS using the existing software-wrapped key path;
+- explicitly configured legacy client-secret Basic authentication;
+- HTTPS outside explicit non-mTLS loopback fixtures;
+- DNS validation/pinning, private-address blocking, response caps and timeouts;
+- access-token non-persistence.
 
-Generic HTTP Message Signatures and provider-specific hardware signers remain intentionally unimplemented until separately qualified.
+For DPoP, the protected JWS header carries the same public JWK whose opaque private key performs the signature. Both the token-endpoint proof and the later protected-resource proof are generated through the configured source.
 
-## Certificate-bound mTLS
+A `PRIVATE_KEY_JWT` profile has its own `keySource` and key ID. This may be different from the DPoP sender key. CIEAV records those two cryptographic roles separately rather than treating them as one generic signing identity.
 
-CIEAV's first mTLS profile intentionally supports one strict model: the OAuth authorization server and protected resource are both reached with the **same client certificate and corresponding CIEAV key handle**.
+## Hardware JOSE trust chain
 
 ```text
-CIEAV KeyHandle (MTLS_CLIENT_AUTH)
-          │
-          ├── public key must equal X.509 public key
-          │
-          ▼
-OAuth token endpoint
-  mutual TLS with client certificate
-          │
-          ▼
-certificate-bound access token
-          │
-          ▼
-Protected resource
-  mutual TLS with the same client certificate/key
-          │
-          ▼
-CredentialDerivationReceipt
-  certificate SHA-256 thumbprint only
+HardwareKeyRegistration
+  ↓
+verified attestation + public fingerprint
+  ↓
+digest-pinned CIEAV_KEY_PROVIDER_V1 bridge
+  ↓
+providerKeyRef
+  ↓
+CieavHardwareSigner
+  ↓
+private_key_jwt / DPoP JWS
+  ↓
+OAuth token / protected resource
 ```
 
-The following checks are fail closed:
+Windows TPM/CNG has a concrete provider bridge and TPM/MAA attestation path. Other hardware providers can use the same signer abstraction only after their own bridge and attestation verifier satisfy the Hardware Key Provider Plane.
 
-- the token endpoint must use HTTPS;
-- the protected resource must use HTTPS;
-- the certificate must be within its validity interval;
-- the certificate P-256 public key must match the selected CIEAV key handle;
-- the key handle must carry `MTLS_CLIENT_AUTH` purpose;
-- an mTLS OAuth profile cannot be downgraded to `senderConstraint: NONE` or DPoP;
-- an mTLS sender constraint cannot reference a non-mTLS OAuth profile;
-- the protected-resource identity thumbprint must equal the thumbprint recorded during credential derivation.
+## Hardware mTLS boundary
 
-The mutual-TLS test fixture requires a client certificate at both the token and resource servers and verifies that both servers observe the same certificate thumbprint. This tests an actual TLS handshake rather than only configuration metadata.
+**Hardware mTLS is not implemented by the JOSE hardware path.** The current Node TLS implementation requires the software-wrapped private key bytes for the TLS handshake. CIEAV therefore rejects using `keySource: HARDWARE` as a substitute for mTLS and does not silently export a TPM/KMS key.
+
+A future hardware mTLS implementation requires a provider-native TLS transport (for example Windows Schannel/CNG, Secure Enclave-aware TLS, or an HSM-backed TLS integration) that can use the opaque private key without exporting it.
+
+## Certificate-bound software mTLS
+
+The current mTLS profile uses the same configured X.509 certificate and corresponding CIEAV software-wrapped key at the OAuth token endpoint and protected resource. CIEAV verifies certificate validity, P-256 public-key equality, `MTLS_CLIENT_AUTH` purpose and exact certificate thumbprint binding. An mTLS profile cannot be silently downgraded to bearer or DPoP.
 
 ## Separate authentication and consequence networks
 
-OAuth token acquisition is a different trust path from consequence execution.
+OAuth token acquisition remains a different trust path from consequence execution:
 
 ```text
 Credential Authority auth transport
@@ -121,56 +110,38 @@ Trusted execution transport
   → exact downstream resource endpoint
 ```
 
-The execution adapter does not loosen its origin policy to perform OAuth discovery or follow arbitrary redirects. Likewise, the token endpoint cannot become an alternate consequence route.
-
-For the current strict mTLS profile, the configured CA bundle is reused for the token and protected-resource endpoints. Separate authorization-server and resource-server CA policies are a future extension and should not be inferred from the present implementation.
+The execution adapter does not loosen its origin policy to perform arbitrary OAuth redirects, and the token endpoint cannot become an alternate consequence route.
 
 ## Derivation receipt
 
-CIEAV persists a `CredentialDerivationReceipt` containing only non-secret evidence:
+`CredentialDerivationReceipt` contains non-secret evidence only. It records proposal/ticket/profile/grant identifiers and digests, sender constraint, explicit sender key source and key ID, `senderKeyFingerprint`, `senderHardwareAttestationId` when hardware-backed, `clientAuthKeySource`, `clientAuthKeyFingerprint`, `clientAuthHardwareAttestationId` for `private_key_jwt`, mTLS certificate thumbprint when applicable, access-token digest, normalized-argument digest, and derivation/expiration timestamps.
 
-- derivation contract ID;
-- proposal and Execution Ticket IDs;
-- tool/profile/grant type;
-- token endpoint/resource/scope digests;
-- sender-constraint mode and public key-handle ID;
-- mTLS certificate SHA-256 thumbprint when applicable;
-- access-token digest, never the access token;
-- normalized-argument digest;
-- derivation and expiration timestamps.
+The receipt never stores the access token or private key. It proves credential context, not real-world success; Proof Mesh remains responsible for consequence settlement.
 
-A derivation receipt proves which credential context was used; it does **not** prove that the real-world consequence succeeded. Proof Mesh still performs independent settlement.
+## Trusted HTTP/cloud execution
 
-## OAuth-bound HTTP and cloud execution
+A `FederatedTool` with `credentialMode: DOWNSTREAM_OAUTH` is handled by the OAuth-aware adapter. Its trusted catalog selects `senderConstraint`, `keySource`, exact key ID, resource, scopes and token profile. Preflight verifies the selected hardware/local credential path before one-use authority is consumed. After consumption, credential derivation and the final resource DPoP proof use the same configured source.
 
-A `FederatedTool` with `credentialMode: DOWNSTREAM_OAUTH` is handled by the dedicated OAuth-aware adapter rather than the legacy static-header adapter.
+A successful token request, HTTP 2xx, DPoP signature or TLS handshake is not task completion.
 
-The adapter performs credential readiness during preflight. After the router consumes one-use authority, the adapter derives the token, creates any required DPoP proof or obtains the mTLS identity for the exact protected-resource request, executes against the exact pinned endpoint, and records only response/credential digests.
+## Management boundary
 
-A token endpoint success, HTTP 2xx, valid DPoP request, or successful mTLS handshake is not task completion.
-
-## Trusted lifecycle API boundary
-
-The Credential Authority lifecycle handler supports public key-handle listing/creation/revocation, one-way P-256 import, OAuth profile management, derivation-receipt inspection, and runtime capability reporting. It has no private-key export route, raw access-token route, generic signing endpoint, or arbitrary DPoP/JWT signing oracle.
-
-The handler is intended to be mounted only under CIEAV's existing local Gateway-authorized management perimeter. Until that mount is explicitly wired and qualified, operators should treat the handler as an internal component rather than a separately exposed service.
+The lifecycle API exposes key/profile lifecycle metadata and derivation receipts; it has no private-key export, raw access-token route, arbitrary JWT/DPoP signing route or generic signing oracle. Hardware signing remains an in-process trusted execution capability behind the Agent Kernel and hardware registry.
 
 ## Standards interoperability
 
-CIEAV composes with established identity and authorization standards rather than replacing them. OAuth token exchange, DPoP, mTLS, Rich Authorization Requests, Transaction Tokens, SPIFFE/WIMSE, and HTTP Message Signatures can become projections or transports for CIEAV authority. CIEAV remains responsible for the broader lifecycle from owner Intent through consequence commit, independent proof, settlement, and recovery.
+CIEAV composes with OAuth token exchange, DPoP, mTLS, Rich Authorization Requests, Transaction Token, SPIFFE/WIMSE and HTTP Message Signatures rather than replacing those standards. CIEAV remains responsible for the broader lifecycle from owner Intent through consequence commit, independent proof, settlement and recovery.
 
 ## Pending credential depth
 
-The next qualification families are:
+1. provider-native hardware mTLS;
+2. macOS Secure Enclave and Linux TPM/PKCS#11 bridges;
+3. concrete external KMS/HSM providers;
+4. SPIFFE workload identity and workload token exchange;
+5. HTTP Message Signatures and provider-specific request signers;
+6. separately pinned OAuth protected-resource / authorization-server discovery;
+7. RAR projection from Consequence Contracts;
+8. Transaction Token / WIMSE projection for downstream call-chain context;
+9. OAuth-aware MCP Streamable HTTP and A2A adapters using the same Credential Authority Plane.
 
-1. TPM / Secure Enclave / OS-keystore-backed key providers;
-2. external KMS/HSM provider interfaces and remote signing;
-3. SPIFFE workload identity and workload token exchange;
-4. HTTP Message Signatures and provider-specific request signers;
-5. protected-resource / authorization-server metadata discovery with separately pinned auth-network policy;
-6. RAR projection from CIEAV Consequence Contracts;
-7. Transaction Token / WIMSE projection for downstream call-chain context;
-8. OAuth-aware MCP Streamable HTTP and A2A adapters using the same Credential Authority Plane;
-9. separate token-endpoint and resource-endpoint trust-bundle policy for mTLS.
-
-Production architecture/hardening for each row is claimed only after executable implementation and cross-platform qualification.
+Production architecture/hardening for each row is claimed only after executable implementation and qualification. External release qualification remains pending.
