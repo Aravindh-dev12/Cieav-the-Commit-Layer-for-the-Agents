@@ -165,13 +165,15 @@ Credential Authority state encryption/MAC keys are domain-separated from the loc
 
 Production secure-storage policy rejects an unencrypted backend unless an explicit diagnostic override is supplied. Existing private-file secrets are migrated into the encrypted backend with read-back verification before the legacy file is removed.
 
-The Gateway removes inherited root signing variables, reads the protected `receipt-signing-secret`, injects it only into the managed Node semantic service as `RECEIPT_SIGNING_SECRET`, and strips it from the browser surface environment. The Node local authority then domain-separates that root into Credential Authority, hardware-registry, execution-fabric, control-plane and other state secrets.
+The Gateway strips JWT, receipt-signing and Gateway bearer credentials from the semantic child's inherited environment. Managed production starts the dedicated `managed-entry.js`, passes those three values once through a bounded anonymous stdin pipe, closes the pipe immediately, and never includes them in process arguments. The managed entry refuses TTY/no-pipe startup, rejects malformed, oversized, weak, duplicated or unexpected bootstrap data, consumes the bootstrap before importing the server, and fails if equivalent environment credentials are present. The browser process receives none of these roots/capabilities. The Node local authority then domain-separates the receipt root into Credential Authority, hardware-registry, execution-fabric, control-plane and other state secrets.
 
-This is OS-encrypted-at-rest storage, not a claim that every root secret is directly sealed to a TPM/Secure Enclave/HSM. Stronger hardware sealing, eliminating environment exposure, rotation, and a separate signer/credential broker remain additional hardening tracks.
+This removes the previous process-environment exposure, but it is not a claim of full same-user process isolation or direct TPM/Secure-Enclave/HSM sealing. The Gateway and semantic process still hold authority material in memory. Stronger hardware sealing, rotation, provider-native ACLs and a separately privileged signer/credential broker remain additional hardening tracks.
 
 ## Dependency/release security
 
 CI runs production and full dependency audits. High/critical production advisories fail the gate, and critical advisories in the broader Node build/test graph fail as well. The test stack has been moved to the secure Vitest 4 line on the repository's Node 22 baseline and currently installs with zero reported npm vulnerabilities in the qualification workflow.
+
+The release matrix also executes the managed-secret bootstrap gate on Ubuntu, macOS and Windows. It compiles the managed API, runs one-shot secret-container tests, and verifies that empty/weak bootstraps fail closed rather than falling back to inherited credentials.
 
 ## Standards interoperability
 
@@ -181,8 +183,8 @@ CIEAV composes with OAuth token exchange, DPoP, mTLS, Rich Authorization Request
 
 1. provider-native hardware mTLS;
 2. deployment-specific Linux TPM/HSM attestation verifiers and concrete external KMS/HSM verifiers;
-3. stronger hardware-backed sealing/rotation of the local authority root plus removal of root-secret environment exposure;
-4. stronger process isolation for the Credential Authority / hardware signer broker;
+3. stronger hardware-backed sealing/rotation of the local authority root and reduced in-memory lifetime;
+4. stronger process isolation for the Credential Authority / hardware signer broker plus provider-native ACLs;
 5. SPIFFE workload identity and workload token exchange;
 6. HTTP Message Signatures and provider-specific request signers;
 7. separately pinned OAuth protected-resource / authorization-server discovery;
