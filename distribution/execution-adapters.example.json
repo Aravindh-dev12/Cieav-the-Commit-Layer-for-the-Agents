@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "http": [
+    {
+      "toolId": "cieav.example.http.post",
+      "protocol": "HTTP",
+      "endpoint": "https://api.example.com/v1/actions",
+      "method": "POST",
+      "timeoutMs": 8000,
+      "maxResponseBytes": 65536,
+      "allowLoopback": false,
+      "staticHeaders": {
+        "accept": "application/json"
+      },
+      "credential": {
+        "kind": "BEARER_ENV",
+        "env": "CIEAV_EXAMPLE_PROVIDER_TOKEN"
+      },
+      "successStatusMin": 200,
+      "successStatusMax": 299
+    }
+  ]
+}

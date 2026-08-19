@@ -3,6 +3,7 @@ import type {ExecutionProposal,ExecutionTicket,FederatedTool} from "@cieav/contr
 import {digest} from "@cieav/core/execution-fabric";
 import type {CieavExecutionFabricStore} from "./execution-fabric.js";
 import type {CieavControlPlaneStore} from "./control-plane.js";
+import {loadTrustedHttpFamilyAdaptersSync} from "./trusted-http-adapter.js";
 
 export type ToolProtocol=FederatedTool["protocol"];
 export type AdapterEvidenceSeed={kind:string;source:string;summary:string;externalRef?:string};
@@ -17,24 +18,32 @@ export type TrustedDispatchContext={ticket:ExecutionTicket;proposal:ExecutionPro
 
 export interface CieavExecutionAdapter{
   readonly protocol:ToolProtocol;
+  /** Fail-closed readiness validation that runs before any one-use authority is consumed. */
+  preflight?(context:TrustedDispatchContext):Promise<void>|void;
   execute(context:TrustedDispatchContext):Promise<AdapterExecutionResult>;
 }
 
 /**
  * The router is the only in-process path from an Execution Ticket to a downstream adapter.
- * Adapter availability is checked before one-use authority is consumed. In MANDATORY posture,
- * a matching signed Operation Mandate is consumed before the Execution Ticket. Any failure after
- * authority consumption is treated as an unresolved effect, never as permission to blindly retry.
+ * Adapter and tool-specific preflight readiness are checked before one-use authority is consumed.
+ * In MANDATORY posture, a matching signed Operation Mandate is consumed before the Execution Ticket.
+ * Any failure after authority consumption is treated as an unresolved effect, never as permission to blindly retry.
  */
 export class CieavExecutionRouter{
   private readonly adapters=new Map<ToolProtocol,CieavExecutionAdapter>();
-  constructor(private readonly fabric:CieavExecutionFabricStore,adapters:CieavExecutionAdapter[]=[],private readonly controlPlane?:CieavControlPlaneStore){for(const adapter of adapters)this.register(adapter)}
+  constructor(private readonly fabric:CieavExecutionFabricStore,adapters:CieavExecutionAdapter[]=[],private readonly controlPlane?:CieavControlPlaneStore){
+    const stateDir=process.env.CIEAV_STATE_DIR?.trim()||process.env.LATCH_STATE_DIR?.trim();
+    const initial=adapters.length?adapters:(stateDir?loadTrustedHttpFamilyAdaptersSync(stateDir,process.env):[]);
+    for(const adapter of initial)this.register(adapter);
+  }
   register(adapter:CieavExecutionAdapter){if(this.adapters.has(adapter.protocol))throw new Error(`execution_adapter_already_registered:${adapter.protocol}`);this.adapters.set(adapter.protocol,adapter)}
+  registeredProtocols(){return[...this.adapters.keys()].sort()}
 
   async dispatch(ticketId:string,normalizedArguments:unknown):Promise<{dispatch:TrustedDispatchContext;result:AdapterExecutionResult}>{
     const inspected=await this.fabric.inspectTicket(ticketId);
     const adapter=this.adapters.get(inspected.tool.protocol);
     if(!adapter)throw new Error(`execution_adapter_unavailable:${inspected.tool.protocol}`);
+    await adapter.preflight?.(inspected);
 
     let consumedMandateId:string|undefined;
     if(this.controlPlane){
