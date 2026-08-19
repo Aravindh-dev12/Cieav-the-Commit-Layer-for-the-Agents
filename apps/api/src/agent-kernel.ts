@@ -9,6 +9,7 @@ import {CieavControlPlaneStore} from "./control-plane.js";
 import {CieavFrameworkInteropStore} from "./framework-interop.js";
 import {CieavCredentialAuthority} from "./credential-authority.js";
 import {CieavHardwareKeyProviderRegistry} from "./hardware-key-provider.js";
+import {CieavHardwareSigner} from "./hardware-signer.js";
 import {CieavExecutionRouter} from "./execution-router.js";
 
 type Payload={version:1;tasks:AgentTask[];events:AgentTaskEvent[]};
@@ -31,6 +32,7 @@ export class CieavAgentKernelStore{
   readonly frameworkInterop:CieavFrameworkInteropStore;
   readonly credentialAuthority:CieavCredentialAuthority;
   readonly hardwareKeyProviders:CieavHardwareKeyProviderRegistry;
+  readonly hardwareSigner:CieavHardwareSigner;
   readonly executionRouter:CieavExecutionRouter;
   constructor(private readonly file:string,private readonly stateSecret:string){
     if(stateSecret.length<32)throw new Error("CIEAV agent-kernel state secret is too weak");
@@ -44,8 +46,9 @@ export class CieavAgentKernelStore{
     this.executionFabric=new CieavExecutionFabricStore(path.join(path.dirname(file),"execution-fabric-state.json"),executionFabricSecret,this);
     this.controlPlane=new CieavControlPlaneStore(path.join(path.dirname(file),"control-plane-state.json"),controlPlaneSecret,this,this.executionFabric);
     this.frameworkInterop=new CieavFrameworkInteropStore(path.join(path.dirname(file),"framework-interop-state.json"),frameworkInteropSecret,this);
-    this.credentialAuthority=new CieavCredentialAuthority(path.join(path.dirname(file),"credential-authority-state.json"),credentialAuthoritySecret,process.env);
     this.hardwareKeyProviders=new CieavHardwareKeyProviderRegistry(path.join(path.dirname(file),"hardware-key-providers.json"),hardwareProviderSecret);
+    this.hardwareSigner=new CieavHardwareSigner(this.hardwareKeyProviders);
+    this.credentialAuthority=new CieavCredentialAuthority(path.join(path.dirname(file),"credential-authority-state.json"),credentialAuthoritySecret,process.env,this.hardwareSigner);
     this.executionRouter=new CieavExecutionRouter(this.executionFabric,[],this.controlPlane,this.credentialAuthority);
   }
   private mac(payload:Payload){return crypto.createHmac("sha256",this.stateSecret).update(canonical(payload)).digest("base64url")}
