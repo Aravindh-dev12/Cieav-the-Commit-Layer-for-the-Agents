@@ -42,11 +42,11 @@ export function assessConsequences(proposal:ActionProposal):ConsequenceAssessmen
 }
 
 export function evaluateAuthority(intent:IntentContract,proposal:ActionProposal):AuthorityDecision{
-  const c=intent.constraints,reasons:string[]=[],matched:string[]=[];
+  const c=intent.constraints,reasons:string[]=[],matched:string[]=[],allActions=c.allowedActionTypes.includes("*");
   if(intent.status!=="ACTIVE")reasons.push(`Intent is ${intent.status.toLowerCase()}.`);
   if(intent.expiresAt&&Date.parse(intent.expiresAt)<=Date.now())reasons.push("Intent has expired.");
   if(c.deniedActionTypes.includes(proposal.actionType))reasons.push("Action type is explicitly denied.");
-  if(c.allowedActionTypes.length&&!c.allowedActionTypes.includes(proposal.actionType))reasons.push("Action type is outside the allowed action set.");else if(c.allowedActionTypes.includes(proposal.actionType))matched.push("actionType");
+  if(c.allowedActionTypes.length&&!allActions&&!c.allowedActionTypes.includes(proposal.actionType))reasons.push("Action type is outside the allowed action set.");else if(allActions||c.allowedActionTypes.includes(proposal.actionType))matched.push("actionType");
   if(includesTarget(c.deniedTargets,proposal.effect.target))reasons.push("Target is explicitly denied.");
   if(c.allowedTargets.length&&!includesTarget(c.allowedTargets,proposal.effect.target))reasons.push("Target is outside the allowed target set.");else if(c.allowedTargets.length&&includesTarget(c.allowedTargets,proposal.effect.target))matched.push("target");
   if(riskRank[proposal.risk]>riskRank[c.maxRisk])reasons.push(`Risk ${proposal.risk} exceeds maximum ${c.maxRisk}.`);else matched.push("risk");
