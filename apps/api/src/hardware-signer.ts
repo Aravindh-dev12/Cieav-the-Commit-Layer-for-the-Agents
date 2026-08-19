@@ -23,6 +23,7 @@ function parseSignature(raw:unknown,algorithm:"ES256"|"RS256"){const body=raw as
 
 export class CieavHardwareSigner{
   constructor(private readonly registry:CieavHardwareKeyProviderRegistry,private readonly runner:HardwareBridgeRunner=defaultRunner,private readonly timeoutMs=5000){}
+  async assertReady(keyId:string,purpose:HardwareSignPurpose){const {key,attestation}=await this.registry.assertUsable(keyId,purpose);if(key.algorithm!=="ES256")throw new Error("hardware_signer_jose_es256_required");if(!key.providerKeyRef)throw new Error("hardware_signer_provider_key_ref_required");return{key,attestation}}
   async signDigest(keyId:string,purpose:HardwareSignPurpose,digest32:Buffer):Promise<HardwareSignResult>{
     if(digest32.length!==32)throw new Error("hardware_signer_sha256_digest_required");
     const {key,manifest}=await this.registry.assertUsable(keyId,purpose);
@@ -34,8 +35,7 @@ export class CieavHardwareSigner{
     return{key,signature,algorithm:key.algorithm};
   }
   async signJws(keyId:string,purpose:HardwareSignPurpose,protectedHeader:Record<string,unknown>,payload:Record<string,unknown>):Promise<string>{
-    const {key}=await this.registry.assertUsable(keyId,purpose);
-    if(key.algorithm!=="ES256")throw new Error("hardware_signer_jose_es256_required");
+    const {key}=await this.assertReady(keyId,purpose);
     const header=Buffer.from(JSON.stringify({...protectedHeader,alg:"ES256",jwk:key.publicJwk})).toString("base64url"),body=Buffer.from(JSON.stringify(payload)).toString("base64url"),input=`${header}.${body}`,digest=crypto.createHash("sha256").update(input).digest(),signed=await this.signDigest(keyId,purpose,digest);
     return`${input}.${signed.signature.toString("base64url")}`;
   }
