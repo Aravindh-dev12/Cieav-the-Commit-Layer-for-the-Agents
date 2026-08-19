@@ -28,7 +28,7 @@ export type CredentialDerivationContract=z.infer<typeof CredentialDerivationCont
 
 export const CredentialDerivationReceiptSchema=z.object({
   id:z.string().uuid(),version:z.literal(1),contractId:z.string().uuid(),proposalId:z.string().uuid(),executionTicketId:z.string().uuid(),toolId:z.string().min(1).max(240),profileId:z.string().min(1).max(160),grantType:OAuthGrantTypeSchema,
-  tokenEndpointDigest:DigestSchema,resourceDigest:DigestSchema,scopeDigest:DigestSchema,senderConstraint:SenderConstraintSchema,keySource:KeySourceSchema.default("LOCAL"),keyHandleId:z.string().uuid().optional(),signingKeyFingerprint:DigestSchema.optional(),hardwareAttestationId:z.string().uuid().optional(),certificateThumbprint:DigestSchema.optional(),
+  tokenEndpointDigest:DigestSchema,resourceDigest:DigestSchema,scopeDigest:DigestSchema,senderConstraint:SenderConstraintSchema,keySource:KeySourceSchema.default("LOCAL"),keyHandleId:z.string().uuid().optional(),senderKeyFingerprint:DigestSchema.optional(),senderHardwareAttestationId:z.string().uuid().optional(),clientAuthKeySource:KeySourceSchema.optional(),clientAuthKeyFingerprint:DigestSchema.optional(),clientAuthHardwareAttestationId:z.string().uuid().optional(),certificateThumbprint:DigestSchema.optional(),
   tokenType:z.enum(["Bearer","DPoP"]),accessTokenDigest:DigestSchema,requestDigest:DigestSchema,normalizedArgumentsDigest:DigestSchema,derivedAt:z.string().datetime(),expiresAt:z.string().datetime()
 }).strict();
 export type CredentialDerivationReceipt=z.infer<typeof CredentialDerivationReceiptSchema>;
