@@ -7,11 +7,12 @@ export const AgentTaskStateSchema=z.enum([
 export type AgentTaskState=z.infer<typeof AgentTaskStateSchema>;
 
 export const AgentTaskEventTypeSchema=z.enum([
-  "TASK_CREATED","STATE_CHANGED","COMMITMENT_REQUIRED","AUTHORITY_BOUND","RETRY_SCHEDULED","DEADLINE_EXCEEDED","CANCELLED","RECOVERY_REQUIRED","OPEN_LOOP_DETECTED","PROOF_BOUND","SETTLED"
+  "TASK_CREATED","STATE_CHANGED","COMMITMENT_REQUIRED","AUTHORITY_BOUND","REALITY_COMMIT_BOUND","REALITY_COMMIT_CONSUMED","EFFECT_QUARANTINED","QUARANTINE_RESOLVED","DRIFT_RECORDED","RETRY_SCHEDULED","DEADLINE_EXCEEDED","CANCELLED","RECOVERY_REQUIRED","OPEN_LOOP_DETECTED","PROOF_BOUND","SETTLED"
 ]);
 export type AgentTaskEventType=z.infer<typeof AgentTaskEventTypeSchema>;
 
 const AgentTaskMetadataValueSchema=z.union([z.string().max(2000),z.number(),z.boolean(),z.null()]);
+const DigestSchema=z.string().regex(/^[0-9a-f]{64}$/);
 
 export const AgentTaskSchema=z.object({
   id:z.string().uuid(),
@@ -32,6 +33,10 @@ export const AgentTaskSchema=z.object({
   commitmentRequired:z.boolean(),
   commitmentId:z.string().uuid().optional(),
   authoritySatisfiedAt:z.string().datetime().optional(),
+  realityBoundCommitId:z.string().uuid().optional(),
+  realityCommitConsumedAt:z.string().datetime().optional(),
+  effectKey:DigestSchema.optional(),
+  effectQuarantined:z.boolean().default(false),
   proofCaseId:z.string().uuid().optional(),
   settlement:z.enum(["PROVEN","DISPROVEN","UNKNOWN"]).optional(),
   settledAt:z.string().datetime().optional(),
@@ -40,7 +45,10 @@ export const AgentTaskSchema=z.object({
   metadata:z.record(AgentTaskMetadataValueSchema).default({})
 }).superRefine((task,ctx)=>{
   if(task.authoritySatisfiedAt&&!task.commitmentId)ctx.addIssue({code:z.ZodIssueCode.custom,path:["commitmentId"],message:"authoritySatisfiedAt requires commitmentId"});
-  if(!task.commitmentRequired&&(task.commitmentId||task.authoritySatisfiedAt))ctx.addIssue({code:z.ZodIssueCode.custom,path:["commitmentRequired"],message:"commitment binding requires commitmentRequired=true"});
+  if(!task.commitmentRequired&&(task.commitmentId||task.authoritySatisfiedAt||task.realityBoundCommitId||task.realityCommitConsumedAt))ctx.addIssue({code:z.ZodIssueCode.custom,path:["commitmentRequired"],message:"commitment binding requires commitmentRequired=true"});
+  if(task.realityCommitConsumedAt&&!task.realityBoundCommitId)ctx.addIssue({code:z.ZodIssueCode.custom,path:["realityBoundCommitId"],message:"consumed reality commit requires realityBoundCommitId"});
+  if(task.realityBoundCommitId&&!task.effectKey)ctx.addIssue({code:z.ZodIssueCode.custom,path:["effectKey"],message:"realityBoundCommitId requires semantic effectKey"});
+  if(task.effectQuarantined&&!task.effectKey)ctx.addIssue({code:z.ZodIssueCode.custom,path:["effectKey"],message:"quarantined task requires semantic effectKey"});
   if(task.settledAt&&!task.settlement)ctx.addIssue({code:z.ZodIssueCode.custom,path:["settlement"],message:"settledAt requires settlement"});
   if(task.state==="COMPLETED"&&task.settlement!=="PROVEN")ctx.addIssue({code:z.ZodIssueCode.custom,path:["settlement"],message:"COMPLETED requires PROVEN settlement"});
 });
@@ -77,6 +85,6 @@ export const AgentOpenLoopSchema=z.object({
   taskId:z.string().uuid(),
   state:AgentTaskStateSchema,
   detectedAt:z.string().datetime(),
-  reasons:z.array(z.enum(["WAITING_FOR_AUTHORITY","WAITING_EXTERNAL","OBSERVATION_PENDING","RECOVERY_REQUIRED","DEADLINE_EXCEEDED","STALE_ACTIVE_TASK"])).min(1).max(10)
+  reasons:z.array(z.enum(["WAITING_FOR_AUTHORITY","WAITING_EXTERNAL","OBSERVATION_PENDING","RECOVERY_REQUIRED","EFFECT_QUARANTINED","DEADLINE_EXCEEDED","STALE_ACTIVE_TASK"])).min(1).max(10)
 });
 export type AgentOpenLoop=z.infer<typeof AgentOpenLoopSchema>;
