@@ -20,6 +20,8 @@ jobs:
         run: node scripts/platform-boundary-static.mjs
       - name: Verify OS-backed root secret boundary
         run: node scripts/os-secret-root-release.mjs
+      - name: Verify physical release workflow boundary
+        run: node scripts/physical-release-workflow-static.mjs
       - name: Verify OpenClaw zero-dependency consumer boundary
         run: node scripts/openclaw-no-deps-static.mjs
       - name: Verify Windows TPM/CNG native provider boundary
@@ -77,6 +79,7 @@ jobs:
           node --check scripts/platform-boundary-static.mjs
           node --check scripts/os-secret-root-release.mjs
           node --check scripts/managed-secret-pipe-release.mjs
+          node --check scripts/physical-release-workflow-static.mjs
           node --check scripts/openclaw-no-deps-static.mjs
           node --check scripts/windows-tpm-cng-release.mjs
           node --check scripts/windows-tpm-maa-collector-release.mjs
