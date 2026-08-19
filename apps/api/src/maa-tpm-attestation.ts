@@ -1,0 +1,42 @@
+import crypto from "node:crypto";
+import {HardwareKeyAttestationSchema,type HardwareKeyAttestation,type HardwarePublicJwk} from "@cieav/contracts/hardware-key-provider";
+
+type JsonFetcher=(url:string)=>Promise<unknown>;
+export type MaaTpmVerificationInput={token:string;issuer:string;providerManifestId:string;expectedNonce:string;expectedPolicyHash:string;expectedPublicJwk:{kty:"RSA";n:string;e:string};maxTokenAgeSeconds?:number};
+export type MaaTpmVerificationResult={attestation:HardwareKeyAttestation;publicJwk:{kty:"RSA";n:string;e:string};claims:{policyHash:string;nonce:string;nameAlg:number;objectAttributes:number;quoteHashAlgorithm?:string;tokenId?:string}};
+
+const MAX_TOKEN_BYTES=256*1024,MAX_METADATA_BYTES=256*1024,MAX_JWKS_BYTES=1024*1024;
+const canonical=(value:unknown):string=>Array.isArray(value)?`[${value.map(canonical).join(",")}]`:value&&typeof value==="object"?`{${Object.keys(value as Record<string,unknown>).sort().map(k=>`${JSON.stringify(k)}:${canonical((value as Record<string,unknown>)[k])}`).join(",")}}`:JSON.stringify(value)??"undefined";
+const sha256=(value:Buffer|string)=>crypto.createHash("sha256").update(value).digest("hex");
+const b64json=(part:string)=>{let data:Buffer;try{data=Buffer.from(part,"base64url")}catch{throw new Error("maa_tpm_invalid_jwt_encoding")}if(data.length>MAX_TOKEN_BYTES)throw new Error("maa_tpm_jwt_component_too_large");try{return JSON.parse(data.toString("utf8"))}catch{throw new Error("maa_tpm_invalid_jwt_json")}};
+export const hardwareJwkFingerprint=(jwk:HardwarePublicJwk)=>sha256(canonical(jwk));
+function issuerUrl(raw:string){const url=new URL(raw);if(url.protocol!=="https:"||url.username||url.password||url.search||url.hash)throw new Error("maa_tpm_https_issuer_required");url.pathname=url.pathname.replace(/\/+$/,"/");return url}
+async function defaultJsonFetcher(url:string){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);try{const response=await fetch(url,{method:"GET",headers:{accept:"application/json"},redirect:"error",signal:controller.signal});if(!response.ok)throw new Error(`maa_tpm_metadata_http_${response.status}`);const length=Number(response.headers.get("content-length")??0);if(Number.isFinite(length)&&length>MAX_JWKS_BYTES)throw new Error("maa_tpm_metadata_too_large");const text=await response.text();if(Buffer.byteLength(text)>MAX_JWKS_BYTES)throw new Error("maa_tpm_metadata_too_large");try{return JSON.parse(text)}catch{throw new Error("maa_tpm_metadata_invalid_json")}}finally{clearTimeout(timer)}}
+function exactRsaJwk(raw:any){if(!raw||raw.kty!=="RSA"||typeof raw.n!=="string"||raw.n.length<32||typeof raw.e!=="string"||!raw.e)throw new Error("maa_tpm_request_key_not_rsa");return{kty:"RSA" as const,n:raw.n,e:raw.e}}
+function equalJwk(a:{kty:"RSA";n:string;e:string},b:{kty:"RSA";n:string;e:string}){return a.kty===b.kty&&a.n===b.n&&a.e===b.e}
+function publicKeyFromValidatedJwk(jwk:any){return crypto.createPublicKey({key:jwk,format:"jwk"} as any)}
+
+export class CieavMaaTpmAttestationVerifier{
+  constructor(private readonly fetchJson:JsonFetcher=defaultJsonFetcher){}
+  async verify(input:MaaTpmVerificationInput):Promise<MaaTpmVerificationResult>{
+    if(Buffer.byteLength(input.token)>MAX_TOKEN_BYTES)throw new Error("maa_tpm_token_too_large");
+    if(!input.expectedNonce||input.expectedNonce.length>4096)throw new Error("maa_tpm_nonce_required");
+    if(!input.expectedPolicyHash||input.expectedPolicyHash.length>512)throw new Error("maa_tpm_policy_hash_required");
+    const parts=input.token.split(".");if(parts.length!==3)throw new Error("maa_tpm_invalid_jwt");
+    const [encodedHeader,encodedPayload,encodedSignature]=parts as [string,string,string],header=b64json(encodedHeader),payload=b64json(encodedPayload);
+    if(header?.alg!=="RS256"||header?.typ!=="JWT"||typeof header?.kid!=="string"||!header.kid)throw new Error("maa_tpm_jwt_header_invalid");
+    const issuer=issuerUrl(input.issuer),payloadIssuer=typeof payload?.iss==="string"?issuerUrl(payload.iss):null;if(!payloadIssuer||payloadIssuer.origin!==issuer.origin||payloadIssuer.pathname!==issuer.pathname)throw new Error("maa_tpm_issuer_mismatch");
+    const metadataUrl=new URL(".well-known/openid-configuration",issuer).href,metadata:any=await this.fetchJson(metadataUrl);if(Buffer.byteLength(JSON.stringify(metadata))>MAX_METADATA_BYTES)throw new Error("maa_tpm_metadata_too_large");
+    const metadataIssuer=typeof metadata?.issuer==="string"?issuerUrl(metadata.issuer):null;if(metadataIssuer&&(metadataIssuer.origin!==issuer.origin||metadataIssuer.pathname!==issuer.pathname))throw new Error("maa_tpm_metadata_issuer_mismatch");
+    if(typeof metadata?.jwks_uri!=="string")throw new Error("maa_tpm_jwks_uri_missing");const jwksUrl=new URL(metadata.jwks_uri);if(jwksUrl.protocol!=="https:"||jwksUrl.origin!==issuer.origin||jwksUrl.username||jwksUrl.password)throw new Error("maa_tpm_jwks_origin_mismatch");if(header.jku!==undefined&&header.jku!==jwksUrl.href)throw new Error("maa_tpm_jku_mismatch");
+    const jwks:any=await this.fetchJson(jwksUrl.href);if(Buffer.byteLength(JSON.stringify(jwks))>MAX_JWKS_BYTES)throw new Error("maa_tpm_jwks_too_large");const candidates=Array.isArray(jwks?.keys)?jwks.keys.filter((k:any)=>k?.kid===header.kid&&k?.kty==="RSA"&&typeof k?.n==="string"&&typeof k?.e==="string"&&(!k.use||k.use==="sig")):[];if(candidates.length!==1)throw new Error(candidates.length?"maa_tpm_signing_key_ambiguous":"maa_tpm_signing_key_not_found");
+    let publicKey:crypto.KeyObject;try{publicKey=publicKeyFromValidatedJwk(candidates[0])}catch{throw new Error("maa_tpm_signing_key_invalid")}
+    let signature:Buffer;try{signature=Buffer.from(encodedSignature,"base64url")}catch{throw new Error("maa_tpm_signature_encoding_invalid")};if(!crypto.verify("RSA-SHA256",Buffer.from(`${encodedHeader}.${encodedPayload}`),publicKey,signature))throw new Error("maa_tpm_signature_invalid");
+    const now=Math.floor(Date.now()/1000),skew=60,maxAge=Math.min(Math.max(input.maxTokenAgeSeconds??900,60),8*60*60);if(typeof payload.exp!=="number"||payload.exp<now-skew)throw new Error("maa_tpm_token_expired");if(typeof payload.nbf==="number"&&payload.nbf>now+skew)throw new Error("maa_tpm_token_not_yet_valid");if(typeof payload.iat!=="number"||payload.iat>now+skew||payload.iat<now-maxAge-skew)throw new Error("maa_tpm_token_stale");
+    if(payload.nonce!==input.expectedNonce&&payload.rp_data!==input.expectedNonce)throw new Error("maa_tpm_nonce_mismatch");if(payload["x-ms-policy-hash"]!==input.expectedPolicyHash&&payload.policy_hash!==input.expectedPolicyHash&&payload["maa-policyHash"]!==input.expectedPolicyHash)throw new Error("maa_tpm_policy_hash_mismatch");if(payload["x-ms-ver"]!==undefined&&payload["x-ms-ver"]!=="1.0")throw new Error("maa_tpm_schema_version_invalid");
+    const requestKey=payload["x-ms-tpm-request-key"];if(!requestKey||typeof requestKey!=="object")throw new Error("maa_tpm_request_key_claim_missing");const publicJwk=exactRsaJwk(requestKey.jwk);if(!equalJwk(publicJwk,input.expectedPublicJwk))throw new Error("maa_tpm_request_key_mismatch");
+    const certify=requestKey?.info?.tpm_certify;if(!certify||typeof certify!=="object")throw new Error("maa_tpm_certify_missing");if(certify.name_alg!==11)throw new Error("maa_tpm_name_algorithm_invalid");if(certify.obj_attr!==50)throw new Error("maa_tpm_object_attributes_invalid");const quote=requestKey?.info?.tpm_quote;if(quote!==undefined&&quote?.hash_alg!=="sha-256")throw new Error("maa_tpm_quote_hash_invalid");
+    const fingerprint=hardwareJwkFingerprint(publicJwk),verifiedAt=new Date().toISOString(),expiresAt=new Date(Math.min(payload.exp*1000,Date.now()+maxAge*1000)).toISOString(),claims={policyHash:input.expectedPolicyHash,nonce:input.expectedNonce,nameAlg:11,objectAttributes:50,...(quote?.hash_alg?{quoteHashAlgorithm:String(quote.hash_alg)}:{}),...(typeof payload.jti==="string"?{tokenId:payload.jti}:{})},attestation=HardwareKeyAttestationSchema.parse({id:crypto.randomUUID(),version:1,providerManifestId:input.providerManifestId,provider:"TPM",kind:"WINDOWS_TPM_KEY_ATTESTATION",publicKeyFingerprint:fingerprint,evidenceDigest:sha256(input.token),claimsDigest:sha256(canonical({issuer:issuer.href,requestKey,claims})),verification:"VERIFIED",verifiedBy:`cieav:maa-tpm:${issuer.host}`,verifiedAt,expiresAt});
+    return{attestation,publicJwk,claims};
+  }
+}
