@@ -4,6 +4,7 @@ set -eu
 CHANNEL="${CIEAV_CHANNEL:-${LATCH_CHANNEL:-stable}}"
 BASE_URL="${CIEAV_DOWNLOAD_BASE_URL:-${LATCH_DOWNLOAD_BASE_URL:-__CIEAV_DOWNLOAD_BASE_URL__}}"
 NO_SERVICE="${CIEAV_NO_SERVICE:-${LATCH_NO_SERVICE:-0}}"
+NO_OPENCLAW="${CIEAV_NO_OPENCLAW:-0}"
 PINNED_CLOUD_URL="__CIEAV_CLOUD_URL__"
 PINNED_RELEASE_VERSION="__CIEAV_RELEASE_VERSION__"
 PINNED_WINDOWS_SIGNER="__CIEAV_WINDOWS_SIGNER_THUMBPRINT__"
@@ -88,15 +89,32 @@ exec "$RUNTIME_CIEAV" "\$@"
 EOF
 chmod 0755 "$BIN_ROOT/latch"
 export PATH="$INSTALL_ROOT/runtime:$BIN_ROOT:$PATH"; export CIEAV_HOME="$INSTALL_ROOT" CIEAV_CLOUD_URL="$PINNED_CLOUD_URL" CIEAV_VERSION="$PINNED_RELEASE_VERSION" LATCH_HOME="$INSTALL_ROOT" LATCH_CLOUD_URL="$PINNED_CLOUD_URL" LATCH_VERSION="$PINNED_RELEASE_VERSION"
-printf '%s\n' "CIEAV · running runtime self-check"; "$RUNTIME_CIEAV" doctor || fail "runtime self-check failed"; printf '%s\n' "CIEAV · enrolling with Cloud Intelligence"; "$RUNTIME_CIEAV" cloud enroll || fail "cloud enrollment failed"; printf '%s\n' "CIEAV · running cloud safety probe"; "$RUNTIME_CIEAV" cloud probe || fail "cloud safety probe failed"; if [ "$NO_SERVICE" != "1" ]; then printf '%s\n' "CIEAV · installing always-on Gateway"; "$RUNTIME_CIEAV" gateway install || fail "Gateway service installation failed"; fi; SUCCESS=1
+printf '%s\n' "CIEAV · running runtime self-check"; "$RUNTIME_CIEAV" doctor || fail "runtime self-check failed"; printf '%s\n' "CIEAV · enrolling with Cloud Intelligence"; "$RUNTIME_CIEAV" cloud enroll || fail "cloud enrollment failed"; printf '%s\n' "CIEAV · running cloud safety probe"; "$RUNTIME_CIEAV" cloud probe || fail "cloud safety probe failed"
+if [ "$NO_SERVICE" != "1" ]; then
+  printf '%s\n' "CIEAV · installing always-on Gateway"; "$RUNTIME_CIEAV" gateway install || fail "Gateway service installation failed"
+  if [ "$NO_OPENCLAW" != "1" ]; then
+    if command -v openclaw >/dev/null 2>&1; then
+      printf '%s\n' "CIEAV · OpenClaw detected; registering governed MCP boundary"
+      if "$RUNTIME_CIEAV" openclaw connect; then printf '%s\n' "CIEAV · OpenClaw connected"; else printf '%s\n' "CIEAV · warning: OpenClaw auto-connect failed; retry with: cieav openclaw connect" >&2; fi
+    else
+      printf '%s\n' "CIEAV · OpenClaw not detected; standalone install complete"
+      printf '%s\n' "CIEAV · run 'cieav openclaw connect' after installing OpenClaw"
+    fi
+  fi
+elif [ "$NO_OPENCLAW" != "1" ]; then
+  printf '%s\n' "CIEAV · OpenClaw auto-connect skipped because local authority service was disabled"
+fi
+SUCCESS=1
 cat <<EOF
 
 CIEAV installed successfully.
 Version: $PINNED_RELEASE_VERSION
 Runtime: $INSTALL_ROOT
+Consumer dependencies: no npm, npx, pip, Node, or Python install required
 Privacy: durable user state remains local
 
 Run: cieav gateway status
+Run: cieav openclaw status
 Run: cieav cloud status
 Run: cieav test-lab
 EOF
