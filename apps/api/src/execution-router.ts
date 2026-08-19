@@ -1,8 +1,7 @@
-import type {ExecutionProposal,ExecutionTicket,FederatedTool,ToolProtocolSchema} from "@cieav/contracts/execution-fabric";
-import type {z} from "zod";
+import type {ExecutionProposal,ExecutionTicket,FederatedTool} from "@cieav/contracts/execution-fabric";
 import type {CieavExecutionFabricStore} from "./execution-fabric.js";
 
-export type ToolProtocol=z.infer<typeof ToolProtocolSchema>;
+export type ToolProtocol=FederatedTool["protocol"];
 export type AdapterEvidenceSeed={kind:string;source:string;summary:string;externalRef?:string};
 export type AdapterExecutionResult={
   attemptedAt:string;
