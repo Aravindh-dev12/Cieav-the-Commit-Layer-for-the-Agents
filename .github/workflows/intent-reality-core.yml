@@ -32,10 +32,12 @@ jobs:
           npm run typecheck -w @cieav/contracts
           npm run typecheck -w @cieav/core
           npm run typecheck -w @cieav/api
-      - name: Verify Reality-Bound Commit and autonomy invariants
-        run: npm run test -w @cieav/core -- intent-reality.test.ts
-      - name: Verify durable quarantine and restart behavior
-        run: npm run test -w @cieav/api -- intent-reality.test.ts
+      - name: Verify Reality-Bound Commit, attenuation, drift, autonomy and reversibility
+        run: npm run test -w @cieav/core -- intent-reality.test.ts reversibility-escrow.test.ts
+      - name: Verify durable quarantine, restart and reversibility stores
+        run: npm run test -w @cieav/api -- intent-reality.test.ts reversibility-escrow.test.ts
+      - name: Verify protocol bridge syntax
+        run: node --check apps/a2a/src/index.mjs
       - name: Verify platform control-plane package
         run: |
           python -m pip install -e .
