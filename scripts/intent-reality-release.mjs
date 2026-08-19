@@ -13,7 +13,7 @@ expectTokens("packages/contracts/src/intent-reality.ts",[
   "RealityWitnessSchema","SemanticEffectSchema","IntentAttenuationWitnessSchema","RealityBoundCommitSchema","EffectQuarantineSchema","AutonomyCandidateSchema","ReversibilityEscrowSchema"
 ]);
 expectTokens("packages/contracts/src/agent-task.ts",[
-  "REALITY_COMMIT_BOUND","REALITY_COMMIT_CONSUMED","EFFECT_QUARANTINED","realityCommitConsumedAt","effectQuarantined","EFFECT_QUARANTINED"
+  "REALITY_COMMIT_BOUND","REALITY_COMMIT_CONSUMED","EFFECT_QUARANTINED","realityCommitConsumedAt","effectQuarantined"
 ]);
 expectTokens("packages/core/src/agent-task.ts",[
   "reality-bound commit is consumed","semantic effect is quarantined","markTaskEffectQuarantined","agent task retry prohibited while semantic effect is quarantined"
@@ -25,7 +25,7 @@ expectTokens("apps/api/src/agent-kernel.ts",[
   "cieav-intent-reality-state-v1","intent-reality-state.json","bindRealityCommitTrusted","consumeRealityCommitTrusted","quarantineEffectTrusted","assertRetryAllowed"
 ]);
 expectTokens("apps/api/src/agent-kernel-api.ts",[
-  "agent_execution_requires_reality_bound_commit","/reality-commit","/consume-reality-commit","/quarantines/","/attenuation","/drift","autonomy-candidates","reversibility-escrow","reversibilityEscrow"
+  "agent_execution_requires_reality_bound_commit","issueRealityBoundCommit","consumeRealityBoundCommit","resolveQuarantine","createAttenuationWitness","recordConsequenceDrift","autonomy-candidates","reversibility-escrow","activateReversibilityEscrow","intent-reality-v1"
 ]);
 expectTokens("apps/api/src/intent-reality-engine.test.ts",[
   "observation time does not invalidate unchanged reality","invalidates on changed reality","blocks semantic retries across independent execution channels","cumulative consequence drift","non-self-authorizing"
