@@ -23,6 +23,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Verify OpenClaw zero-dependency consumer boundary
+        run: node scripts/openclaw-no-deps-static.mjs
+      - name: Parse Windows consumer installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: "[scriptblock]::Create((Get-Content -Raw 'distribution/install.ps1')) | Out-Null"
+      - name: Parse Unix consumer installer
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          sh -n distribution/install.sh
+          if grep -Eqi 'npm install|npx |pip install|pnpm add|yarn add' distribution/install.sh; then echo 'Unix consumer installer must not require package managers'; exit 1; fi
       - name: Install workspaces
         run: npm install
       - name: Build local authority packages
