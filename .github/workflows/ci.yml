@@ -101,6 +101,10 @@ jobs:
           node scripts/browser-e2e.mjs
           node scripts/noinstall-selftest.mjs
       - run: npm install
+      - name: Audit Node dependency security
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=critical
       - run: npm run build
       - name: Verify Agent Kernel authority, recovery, durability and proof settlement
         run: npm run test:agent-kernel
