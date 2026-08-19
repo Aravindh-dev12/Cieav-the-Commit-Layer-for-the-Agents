@@ -23,20 +23,14 @@ concurrency:
 
 jobs:
   windows-tpm-maa:
-    if: ${{ inputs.target == 'all' || inputs.target == 'windows' }}
+    if: ${{ (inputs.target == 'all' || inputs.target == 'windows') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
     runs-on: [self-hosted, windows, cieav-release-hardware, cieav-windows-tpm]
     timeout-minutes: 30
-    env:
-      CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
-      CIEAV_WINDOWS_TPM_CNG_BRIDGE: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE }}
-      CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256 }}
-      CIEAV_WINDOWS_MAA_CONFIG: ${{ vars.CIEAV_WINDOWS_MAA_CONFIG }}
-      CIEAV_WINDOWS_MAA_CONFIG_SHA256: ${{ vars.CIEAV_WINDOWS_MAA_CONFIG_SHA256 }}
-      AZURE_TENANT_ID: ${{ secrets.CIEAV_MAA_AZURE_TENANT_ID }}
-      AZURE_CLIENT_ID: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_SECRET }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -47,41 +41,71 @@ jobs:
           npm audit --omit=dev --audit-level=high
           npm audit --audit-level=critical
       - name: Qualify physical Windows TPM and live MAA
+        env:
+          CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
+          CIEAV_WINDOWS_TPM_CNG_BRIDGE: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE }}
+          CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256 }}
+          CIEAV_WINDOWS_MAA_CONFIG: ${{ vars.CIEAV_WINDOWS_MAA_CONFIG }}
+          CIEAV_WINDOWS_MAA_CONFIG_SHA256: ${{ vars.CIEAV_WINDOWS_MAA_CONFIG_SHA256 }}
+          AZURE_TENANT_ID: ${{ secrets.CIEAV_MAA_AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_SECRET }}
         run: node scripts/physical-hardware-qualification.mjs
+      - name: Scrub release worktree
+        if: ${{ always() }}
+        run: |
+          git reset --hard HEAD
+          git clean -ffdx
 
   macos-secure-enclave:
-    if: ${{ inputs.target == 'all' || inputs.target == 'macos' }}
+    if: ${{ (inputs.target == 'all' || inputs.target == 'macos') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
     runs-on: [self-hosted, macOS, cieav-release-hardware, cieav-macos-secure-enclave]
     timeout-minutes: 20
-    env:
-      CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
-      CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE }}
-      CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256 }}
-      CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
       - name: Qualify physical macOS Secure Enclave
+        env:
+          CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
+          CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE }}
+          CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256 }}
+          CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME }}
         run: node scripts/physical-hardware-qualification.mjs
+      - name: Scrub release worktree
+        if: ${{ always() }}
+        run: |
+          git reset --hard HEAD
+          git clean -ffdx
 
   linux-pkcs11:
-    if: ${{ inputs.target == 'all' || inputs.target == 'linux' }}
+    if: ${{ (inputs.target == 'all' || inputs.target == 'linux') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
     runs-on: [self-hosted, linux, cieav-release-hardware, cieav-linux-hsm]
     timeout-minutes: 20
-    env:
-      CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
-      CIEAV_LINUX_PKCS11_BRIDGE: ${{ vars.CIEAV_LINUX_PKCS11_BRIDGE }}
-      CIEAV_LINUX_PKCS11_BRIDGE_SHA256: ${{ vars.CIEAV_LINUX_PKCS11_BRIDGE_SHA256 }}
-      CIEAV_LINUX_PKCS11_PROVIDER_REF: ${{ secrets.CIEAV_LINUX_PKCS11_PROVIDER_REF }}
-      CIEAV_LINUX_ATTESTATION_EVIDENCE: ${{ vars.CIEAV_LINUX_ATTESTATION_EVIDENCE }}
-      CIEAV_LINUX_ATTESTATION_PUBLIC_KEY: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY }}
-      CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256 }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
       - name: Qualify physical Linux PKCS11 key and verifier evidence
+        env:
+          CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
+          CIEAV_LINUX_PKCS11_BRIDGE: ${{ vars.CIEAV_LINUX_PKCS11_BRIDGE }}
+          CIEAV_LINUX_PKCS11_BRIDGE_SHA256: ${{ vars.CIEAV_LINUX_PKCS11_BRIDGE_SHA256 }}
+          CIEAV_LINUX_PKCS11_PROVIDER_REF: ${{ secrets.CIEAV_LINUX_PKCS11_PROVIDER_REF }}
+          CIEAV_LINUX_ATTESTATION_EVIDENCE: ${{ vars.CIEAV_LINUX_ATTESTATION_EVIDENCE }}
+          CIEAV_LINUX_ATTESTATION_PUBLIC_KEY: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY }}
+          CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256 }}
         run: node scripts/physical-hardware-qualification.mjs
+      - name: Scrub release worktree
+        if: ${{ always() }}
+        run: |
+          git reset --hard HEAD
+          git clean -ffdx
