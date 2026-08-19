@@ -4,6 +4,7 @@ import path from "node:path";
 import {AgentTaskCreateSchema,AgentTaskEventSchema,AgentTaskSchema,type AgentOpenLoop,type AgentTask,type AgentTaskCreate,type AgentTaskEvent,type AgentTaskState,type Commitment} from "@cieav/contracts";
 import {bindTaskCommitment,bindTaskProof,detectAgentOpenLoop,recoverInterruptedTask,requireCommitment,scheduleRetry,settleAgentTask,transitionAgentTask} from "@cieav/core";
 import {CieavIntentRealityStore} from "./intent-reality.js";
+import {CieavReversibilityEscrowStore} from "./reversibility-escrow.js";
 
 type Payload={version:1;tasks:AgentTask[];events:AgentTaskEvent[]};
 type Envelope={payload:Payload;mac:string};
@@ -20,10 +21,13 @@ async function durableReplace(file:string,contents:string){
 export class CieavAgentKernelStore{
   private loaded=false;private tasks=new Map<string,AgentTask>();private events:AgentTaskEvent[]=[];private chain:Promise<void>=Promise.resolve();
   readonly intentReality:CieavIntentRealityStore;
+  readonly reversibilityEscrow:CieavReversibilityEscrowStore;
   constructor(private readonly file:string,private readonly stateSecret:string){
     if(stateSecret.length<32)throw new Error("CIEAV agent-kernel state secret is too weak");
     const intentRealitySecret=crypto.createHmac("sha256",stateSecret).update("cieav-intent-reality-state-v1").digest("base64url");
+    const reversibilitySecret=crypto.createHmac("sha256",stateSecret).update("cieav-reversibility-escrow-state-v1").digest("base64url");
     this.intentReality=new CieavIntentRealityStore(path.join(path.dirname(file),"intent-reality-state.json"),intentRealitySecret);
+    this.reversibilityEscrow=new CieavReversibilityEscrowStore(path.join(path.dirname(file),"reversibility-escrow-state.json"),reversibilitySecret);
   }
   private mac(payload:Payload){return crypto.createHmac("sha256",this.stateSecret).update(canonical(payload)).digest("base64url")}
   private enqueue<T>(fn:()=>Promise<T>):Promise<T>{const task=this.chain.then(fn,fn);this.chain=task.then(()=>undefined,()=>undefined);return task}
@@ -42,7 +46,7 @@ export class CieavAgentKernelStore{
   bindProofTrusted(id:string,proofCaseId:string){return this.enqueue(async()=>{await this.load();const current=this.tasks.get(id);if(!current)throw new Error("agent_task_not_found");const changed=bindTaskProof(current,proofCaseId,new Date().toISOString()),task=this.put(changed.task),event=this.append(changed.event);await this.persist();return{task,event}})}
   settleTrusted(id:string,status:"PROVEN"|"DISPROVEN"|"UNKNOWN"){return this.enqueue(async()=>{await this.load();const current=this.tasks.get(id);if(!current)throw new Error("agent_task_not_found");const changed=settleAgentTask(current,status,new Date().toISOString()),task=this.put(changed.task),event=this.append(changed.event);await this.persist();return{task,event}})}
   retry(id:string,nextRunAt:string,reason?:string){return this.enqueue(async()=>{await this.load();const current=this.tasks.get(id);if(!current)throw new Error("agent_task_not_found");const changed=scheduleRetry(current,nextRunAt,new Date().toISOString(),reason),task=this.put(changed.task),event=this.append(changed.event);await this.persist();return{task,event}})}
-  recoverOnStartup(){return this.enqueue(async()=>{await this.load();const recovered:AgentTask[]=[];for(const current of [...this.tasks.values()]){const changed=recoverInterruptedTask(current);if(!changed)continue;const task=this.put(changed.task);this.append(changed.event);recovered.push(task)}if(recovered.length)await this.persist();await this.intentReality.recoverOnStartup();return recovered})}
+  recoverOnStartup(){return this.enqueue(async()=>{await this.load();const recovered:AgentTask[]=[];for(const current of [...this.tasks.values()]){const changed=recoverInterruptedTask(current);if(!changed)continue;const task=this.put(changed.task);this.append(changed.event);recovered.push(task)}if(recovered.length)await this.persist();await this.intentReality.recoverOnStartup();await this.reversibilityEscrow.recoverOnStartup();return recovered})}
   openLoops(now=new Date()):Promise<AgentOpenLoop[]>{return this.enqueue(async()=>{await this.load();return[...this.tasks.values()].map(t=>detectAgentOpenLoop(t,now)).filter((x):x is AgentOpenLoop=>Boolean(x))})}
-  async close(){await this.chain;await this.intentReality.close()}
+  async close(){await this.chain;await this.intentReality.close();await this.reversibilityEscrow.close()}
 }
