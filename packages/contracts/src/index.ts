@@ -46,3 +46,4 @@ export const DeviceRegisterResponseSchema=z.object({deviceId:z.string(),token:z.
 
 export * from "./commitment.js";
 export * from "./agent-task.js";
+export * from "./intent-reality.js";
