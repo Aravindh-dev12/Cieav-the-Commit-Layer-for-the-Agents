@@ -42,7 +42,7 @@ const empty=():Payload=>({version:1,commits:[],quarantines:[],attenuation:[],dri
 async function durableReplace(file:string,contents:string){
   const dir=path.dirname(file),tmp=`${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
   await writeFile(tmp,contents,{encoding:"utf8",mode:0o600,flag:"wx"});
-  const fh=await open(tmp,"r");try{await fh.sync()}finally{await fh.close()}
+  const fh=await open(tmp,"r+");try{await fh.sync()}finally{await fh.close()}
   await rename(tmp,file);try{await chmod(file,0o600)}catch{}
   if(process.platform!=="win32")try{const dh=await open(dir,"r");try{await dh.sync()}finally{await dh.close()}}catch{}
 }
