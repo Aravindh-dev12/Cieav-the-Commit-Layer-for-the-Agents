@@ -60,6 +60,9 @@ class Gateway:
     def __init__(self, settings: Settings):
         self.s = settings
         self.token = settings.token()
+        self.semantic_router_token = secrets.token_urlsafe(48)
+        if len(self.semantic_router_token)<43 or secrets.compare_digest(self.semantic_router_token,self.token):
+            raise RuntimeError("Failed to establish a distinct semantic-router capability")
         hf_cfg = HFConfig.load()
         if not hf_cfg.token:
             hf_cfg = HFConfig(token=settings.read_hf_token(), model=hf_cfg.model, provider=hf_cfg.provider, endpoint_url=hf_cfg.endpoint_url, timeout_seconds=hf_cfg.timeout_seconds)
@@ -121,10 +124,12 @@ class Gateway:
         env["CIEAV_MANAGED_SECRET_PIPE"] = "1"
         return env
 
-    def _semantic_bootstrap(self) -> bytes:
-        payload={"jwtSecret":self.s.local_api_secret(),"receiptSigningSecret":self.s.receipt_signing_secret(),"gatewayToken":self.token}
-        body=json.dumps(payload,separators=(",",":"),ensure_ascii=True).encode("utf-8")
-        if len(body)>16*1024: raise RuntimeError("Managed semantic secret bootstrap exceeded size limit")
+    def _semantic_bootstrap(self) -> bytearray:
+        payload={"jwtSecret":self.s.local_api_secret(),"receiptSigningSecret":self.s.receipt_signing_secret(),"gatewayToken":self.token,"semanticRouterToken":self.semantic_router_token}
+        body=bytearray(json.dumps(payload,separators=(",",":"),ensure_ascii=True).encode("utf-8"))
+        if len(body)>16*1024:
+            body[:]=b"\0"*len(body)
+            raise RuntimeError("Managed semantic secret bootstrap exceeded size limit")
         return body
 
     def _surface_env(self, control_token: str | None = None) -> dict[str, str]:
@@ -176,6 +181,8 @@ class Gateway:
                     try: child.kill()
                     except Exception: pass
                 raise RuntimeError("Failed to deliver managed semantic secrets over the private bootstrap pipe") from exc
+            finally:
+                bootstrap[:]=b"\0"*len(bootstrap)
             self.semantic=child
             self.semantic_started_at=time.time(); self._log(f"semantic service started pid={self.semantic.pid} bootstrap=private-pipe")
         if not self._wait_semantic():
@@ -320,7 +327,13 @@ class ControlHandler(BaseHTTPRequestHandler):
         body=json.dumps(payload).encode("utf-8"); self.send_response(code); self._headers("application/json; charset=utf-8"); self.end_headers(); self.wfile.write(body)
     def _send_html(self, code:int, body:str)->None:
         self.send_response(code); self._headers("text/html; charset=utf-8"); self.end_headers(); self.wfile.write(body.encode("utf-8"))
-    def _authorized(self)->bool: return self.headers.get("authorization")==f"Bearer {self.gateway.token}"
+    def _bearer(self)->str:
+        value=self.headers.get("authorization") or ""
+        return value[7:] if value.startswith("Bearer ") else ""
+    def _admin_authorized(self)->bool:
+        bearer=self._bearer(); return bool(bearer) and secrets.compare_digest(bearer,self.gateway.token)
+    def _semantic_authorized(self)->bool:
+        bearer=self._bearer(); return bool(bearer) and (secrets.compare_digest(bearer,self.gateway.semantic_router_token) or secrets.compare_digest(bearer,self.gateway.token))
     def _read_json(self)->dict:
         try: length=int(self.headers.get("content-length","0"))
         except ValueError: raise ValueError("invalid content-length")
@@ -335,13 +348,17 @@ class ControlHandler(BaseHTTPRequestHandler):
             try: body=self.gateway.test_lab_file.read_text("utf-8")
             except FileNotFoundError: self._send(404,{"error":"test_lab_not_found"}); return
             self._send_html(200,body); return
-        if not self._authorized(): self._send(401,{"error":"unauthorized"}); return
+        if path=="/v1/hf/status":
+            if not self._semantic_authorized(): self._send(401,{"error":"unauthorized"}); return
+            self._send(200,{"ok":True,"huggingFace":self.gateway.hf.status()}); return
+        if not self._admin_authorized(): self._send(401,{"error":"unauthorized"}); return
         if path=="/v1/status": self._send(200,self.gateway.status()); return
-        if path=="/v1/hf/status": self._send(200,{"ok":True,"huggingFace":self.gateway.hf.status()}); return
         self._send(404,{"error":"not_found"})
     def do_POST(self)->None:
-        if not self._authorized(): self._send(401,{"error":"unauthorized"}); return
         path=self.path.split("?",1)[0]
+        if path.startswith("/v1/hf/"):
+            if not self._semantic_authorized(): self._send(401,{"error":"unauthorized"}); return
+        elif not self._admin_authorized(): self._send(401,{"error":"unauthorized"}); return
         try:
             if path=="/v1/pause": self.gateway.pause(); self._send(200,self.gateway.status()); return
             if path=="/v1/resume": self.gateway.resume(); self._send(200,self.gateway.status()); return
