@@ -37,9 +37,11 @@ Two key roles remain intentionally separate:
 - **P-256 ES256 consequence key** — `create-p256`, `describe`, `sign-es256`.
 - **RSA-2048 MAA request key** — `create-rsa-2048`, `describe-rsa`, `sign-rs256`.
 
-The live collector at `native/windows-tpm-maa-collector` now includes the P-256 consequence key as an MAA `other_key`. `CieavMaaTpmAttestationVerifier` verifies the signed MAA JWT, expected issuer/JWKS/signature/freshness/nonce/policy, the exact RSA request key and the exact expected P-256 key in `x-ms-tpm-other-keys`. Both certified-key paths require TPM `name_alg == 11` and `obj_attr == 50` and reject a non-SHA-256 quote when present.
+The live collector at `native/windows-tpm-maa-collector` includes the P-256 consequence key as an MAA `other_key`. `CieavMaaTpmAttestationVerifier` verifies the signed MAA JWT, expected issuer/JWKS/signature/freshness/nonce/policy, the exact RSA request key and the exact expected P-256 key in `x-ms-tpm-other-keys`. Both certified-key paths require TPM `name_alg == 11` and `obj_attr == 50` and reject a non-SHA-256 quote when present.
 
 When an expected consequence key is supplied, the resulting `WINDOWS_TPM_KEY_ATTESTATION.publicKeyFingerprint` is the **P-256 consequence key fingerprint**, not the RSA request-key fingerprint. This closes the previous co-residency gap.
+
+The verifier's OpenID metadata and JWKS transport is also fail-closed: HTTPS is mandatory, loopback/private/link-local/multicast/documentation addresses are rejected, mixed public/private DNS answers are rejected, the accepted address is pinned into the actual TLS request, redirects are not followed and response size/time limits apply. TLS still authenticates the original issuer hostname.
 
 The collector executable and complete adjacent DLL closure are digest pinned, symlinks/non-regular files are rejected, undeclared adjacent DLLs are rejected, a fresh CIEAV-owned nonce is generated per collection, the issuer/policy are pinned and the child environment excludes inherited PATH/proxy/runtime-injection variables.
 
@@ -66,7 +68,7 @@ On a Mac without a usable Secure Enclave, the probe reports `available:false` / 
 
 ## Linux — PKCS #11 / TPM / HSM
 
-The bridge at `native/linux-pkcs11/main.cpp` is vendor-module agnostic and uses the PKCS #11 API dynamically. Its opaque provider reference binds:
+The bridge at `native/linux-pkcs11/main.cpp` is vendor-module agnostic and uses the standard PKCS #11 `C_GetFunctionList` entry point. Its opaque provider reference binds:
 
 ```text
 module=/absolute/vendor-pkcs11.so|slot=<slot-id>|id=<CKA_ID hex>|pinfile=/protected/pin-file
@@ -83,30 +85,59 @@ The bridge:
 
 A successful PKCS #11 operation **does not itself prove hardware**. The bridge deliberately reports `hardwareBacked:false` and `attestationRequired:true`. A Linux deployment can register the key as hardware-backed only after a trusted verifier inserts current key-specific `PKCS11_TOKEN_KEY` evidence establishing the assurance required for that token/TPM/HSM. This prevents software PKCS #11 modules from self-promoting to hardware trust.
 
+The generic Gateway admin route therefore returns `501 linux_hardware_attestation_verifier_required` for Linux attestation. Each approved Linux TPM/HSM deployment must provide a verifier for its actual evidence format before CIEAV will accept the key as hardware-backed.
+
 ## External KMS / HSM
 
 `EXTERNAL_KMS` remains supported by the generic provider plane. Signing success or possession of a cloud key identifier is not attestation. Provider-specific evidence must bind the exact public key and assurance level before a registration can be trusted as hardware-backed.
 
+## Gateway-only lifecycle administration
+
+Credential and hardware lifecycle management is mounted under the existing Gateway-authenticated Agent Kernel namespace rather than on a second administrative surface:
+
+```text
+/v1/agent-kernel/credential-authority/...
+/v1/agent-kernel/hardware-key-providers/...
+```
+
+Software-wrapped key/profile lifecycle is delegated to `CieavCredentialAuthorityApi`. Hardware manifests and key registrations can be managed there, but there is deliberately **no generic POST endpoint for `verification: VERIFIED` hardware evidence**.
+
+Verified hardware evidence is produced only by a CIEAV platform verifier/attestor:
+
+- macOS: `CieavSecureEnclaveAttestor`;
+- Windows: live `CieavWindowsTpmMaaCollector` + independent `CieavMaaTpmAttestationVerifier`;
+- Linux: deployment-specific TPM/HSM verifier required.
+
+A key registration still passes through `CieavHardwareKeyProviderRegistry`, so a caller cannot register an alleged hardware-backed key without a current verified evidence object bound to the same manifest/provider/public-key fingerprint.
+
 ## Credential integration
 
-The Credential Authority supports explicit `LOCAL` or `HARDWARE` JOSE signing for DPoP and `private_key_jwt`. Hardware selection never falls back to local signing. Credential derivation is now durably **at-most-once per consumed execution ticket**: the derivation binding is persisted before token acquisition, so a ticket cannot mint another credential after a restart, concurrent call or ambiguous downstream failure.
+The Credential Authority supports explicit `LOCAL` or `HARDWARE` JOSE signing for DPoP and `private_key_jwt`. Hardware selection never falls back to local signing. Credential derivation is durably **at-most-once per consumed execution ticket**: the derivation binding is persisted before token acquisition, so a ticket cannot mint another credential after a restart, concurrent call or ambiguous downstream failure.
+
+Credential Authority state upgrades preserve authentication semantics: an existing state file is MAC-verified in its exact stored legacy shape before the new derivation journal default is applied. A modified legacy payload still fails integrity verification.
 
 Hardware mTLS remains separate. The current Node TLS path requires software private-key bytes, so CIEAV still rejects pretending an opaque TPM/Secure-Enclave/PKCS#11 key can be used as hardware mTLS. A provider-native TLS implementation is required before that claim can be enabled.
 
 ## CI and release qualification
 
-The cross-platform GitHub matrix executes provider gates on Ubuntu, macOS and Windows:
+The cross-platform GitHub matrix executes provider and lifecycle gates on Ubuntu, macOS and Windows:
 
 - Windows TPM/CNG source/build/probe boundary;
 - Windows TPM→MAA collector and exact P-256 other-key verifier invariants;
+- public-address-pinned MAA metadata/JWKS retrieval;
 - macOS Secure Enclave Swift compilation plus fail-closed runtime probe;
 - Linux PKCS #11 C++ compilation plus fail-closed unconfigured probe;
+- Gateway-only credential/hardware lifecycle and no raw verified-evidence import;
 - full Agent Kernel and trusted-adapter regressions.
+
+The Node dependency gate rejects high/critical production dependency advisories and critical advisories anywhere in the test/build graph.
 
 A green hosted matrix proves deterministic source/build wiring and fail-closed behavior. Release qualification additionally requires representative physical hardware:
 
 1. Windows: physical TPM, enrolled AIK, configured MAA provider/policy and P-256 `other_key` attestation.
 2. macOS: a Secure-Enclave-capable Mac executing create → local evidence → opaque sign → independent JWS verification.
 3. Linux: each approved PKCS #11 TPM/HSM module executing describe → deployment-specific attestation → opaque sign → independent JWS verification.
+
+The root state-integrity secret is still supplied to the local authority as a strong process secret and domain-separated into subsystem keys. Hardware signing does not automatically seal that root secret to TPM/Secure Enclave/HSM. OS-backed root-secret sealing remains a separate release-hardening track.
 
 No release documentation should collapse these physical qualification requirements into a hosted-runner claim.
