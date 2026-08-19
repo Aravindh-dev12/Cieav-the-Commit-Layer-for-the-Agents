@@ -5,7 +5,9 @@ const DigestSchema=z.string().regex(/^[0-9a-f]{64}$/);
 export const HardwareProviderSchema=KeyProviderSchema.exclude(["LOCAL_WRAPPED_P256","SPIFFE"]);
 export type HardwareProvider=z.infer<typeof HardwareProviderSchema>;
 export const ProviderPlatformSchema=z.enum(["WINDOWS","MACOS","LINUX","ANY"]);
+export type ProviderPlatform=z.infer<typeof ProviderPlatformSchema>;
 export const ProviderCapabilitySchema=z.enum(["CREATE_P256","SIGN_ES256","MTLS_CLIENT_AUTH","ATTEST_KEY"]);
+export type ProviderCapability=z.infer<typeof ProviderCapabilitySchema>;
 export const ProviderBridgeManifestSchema=z.object({
   id:z.string().regex(/^[A-Za-z0-9._-]{1,160}$/),version:z.literal(1),provider:HardwareProviderSchema,platform:ProviderPlatformSchema,
   executablePath:z.string().min(1).max(4096),executableSha256:DigestSchema,protocol:z.literal("CIEAV_KEY_PROVIDER_V1"),
