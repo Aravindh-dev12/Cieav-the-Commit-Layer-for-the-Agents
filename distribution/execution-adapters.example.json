@@ -47,5 +47,23 @@
       "maxRequestBytes": 524288,
       "maxResponseBytes": 8388608
     }
+  ],
+  "a2aTask": [
+    {
+      "toolId": "cieav.example.a2a.delegate",
+      "agentId": "example-remote-agent",
+      "endpoint": "https://agent.example.com/rpc",
+      "version": "1.0",
+      "allowLoopback": false,
+      "staticHeaders": {},
+      "credential": {"kind": "BEARER_ENV", "env": "CIEAV_EXAMPLE_A2A_TOKEN"},
+      "connectTimeoutMs": 8000,
+      "timeoutMs": 15000,
+      "pollIntervalMs": 250,
+      "maxTaskPolls": 20,
+      "maxArgumentBytes": 262144,
+      "maxRequestBytes": 524288,
+      "maxResponseBytes": 1048576
+    }
   ]
 }
