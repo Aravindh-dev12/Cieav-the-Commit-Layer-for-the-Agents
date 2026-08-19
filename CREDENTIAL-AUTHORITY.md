@@ -165,15 +165,23 @@ Credential Authority state encryption/MAC keys are domain-separated from the loc
 
 Production secure-storage policy rejects an unencrypted backend unless an explicit diagnostic override is supplied. Existing private-file secrets are migrated into the encrypted backend with read-back verification before the legacy file is removed.
 
-The Gateway strips JWT, receipt-signing and Gateway bearer credentials from the semantic child's inherited environment. Managed production starts the dedicated `managed-entry.js`, passes those three values once through a bounded anonymous stdin pipe, closes the pipe immediately, and never includes them in process arguments. The managed entry refuses TTY/no-pipe startup, rejects malformed, oversized, weak, duplicated or unexpected bootstrap data, consumes the bootstrap before importing the server, and fails if equivalent environment credentials are present. The browser process receives none of these roots/capabilities. The Node local authority then domain-separates the receipt root into Credential Authority, hardware-registry, execution-fabric, control-plane and other state secrets.
+The Gateway strips JWT, receipt-signing and Gateway credentials from the semantic child's inherited environment. Managed production starts the dedicated `managed-entry.js` and sends an exact four-field bootstrap over a bounded anonymous stdin pipe: JWT root, receipt-signing root, the durable privileged Gateway bearer, and a distinct process-scoped semantic-router capability. The Python Gateway writes through a mutable buffer and overwrites that serialized buffer immediately after delivery; the managed Node entry independently caps input size, rejects TTY/no-pipe startup, overwrites received/concatenated byte buffers, rejects malformed, weak, duplicated, reused-scope or unexpected bootstrap data, consumes the bootstrap before importing the server, and fails if equivalent environment credentials are present.
 
-This removes the previous process-environment exposure, but it is not a claim of full same-user process isolation or direct TPM/Secure-Enclave/HSM sealing. The Gateway and semantic process still hold authority material in memory. Stronger hardware sealing, rotation, provider-native ACLs and a separately privileged signer/credential broker remain additional hardening tracks.
+The privileged Gateway bearer is needed only to validate inbound trusted Gateway administration in Node. `loadConfig()` converts it to a fixed SHA-256 verifier and does not return a raw `gatewayToken` property; inbound verification hashes the presented bearer and uses constant-time digest comparison. Hugging Face semantic routing does not receive that admin bearer. It retains only the separate random semantic-router capability, and the Python control plane rejects that capability on privileged pause/resume/dashboard/control routes. Legacy/development environment mode remains compatibility-oriented; the stronger scope split is mandatory in managed production.
+
+The browser process receives none of the JWT, receipt-signing, privileged Gateway or semantic-router capabilities. The Node local authority domain-separates the receipt root into Credential Authority, hardware-registry, execution-fabric, control-plane and other state secrets.
+
+This removes the previous process-environment exposure and narrows the long-lived Gateway capability available to Node, but it is not a claim of full same-user process isolation or direct TPM/Secure-Enclave/HSM sealing. The Gateway and semantic process still hold cryptographic material required for their duties in memory. Stronger hardware sealing, rotation, provider-native ACLs and a separately privileged signer/credential broker remain additional hardening tracks.
 
 ## Dependency/release security
 
-CI runs production and full dependency audits. High/critical production advisories fail the gate, and critical advisories in the broader Node build/test graph fail as well. The test stack has been moved to the secure Vitest 4 line on the repository's Node 22 baseline and currently installs with zero reported npm vulnerabilities in the qualification workflow.
+Hosted CI runs production and full dependency audits. High/critical production advisories fail the gate, and critical advisories in the broader Node build/test graph fail as well. The test stack has been moved to the secure Vitest 4 line on the repository's Node 22 baseline and recent hosted qualification installs have reported zero npm vulnerabilities.
 
-The release matrix also executes the managed-secret bootstrap gate on Ubuntu, macOS and Windows. It compiles the managed API, runs one-shot secret-container tests, and verifies that empty/weak bootstraps fail closed rather than falling back to inherited credentials.
+The release matrix also executes the managed-secret bootstrap gate on Ubuntu, macOS and Windows. It compiles the managed API, runs one-shot secret-container, Gateway-verifier and configuration-retention tests, and verifies that empty/weak bootstraps fail closed rather than falling back to inherited credentials. Hosted CI uses per-ref concurrency so superseded validation runs do not replace evidence for the newest commit.
+
+A manual `physical-hardware-qualification` workflow is defined for explicitly labeled self-hosted Windows, macOS and Linux release machines. It is restricted to `main` or `cieav-v*` release refs, does not persist checkout credentials, scopes sensitive release credentials to the actual qualification step, and scrubs the checked-out worktree after the job. The Windows lane performs real TPM challenge signing plus live MAA verification of the exact P-256 consequence key; the macOS lane performs Secure Enclave challenge signing; the Linux lane requires signed deployment-verifier evidence bound to the exact PKCS #11 provider reference and public-key fingerprint.
+
+Physical qualification is intentionally blocked until a generated `package-lock.json` is committed. The Windows lane uses `npm ci`; all lanes first require the lockfile. The lockfile must be produced by npm resolution and reviewed/committed—CIEAV does not treat a hand-authored dependency lock as release evidence. No successful self-hosted physical qualification run is claimed merely because the workflow exists.
 
 ## Standards interoperability
 
@@ -181,15 +189,16 @@ CIEAV composes with OAuth token exchange, DPoP, mTLS, Rich Authorization Request
 
 ## Remaining credential depth
 
-1. provider-native hardware mTLS;
-2. deployment-specific Linux TPM/HSM attestation verifiers and concrete external KMS/HSM verifiers;
-3. stronger hardware-backed sealing/rotation of the local authority root and reduced in-memory lifetime;
-4. stronger process isolation for the Credential Authority / hardware signer broker plus provider-native ACLs;
-5. SPIFFE workload identity and workload token exchange;
-6. HTTP Message Signatures and provider-specific request signers;
-7. separately pinned OAuth protected-resource / authorization-server discovery;
-8. RAR projection from Consequence Contracts;
-9. Transaction Token / WIMSE projection for downstream call-chain context;
-10. OAuth-aware MCP Streamable HTTP and A2A adapters using the same Credential Authority Plane.
+1. commit and audit a generated `package-lock.json` so physical release qualification can run reproducibly;
+2. execute representative self-hosted physical qualification for Windows TPM/MAA, macOS Secure Enclave and approved Linux TPM/HSM deployments;
+3. provider-native hardware mTLS;
+4. stronger hardware-backed sealing/rotation of the local authority root and reduced in-memory lifetime;
+5. stronger process isolation for the Credential Authority / hardware signer broker plus provider-native ACLs;
+6. SPIFFE workload identity and workload token exchange;
+7. HTTP Message Signatures and provider-specific request signers;
+8. separately pinned OAuth protected-resource / authorization-server discovery;
+9. RAR projection from Consequence Contracts;
+10. Transaction Token / WIMSE projection for downstream call-chain context;
+11. OAuth-aware MCP Streamable HTTP and A2A adapters using the same Credential Authority Plane.
 
 Production architecture/hardening for each row is claimed only after executable implementation and qualification. Physical-device and provider-specific external release qualification remains required.
