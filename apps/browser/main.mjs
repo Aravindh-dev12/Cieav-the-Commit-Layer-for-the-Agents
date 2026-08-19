@@ -16,6 +16,7 @@ if(CONTROL_TOKEN.length<43){CONTROL_TOKEN=crypto.randomBytes(48).toString("base6
 const CORE_INVARIANTS=[
   "CIEAV_REQUIRE_PRODUCTION_API","refusing standalone/dev","verifyAdapterProposal({",'m.kind==="UNDO_READY"',"liveAdapter(u)",'current.outcome?.status!=="OBSERVED_SUCCESS"',
   'browserControlTransport:browserTransport',"Target.setDiscoverTargets","Target.attachToTarget","flatten:true",
+  "attaching=new Map","if(inflight)return inflight",'await openTarget("about:blank")',"failed to establish a protected startup target","CIEAV browser target attachment failed",
   'if(AUTO&&req.method==="POST"&&u.pathname==="/api/test/eval"','if(AUTO&&req.method==="POST"&&u.pathname==="/api/test/click"',
   "if(!controlAuth.authorized(req))return send(401",'u.pathname==="/api/bootstrap"',
   "async function persistOutcome","p.finalOutcome","p.finalizing","p.persistenceFailures","await persistOutcome(receiptId,value)","pendingOutcomes.delete(receiptId)","Promise.allSettled(finalizers)","await attention.flush()",
