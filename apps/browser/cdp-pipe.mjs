@@ -1,7 +1,7 @@
 const MAX_MESSAGE_BYTES=32*1024*1024;
 
 export class CDPPipe{
-  constructor(readable,writable,{timeoutMs=12_000,firstCommandTimeoutMs=15_000}={}){
+  constructor(readable,writable,{timeoutMs=12_000,firstCommandTimeoutMs=30_000}={}){
     if(!readable||typeof readable.on!=="function"||!writable||typeof writable.write!=="function")throw new Error("CDP pipe requires readable and writable streams");
     if(!Number.isFinite(timeoutMs)||timeoutMs<=0||!Number.isFinite(firstCommandTimeoutMs)||firstCommandTimeoutMs<timeoutMs)throw new Error("CDP pipe timeout policy is invalid");
     this.readable=readable;this.writable=writable;this.timeoutMs=timeoutMs;this.firstCommandTimeoutMs=firstCommandTimeoutMs;this.nextId=0;this.pending=new Map();this.listeners=new Set();this.buffer=Buffer.alloc(0);this.closed=false;
