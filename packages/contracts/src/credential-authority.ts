@@ -15,7 +15,8 @@ export type KeyHandle=z.infer<typeof KeyHandleSchema>;
 export const OAuthGrantTypeSchema=z.enum(["CLIENT_CREDENTIALS","TOKEN_EXCHANGE"]);
 export const SenderConstraintSchema=z.enum(["NONE","DPOP","MTLS"]);
 export const CredentialDerivationContractSchema=z.object({
-  id:z.string().uuid(),version:z.literal(1),proposalId:z.string().uuid(),taskId:z.string().uuid(),intentId:z.string().uuid(),executionTicketId:z.string().uuid(),toolId:z.string().min(1).max(240),
+  id:z.string().uuid(),version:z.literal(1),proposalId:z.string().uuid(),taskId:z.string().uuid(),intentId:z.string().uuid(),executionTicketId:z.string().uuid(),realityBoundCommitId:z.string().uuid(),credentialLeaseId:z.string().uuid(),
+  toolId:z.string().min(1).max(240),operation:z.string().min(1).max(240),routeDigest:DigestSchema,normalizedArgumentsDigest:DigestSchema,
   profileId:z.string().min(1).max(160),grantType:OAuthGrantTypeSchema,resource:z.string().min(1).max(2000),audience:z.string().min(1).max(2000),scopes:z.array(z.string().min(1).max(240)).max(100),
   senderConstraint:SenderConstraintSchema,keyHandleId:z.string().uuid().optional(),maxTokenLifetimeSeconds:z.number().int().min(5).max(3600),maxUses:z.literal(1),risk:RiskSchema,
   authorizationDetailsDigest:DigestSchema.optional(),issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),bindingDigest:DigestSchema
@@ -23,8 +24,8 @@ export const CredentialDerivationContractSchema=z.object({
 export type CredentialDerivationContract=z.infer<typeof CredentialDerivationContractSchema>;
 
 export const CredentialDerivationReceiptSchema=z.object({
-  id:z.string().uuid(),version:z.literal(1),contractId:z.string().uuid(),toolId:z.string().min(1).max(240),profileId:z.string().min(1).max(160),grantType:OAuthGrantTypeSchema,
+  id:z.string().uuid(),version:z.literal(1),contractId:z.string().uuid(),proposalId:z.string().uuid(),executionTicketId:z.string().uuid(),toolId:z.string().min(1).max(240),profileId:z.string().min(1).max(160),grantType:OAuthGrantTypeSchema,
   tokenEndpointDigest:DigestSchema,resourceDigest:DigestSchema,scopeDigest:DigestSchema,senderConstraint:SenderConstraintSchema,keyHandleId:z.string().uuid().optional(),
-  tokenType:z.enum(["Bearer","DPoP"]),accessTokenDigest:DigestSchema,requestDigest:DigestSchema,derivedAt:z.string().datetime(),expiresAt:z.string().datetime()
+  tokenType:z.enum(["Bearer","DPoP"]),accessTokenDigest:DigestSchema,requestDigest:DigestSchema,normalizedArgumentsDigest:DigestSchema,derivedAt:z.string().datetime(),expiresAt:z.string().datetime()
 }).strict();
 export type CredentialDerivationReceipt=z.infer<typeof CredentialDerivationReceiptSchema>;
