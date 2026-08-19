@@ -53,15 +53,28 @@ def verify_release_boundaries(root: Path) -> None:
         subprocess.run([node,"--check",str(file)],cwd=root,env=env,check=True)
 
 
-def bundle_mcp(root: Path) -> Path:
-    source=root/"apps/mcp/src/index.ts";output=root/"apps/mcp/dist/index.js"
-    if not source.exists():raise SystemExit("Missing CIEAV MCP source")
+def npx_path() -> str:
     npx=shutil.which("npx.cmd" if platform.system()=="Windows" else "npx") or shutil.which("npx")
-    if not npx:raise SystemExit("npx is required only in the release-build environment to bundle the CIEAV MCP bridge")
+    if not npx:raise SystemExit("npx is required only in the release-build environment to bundle CIEAV JavaScript runtimes")
+    return npx
+
+
+def bundle_entry(root:Path,source:Path,output:Path,label:str) -> Path:
+    if not source.exists():raise SystemExit(f"Missing CIEAV {label} source: {source.relative_to(root)}")
     output.parent.mkdir(parents=True,exist_ok=True)
-    subprocess.run([npx,"esbuild",str(source),"--bundle","--platform=node","--format=esm","--target=node22",f"--outfile={output}"],cwd=root,check=True)
-    if not output.exists():raise SystemExit("CIEAV MCP bundle was not produced")
+    subprocess.run([npx_path(),"esbuild",str(source),"--bundle","--platform=node","--format=esm","--target=node22",f"--outfile={output}"],cwd=root,check=True)
+    if not output.exists():raise SystemExit(f"CIEAV {label} bundle was not produced")
+    subprocess.run([shutil.which("node") or "node","--check",str(output)],cwd=root,check=True)
     return output
+
+
+def bundle_mcp(root: Path) -> Path:
+    return bundle_entry(root,root/"apps/mcp/src/index.ts",root/"apps/mcp/dist/index.js","MCP bridge")
+
+
+def bundle_api(root: Path) -> Path:
+    # Bundle the entire local-authority dependency graph so consumers never need node_modules.
+    return bundle_entry(root,root/"apps/api/src/server.ts",root/"apps/api/dist/server.bundle.js","local API")
 
 
 def a2a_source(root:Path)->Path:
@@ -91,8 +104,7 @@ def main() -> None:
     if not cieav_exe.exists(): raise SystemExit(f"Missing CIEAV executable: {cieav_exe}")
     if not node_exe.exists(): raise SystemExit(f"Missing Node executable: {node_exe}")
     if key.startswith("windows-") and (cdp_win_bridge is None or not cdp_win_bridge.exists()): raise SystemExit("Windows release requires --cdp-win-bridge with the signed native CDP bridge")
-    if not (root / "apps/api/dist/server.js").exists(): raise SystemExit("Missing bundled apps/api/dist/server.js")
-    mcp_bundle=bundle_mcp(root);a2a=a2a_source(root)
+    api_bundle=bundle_api(root);mcp_bundle=bundle_mcp(root);a2a=a2a_source(root)
 
     with tempfile.TemporaryDirectory() as td:
         stage = Path(td) / "cieav-runtime"
@@ -104,16 +116,17 @@ def main() -> None:
             for p in (stage / "bin" / exe_name, stage / "runtime" / node_name): p.chmod(p.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         copy_tree(root / "apps/browser", stage / "apps/browser")
         if cdp_win_bridge is not None: shutil.copy2(cdp_win_bridge, stage / "apps/browser/cdp-win-bridge.exe")
-        shutil.copy2(root / "apps/api/dist/server.js", stage / "apps/api/dist/server.js");shutil.copy2(mcp_bundle,stage/"apps/mcp/dist/index.js");shutil.copy2(a2a,stage/"apps/a2a/dist/index.mjs")
-        for name in ("package.json", "PRIVACY.md", "SECURITY.md", "README.md", "OPENCLAW.md", "INTENT-TO-REALITY.md"):
+        shutil.copy2(api_bundle, stage / "apps/api/dist/server.js");shutil.copy2(mcp_bundle,stage/"apps/mcp/dist/index.js");shutil.copy2(a2a,stage/"apps/a2a/dist/index.mjs")
+        for name in ("package.json", "PRIVACY.md", "SECURITY.md", "README.md", "OPENCLAW.md", "INTENT-TO-REALITY.md", "EXECUTION-FABRIC.md"):
             src = root / name
             if src.exists(): shutil.copy2(src, stage / name)
         runtime_meta = {
-            "brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":7,
+            "brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":8,
             "legacyBrand":"LATCH","privateCdpTransport":"windows-handle-pipe" if key.startswith("windows-") else "posix-fd-pipe",
-            "agentProtocols":{"mcp":"2026-07-28","a2a":"1.0","openclaw":"outbound-mcp"},"a2aExposure":"loopback-authenticated",
+            "agentProtocols":{"mcp":"2026-07-28","a2a":"1.0","openclaw":"outbound-mcp","executionFabric":"intent-reality-v2"},"a2aExposure":"loopback-authenticated",
             "platformBoundaryVerified":True,"releaseBoundaryVerified":True,"canonicalNamespaceVerified":True,"controlCenterRealityBoundaryVerified":True,
-            "openClawConsumerBoundaryVerified":True,"consumerPackageManagerRequired":False,"bundledNode":True,"bundledMcpDependencies":True
+            "openClawConsumerBoundaryVerified":True,"consumerPackageManagerRequired":False,"bundledNode":True,"bundledMcpDependencies":True,"bundledLocalApiDependencies":True,
+            "executionFabricIncluded":True,"formalAuthorizationIncluded":True,"realityBoundExecutionIncluded":True
         }
         (stage / "runtime.json").write_text(json.dumps(runtime_meta, indent=2) + "\n", "utf-8")
         archive = out / f"cieav-runtime-{args.version}-{key}.zip"
@@ -122,7 +135,7 @@ def main() -> None:
                 if file.is_dir(): continue
                 arc = Path("cieav-runtime") / file.relative_to(stage);info = zipfile.ZipInfo.from_file(file, arc.as_posix()); info.date_time=(2026,1,1,0,0,0)
                 with file.open("rb") as f: zf.writestr(info, f.read(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
-    metadata={"brand":"CIEAV","platform":key,"filename":archive.name,"sha256":sha256(archive),"size":archive.stat().st_size,"version":args.version,"platformBoundaryVerified":True,"releaseBoundaryVerified":True,"openClawConsumerBoundaryVerified":True,"consumerPackageManagerRequired":False,"bundleFormat":7}
+    metadata={"brand":"CIEAV","platform":key,"filename":archive.name,"sha256":sha256(archive),"size":archive.stat().st_size,"version":args.version,"platformBoundaryVerified":True,"releaseBoundaryVerified":True,"openClawConsumerBoundaryVerified":True,"consumerPackageManagerRequired":False,"bundledLocalApiDependencies":True,"executionFabricIncluded":True,"bundleFormat":8}
     (out / f"metadata-{key}.json").write_text(json.dumps(metadata, indent=2) + "\n", "utf-8");print(json.dumps(metadata))
 
 
