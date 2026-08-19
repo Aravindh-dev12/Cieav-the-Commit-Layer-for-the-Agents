@@ -8,9 +8,9 @@ const tool={id:"gmail.send",displayName:"Gmail Send",protocol:"MCP" as const,ope
 const proposal={id:ticket.proposalId,version:1 as const,taskId:ticket.taskId,intentId:ticket.intentId,scopeDeviceId:"dev_test_12345678",subjectId:"agent-1",identityAttestationId:"77777777-7777-4777-8777-777777777777",credentialLeaseId:ticket.credentialLeaseId,toolId:tool.id,protocol:"MCP" as const,operation:"send",target:"mailto:customer@example.com",risk:"HIGH" as const,normalizedArgumentsDigest:"c".repeat(64),semanticEffect:{kind:"COMMUNICATE" as const,target:"customer@example.com",attributes:{}},realityWitness:{version:1 as const,observedAt:"2026-08-19T00:00:00.000Z",facts:[{key:"message",valueDigest:"d".repeat(64),source:"provider",observedAt:"2026-08-19T00:00:00.000Z"}],digest:"e".repeat(64)},expectedPostStateDigest:"f".repeat(64),proofObligationDigest:"1".repeat(64),attenuationWitnessIds:[],createdAt:"2026-08-19T00:00:00.000Z"} satisfies ExecutionProposal;
 const args={to:"customer@example.com"};
 
-function fabric(){
+function fabric(sequence:string[]=[]){
   const inspectTicket=vi.fn(async()=>({ticket,proposal,tool}));
-  const consumeTicket=vi.fn(async()=>({ticket:{...ticket,status:"CONSUMED" as const,consumedAt:"2026-08-19T00:00:01.000Z"},proposal,tool,normalizedArguments:args}));
+  const consumeTicket=vi.fn(async()=>{sequence.push("consume");return{ticket:{...ticket,status:"CONSUMED" as const,consumedAt:"2026-08-19T00:00:01.000Z"},proposal,tool,normalizedArguments:args}});
   const recordExecutionAttempt=vi.fn(async()=>({audit:{}}));
   return{store:{inspectTicket,consumeTicket,recordExecutionAttempt} as unknown as CieavExecutionFabricStore,inspectTicket,consumeTicket,recordExecutionAttempt};
 }
@@ -18,7 +18,7 @@ function fabric(){
 describe("CIEAV mandatory execution router",()=>{
   it("checks adapter availability before consuming one-use authority",async()=>{const f=fabric(),router=new CieavExecutionRouter(f.store);await expect(router.dispatch(ticket.id,args)).rejects.toThrow("execution_adapter_unavailable:MCP");expect(f.inspectTicket).toHaveBeenCalledOnce();expect(f.consumeTicket).not.toHaveBeenCalled()});
 
-  it("consumes exact arguments before invoking the adapter",async()=>{const f=fabric(),execute=vi.fn(async()=>({attemptedAt:"2026-08-19T00:00:02.000Z",transport:"ACCEPTED" as const,evidenceSeeds:[{kind:"provider",source:"gmail",summary:"Provider accepted request"}]})),adapter:CieavExecutionAdapter={protocol:"MCP",execute},router=new CieavExecutionRouter(f.store,[adapter]);const out=await router.dispatch(ticket.id,args);expect(f.consumeTicket).toHaveBeenCalledWith(ticket.id,args);expect(execute).toHaveBeenCalledAfter(f.consumeTicket as any);expect(out.result.transport).toBe("ACCEPTED");expect(f.recordExecutionAttempt).toHaveBeenCalledWith(ticket.id,"ACCEPTED",expect.any(String),expect.any(Object))});
+  it("consumes exact arguments before invoking the adapter",async()=>{const sequence:string[]=[],f=fabric(sequence),execute=vi.fn(async()=>{sequence.push("execute");return{attemptedAt:"2026-08-19T00:00:02.000Z",transport:"ACCEPTED" as const,evidenceSeeds:[{kind:"provider",source:"gmail",summary:"Provider accepted request"}]}}),adapter:CieavExecutionAdapter={protocol:"MCP",execute},router=new CieavExecutionRouter(f.store,[adapter]);const out=await router.dispatch(ticket.id,args);expect(f.consumeTicket).toHaveBeenCalledWith(ticket.id,args);expect(sequence).toEqual(["consume","execute"]);expect(out.result.transport).toBe("ACCEPTED");expect(f.recordExecutionAttempt).toHaveBeenCalledWith(ticket.id,"ACCEPTED",expect.any(String),expect.any(Object))});
 
   it("records UNKNOWN when an adapter throws after authority is consumed",async()=>{const f=fabric(),adapter:CieavExecutionAdapter={protocol:"MCP",execute:async()=>{throw new Error("socket closed after write")}},router=new CieavExecutionRouter(f.store,[adapter]);await expect(router.dispatch(ticket.id,args)).rejects.toThrow("execution_adapter_outcome_unknown");expect(f.consumeTicket).toHaveBeenCalledOnce();expect(f.recordExecutionAttempt).toHaveBeenCalledWith(ticket.id,"UNKNOWN",expect.stringContaining("quarantined"),expect.any(Object))});
 });
