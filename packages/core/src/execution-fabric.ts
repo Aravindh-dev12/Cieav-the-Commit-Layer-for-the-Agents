@@ -7,10 +7,12 @@ export const digest=(value:unknown)=>crypto.createHash("sha256").update(canonica
 const matches=(items:string[],value:string)=>items.includes("*")||items.includes(value);
 const targetMatches=(prefixes:string[],target?:string)=>!prefixes.length||Boolean(target&&prefixes.some(p=>p==="*"||target.startsWith(p)));
 const edgeMatches=(edge:PermissionGraphEdge,proposal:ExecutionProposal)=>
-  matches(edge.subjectIds,proposal.subjectId)&&edge.intentIds.includes(proposal.intentId)&&matches(edge.toolIds,proposal.toolId)&&matches(edge.operations,proposal.operation)&&targetMatches(edge.targetPrefixes,proposal.target)&&riskRank[proposal.semanticEffect.kind==="READ"?"LOW":"MEDIUM"]<=riskRank[edge.maxRisk];
+  matches(edge.subjectIds,proposal.subjectId)&&edge.intentIds.includes(proposal.intentId)&&matches(edge.toolIds,proposal.toolId)&&matches(edge.operations,proposal.operation)&&targetMatches(edge.targetPrefixes,proposal.target)&&riskRank[proposal.risk]<=riskRank[edge.maxRisk];
 
+export function permissionGraphDigest(graph:Omit<FormalPermissionGraph,"digest">){return digest(graph)}
 export function verifyPermissionGraph(graph:FormalPermissionGraph):boolean{
-  return graph.defaultDecision==="DENY"&&graph.digest===digest({version:graph.version,scopeDeviceId:graph.scopeDeviceId,rootIntentId:graph.rootIntentId,defaultDecision:graph.defaultDecision,edges:graph.edges,createdAt:graph.createdAt,updatedAt:graph.updatedAt});
+  const {digest:actual,...unsigned}=graph;
+  return graph.defaultDecision==="DENY"&&actual===permissionGraphDigest(unsigned);
 }
 
 export function evaluateFormalAuthorization(graph:FormalPermissionGraph,proposal:ExecutionProposal):FormalAuthorizationDecision{
@@ -24,4 +26,4 @@ export function evaluateFormalAuthorization(graph:FormalPermissionGraph,proposal
   return{decision,graphDigest:graph.digest,intentId:proposal.intentId,subjectId:proposal.subjectId,toolId:proposal.toolId,operation:proposal.operation,matchedEdgeIds:decisive.map(e=>e.id),evidenceRefs:[...new Set(decisive.flatMap(e=>e.evidenceRefs))],reasons:decisive.length?decisive.map(e=>e.reason):["Deny-by-default: no permission edge authorizes this execution."],evaluatedAt:now,engine:"CIEAV_FORMAL_AUTH_V1"};
 }
 
-export function executionBindingDigest(proposal:ExecutionProposal,graphDigest:string){return digest({version:1,proposalId:proposal.id,taskId:proposal.taskId,intentId:proposal.intentId,scopeDeviceId:proposal.scopeDeviceId,subjectId:proposal.subjectId,identityAttestationId:proposal.identityAttestationId,credentialLeaseId:proposal.credentialLeaseId,toolId:proposal.toolId,protocol:proposal.protocol,operation:proposal.operation,target:proposal.target??null,normalizedArgumentsDigest:proposal.normalizedArgumentsDigest,semanticEffect:proposal.semanticEffect,realityDigest:proposal.realityWitness.digest,expectedPostStateDigest:proposal.expectedPostStateDigest,proofObligationDigest:proposal.proofObligationDigest,attenuationWitnessIds:proposal.attenuationWitnessIds,graphDigest});}
+export function executionBindingDigest(proposal:ExecutionProposal,graphDigest:string){return digest({version:1,proposalId:proposal.id,taskId:proposal.taskId,intentId:proposal.intentId,scopeDeviceId:proposal.scopeDeviceId,subjectId:proposal.subjectId,identityAttestationId:proposal.identityAttestationId,credentialLeaseId:proposal.credentialLeaseId,toolId:proposal.toolId,protocol:proposal.protocol,operation:proposal.operation,target:proposal.target??null,risk:proposal.risk,normalizedArgumentsDigest:proposal.normalizedArgumentsDigest,semanticEffect:proposal.semanticEffect,realityDigest:proposal.realityWitness.digest,expectedPostStateDigest:proposal.expectedPostStateDigest,proofObligationDigest:proposal.proofObligationDigest,attenuationWitnessIds:proposal.attenuationWitnessIds,graphDigest});}
