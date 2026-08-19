@@ -21,7 +21,7 @@ expectTokens("apps/api/src/trusted-http-adapter.test.ts",["injects credentials l
 expectTokens("apps/api/src/trusted-mcp-adapter.test.ts",["exact allowlisted downstream MCP tool","MCP isError","tool-name substitution","executable whose digest","oversized normalized arguments"]);
 expectTokens("apps/api/src/trusted-mcp-http-adapter.test.ts",["pinned custom fetch","MCP isError","injects configured credentials locally","does not follow redirects","endpoint or tool substitution","oversized normalized arguments"]);
 expectTokens("apps/api/src/trusted-a2a-adapter.test.ts",["forces SendMessage ROLE_USER","polls GetTask","failed A2A task as UNKNOWN","protocol error after dispatch as UNKNOWN","injects A2A credentials locally","does not follow redirects"]);
-expectTokens("CREDENTIAL-AUTHORITY.md",["Credentials enable execution","Access-token non-persistence","CredentialDerivationReceipt","OAuth-bound HTTP","MTLS","Transaction Token"]);
+expectTokens("CREDENTIAL-AUTHORITY.md",["execution mechanism, never as authority","access-token non-persistence","CredentialDerivationReceipt","OAuth-bound HTTP","MTLS","Transaction Token"]);
 expectTokens("distribution/execution-adapters.example.json",["oauthHttp","mcpStdio","mcpHttp","a2aTask","senderConstraint","DPOP","commandSha256","downstreamToolName","envBindings"]);
 const npm=process.platform==="win32"?"npm.cmd":"npm";
 function run(args){const executable=process.platform==="win32"?(process.env.ComSpec||"cmd.exe"):npm,finalArgs=process.platform==="win32"?["/d","/s","/c",`${npm} ${args.join(" ")}`]:args,result=spawnSync(executable,finalArgs,{cwd:ROOT,stdio:"inherit",shell:false});if(result.error)throw result.error;if(result.status!==0)fail(`${npm} ${args.join(" ")} exited ${result.status}`)}
