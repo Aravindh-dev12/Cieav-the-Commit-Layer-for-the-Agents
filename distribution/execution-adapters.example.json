@@ -29,6 +29,7 @@
         "resource": "https://api.example.com/",
         "scopes": ["actions.write"],
         "senderConstraint": "DPOP",
+        "keySource": "HARDWARE",
         "keyHandleId": "00000000-0000-4000-8000-000000000001",
         "maxTokenLifetimeSeconds": 300
       },
