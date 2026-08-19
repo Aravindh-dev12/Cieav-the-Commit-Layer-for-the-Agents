@@ -7,7 +7,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const read=p=>readFileSync(path.join(ROOT,p),"utf8"),fail=m=>{console.error(`CIEAV trusted execution adapter gate FAIL: ${m}`);process.exit(2)};
 function expectTokens(file,tokens){const body=read(file);for(const token of tokens)if(!body.includes(token))fail(`${file} missing invariant: ${token}`)}
 expectTokens("apps/api/package.json",["@modelcontextprotocol/client","@modelcontextprotocol/server"]);
-expectTokens("apps/api/src/execution-router.ts",["loadTrustedHttpFamilyAdaptersSync","loadTrustedMcpStdioAdaptersSync","await adapter.preflight?.(inspected)","consumeMandate","consumeTicket"]);
+expectTokens("apps/api/src/execution-router.ts",["loadTrustedHttpFamilyAdaptersSync","loadTrustedMcpStdioAdaptersSync","adapter.preflight?.({...inspected,normalizedArguments})","consumeMandate","consumeTicket"]);
 expectTokens("apps/api/src/trusted-http-adapter.ts",["execution_adapter_dns_contains_non_public_address","execution_adapter_https_required","redirectBlocked","responseDigest","CIEAV_INJECTED"]);
 expectTokens("apps/api/src/trusted-mcp-adapter.ts",["TrustedMcpStdioAdapter","StdioClientTransport","commandSha256","execution_mcp_command_digest_mismatch","execution_mcp_downstream_ref_mismatch","forbiddenEnv","client.listTools()","client.callTool","transport:isError?\"UNKNOWN\":\"ACCEPTED\"","mcpStdioDownstreamRef"]);
 expectTokens("apps/api/src/trusted-http-adapter.test.ts",["injects credentials locally","blocks redirects rather than following them","oversized responses"]);
