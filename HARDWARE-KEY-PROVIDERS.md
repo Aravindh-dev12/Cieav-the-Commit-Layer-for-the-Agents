@@ -28,58 +28,46 @@ hardware key registration usable
 
 ## Provider bridge
 
-A `ProviderBridgeManifest` binds CIEAV to an exact native provider bridge executable:
-
-- absolute executable path;
-- SHA-256 executable digest;
-- provider kind and operating-system scope;
-- protocol version `CIEAV_KEY_PROVIDER_V1`;
-- explicit capabilities;
-- allowed CIEAV key purposes;
-- provider locator;
-- enabled/expiry state.
-
-CIEAV verifies the bridge digest when the manifest is installed **and again whenever a hardware key is used**. Replacing a previously approved helper binary therefore invalidates the key path.
+A `ProviderBridgeManifest` binds CIEAV to an exact native provider bridge executable by absolute path, SHA-256 digest, provider/platform, protocol version, explicit capabilities, allowed purposes, provider locator, and enabled/expiry state. CIEAV verifies the executable digest when the manifest is installed and again whenever a registered hardware key is used.
 
 The bridge manifest is not itself evidence that a key is hardware-backed. It proves only which native integration code CIEAV is willing to trust.
 
 ## Key attestation
 
-`HardwareKeyAttestation` binds evidence to:
-
-- one provider bridge manifest;
-- one provider family;
-- one public-key fingerprint;
-- one evidence digest;
-- one normalized claims digest;
-- a verifier identity and verification time;
-- optional expiration.
-
-Only `verification: VERIFIED` is accepted for hardware-key registration. `UNVERIFIED` and `REJECTED` evidence cannot produce `hardwareBacked: true`.
-
-The current registry deliberately stores **evidence digests and claims digests**, not arbitrary raw attestation blobs. Platform-specific verifiers can retain or reference raw evidence separately while the core preserves the binding needed for authorization and audit.
+`HardwareKeyAttestation` binds evidence to one provider bridge, provider family, public-key fingerprint, evidence digest, normalized claims digest, verifier identity, verification time and optional expiration. Only `verification: VERIFIED` can back a hardware registration.
 
 ## Windows TPM / CNG
 
-Windows exposes key-storage providers through CNG. The **Microsoft Platform Crypto Provider** is the TPM-backed key storage provider. A Windows native bridge should use CNG/NCrypt handles rather than exporting private key bytes, and should collect key-attestation evidence before CIEAV registers the key as hardware-backed.
+The repository now contains the first concrete native provider bridge at `native/windows-tpm-cng`.
 
-Target provider mapping:
+It explicitly opens `Microsoft Platform Crypto Provider` through NCrypt and requires the provider implementation flags to report hardware and not software. It supports a narrow `CIEAV_KEY_PROVIDER_V1` command surface:
+
+```text
+probe
+create-p256 <keyName>
+describe <keyName>
+sign-es256 <keyName> <sha256Hex>
+```
+
+`create-p256` uses the Platform Crypto Provider, creates a persistent ECDSA P-256 key, disables private export/archival policy before finalization, and exports only the public ECC blob. `describe` and `sign-es256` reopen the same named provider key and re-check private-export policy before use.
+
+If the Platform Crypto Provider or TPM is unavailable, `probe` returns `available:false`, `hardwareBacked:false` and a nonzero status. There is no fallback to Microsoft Software Key Storage Provider.
+
+Target mapping:
 
 ```text
 CIEAV provider: TPM
 platform: WINDOWS
 native root: Microsoft Platform Crypto Provider / NCrypt
-private key: opaque provider handle
+private key: opaque provider-managed key
 attestation: WINDOWS_TPM_KEY_ATTESTATION
 ```
 
-A Windows TPM bridge is not yet implemented in this repository. The registry makes its prerequisites explicit and fail closed.
+The bridge itself does **not yet** synthesize a `VERIFIED` TPM attestation record. Provider identity + hardware implementation flags + non-export policy are necessary but are not treated as an independently verified Windows TPM key-attestation claim. See `WINDOWS-TPM-CNG.md`.
 
 ## macOS Secure Enclave
 
-Apple Secure Enclave private keys are generated in the enclave and cannot be imported into it. The supported enclave key class is P-256 elliptic-curve private keys. A native macOS bridge must therefore implement **create-in-enclave**, lookup, signing, and platform evidence rather than importing CIEAV software keys.
-
-Target provider mapping:
+Apple Secure Enclave private keys are generated in the enclave and cannot be imported into it. A future native macOS bridge must therefore implement create-in-enclave, lookup, signing and platform evidence rather than importing CIEAV software keys.
 
 ```text
 CIEAV provider: SECURE_ENCLAVE
@@ -89,13 +77,9 @@ private key: opaque SecKey / Keychain reference
 attestation: APPLE_SECURE_ENCLAVE_KEY
 ```
 
-CIEAV rejects `SECURE_ENCLAVE` bridge manifests declared for Windows or Linux.
-
 ## Linux TPM and PKCS#11
 
-PKCS#11 defines a common Cryptoki interface for cryptographic tokens and devices. For Linux TPM deployments, a native bridge can project a TPM-backed key through an approved TPM/PKCS#11 stack while CIEAV binds to the exact bridge executable and token/key locator.
-
-Target mapping:
+A Linux bridge may project a TPM-backed key through an approved TPM/PKCS#11 stack while CIEAV binds to the exact bridge executable and token/key locator. PKCS#11 alone is not accepted as proof that a token is hardware-backed.
 
 ```text
 CIEAV provider: TPM
@@ -105,61 +89,40 @@ private key: token object handle
 attestation: PKCS11_TOKEN_KEY
 ```
 
-PKCS#11 by itself does **not** prove that a token is hardware backed; the attestation verifier must establish the deployment-specific hardware claim. CIEAV therefore does not infer `hardwareBacked: true` from a PKCS#11 URI alone.
-
 ## External KMS / HSM
 
-External KMS/HSM providers use `EXTERNAL_KMS`. The bridge may be platform-independent, but hardware-backed registration still requires verified evidence bound to the returned public key fingerprint.
-
-A cloud KMS API response, key identifier, or successful signature is not automatically hardware attestation. The verifier must establish whatever hardware/HSM assurance the policy requires, and CIEAV stores the resulting evidence/claims digests.
+External providers use `EXTERNAL_KMS`. Successful signing or a cloud key identifier is not automatically hardware attestation; a provider-specific verifier must establish the assurance required by policy.
 
 ## Registration invariants
 
-A hardware key registration is accepted only when:
-
-1. the provider manifest exists, is enabled, unexpired, valid for the current platform, and its executable digest matches;
-2. attestation is `VERIFIED`, unexpired, and belongs to the same provider manifest/provider;
-3. attestation kind is compatible with the provider;
-4. attested public-key fingerprint equals the registration fingerprint;
-5. requested purposes are a subset of the manifest allowlist;
-6. required signing or mTLS capability is declared;
-7. the public registration is explicitly `hardwareBacked: true` and `exportable: false`.
-
-`assertUsable()` repeats the bridge and attestation checks before use.
+A hardware key registration is accepted only when the bridge is enabled/current/digest-matched/platform-valid; attestation is verified/current/provider-bound; attested public fingerprint matches registration; purposes are attenuated to the manifest; required signing/mTLS capability exists; and the registration is explicitly non-exportable and hardware-backed. `assertUsable()` repeats bridge and attestation checks before use.
 
 ## State and authority boundary
 
-The Agent Kernel owns `CieavHardwareKeyProviderRegistry` under a domain-separated HMAC state secret. Registry state is authenticated and atomically persisted. It contains provider manifests, attestation metadata/digests, and public hardware-key registrations only.
+The Agent Kernel owns `CieavHardwareKeyProviderRegistry` under a domain-separated HMAC secret. Registry state contains provider manifests, attestation metadata/digests and public registrations only. No TPM private key, Secure Enclave private key, PKCS#11 secret object, KMS private key, PIN or provider credential belongs in that state.
 
-No TPM key material, Secure Enclave private key, PKCS#11 secret object, KMS private key, PIN, session credential, or provider secret belongs in this state file.
+## Current qualification boundary
 
-## What is implemented now
+Implemented now:
 
-Implemented and cross-platform-testable in this phase:
+- provider/attestation/registration trust plane;
+- Windows CNG/NCrypt native bridge source and hardened MSVC build;
+- exact Microsoft Platform Crypto Provider selection;
+- hardware/software implementation flag enforcement;
+- persistent ECDSA P-256 creation;
+- private export-policy rejection;
+- public-key-only export;
+- opaque provider signing through `NCryptSignHash`;
+- Windows CI compilation and fail-closed runtime probe;
+- static invariant checks on Linux/macOS.
 
-- provider/attestation/registration contracts;
-- digest-pinned native bridge manifests;
-- provider/platform compatibility policy;
-- verified-attestation requirement;
-- public-key fingerprint binding;
-- capability and purpose attenuation;
-- authenticated durable registry state;
-- revalidation of bridge digest and attestation on key use;
-- kernel-owned registry lifecycle;
-- fail-closed tests for bridge replacement, unverified evidence, impossible platform declarations, and state tampering.
+Still pending:
 
-## What this phase does not claim
+1. Windows TPM key-attestation claim creation and independent verification;
+2. bridge invocation from Credential Authority for opaque-key `private_key_jwt` / DPoP / provider signatures;
+3. hardware-key TLS integration for mTLS;
+4. macOS Secure Enclave bridge;
+5. Linux TPM/PKCS#11 bridge;
+6. external KMS/HSM bridges.
 
-This phase does **not** claim that GitHub-hosted runners possess a TPM, Secure Enclave, or production HSM. It does not mark any built-in CIEAV key as hardware-backed by default.
-
-Concrete native bridges remain next:
-
-1. Windows CNG/NCrypt bridge for Microsoft Platform Crypto Provider;
-2. macOS Security.framework Secure Enclave bridge;
-3. Linux TPM/PKCS#11 bridge;
-4. external KMS/HSM bridge adapters;
-5. provider-specific attestation verifiers;
-6. opaque-key signing integration for private_key_jwt, DPoP, HTTP Message Signatures, and provider signatures;
-7. native mTLS transport that can use opaque hardware key handles where the runtime TLS stack cannot consume them directly.
-
-The architecture is intentionally structured so those providers can be added without changing CIEAV's higher-level Intent → Authority → Commit → Credential → Execution → Proof semantics.
+GitHub-hosted runner success qualifies bridge compilation and fail-closed provider detection; it does not prove a production machine has a physical TPM. External release qualification remains pending.
