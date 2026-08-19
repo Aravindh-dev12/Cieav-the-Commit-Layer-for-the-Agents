@@ -73,6 +73,7 @@ jobs:
           node --check scripts/a2a-e2e.mjs
           node --check scripts/platform-boundary-static.mjs
           node --check scripts/os-secret-root-release.mjs
+          node --check scripts/managed-secret-pipe-release.mjs
           node --check scripts/openclaw-no-deps-static.mjs
           node --check scripts/windows-tpm-cng-release.mjs
           node --check scripts/windows-tpm-maa-collector-release.mjs
@@ -109,6 +110,8 @@ jobs:
         run: |
           npm audit --omit=dev --audit-level=high
           npm audit --audit-level=critical
+      - name: Verify private managed secret bootstrap
+        run: node scripts/managed-secret-pipe-release.mjs
       - name: Verify Gateway credential and hardware lifecycle
         run: node scripts/credential-hardware-admin-release.mjs
       - run: npm run build
