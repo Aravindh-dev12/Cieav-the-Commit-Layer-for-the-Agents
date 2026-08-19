@@ -12,26 +12,41 @@ const expectTokens=(file,tokens)=>{const body=read(file);for(const token of toke
 expectTokens("packages/contracts/src/intent-reality.ts",[
   "RealityWitnessSchema","SemanticEffectSchema","IntentAttenuationWitnessSchema","RealityBoundCommitSchema","EffectQuarantineSchema","AutonomyCandidateSchema","ReversibilityEscrowSchema"
 ]);
+expectTokens("packages/contracts/src/execution-fabric.ts",[
+  "AgentIdentityAttestationSchema","ScopedCredentialLeaseSchema","FormalPermissionGraphSchema","ExecutionProposalSchema","ExecutionTicketSchema","ExecutionAuditEventSchema","CLOUD_API"
+]);
 expectTokens("packages/contracts/src/agent-task.ts",[
   "REALITY_COMMIT_BOUND","REALITY_COMMIT_CONSUMED","EFFECT_QUARANTINED","realityCommitConsumedAt","effectQuarantined"
 ]);
 expectTokens("packages/core/src/agent-task.ts",[
   "reality-bound commit is consumed","semantic effect is quarantined","markTaskEffectQuarantined","agent task retry prohibited while semantic effect is quarantined"
 ]);
+expectTokens("packages/core/src/execution-fabric.ts",[
+  "defaultDecision","DENY","verifyPermissionGraph","evaluateFormalAuthorization","executionBindingDigest","proposal.risk"
+]);
 expectTokens("apps/api/src/intent-reality-engine.ts",[
   "timingSafeEqual","durableReplace","reality_witness_digest_mismatch","reality_changed_since_authorization","consequence_drift_budget_exceeded","semantic_effect_quarantined","autonomy_expansion_requires_clean_verified_outcomes","reserveReversibilityEscrow","reversibility_escrow_required"
 ]);
+expectTokens("apps/api/src/execution-fabric.ts",[
+  "cieav-agent-attestation-v1","verifyAttestation","CIEAV_FORMAL_AUTH_V1","credential_lease_scope_violation","consumed_reality_bound_commit_required","execution_proposal_reality_commit_binding_mismatch","execution_ticket_not_issuable","previousHash","eventHash","credentialRefDigest"
+]);
 expectTokens("apps/api/src/agent-kernel.ts",[
-  "cieav-intent-reality-state-v1","intent-reality-state.json","bindRealityCommitTrusted","consumeRealityCommitTrusted","quarantineEffectTrusted","assertRetryAllowed"
+  "cieav-intent-reality-state-v1","intent-reality-state.json","cieav-execution-fabric-state-v1","execution-fabric-state.json","executionFabric","bindRealityCommitTrusted","consumeRealityCommitTrusted","quarantineEffectTrusted","assertRetryAllowed"
 ]);
 expectTokens("apps/api/src/agent-kernel-api.ts",[
-  "agent_execution_requires_reality_bound_commit","issueRealityBoundCommit","consumeRealityBoundCommit","resolveQuarantine","createAttenuationWitness","recordConsequenceDrift","autonomy-candidates","reversibility-escrow","activateReversibilityEscrow","intent-reality-v1"
+  "agent_execution_requires_reality_bound_commit","issueRealityBoundCommit","consumeRealityBoundCommit","resolveQuarantine","createAttenuationWitness","recordConsequenceDrift","autonomy-candidates","reversibility-escrow","activateReversibilityEscrow","intent-reality-v2","formalPermissionGraph","mandatoryExecutionTicket","tamperEvidentExecutionAudit","execution-fabric/permission-graphs","execution-fabric/tickets"
 ]);
 expectTokens("apps/api/src/intent-reality-engine.test.ts",[
   "observation time does not invalidate unchanged reality","invalidates on changed reality","blocks semantic retries across independent execution channels","cumulative consequence drift","non-self-authorizing"
 ]);
 expectTokens("apps/api/src/reversibility-escrow.test.ts",[
   "refuses an undoable consequential commit without a reserved inverse","reserved inverse","different effect"
+]);
+expectTokens("packages/core/src/execution-fabric.test.ts",[
+  "denies by default","DENY dominate ASK and ALLOW","permission graph is tampered","device or root-intent substitution"
+]);
+expectTokens("apps/api/src/execution-fabric.test.ts",[
+  "consumed reality commit","identity substitution","credential lease tool and risk escape","mismatched semantic effect","hash-linked execution audit trail"
 ]);
 
 const npm=process.platform==="win32"?"npm.cmd":"npm";
@@ -43,8 +58,9 @@ function run(args){
   if(result.status!==0)fail(`${npm} ${args.join(" ")} exited ${result.status}`);
 }
 
-run(["run","test","-w","@cieav/api","--","intent-reality-engine.test.ts","reversibility-escrow.test.ts","agent-kernel.test.ts","agent-kernel-api.test.ts"]);
+run(["run","test","-w","@cieav/core","--","execution-fabric.test.ts"]);
+run(["run","test","-w","@cieav/api","--","intent-reality-engine.test.ts","reversibility-escrow.test.ts","agent-kernel.test.ts","agent-kernel-api.test.ts","execution-fabric.test.ts"]);
 run(["run","typecheck","-w","@cieav/contracts"]);
 run(["run","typecheck","-w","@cieav/core"]);
 run(["run","typecheck","-w","@cieav/api"]);
-console.log(`CIEAV Intent-to-Reality release gate PASS · platform=${process.platform} · commit/quarantine/attenuation/drift/autonomy/reversibility verified`);
+console.log(`CIEAV Intent-to-Reality release gate PASS · platform=${process.platform} · identity/formal-auth/commit/ticket/quarantine/attenuation/drift/autonomy/reversibility verified`);
