@@ -17,11 +17,12 @@ expect("python/latch_platform/config.py",[
 ]);
 const gateway=expect("python/latch_platform/gateway.py",[
   '"HF_TOKEN","HUGGING_FACE_HUB_TOKEN","JWT_SECRET","RECEIPT_SIGNING_SECRET"',
-  'dist" / "managed-entry.js"','env["CIEAV_MANAGED_SECRET_PIPE"] = "1"',"stdin=subprocess.PIPE","_semantic_bootstrap","child.stdin.close()",
+  'dist" / "managed-entry.js"','env["CIEAV_MANAGED_SECRET_PIPE"] = "1"',"stdin=subprocess.PIPE","_semantic_bootstrap","semantic_router_token","secrets.compare_digest","child.stdin.close()","bootstrap[:]=b\"\\0\"*len(bootstrap)",
   'for key in ("JWT_SECRET","RECEIPT_SIGNING_SECRET","CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN")'
 ]);
 for(const forbidden of ['env["JWT_SECRET"]','env["RECEIPT_SIGNING_SECRET"]','env["CIEAV_GATEWAY_TOKEN"]'])if(gateway.includes(forbidden))fail(`Gateway reintroduced inherited semantic secret: ${forbidden}`);
 const managedEntry=expect("apps/api/src/managed-entry.ts",["MAX_BOOTSTRAP_BYTES=16*1024","installManagedSecrets(parsed)","encoded?.fill(0)","chunk.fill(0)"]);
 if(managedEntry.includes("const bootstrap=await"))fail("managed API reintroduced a module-lifetime bootstrap object");
-expect("apps/api/src/config.ts",["consumeManagedSecrets()","must not be duplicated in process environment"]);
-console.log(`CIEAV OS secret-root gate PASS · platform=${process.platform} · DPAPI/Keychain/Secret-Service at-rest backends + production plaintext refusal + bounded one-shot Gateway-to-Node private-pipe bootstrap with transient Node buffer overwrite + browser secret stripping verified`);
+expect("apps/api/src/config.ts",["consumeManagedSecrets()","gatewayTokenDigest","semanticRouterToken","must not be duplicated in process environment"]);
+expect("apps/api/src/gateway-auth.ts",["gatewayBearerDigest","timingSafeEqual","verifyGatewayAuthorization"]);
+console.log(`CIEAV OS secret-root gate PASS · platform=${process.platform} · DPAPI/Keychain/Secret-Service at-rest backends + production plaintext refusal + scrubbed private-pipe bootstrap + verifier-only privileged Gateway bearer + scoped semantic capability verified`);
