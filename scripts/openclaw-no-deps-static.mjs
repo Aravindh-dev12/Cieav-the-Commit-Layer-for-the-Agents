@@ -25,6 +25,10 @@ const releaseBuilder=need("scripts/build-release-runtime.py",[
   '"--bundle"',
   '"--platform=node"',
   '"apps/mcp/dist/index.js"',
+  'server.bundle.js',
+  'bundle_api',
+  'bundledLocalApiDependencies',
+  'executionFabricIncluded',
   'stage / "runtime" / node_name'
 ]);
 const installer=need("distribution/install.ps1",[
@@ -40,9 +44,9 @@ const unixInstaller=need("distribution/install.sh",[
 ]);
 if(!installer.includes("runtime/node.exe")||!installer.includes("bundled Node"))fail("PowerShell installer must verify bundled runtime Node");
 if(!unixInstaller.includes('RUNTIME_NODE="$INSTALL_ROOT/runtime/node"'))fail("Unix installer must verify bundled runtime Node");
-if(!releaseBuilder.includes('subprocess.run([npx,"esbuild"')||!releaseBuilder.includes('"--bundle"'))fail("release build must bundle MCP dependencies before packaging");
+if(!releaseBuilder.includes('npx_path()')||!releaseBuilder.includes('"--bundle"')||!releaseBuilder.includes('bundle_entry'))fail("release build must bundle local API and MCP dependency graphs before packaging");
 forbid("python/latch_platform/openclaw_cli.py",["npm install","npm i ","npx ","pip install","pnpm add","yarn add"]);
 forbid("distribution/install.ps1",["npm install","npm i ","npx ","pip install","pnpm add","yarn add"]);
 forbid("distribution/install.sh",["npm install","npm i ","npx ","pip install","pnpm add","yarn add"]);
 if(!launcher.includes('"command": cieav'))fail("OpenClaw MCP config must execute installed CIEAV, not a package runner");
-console.log("CIEAV OpenClaw consumer gate PASS · installed executable + bundled Node + bundled MCP dependencies · no consumer package manager");
+console.log("CIEAV OpenClaw consumer gate PASS · installed executable + bundled Node + bundled API/MCP dependencies · no consumer package manager");
