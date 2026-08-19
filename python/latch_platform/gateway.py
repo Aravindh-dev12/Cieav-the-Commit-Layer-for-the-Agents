@@ -52,7 +52,9 @@ class Gateway:
     The Gateway owns process lifecycle, local signing secrets, semantic routing,
     health, and privileged local control. Chromium never receives provider tokens,
     the Gateway bearer token, receipt/API signing keys, or the browser-control
-    capability used between the Gateway and the Node mediator.
+    capability used between the Gateway and the Node mediator. Managed semantic
+    secrets are delivered once over a private child stdin pipe, not inherited in
+    the semantic process environment or exposed in command-line arguments.
     """
 
     def __init__(self, settings: Settings):
@@ -76,7 +78,7 @@ class Gateway:
         self._lock = threading.RLock()
 
     @property
-    def semantic_entry(self) -> Path: return self.s.root / "apps" / "api" / "dist" / "server.js"
+    def semantic_entry(self) -> Path: return self.s.root / "apps" / "api" / "dist" / "managed-entry.js"
     @property
     def browser_entry(self) -> Path: return self.s.root / "apps" / "browser" / "main.mjs"
     @property
@@ -114,12 +116,16 @@ class Gateway:
     def _semantic_env(self) -> dict[str, str]:
         env = self._base_env()
         env["PORT"] = str(self.s.api_port)
-        env["JWT_SECRET"] = self.s.local_api_secret()
-        env["RECEIPT_SIGNING_SECRET"] = self.s.receipt_signing_secret()
         env["CIEAV_GATEWAY_URL"] = f"http://127.0.0.1:{self.s.gateway_port}"
-        env["CIEAV_GATEWAY_TOKEN"] = self.token
         env["CIEAV_HF_ENABLED"] = "1" if self.hf.configured else "0"
+        env["CIEAV_MANAGED_SECRET_PIPE"] = "1"
         return env
+
+    def _semantic_bootstrap(self) -> bytes:
+        payload={"jwtSecret":self.s.local_api_secret(),"receiptSigningSecret":self.s.receipt_signing_secret(),"gatewayToken":self.token}
+        body=json.dumps(payload,separators=(",",":"),ensure_ascii=True).encode("utf-8")
+        if len(body)>16*1024: raise RuntimeError("Managed semantic secret bootstrap exceeded size limit")
+        return body
 
     def _surface_env(self, control_token: str | None = None) -> dict[str, str]:
         env = self._base_env()
@@ -156,9 +162,22 @@ class Gateway:
     def start_semantic(self) -> None:
         with self._lock:
             if self.stop_event.is_set() or (self.semantic and self.semantic.poll() is None): return
-            if not self.semantic_entry.exists(): raise RuntimeError("Production semantic API is not built. Run npm run build:api first.")
-            self.semantic = subprocess.Popen([self.node_executable(), str(self.semantic_entry)], cwd=self.s.root, env=self._semantic_env())
-            self.semantic_started_at = time.time(); self._log(f"semantic service started pid={self.semantic.pid}")
+            if not self.semantic_entry.exists(): raise RuntimeError("Production managed semantic API is not built. Run npm run build:api first.")
+            bootstrap=self._semantic_bootstrap()
+            child=subprocess.Popen([self.node_executable(),str(self.semantic_entry)],cwd=self.s.root,env=self._semantic_env(),stdin=subprocess.PIPE)
+            try:
+                if child.stdin is None: raise RuntimeError("Managed semantic secret pipe was not created")
+                child.stdin.write(bootstrap); child.stdin.flush(); child.stdin.close()
+            except Exception as exc:
+                try: child.terminate()
+                except Exception: pass
+                try: child.wait(timeout=3)
+                except Exception:
+                    try: child.kill()
+                    except Exception: pass
+                raise RuntimeError("Failed to deliver managed semantic secrets over the private bootstrap pipe") from exc
+            self.semantic=child
+            self.semantic_started_at=time.time(); self._log(f"semantic service started pid={self.semantic.pid} bootstrap=private-pipe")
         if not self._wait_semantic():
             with self._lock: child=self.semantic; self.semantic=None
             self.semantic_last_exit=self._terminate(child,"semantic service")
@@ -245,7 +264,7 @@ class Gateway:
             semantic_uptime=int(time.time()-self.semantic_started_at) if semantic_running and self.semantic_started_at else 0
             surface_uptime=int(time.time()-self.surface_started_at) if surface_running and self.surface_started_at else 0
         browser=self._browser_health() if surface_running else {"ok":False,"browserConnected":False}; semantic_health=self._semantic_health() if semantic_running else {"ok":False}
-        return {"ok":True,"platform":"CIEAV Gateway","runtime":"python","gatewayPid":os.getpid(),"paused":self.paused,"nodeRuntime":self.node_executable(),"semanticRunning":semantic_running,"semanticHealthy":bool(semantic_health.get("ok") and semantic_health.get("service")=="cieav-local-api"),"semanticService":semantic_health.get("service"),"semanticPid":semantic.pid if semantic_running and semantic else None,"semanticUptimeSeconds":semantic_uptime,"semanticRestartCount":self.semantic_restart_count,"semanticLastExitCode":self.semantic_last_exit,"surfaceRunning":surface_running,"surfacePid":surface.pid if surface_running and surface else None,"surfaceUptimeSeconds":surface_uptime,"surfaceRestartCount":self.surface_restart_count,"surfaceLastExitCode":self.surface_last_exit,"browserConnected":bool(browser.get("browserConnected")),"protectedPages":int(browser.get("protectedPages") or 0),"productionApiRequired":bool(browser.get("productionApiRequired",True)),"modelEnabled":bool(self.hf.configured or browser.get("modelEnabled") or semantic_health.get("modelEnabled")),"huggingFace":self.hf.status(),"attention":browser.get("attention",{}),"controlUrl":f"http://127.0.0.1:{self.s.control_port}","testLabUrl":self.test_lab_url,"browserControlAuthenticated":surface_running}
+        return {"ok":True,"platform":"CIEAV Gateway","runtime":"python","gatewayPid":os.getpid(),"paused":self.paused,"nodeRuntime":self.node_executable(),"semanticRunning":semantic_running,"semanticHealthy":bool(semantic_health.get("ok") and semantic_health.get("service")=="cieav-local-api"),"semanticService":semantic_health.get("service"),"semanticPid":semantic.pid if semantic_running and semantic else None,"semanticUptimeSeconds":semantic_uptime,"semanticRestartCount":self.semantic_restart_count,"semanticLastExitCode":self.semantic_last_exit,"surfaceRunning":surface_running,"surfacePid":surface.pid if surface_running and surface else None,"surfaceUptimeSeconds":surface_uptime,"surfaceRestartCount":self.surface_restart_count,"surfaceLastExitCode":self.surface_last_exit,"browserConnected":bool(browser.get("browserConnected")),"protectedPages":int(browser.get("protectedPages") or 0),"productionApiRequired":bool(browser.get("productionApiRequired",True)),"modelEnabled":bool(self.hf.configured or browser.get("modelEnabled") or semantic_health.get("modelEnabled")),"huggingFace":self.hf.status(),"attention":browser.get("attention",{}),"controlUrl":f"http://127.0.0.1:{self.s.control_port}","testLabUrl":self.test_lab_url,"browserControlAuthenticated":surface_running,"semanticSecretTransport":"private-one-shot-pipe" if semantic_running else "inactive"}
 
     def _write_runtime(self) -> None:
         try: self.s.write_runtime(self.status())
