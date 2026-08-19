@@ -5,6 +5,7 @@ import {AgentTaskCreateSchema,AgentTaskEventSchema,AgentTaskSchema,type AgentOpe
 import {bindRealityCommit,bindTaskCommitment,bindTaskProof,clearTaskEffectQuarantine,consumeTaskRealityCommit,detectAgentOpenLoop,markTaskEffectQuarantined,recoverInterruptedTask,requireCommitment,scheduleRetry,settleAgentTask,transitionAgentTask} from "@cieav/core";
 import {CieavIntentRealityEngine} from "./intent-reality-engine.js";
 import {CieavExecutionFabricStore} from "./execution-fabric.js";
+import {CieavControlPlaneStore} from "./control-plane.js";
 
 type Payload={version:1;tasks:AgentTask[];events:AgentTaskEvent[]};
 type Envelope={payload:Payload;mac:string};
@@ -22,12 +23,15 @@ export class CieavAgentKernelStore{
   private loaded=false;private tasks=new Map<string,AgentTask>();private events:AgentTaskEvent[]=[];private chain:Promise<void>=Promise.resolve();
   readonly intentReality:CieavIntentRealityEngine;
   readonly executionFabric:CieavExecutionFabricStore;
+  readonly controlPlane:CieavControlPlaneStore;
   constructor(private readonly file:string,private readonly stateSecret:string){
     if(stateSecret.length<32)throw new Error("CIEAV agent-kernel state secret is too weak");
     const intentRealitySecret=crypto.createHmac("sha256",stateSecret).update("cieav-intent-reality-state-v1").digest("base64url");
     const executionFabricSecret=crypto.createHmac("sha256",stateSecret).update("cieav-execution-fabric-state-v1").digest("base64url");
+    const controlPlaneSecret=crypto.createHmac("sha256",stateSecret).update("cieav-control-plane-state-v1").digest("base64url");
     this.intentReality=new CieavIntentRealityEngine(path.join(path.dirname(file),"intent-reality-state.json"),intentRealitySecret);
     this.executionFabric=new CieavExecutionFabricStore(path.join(path.dirname(file),"execution-fabric-state.json"),executionFabricSecret,this);
+    this.controlPlane=new CieavControlPlaneStore(path.join(path.dirname(file),"control-plane-state.json"),controlPlaneSecret,this,this.executionFabric);
   }
   private mac(payload:Payload){return crypto.createHmac("sha256",this.stateSecret).update(canonical(payload)).digest("base64url")}
   private enqueue<T>(fn:()=>Promise<T>):Promise<T>{const task=this.chain.then(fn,fn);this.chain=task.then(()=>undefined,()=>undefined);return task}
@@ -52,5 +56,5 @@ export class CieavAgentKernelStore{
   retry(id:string,nextRunAt:string,reason?:string){return this.enqueue(async()=>{await this.load();const current=this.tasks.get(id);if(!current)throw new Error("agent_task_not_found");if(current.effectKey)await this.intentReality.assertRetryAllowed(current.effectKey);const changed=scheduleRetry(current,nextRunAt,new Date().toISOString(),reason),task=this.put(changed.task),event=this.append(changed.event);await this.persist();return{task,event}})}
   recoverOnStartup(){return this.enqueue(async()=>{await this.load();const recovered:AgentTask[]=[];for(const current of [...this.tasks.values()]){const changed=recoverInterruptedTask(current);if(!changed)continue;const task=this.put(changed.task);this.append(changed.event);recovered.push(task)}if(recovered.length)await this.persist();return recovered})}
   openLoops(now=new Date()):Promise<AgentOpenLoop[]>{return this.enqueue(async()=>{await this.load();return[...this.tasks.values()].map(t=>detectAgentOpenLoop(t,now)).filter((x):x is AgentOpenLoop=>Boolean(x))})}
-  async close(){await this.chain;await this.intentReality.close();await this.executionFabric.close()}
+  async close(){await this.chain;await this.intentReality.close();await this.executionFabric.close();await this.controlPlane.close()}
 }
