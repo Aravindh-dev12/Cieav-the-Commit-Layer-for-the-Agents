@@ -15,6 +15,29 @@
       "successStatusMax": 299
     }
   ],
+  "oauthHttp": [
+    {
+      "toolId": "cieav.example.oauth.action",
+      "protocol": "HTTP",
+      "endpoint": "https://api.example.com/v1/actions",
+      "method": "POST",
+      "allowLoopback": false,
+      "staticHeaders": {"accept": "application/json"},
+      "oauth": {
+        "profileId": "example-oauth-profile",
+        "grantType": "CLIENT_CREDENTIALS",
+        "resource": "https://api.example.com/",
+        "scopes": ["actions.write"],
+        "senderConstraint": "DPOP",
+        "keyHandleId": "00000000-0000-4000-8000-000000000001",
+        "maxTokenLifetimeSeconds": 300
+      },
+      "timeoutMs": 8000,
+      "maxResponseBytes": 65536,
+      "successStatusMin": 200,
+      "successStatusMax": 299
+    }
+  ],
   "mcpStdio": [
     {
       "toolId": "cieav.example.mcp.send",
