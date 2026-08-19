@@ -30,7 +30,7 @@ only derivation receipt/digests persist
 Proof Mesh settles reality
 ```
 
-Agents never receive a private key, refresh token, subject token, actor token, access token, client secret, DPoP signing oracle, or arbitrary signing API.
+Agents never receive a private key, refresh token, subject token, actor token, access token, client secret, DPoP signing oracle, arbitrary signing API, or TLS key handle that can be dereferenced outside trusted CIEAV execution.
 
 ## Credential readiness vs derivation
 
@@ -42,32 +42,72 @@ This prevents a credential for one authorized proposal from being reused for a d
 
 ## Key handles
 
-`KeyHandle` is the public reference to a signing capability. The v1 concrete provider is `LOCAL_WRAPPED_P256`:
+`KeyHandle` is the public reference to a cryptographic capability. The concrete software provider is `LOCAL_WRAPPED_P256`:
 
-- P-256 / ES256 key pair generated inside CIEAV;
-- private PKCS#8 material encrypted at rest with AES-256-GCM under a key derived from the local Agent Kernel state secret;
-- `exportable` is always `false`;
-- only the public JWK and fingerprint leave the credential authority;
-- key purpose is explicit (`DPOP`, `OAUTH_CLIENT_ASSERTION`, etc.);
-- revocation and optional expiration are enforced before signing.
+- P-256 / ES256 key pairs can be generated inside CIEAV;
+- existing enterprise P-256 keys can be imported one way into CIEAV for migration and mTLS use;
+- private PKCS#8 material is encrypted at rest with AES-256-GCM under a key derived from the local Agent Kernel state secret;
+- `exportable` is always `false` through the CIEAV authority API;
+- only public JWK/fingerprint metadata leaves the credential authority;
+- key purpose is explicit (`DPOP`, `OAUTH_CLIENT_ASSERTION`, `MTLS_CLIENT_AUTH`, etc.);
+- revocation and optional expiration are enforced before use.
 
-The contracts reserve `TPM`, `SECURE_ENCLAVE`, `SPIFFE`, and `EXTERNAL_KMS` providers, but they are **not yet concrete implementations**. CIEAV must not claim hardware-backed protection until the corresponding provider is implemented and qualified.
+`LOCAL_WRAPPED_P256` is **software-wrapped**, not hardware-backed. The contracts reserve `TPM`, `SECURE_ENCLAVE`, `SPIFFE`, and `EXTERNAL_KMS` providers, but they are not yet concrete qualified providers. CIEAV must not describe the software provider as TPM-, Secure-Enclave-, HSM-, or KMS-backed.
 
-## OAuth v1 support
+## OAuth support
 
-The first concrete Credential Authority implementation supports:
+The Credential Authority supports:
 
 - OAuth client-credentials grants;
 - RFC 8693-style token exchange with subject token and optional actor token;
 - resource-bound token requests;
 - `private_key_jwt`-style ES256 client assertions;
-- DPoP proofs at the token endpoint and at the resource request;
+- DPoP proofs at the token endpoint and protected resource;
+- certificate-bound mTLS token acquisition and protected-resource execution;
 - legacy client-secret Basic authentication only when a trusted environment mapping explicitly configures it;
-- strict token-endpoint HTTPS outside explicit loopback test fixtures;
+- strict token-endpoint HTTPS outside explicit non-mTLS loopback fixtures;
 - DNS validation/pinning, private/link-local/multicast blocking, response caps, and timeouts;
 - access-token non-persistence: only SHA-256 token digests and derivation metadata are stored.
 
-`MTLS` remains fail closed in v1 until the TLS client-key provider can guarantee non-exportable key handling and certificate lifecycle management. Generic HTTP Message Signatures and provider-specific signers are also intentionally not represented as implemented yet.
+Generic HTTP Message Signatures and provider-specific hardware signers remain intentionally unimplemented until separately qualified.
+
+## Certificate-bound mTLS
+
+CIEAV's first mTLS profile intentionally supports one strict model: the OAuth authorization server and protected resource are both reached with the **same client certificate and corresponding CIEAV key handle**.
+
+```text
+CIEAV KeyHandle (MTLS_CLIENT_AUTH)
+          │
+          ├── public key must equal X.509 public key
+          │
+          ▼
+OAuth token endpoint
+  mutual TLS with client certificate
+          │
+          ▼
+certificate-bound access token
+          │
+          ▼
+Protected resource
+  mutual TLS with the same client certificate/key
+          │
+          ▼
+CredentialDerivationReceipt
+  certificate SHA-256 thumbprint only
+```
+
+The following checks are fail closed:
+
+- the token endpoint must use HTTPS;
+- the protected resource must use HTTPS;
+- the certificate must be within its validity interval;
+- the certificate P-256 public key must match the selected CIEAV key handle;
+- the key handle must carry `MTLS_CLIENT_AUTH` purpose;
+- an mTLS OAuth profile cannot be downgraded to `senderConstraint: NONE` or DPoP;
+- an mTLS sender constraint cannot reference a non-mTLS OAuth profile;
+- the protected-resource identity thumbprint must equal the thumbprint recorded during credential derivation.
+
+The mutual-TLS test fixture requires a client certificate at both the token and resource servers and verifies that both servers observe the same certificate thumbprint. This tests an actual TLS handshake rather than only configuration metadata.
 
 ## Separate authentication and consequence networks
 
@@ -83,6 +123,8 @@ Trusted execution transport
 
 The execution adapter does not loosen its origin policy to perform OAuth discovery or follow arbitrary redirects. Likewise, the token endpoint cannot become an alternate consequence route.
 
+For the current strict mTLS profile, the configured CA bundle is reused for the token and protected-resource endpoints. Separate authorization-server and resource-server CA policies are a future extension and should not be inferred from the present implementation.
+
 ## Derivation receipt
 
 CIEAV persists a `CredentialDerivationReceipt` containing only non-secret evidence:
@@ -92,6 +134,7 @@ CIEAV persists a `CredentialDerivationReceipt` containing only non-secret eviden
 - tool/profile/grant type;
 - token endpoint/resource/scope digests;
 - sender-constraint mode and public key-handle ID;
+- mTLS certificate SHA-256 thumbprint when applicable;
 - access-token digest, never the access token;
 - normalized-argument digest;
 - derivation and expiration timestamps.
@@ -102,25 +145,32 @@ A derivation receipt proves which credential context was used; it does **not** p
 
 A `FederatedTool` with `credentialMode: DOWNSTREAM_OAUTH` is handled by the dedicated OAuth-aware adapter rather than the legacy static-header adapter.
 
-The adapter performs credential readiness during preflight. After the router consumes one-use authority, the adapter derives the token, creates any required DPoP proof for the exact resource request, executes against the exact pinned endpoint, and records only response/credential digests.
+The adapter performs credential readiness during preflight. After the router consumes one-use authority, the adapter derives the token, creates any required DPoP proof or obtains the mTLS identity for the exact protected-resource request, executes against the exact pinned endpoint, and records only response/credential digests.
 
-A token endpoint success, HTTP 2xx, or DPoP-valid request is not task completion.
+A token endpoint success, HTTP 2xx, valid DPoP request, or successful mTLS handshake is not task completion.
+
+## Trusted lifecycle API boundary
+
+The Credential Authority lifecycle handler supports public key-handle listing/creation/revocation, one-way P-256 import, OAuth profile management, derivation-receipt inspection, and runtime capability reporting. It has no private-key export route, raw access-token route, generic signing endpoint, or arbitrary DPoP/JWT signing oracle.
+
+The handler is intended to be mounted only under CIEAV's existing local Gateway-authorized management perimeter. Until that mount is explicitly wired and qualified, operators should treat the handler as an internal component rather than a separately exposed service.
 
 ## Standards interoperability
 
-CIEAV is designed to compose with established identity and authorization standards rather than replace them. OAuth token exchange, DPoP, mTLS, Rich Authorization Requests, Transaction Tokens, SPIFFE/WIMSE, and HTTP Message Signatures can become projections or transports for CIEAV authority. CIEAV remains responsible for the broader lifecycle from owner Intent through consequence commit, independent proof, settlement, and recovery.
+CIEAV composes with established identity and authorization standards rather than replacing them. OAuth token exchange, DPoP, mTLS, Rich Authorization Requests, Transaction Tokens, SPIFFE/WIMSE, and HTTP Message Signatures can become projections or transports for CIEAV authority. CIEAV remains responsible for the broader lifecycle from owner Intent through consequence commit, independent proof, settlement, and recovery.
 
 ## Pending credential depth
 
 The next qualification families are:
 
-1. non-exportable mTLS client authentication and certificate-bound access tokens;
-2. TPM / Secure Enclave / OS keystore providers;
+1. TPM / Secure Enclave / OS-keystore-backed key providers;
+2. external KMS/HSM provider interfaces and remote signing;
 3. SPIFFE workload identity and workload token exchange;
 4. HTTP Message Signatures and provider-specific request signers;
-5. protected-resource / authorization-server metadata discovery with a separately pinned auth-network policy;
+5. protected-resource / authorization-server metadata discovery with separately pinned auth-network policy;
 6. RAR projection from CIEAV Consequence Contracts;
 7. Transaction Token / WIMSE projection for downstream call-chain context;
-8. OAuth-aware MCP Streamable HTTP and A2A adapters using the same Credential Authority Plane.
+8. OAuth-aware MCP Streamable HTTP and A2A adapters using the same Credential Authority Plane;
+9. separate token-endpoint and resource-endpoint trust-bundle policy for mTLS.
 
 Production architecture/hardening for each row is claimed only after executable implementation and cross-platform qualification.

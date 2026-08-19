@@ -25,7 +25,7 @@ export type CredentialDerivationContract=z.infer<typeof CredentialDerivationCont
 
 export const CredentialDerivationReceiptSchema=z.object({
   id:z.string().uuid(),version:z.literal(1),contractId:z.string().uuid(),proposalId:z.string().uuid(),executionTicketId:z.string().uuid(),toolId:z.string().min(1).max(240),profileId:z.string().min(1).max(160),grantType:OAuthGrantTypeSchema,
-  tokenEndpointDigest:DigestSchema,resourceDigest:DigestSchema,scopeDigest:DigestSchema,senderConstraint:SenderConstraintSchema,keyHandleId:z.string().uuid().optional(),
+  tokenEndpointDigest:DigestSchema,resourceDigest:DigestSchema,scopeDigest:DigestSchema,senderConstraint:SenderConstraintSchema,keyHandleId:z.string().uuid().optional(),certificateThumbprint:DigestSchema.optional(),
   tokenType:z.enum(["Bearer","DPoP"]),accessTokenDigest:DigestSchema,requestDigest:DigestSchema,normalizedArgumentsDigest:DigestSchema,derivedAt:z.string().datetime(),expiresAt:z.string().datetime()
 }).strict();
 export type CredentialDerivationReceipt=z.infer<typeof CredentialDerivationReceiptSchema>;
