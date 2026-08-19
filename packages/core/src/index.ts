@@ -2,6 +2,7 @@ export * from "./policy.js";
 export * from "./redaction.js";
 export * from "./commitment.js";
 export * from "./agent-task.js";
+export * from "./execution-fabric.js";
 
 import type {ActionContext,ActionManifest,Reversibility,RiskLevel} from "@cieav/contracts";
 
