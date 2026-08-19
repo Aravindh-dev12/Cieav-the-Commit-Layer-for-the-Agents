@@ -26,7 +26,7 @@ const LAUNCH_INVARIANTS=[
   '"--remote-debugging-pipe"','transport:"private-windows-handle-pipe"','transport:"private-posix-fd-pipe"',
   '"CIEAV_BROWSER_CONTROL_TOKEN"','"LATCH_BROWSER_CONTROL_TOKEN"',"for(const key of SECRET_ENV_KEYS)delete clean[key]"
 ];
-const CORE_FORBIDDEN=["--remote-"+"debugging-port","/json/"+"list","/json/"+"new","webSocket"+"DebuggerUrl"];
+const CORE_FORBIDDEN=["--remote-"+"debugging-port","/json/"+"list","/json/"+"new","webSocket"+"DebuggerUrl","Target.getTargetInfo"];
 const coreSource=await readFile(path.join(HERE,"main-core.mjs"),"utf8"),launchSource=await readFile(path.join(HERE,"chromium-launch.mjs"),"utf8");
 for(const token of CORE_INVARIANTS)if(!coreSource.includes(token))throw new Error(`CIEAV hardened browser core invariant missing: ${token}`);
 for(const token of LAUNCH_INVARIANTS)if(!launchSource.includes(token))throw new Error(`CIEAV private Chromium launch invariant missing: ${token}`);
