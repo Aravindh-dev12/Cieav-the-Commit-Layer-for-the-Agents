@@ -11,6 +11,7 @@ const sensitiveKeys=[
   "HF_TOKEN","HUGGING_FACE_HUB_TOKEN","OPENAI_API_KEY","CIEAV_CLOUD_TOKEN","LATCH_CLOUD_TOKEN",
   "CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN","CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN",
   "JWT_SECRET","RECEIPT_SIGNING_SECRET","CIEAV_LOCAL_API_SECRET",
+  "AZURE_TENANT_ID","AZURE_CLIENT_ID","AZURE_CLIENT_SECRET","AZURE_MAA_URI",
   "CIEAV_RELEASE_SIGNING_PRIVATE_KEY_B64","RELEASE_SIGNING_PRIVATE_KEY_B64",
   "CIEAV_WINDOWS_CODE_SIGN_PFX_B64","CIEAV_WINDOWS_CODE_SIGN_PFX_PASSWORD","WINDOWS_PFX_B64","WINDOWS_PFX_PASSWORD",
   "CIEAV_MACOS_DEVELOPER_ID_P12_B64","CIEAV_MACOS_DEVELOPER_ID_P12_PASSWORD","MACOS_CERT_P12_B64","MACOS_CERT_PASSWORD",
@@ -23,6 +24,8 @@ run(path.join(ROOT,"scripts/platform-boundary-static.mjs"));
 run(path.join(ROOT,"scripts/openclaw-no-deps-static.mjs"));
 run(path.join(ROOT,"scripts/package-namespace-smoke.mjs"));
 run(path.join(ROOT,"scripts/release-workflow-static.mjs"));
+run(path.join(ROOT,"scripts/windows-tpm-cng-release.mjs"));
+run(path.join(ROOT,"scripts/windows-tpm-maa-collector-release.mjs"));
 run("--check",[path.join(ROOT,"apps/browser/main.mjs")]);
 run("--check",[path.join(ROOT,"apps/browser/main-core.mjs")]);
 run("--check",[path.join(ROOT,"scripts/dashboard-reality-smoke.mjs")]);
