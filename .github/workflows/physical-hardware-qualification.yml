@@ -1,0 +1,87 @@
+name: physical-hardware-qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Physical release platform to qualify
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - windows
+          - macos
+          - linux
+
+permissions:
+  contents: read
+
+concurrency:
+  group: physical-hardware-qualification-${{ github.ref }}-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  windows-tpm-maa:
+    if: ${{ inputs.target == 'all' || inputs.target == 'windows' }}
+    runs-on: [self-hosted, windows, cieav-release-hardware, cieav-windows-tpm]
+    timeout-minutes: 30
+    env:
+      CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
+      CIEAV_WINDOWS_TPM_CNG_BRIDGE: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE }}
+      CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256 }}
+      CIEAV_WINDOWS_MAA_CONFIG: ${{ vars.CIEAV_WINDOWS_MAA_CONFIG }}
+      CIEAV_WINDOWS_MAA_CONFIG_SHA256: ${{ vars.CIEAV_WINDOWS_MAA_CONFIG_SHA256 }}
+      AZURE_TENANT_ID: ${{ secrets.CIEAV_MAA_AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install exact workspace graph
+        run: npm install
+      - name: Audit release dependency graph
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=critical
+      - name: Qualify physical Windows TPM and live MAA
+        run: node scripts/physical-hardware-qualification.mjs
+
+  macos-secure-enclave:
+    if: ${{ inputs.target == 'all' || inputs.target == 'macos' }}
+    runs-on: [self-hosted, macOS, cieav-release-hardware, cieav-macos-secure-enclave]
+    timeout-minutes: 20
+    env:
+      CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
+      CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE }}
+      CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256 }}
+      CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Qualify physical macOS Secure Enclave
+        run: node scripts/physical-hardware-qualification.mjs
+
+  linux-pkcs11:
+    if: ${{ inputs.target == 'all' || inputs.target == 'linux' }}
+    runs-on: [self-hosted, linux, cieav-release-hardware, cieav-linux-hsm]
+    timeout-minutes: 20
+    env:
+      CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
+      CIEAV_LINUX_PKCS11_BRIDGE: ${{ vars.CIEAV_LINUX_PKCS11_BRIDGE }}
+      CIEAV_LINUX_PKCS11_BRIDGE_SHA256: ${{ vars.CIEAV_LINUX_PKCS11_BRIDGE_SHA256 }}
+      CIEAV_LINUX_PKCS11_PROVIDER_REF: ${{ secrets.CIEAV_LINUX_PKCS11_PROVIDER_REF }}
+      CIEAV_LINUX_ATTESTATION_EVIDENCE: ${{ vars.CIEAV_LINUX_ATTESTATION_EVIDENCE }}
+      CIEAV_LINUX_ATTESTATION_PUBLIC_KEY: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY }}
+      CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Qualify physical Linux PKCS11 key and verifier evidence
+        run: node scripts/physical-hardware-qualification.mjs
