@@ -79,6 +79,7 @@ jobs:
           node --check scripts/windows-tpm-maa-collector-release.mjs
           node --check scripts/macos-secure-enclave-release.mjs
           node --check scripts/linux-pkcs11-release.mjs
+          node --check scripts/physical-hardware-qualification.mjs
           node --check scripts/credential-hardware-admin-release.mjs
           node --check scripts/release-gate.mjs
           node --check scripts/agent-kernel-release.mjs
@@ -88,6 +89,13 @@ jobs:
           sh -n distribution/install.sh
           if grep -q 'command -v python3\|python3 -' distribution/install.sh; then echo 'Unix consumer installer must not require Python'; exit 1; fi
           if grep -Eqi 'npm install|npx |pip install|pnpm add|yarn add' distribution/install.ps1; then echo 'PowerShell consumer installer must not require package managers'; exit 1; fi
+      - name: Verify hosted CI cannot self-qualify physical hardware
+        run: |
+          if CIEAV_PHYSICAL_HARDWARE_QUALIFICATION= node scripts/physical-hardware-qualification.mjs; then
+            echo 'Physical hardware qualification must fail without explicit release-host opt-in'
+            exit 1
+          fi
+          echo 'Physical hardware qualification fails closed on hosted CI'
       - name: Validate evaluation corpus and runners
         run: |
           node -e "const x=require('./evals/cases.v1.json'); if(!Array.isArray(x.cases)||x.cases.length<30) process.exit(1); const ids=x.cases.map(c=>c.id); if(new Set(ids).size!==ids.length) process.exit(2); console.log('eval cases:',x.cases.length)"
