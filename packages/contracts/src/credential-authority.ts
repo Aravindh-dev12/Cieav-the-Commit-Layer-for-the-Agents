@@ -5,6 +5,7 @@ const RiskSchema=z.enum(["LOW","MEDIUM","HIGH","CRITICAL"]);
 
 export const KeyProviderSchema=z.enum(["LOCAL_WRAPPED_P256","TPM","SECURE_ENCLAVE","SPIFFE","EXTERNAL_KMS"]);
 export const KeyPurposeSchema=z.enum(["OAUTH_CLIENT_ASSERTION","DPOP","HTTP_MESSAGE_SIGNATURE","MTLS_CLIENT_AUTH","PROVIDER_SIGNING"]);
+export type KeyPurpose=z.infer<typeof KeyPurposeSchema>;
 export const KeyHandleSchema=z.object({
   id:z.string().uuid(),version:z.literal(1),alias:z.string().regex(/^[A-Za-z0-9._-]{1,120}$/),provider:KeyProviderSchema,algorithm:z.literal("ES256"),
   publicJwk:z.object({kty:z.literal("EC"),crv:z.literal("P-256"),x:z.string().min(1),y:z.string().min(1)}).strict(),publicKeyFingerprint:DigestSchema,

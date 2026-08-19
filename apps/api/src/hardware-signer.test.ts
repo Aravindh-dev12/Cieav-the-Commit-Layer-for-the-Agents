@@ -1,0 +1,27 @@
+import crypto from "node:crypto";
+import {mkdtemp,writeFile} from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import {describe,expect,it} from "vitest";
+import {CieavHardwareKeyProviderRegistry} from "./hardware-key-provider.js";
+import {CieavHardwareSigner,type HardwareBridgeRunner} from "./hardware-signer.js";
+
+const sha=(value:Buffer|string)=>crypto.createHash("sha256").update(value).digest("hex"),now=()=>new Date().toISOString();
+const ecJwk={kty:"EC" as const,crv:"P-256" as const,x:"test-x-coordinate",y:"test-y-coordinate"};
+const rsaJwk={kty:"RSA" as const,n:"n".repeat(64),e:"AQAB"};
+const fingerprint=(jwk:unknown)=>sha(JSON.stringify(jwk));
+
+async function fixture(algorithm:"ES256"|"RS256"="ES256",purposes=(algorithm==="ES256"?["DPOP","OAUTH_CLIENT_ASSERTION"]:["PROVIDER_SIGNING"]) as any[]){
+  const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-hw-sign-")),bridge=path.join(dir,"bridge.bin"),bytes=Buffer.from("trusted opaque hardware signing bridge"),state=path.join(dir,"hardware.json");await writeFile(bridge,bytes);
+  const registry=new CieavHardwareKeyProviderRegistry(state,"s".repeat(64)),manifest=await registry.putManifest({id:"kms-sign",version:1,provider:"EXTERNAL_KMS",platform:"ANY",executablePath:bridge,executableSha256:sha(bytes),protocol:"CIEAV_KEY_PROVIDER_V1",capabilities:[algorithm==="ES256"?"SIGN_ES256":"SIGN_RS256","ATTEST_KEY"],allowedPurposes:purposes,providerLocator:"kms://fixture",enabled:true,createdAt:now()}),jwk=algorithm==="ES256"?ecJwk:rsaJwk,attestation=await registry.putAttestation({id:crypto.randomUUID(),version:1,providerManifestId:manifest.id,provider:"EXTERNAL_KMS",kind:"EXTERNAL_KMS_KEY",publicKeyFingerprint:fingerprint(jwk),evidenceDigest:"a".repeat(64),claimsDigest:"b".repeat(64),verification:"VERIFIED",verifiedBy:"cieav:test",verifiedAt:now()}),key=await registry.registerKey({id:crypto.randomUUID(),version:1,alias:"opaque-key",provider:"EXTERNAL_KMS",providerManifestId:manifest.id,attestationId:attestation.id,providerKeyRef:"provider-key-42",algorithm,publicJwk:jwk,publicKeyFingerprint:fingerprint(jwk),purposes,hardwareBacked:true,exportable:false,createdAt:now()});return{dir,bridge,registry,key};
+}
+
+describe("CieavHardwareSigner",()=>{
+  it("revalidates attested hardware registration and invokes the exact provider key reference",async()=>{const f=await fixture(),calls:{executable:string;args:string[]}[]=[],runner:HardwareBridgeRunner=async(executable,args)=>{calls.push({executable,args});return{protocol:"CIEAV_KEY_PROVIDER_V1",operation:"sign-es256",signature:Buffer.alloc(64,7).toString("base64url")}},signer=new CieavHardwareSigner(f.registry,runner),digest=crypto.createHash("sha256").update("payload").digest(),result=await signer.signDigest(f.key.id,"DPOP",digest);expect(result.signature).toHaveLength(64);expect(calls).toEqual([{executable:f.bridge,args:["sign-es256","provider-key-42",digest.toString("hex")]}]);await f.registry.close()});
+
+  it("creates JOSE ES256 compact JWS without exposing private key material",async()=>{const f=await fixture(),runner:HardwareBridgeRunner=async()=>({protocol:"CIEAV_KEY_PROVIDER_V1",operation:"sign-es256",signature:Buffer.alloc(64,9).toString("base64url")}),signer=new CieavHardwareSigner(f.registry,runner),jws=await signer.signJws(f.key.id,"DPOP",{typ:"dpop+jwt"},{jti:"1",htm:"POST",htu:"https://api.example.test",iat:1}),parts=jws.split(".");expect(parts).toHaveLength(3);const header=JSON.parse(Buffer.from(parts[0]!,"base64url").toString("utf8"));expect(header.alg).toBe("ES256");expect(header.jwk).toEqual(ecJwk);expect(Buffer.from(parts[2]!,"base64url")).toHaveLength(64);expect(jws).not.toContain("PRIVATE KEY");await f.registry.close()});
+
+  it("fails closed on bridge replacement, purpose substitution and missing provider key refs",async()=>{const f=await fixture(),runner:HardwareBridgeRunner=async()=>({protocol:"CIEAV_KEY_PROVIDER_V1",operation:"sign-es256",signature:Buffer.alloc(64).toString("base64url")}),signer=new CieavHardwareSigner(f.registry,runner),digest=Buffer.alloc(32);await expect(signer.signDigest(f.key.id,"PROVIDER_SIGNING",digest)).rejects.toThrow("hardware_key_purpose_not_allowed");await writeFile(f.bridge,"tampered bridge");await expect(signer.signDigest(f.key.id,"DPOP",digest)).rejects.toThrow("hardware_provider_bridge_digest_mismatch");await f.registry.close()});
+
+  it("rejects malformed ES256 output and RS256 keys for DPoP JOSE",async()=>{const f=await fixture(),bad=new CieavHardwareSigner(f.registry,async()=>({protocol:"CIEAV_KEY_PROVIDER_V1",operation:"sign-es256",signature:Buffer.alloc(63).toString("base64url")}));await expect(bad.signDigest(f.key.id,"DPOP",Buffer.alloc(32))).rejects.toThrow("hardware_signer_es256_signature_length_invalid");await f.registry.close();const r=await fixture("RS256",["PROVIDER_SIGNING"]),signer=new CieavHardwareSigner(r.registry,async()=>({protocol:"CIEAV_KEY_PROVIDER_V1",operation:"sign-rs256",signature:Buffer.alloc(256).toString("base64url")}));await expect(signer.signJws(r.key.id,"PROVIDER_SIGNING",{},{})).rejects.toThrow("hardware_signer_jose_es256_required");await r.registry.close()});
+});
