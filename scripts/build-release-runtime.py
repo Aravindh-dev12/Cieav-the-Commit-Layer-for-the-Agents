@@ -41,8 +41,8 @@ def verify_release_boundaries(root: Path) -> None:
     node=shutil.which("node.exe" if platform.system()=="Windows" else "node") or shutil.which("node")
     if not node:raise SystemExit("Node is required to verify CIEAV release boundaries")
     env=dict(os.environ)
-    for key in ("CIEAV_AGENT_TOKEN","LATCH_AGENT_TOKEN","CIEAV_A2A_CLIENT_TOKEN","LATCH_A2A_CLIENT_TOKEN","CIEAV_MCP_CLIENT_TOKEN","LATCH_MCP_CLIENT_TOKEN","CIEAV_AGENT_SESSION_TOKEN","LATCH_AGENT_SESSION_TOKEN"):env.pop(key,None)
-    scripts=("scripts/platform-boundary-static.mjs","scripts/openclaw-no-deps-static.mjs","scripts/package-namespace-smoke.mjs")
+    for key in ("CIEAV_AGENT_TOKEN","LATCH_AGENT_TOKEN","CIEAV_A2A_CLIENT_TOKEN","LATCH_A2A_CLIENT_TOKEN","CIEAV_MCP_CLIENT_TOKEN","LATCH_MCP_CLIENT_TOKEN","CIEAV_AGENT_SESSION_TOKEN","LATCH_AGENT_SESSION_TOKEN","AZURE_TENANT_ID","AZURE_CLIENT_ID","AZURE_CLIENT_SECRET","AZURE_MAA_URI"):env.pop(key,None)
+    scripts=("scripts/platform-boundary-static.mjs","scripts/openclaw-no-deps-static.mjs","scripts/package-namespace-smoke.mjs","scripts/windows-tpm-cng-release.mjs","scripts/windows-tpm-maa-collector-release.mjs")
     for relative in scripts:
         script=root/relative
         if not script.exists():raise SystemExit(f"Missing CIEAV release-boundary verifier: {relative}")
@@ -73,7 +73,6 @@ def bundle_mcp(root: Path) -> Path:
 
 
 def bundle_api(root: Path) -> Path:
-    # Bundle the entire local-authority dependency graph so consumers never need node_modules.
     return bundle_entry(root,root/"apps/api/src/server.ts",root/"apps/api/dist/server.bundle.js","local API")
 
 
@@ -84,23 +83,39 @@ def a2a_source(root:Path)->Path:
     return source
 
 
+def stage_optional_maa_collector(source_dir: Path | None, stage: Path, key: str) -> dict | None:
+    if source_dir is None:return None
+    if not key.startswith("windows-"):raise SystemExit("--windows-tpm-maa-collector-dir is valid only for Windows release builds")
+    if not source_dir.is_dir():raise SystemExit(f"TPM/MAA collector directory does not exist: {source_dir}")
+    collector=source_dir/"cieav-windows-tpm-maa-collector.exe"
+    if not collector.is_file() or collector.is_symlink():raise SystemExit("TPM/MAA collector directory must contain a regular cieav-windows-tpm-maa-collector.exe")
+    dlls=sorted(p for p in source_dir.iterdir() if p.is_file() and not p.is_symlink() and p.suffix.lower()==".dll")
+    if len(dlls)<3:raise SystemExit("TPM/MAA collector bundle must include its complete DLL dependency closure")
+    allowed={collector.name.lower(),*(p.name.lower() for p in dlls)}
+    unexpected=[p.name for p in source_dir.iterdir() if p.name.lower() not in allowed]
+    if unexpected:raise SystemExit(f"TPM/MAA collector directory contains unexpected files: {', '.join(sorted(unexpected))}")
+    target=stage/"native/windows-tpm-maa-collector";target.mkdir(parents=True,exist_ok=True)
+    shutil.copy2(collector,target/collector.name)
+    for dll in dlls:shutil.copy2(dll,target/dll.name)
+    manifest={"version":1,"collector":{"fileName":collector.name,"sha256":sha256(collector)},"dependencies":[{"fileName":p.name,"sha256":sha256(p)} for p in dlls],"consumerPackageManagerRequired":False,"physicalTpmQualificationRequired":True}
+    (target/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n","utf-8")
+    return manifest
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cieav-exe", "--latch-exe", dest="cieav_exe", required=True)
     ap.add_argument("--node-exe", required=True)
     ap.add_argument("--cdp-win-bridge")
+    ap.add_argument("--windows-tpm-maa-collector-dir")
     ap.add_argument("--output-dir", default="release-out")
     ap.add_argument("--version", required=True)
     args = ap.parse_args()
 
-    root = Path.cwd().resolve()
-    verify_release_boundaries(root)
-    cieav_exe = Path(args.cieav_exe).resolve()
-    node_exe = Path(args.node_exe).resolve()
-    out = Path(args.output_dir).resolve(); out.mkdir(parents=True, exist_ok=True)
-    key = platform_key()
+    root = Path.cwd().resolve();verify_release_boundaries(root)
+    cieav_exe = Path(args.cieav_exe).resolve();node_exe = Path(args.node_exe).resolve();out = Path(args.output_dir).resolve(); out.mkdir(parents=True, exist_ok=True);key = platform_key()
     cdp_win_bridge = Path(args.cdp_win_bridge).resolve() if args.cdp_win_bridge else None
-
+    maa_collector_dir = Path(args.windows_tpm_maa_collector_dir).resolve() if args.windows_tpm_maa_collector_dir else None
     if not cieav_exe.exists(): raise SystemExit(f"Missing CIEAV executable: {cieav_exe}")
     if not node_exe.exists(): raise SystemExit(f"Missing Node executable: {node_exe}")
     if key.startswith("windows-") and (cdp_win_bridge is None or not cdp_win_bridge.exists()): raise SystemExit("Windows release requires --cdp-win-bridge with the signed native CDP bridge")
@@ -109,25 +124,18 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         stage = Path(td) / "cieav-runtime"
         (stage / "bin").mkdir(parents=True); (stage / "runtime").mkdir(parents=True); (stage / "apps/api/dist").mkdir(parents=True);(stage/"apps/mcp/dist").mkdir(parents=True);(stage/"apps/a2a/dist").mkdir(parents=True)
-        exe_name = "cieav.exe" if key.startswith("windows-") else "cieav"
-        node_name = "node.exe" if key.startswith("windows-") else "node"
+        exe_name = "cieav.exe" if key.startswith("windows-") else "cieav";node_name = "node.exe" if key.startswith("windows-") else "node"
         shutil.copy2(cieav_exe, stage / "bin" / exe_name);shutil.copy2(node_exe, stage / "runtime" / node_name)
         if not key.startswith("windows-"):
             for p in (stage / "bin" / exe_name, stage / "runtime" / node_name): p.chmod(p.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         copy_tree(root / "apps/browser", stage / "apps/browser")
         if cdp_win_bridge is not None: shutil.copy2(cdp_win_bridge, stage / "apps/browser/cdp-win-bridge.exe")
         shutil.copy2(api_bundle, stage / "apps/api/dist/server.js");shutil.copy2(mcp_bundle,stage/"apps/mcp/dist/index.js");shutil.copy2(a2a,stage/"apps/a2a/dist/index.mjs")
-        for name in ("package.json", "PRIVACY.md", "SECURITY.md", "README.md", "OPENCLAW.md", "INTENT-TO-REALITY.md", "EXECUTION-FABRIC.md"):
+        maa_manifest=stage_optional_maa_collector(maa_collector_dir,stage,key)
+        for name in ("package.json", "PRIVACY.md", "SECURITY.md", "README.md", "OPENCLAW.md", "INTENT-TO-REALITY.md", "EXECUTION-FABRIC.md", "HARDWARE-KEY-PROVIDERS.md", "WINDOWS-TPM-CNG.md"):
             src = root / name
             if src.exists(): shutil.copy2(src, stage / name)
-        runtime_meta = {
-            "brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":8,
-            "legacyBrand":"LATCH","privateCdpTransport":"windows-handle-pipe" if key.startswith("windows-") else "posix-fd-pipe",
-            "agentProtocols":{"mcp":"2026-07-28","a2a":"1.0","openclaw":"outbound-mcp","executionFabric":"intent-reality-v2"},"a2aExposure":"loopback-authenticated",
-            "platformBoundaryVerified":True,"releaseBoundaryVerified":True,"canonicalNamespaceVerified":True,"controlCenterRealityBoundaryVerified":True,
-            "openClawConsumerBoundaryVerified":True,"consumerPackageManagerRequired":False,"bundledNode":True,"bundledMcpDependencies":True,"bundledLocalApiDependencies":True,
-            "executionFabricIncluded":True,"formalAuthorizationIncluded":True,"realityBoundExecutionIncluded":True
-        }
+        runtime_meta = {"brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":8,"legacyBrand":"LATCH","privateCdpTransport":"windows-handle-pipe" if key.startswith("windows-") else "posix-fd-pipe","agentProtocols":{"mcp":"2026-07-28","a2a":"1.0","openclaw":"outbound-mcp","executionFabric":"intent-reality-v2"},"a2aExposure":"loopback-authenticated","platformBoundaryVerified":True,"releaseBoundaryVerified":True,"canonicalNamespaceVerified":True,"controlCenterRealityBoundaryVerified":True,"openClawConsumerBoundaryVerified":True,"consumerPackageManagerRequired":False,"bundledNode":True,"bundledMcpDependencies":True,"bundledLocalApiDependencies":True,"executionFabricIncluded":True,"formalAuthorizationIncluded":True,"realityBoundExecutionIncluded":True,"windowsTpmMaaCollectorBundled":maa_manifest is not None,"windowsTpmMaaLiveQualificationRequired":maa_manifest is not None}
         (stage / "runtime.json").write_text(json.dumps(runtime_meta, indent=2) + "\n", "utf-8")
         archive = out / f"cieav-runtime-{args.version}-{key}.zip"
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
@@ -135,7 +143,7 @@ def main() -> None:
                 if file.is_dir(): continue
                 arc = Path("cieav-runtime") / file.relative_to(stage);info = zipfile.ZipInfo.from_file(file, arc.as_posix()); info.date_time=(2026,1,1,0,0,0)
                 with file.open("rb") as f: zf.writestr(info, f.read(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
-    metadata={"brand":"CIEAV","platform":key,"filename":archive.name,"sha256":sha256(archive),"size":archive.stat().st_size,"version":args.version,"platformBoundaryVerified":True,"releaseBoundaryVerified":True,"openClawConsumerBoundaryVerified":True,"consumerPackageManagerRequired":False,"bundledLocalApiDependencies":True,"executionFabricIncluded":True,"bundleFormat":8}
+    metadata={"brand":"CIEAV","platform":key,"filename":archive.name,"sha256":sha256(archive),"size":archive.stat().st_size,"version":args.version,"platformBoundaryVerified":True,"releaseBoundaryVerified":True,"openClawConsumerBoundaryVerified":True,"consumerPackageManagerRequired":False,"bundledLocalApiDependencies":True,"executionFabricIncluded":True,"windowsTpmMaaCollectorBundled":maa_manifest is not None,"bundleFormat":8}
     (out / f"metadata-{key}.json").write_text(json.dumps(metadata, indent=2) + "\n", "utf-8");print(json.dumps(metadata))
 
 

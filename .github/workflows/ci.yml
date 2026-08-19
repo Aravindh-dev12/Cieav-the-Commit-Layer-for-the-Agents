@@ -19,6 +19,8 @@ jobs:
         run: node scripts/openclaw-no-deps-static.mjs
       - name: Verify Windows TPM/CNG native provider boundary
         run: node scripts/windows-tpm-cng-release.mjs
+      - name: Verify live Windows TPM/MAA collector boundary
+        run: node scripts/windows-tpm-maa-collector-release.mjs
       - name: Verify CIEAV package namespace
         run: node scripts/package-namespace-smoke.mjs
       - name: Verify Python platform package
@@ -66,6 +68,7 @@ jobs:
           node --check scripts/platform-boundary-static.mjs
           node --check scripts/openclaw-no-deps-static.mjs
           node --check scripts/windows-tpm-cng-release.mjs
+          node --check scripts/windows-tpm-maa-collector-release.mjs
           node --check scripts/release-gate.mjs
           node --check scripts/agent-kernel-release.mjs
           node --check scripts/repository-governance-check.mjs

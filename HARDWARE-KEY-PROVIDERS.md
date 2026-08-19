@@ -32,7 +32,7 @@ hardware key registration usable
 
 The native bridge lives at `native/windows-tpm-cng` and explicitly opens the Microsoft Platform Crypto Provider through NCrypt. It requires the provider implementation flags to report hardware and not software. If the provider/TPM is unavailable, `probe` fails closed with `available:false` and `hardwareBacked:false`.
 
-The bridge now has **two deliberately separate key lanes**:
+The bridge has **two deliberately separate key lanes**:
 
 ```text
 P-256 consequence-signing lane
@@ -54,18 +54,58 @@ Microsoft's current Azure Attestation TPM key-attestation sample uses an RSA-204
 
 A verified RSA TPM attestation establishes only the exact RSA public key named by the MAA report. Any future statement that a P-256 consequence key has equivalent TPM provenance requires its own cryptographically justified binding; provider name, machine identity, or co-residency alone is insufficient.
 
+## Live Microsoft Azure Attestation collection
+
+CIEAV now includes an optional native collector at `native/windows-tpm-maa-collector` plus the API-side launcher `CieavWindowsTpmMaaCollector`.
+
+The collector follows the TPM attestation session sequence used by Microsoft's Attestation Client sample:
+
+```text
+physical TPM
+  ↓
+AIK + RSA request key
+  ↓
+att_create_session
+  ↓
+att_attest
+  ↓
+Azure AttestationClient::AttestTpm
+  ↓
+repeat until complete
+  ↓
+att_get_report
+  ↓
+raw MAA JWT (transient)
+```
+
+Collection is intentionally separate from verification. A collector success does not create trusted hardware evidence by itself.
+
+### Collector trust boundary
+
+Before each collection CIEAV:
+
+- requires Windows;
+- verifies the collector executable SHA-256;
+- verifies every declared adjacent DLL SHA-256;
+- rejects symlink/non-regular collector or dependency files;
+- rejects undeclared adjacent DLLs;
+- generates a fresh 32-byte nonce internally;
+- uses a configuration-pinned HTTPS MAA issuer and policy hash;
+- maps only owner-selected credential sources into canonical `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`;
+- passes the pinned issuer as `AZURE_MAA_URI`;
+- strips inherited `PATH`, proxy variables, and Node/Python injection variables;
+- caps collector execution time and stdout/stderr size.
+
+The raw JWT is sent directly to the independent verifier and is not intended for durable state.
+
+See `WINDOWS-TPM-MAA-COLLECTOR.md`.
+
 ## Microsoft Azure Attestation verification
 
 `CieavMaaTpmAttestationVerifier` independently verifies an MAA report before producing `WINDOWS_TPM_KEY_ATTESTATION` evidence.
 
 ```text
-RSA-2048 TPM request key
-       ↓
-AIK + TPM certify evidence
-       ↓
-Microsoft Azure Attestation
-       ↓
-signed JWT
+signed MAA JWT
        ↓
 CIEAV verifier
   exact HTTPS issuer
@@ -74,7 +114,7 @@ CIEAV verifier
   exactly one signing key by kid
   RS256 signature
   exp / nbf / iat
-  relying-party nonce
+  CIEAV-generated nonce
   pinned attestation-policy hash
   exact x-ms-tpm-request-key RSA JWK
   tpm_certify.name_alg == 11
@@ -86,13 +126,11 @@ HardwareKeyAttestation VERIFIED
 
 CIEAV does not accept a caller-supplied boolean asserting that attestation succeeded. The verifier reconstructs trust from the signed report and expected relying-party inputs.
 
-### Freshness
+### Freshness and policy binding
 
-The relying party supplies a per-session nonce. The returned report must carry that exact nonce. Tokens are also constrained by `exp`, `nbf` and `iat`; CIEAV defaults to a substantially shorter acceptance age than the service's maximum token lifetime.
+The collector creates a per-session nonce inside CIEAV. The returned report must carry that exact nonce. Tokens are also constrained by `exp`, `nbf` and `iat`.
 
-### Policy binding
-
-The expected MAA attestation-policy hash is an explicit verifier input. A correctly signed report created under a different policy is rejected. This prevents signature validity from being confused with policy adequacy.
+The expected MAA attestation-policy hash is pinned in collector/verifier configuration. A correctly signed report created under a different policy is rejected.
 
 ### Metadata/JWKS boundary
 
@@ -100,7 +138,7 @@ The verifier fetches OpenID metadata from the expected HTTPS issuer, requires th
 
 ### Evidence persistence
 
-The registry stores only the verified public-key fingerprint plus evidence/claims digests and verifier metadata. The raw TPM private key, AIK private key, Azure client secret and provider session credentials are not registry state.
+The registry stores only the verified public-key fingerprint plus evidence/claims digests and verifier metadata. The raw TPM private key, AIK private key, raw MAA JWT, Azure client secret and provider session credentials are not registry state.
 
 ## Algorithm-specific capability attenuation
 
@@ -111,6 +149,14 @@ Hardware registrations declare `algorithm: ES256 | RS256` and the bridge manifes
 - mTLS use → `MTLS_CLIENT_AUTH`
 
 An RSA registration cannot be carried by an ES256-only bridge.
+
+## Release packaging boundary
+
+The TPM/MAA collector is optional. Its native CMake target does not download NuGet/vcpkg dependencies. Release engineering must pre-provision the Microsoft Attestation Client and Azure C++ SDK dependencies.
+
+On Windows, `scripts/build-release-runtime.py` may receive `--windows-tpm-maa-collector-dir`. The supplied directory must contain `cieav-windows-tpm-maa-collector.exe`, its complete DLL closure, and no unrelated files. The release archive receives a SHA-256 manifest and runtime metadata records whether the collector was bundled.
+
+Bundling is not live qualification. A bundled collector still requires a real TPM, enrolled AIK, request key, configured MAA provider, credentials and a policy that emits the claims required by CIEAV.
 
 ## macOS Secure Enclave
 
@@ -140,20 +186,27 @@ Implemented in source and deterministic qualification:
 - P-256 ES256 opaque signing lane;
 - RSA-2048 RS256 MAA request-key lane;
 - private export-policy enforcement;
+- optional native TPM→MAA evidence collector source;
+- digest-pinned collector + complete adjacent DLL closure;
+- CIEAV-owned nonce/issuer/policy collection boundary;
+- environment isolation and collector resource limits;
 - independent MAA JWT verifier;
 - issuer/JWKS/signature/freshness/nonce/policy/key/TPM-certify validation;
+- optional zero-package-manager release bundling for the prebuilt collector closure;
 - algorithm-specific capability attenuation;
-- adversarial verifier fixtures;
-- Windows native compilation + fail-closed provider probe;
+- adversarial verifier and collector-launcher fixtures;
+- Windows CNG bridge compilation + fail-closed provider probe;
 - Linux/macOS static native-source invariants.
 
-Still pending:
+Still pending external qualification / next implementation depth:
 
-1. live TPM evidence collection and AIK enrollment/invocation against a configured MAA provider;
-2. feeding the live MAA JWT into the independent verifier on a physical TPM host;
-3. a cryptographic attestation path for the P-256 consequence key itself, if supported and justified;
-4. Credential Authority opaque-hardware signing for `private_key_jwt`, DPoP and provider signatures;
-5. hardware-key mTLS integration;
-6. macOS Secure Enclave, Linux TPM/PKCS#11 and external KMS/HSM bridges.
+1. compile/sign the optional MAA collector against the pinned Microsoft Attestation Client/Azure SDK release dependency set;
+2. run a clean physical-TPM host with an enrolled AIK and configured MAA provider through collection → verification → registry insertion;
+3. add a cryptographically justified attestation path for the separate P-256 consequence key if the platform can support it;
+4. connect Credential Authority opaque-hardware signing to `private_key_jwt`, DPoP and provider signatures;
+5. add hardware-key mTLS integration;
+6. add macOS Secure Enclave, Linux TPM/PKCS#11 and external KMS/HSM bridges.
 
-GitHub-hosted runner success qualifies compilation, deterministic verification logic and fail-closed hardware detection; it does not constitute physical-TPM or live-MAA deployment qualification.
+GitHub-hosted runner success qualifies deterministic source/build wiring, launcher/verifier logic and fail-closed hardware detection. It does not constitute physical-TPM or live-MAA deployment qualification.
+
+**production architecture/hardening green; external release qualification still pending.**
