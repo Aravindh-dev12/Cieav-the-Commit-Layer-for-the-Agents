@@ -27,6 +27,7 @@ export class CieavHardwareSigner{
     if(digest32.length!==32)throw new Error("hardware_signer_sha256_digest_required");
     const {key,manifest}=await this.registry.assertUsable(keyId,purpose);
     if(key.algorithm!=="ES256"&&key.algorithm!=="RS256")throw new Error("hardware_signer_algorithm_unsupported");
+    if(!key.providerKeyRef)throw new Error("hardware_signer_provider_key_ref_required");
     const command=key.algorithm==="ES256"?"sign-es256":"sign-rs256";
     const body=await this.runner(manifest.executablePath,[command,key.providerKeyRef,digest32.toString("hex")],this.timeoutMs,16*1024);
     const signature=parseSignature(body,key.algorithm);
