@@ -6,7 +6,7 @@ import {
 export type FrameworkBindResult={binding:FrameworkBinding;assessment:unknown};
 export type AgentTaskCreateInput={intentId:string;actor:{id:string;kind:"AGENT"};goal:string;deadlineAt?:string;maxRetries?:number;metadata?:Record<string,string|number|boolean|null>};
 
-/** Framework-neutral bridge for agent runtimes. Trusted Gateway authority is intentionally excluded. */
+/** Uses a short-lived CIEAV agent-session token. Trusted Gateway authority is intentionally excluded. */
 export class CieavFrameworkClient{
   readonly apiBase:string;
   constructor(apiBase:string,private readonly agentToken:string){this.apiBase=apiBase.replace(/\/$/,"");if(!agentToken.trim())throw new Error("CIEAV agent token is required")}
