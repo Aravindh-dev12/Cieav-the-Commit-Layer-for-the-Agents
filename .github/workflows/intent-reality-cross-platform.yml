@@ -39,6 +39,10 @@ jobs:
         run: node scripts/windows-tpm-cng-release.mjs
       - name: Verify live Windows TPM/MAA collector boundary
         run: node scripts/windows-tpm-maa-collector-release.mjs
+      - name: Verify macOS Secure Enclave native provider boundary
+        run: node scripts/macos-secure-enclave-release.mjs
+      - name: Verify Linux PKCS11 native provider boundary
+        run: node scripts/linux-pkcs11-release.mjs
       - name: Install workspaces
         run: npm install
       - name: Build local authority packages
