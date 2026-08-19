@@ -34,8 +34,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Install exact workspace graph
-        run: npm install
+      - name: Require reproducible release dependency lock
+        run: node -e "const fs=require('fs');if(!fs.existsSync('package-lock.json')){console.error('Physical release qualification requires a committed package-lock.json');process.exit(2)}"
+      - name: Install locked workspace graph
+        run: npm ci
       - name: Audit release dependency graph
         run: |
           npm audit --omit=dev --audit-level=high
@@ -69,6 +71,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Require reproducible release dependency lock
+        run: node -e "const fs=require('fs');if(!fs.existsSync('package-lock.json')){console.error('Physical release qualification requires a committed package-lock.json');process.exit(2)}"
       - name: Qualify physical macOS Secure Enclave
         env:
           CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
@@ -94,6 +98,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Require reproducible release dependency lock
+        run: node -e "const fs=require('fs');if(!fs.existsSync('package-lock.json')){console.error('Physical release qualification requires a committed package-lock.json');process.exit(2)}"
       - name: Qualify physical Linux PKCS11 key and verifier evidence
         env:
           CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
