@@ -8,6 +8,7 @@
     ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js"},
     "./reality": {"types": "./dist/reality.d.ts", "import": "./dist/reality.js"},
     "./intent-reality": {"types": "./dist/intent-reality.d.ts", "import": "./dist/intent-reality.js"},
+    "./reversibility-escrow": {"types": "./dist/reversibility-escrow.d.ts", "import": "./dist/reversibility-escrow.js"},
     "./proof": {"types": "./dist/proof.d.ts", "import": "./dist/proof.js"},
     "./reconciliation": {"types": "./dist/reconciliation.d.ts", "import": "./dist/reconciliation.js"},
     "./policy": {"types": "./dist/policy.d.ts", "import": "./dist/policy.js"},
