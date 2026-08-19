@@ -45,7 +45,7 @@ The verifier's OpenID metadata and JWKS transport is also fail-closed: HTTPS is 
 
 The collector executable and complete adjacent DLL closure are digest pinned, symlinks/non-regular files are rejected, undeclared adjacent DLLs are rejected, a fresh CIEAV-owned nonce is generated per collection, the issuer/policy are pinned and the child environment excludes inherited PATH/proxy/runtime-injection variables.
 
-Physical TPM + enrolled AIK + live MAA qualification is still a release-host requirement; GitHub-hosted source checks cannot substitute for it.
+Physical TPM + enrolled AIK + live MAA qualification remains a release-host requirement; GitHub-hosted source checks cannot substitute for it.
 
 ## macOS — Secure Enclave
 
@@ -128,13 +128,15 @@ The strong root secret from which Agent Kernel subsystem state keys are domain-s
 
 Production secure-storage policy refuses an unencrypted file backend unless an explicit diagnostic override is configured. Legacy private-file secrets are migrated with read-back verification before deletion.
 
-The Python Gateway strips inherited signing and Gateway-capability variables from the managed semantic environment. Production starts `apps/api/dist/managed-entry.js` with a private anonymous stdin pipe, sends a bounded one-shot JSON bootstrap containing the JWT root, receipt-signing root and Gateway bearer capability, closes the pipe immediately, and never places those values in child arguments. The managed entry refuses TTY/no-pipe startup, rejects oversized, weak, malformed, duplicated or unexpected bootstrap fields, consumes the bootstrap before importing `server.js`, and fails if the same credentials also appear in the process environment. The browser surface still receives none of these authority roots.
+The Python Gateway strips inherited signing and Gateway-capability variables from the managed semantic environment. Production starts `apps/api/dist/managed-entry.js` with a private anonymous stdin pipe and sends an exact four-field bootstrap: JWT root, receipt-signing root, durable privileged Gateway bearer, and a distinct random process-scoped semantic-router capability. The Python side serializes this into a mutable buffer and overwrites it immediately after delivery. The managed Node entry independently caps input size, rejects TTY/no-pipe startup, overwrites received and concatenated byte buffers, rejects oversized, weak, malformed, duplicated, reused-scope or unexpected fields, consumes the bootstrap before importing `server.js`, and fails if equivalent credentials are also present in the process environment.
 
-This materially reduces ambient secret exposure compared with inherited environment variables, but it is **not same-user process isolation**. The Gateway and semantic process still hold authority material in memory, and provider-native keys remain usable according to their underlying OS/HSM access policy. Direct hardware sealing, secret rotation, stronger provider ACLs and a narrowly privileged signer/credential broker remain further hardening work.
+The durable privileged Gateway bearer is not retained raw in Node configuration. It is converted to a fixed SHA-256 verifier; inbound trusted-Gateway requests hash the presented bearer and use constant-time digest comparison. Hugging Face semantic routing uses only the distinct semantic-router capability. The Python control plane accepts that narrower capability only on the semantic `/v1/hf/*` surface and rejects it on privileged pause/resume/dashboard and related control routes. The browser receives none of the JWT, receipt-signing, privileged Gateway or semantic-router capabilities.
+
+This materially reduces ambient secret exposure compared with inherited environment variables and removes the raw privileged Gateway bearer from long-lived Node configuration, but it is **not same-user process isolation**. The Gateway and semantic process still hold cryptographic material required for their duties in memory, and provider-native keys remain usable according to their underlying OS/HSM access policy. Direct hardware sealing, secret rotation, stronger provider ACLs and a narrowly privileged signer/credential broker remain further hardening work.
 
 ## CI and release qualification
 
-The cross-platform GitHub matrix executes provider, lifecycle and root-secret gates on Ubuntu, macOS and Windows:
+The hosted cross-platform matrix executes provider, lifecycle and root-secret gates on Ubuntu, macOS and Windows:
 
 - Windows TPM/CNG source/build/probe boundary;
 - Windows TPM→MAA collector and exact P-256 other-key verifier invariants;
@@ -143,15 +145,35 @@ The cross-platform GitHub matrix executes provider, lifecycle and root-secret ga
 - Linux PKCS #11 C++ compilation plus fail-closed unconfigured probe;
 - Gateway-only credential/hardware lifecycle and no raw verified-evidence import;
 - DPAPI/Keychain/Secret-Service production root-secret storage wiring and browser-secret isolation;
-- bounded one-shot private Gateway→semantic secret bootstrap, including executable missing/weak-bootstrap rejection;
+- bounded one-shot private Gateway→semantic bootstrap with transient-buffer overwrite, privileged-bearer digest retention and semantic/admin capability separation;
 - full Agent Kernel and trusted-adapter regressions.
 
-The Node dependency gate rejects high/critical production dependency advisories and critical advisories anywhere in the test/build graph.
+Hosted CI uses per-ref concurrency so obsolete validation runs are cancelled when a newer commit supersedes them. The Node dependency gate rejects high/critical production dependency advisories and critical advisories anywhere in the test/build graph.
 
-A green hosted matrix proves deterministic source/build wiring and fail-closed behavior. Release qualification additionally requires representative physical hardware:
+A manual `physical-hardware-qualification` workflow is defined for explicitly labeled self-hosted release machines. It deliberately differs from hosted CI:
 
-1. Windows: physical TPM, enrolled AIK, configured MAA provider/policy and P-256 `other_key` attestation.
-2. macOS: a Secure-Enclave-capable Mac executing create → local evidence → opaque sign → independent JWS verification.
-3. Linux: each approved PKCS #11 TPM/HSM module executing describe → deployment-specific attestation → opaque sign → independent JWS verification.
+- only `main` and `cieav-v*` release refs can schedule the hardware jobs;
+- runners must carry `cieav-release-hardware` plus the platform-specific TPM/Secure-Enclave/HSM label;
+- checkout credentials are not persisted and repository permissions remain read-only;
+- sensitive Azure MAA and Linux provider credentials are scoped only to the qualification step rather than the entire job;
+- the worktree is reset and cleaned after qualification even on failure;
+- the workflow is non-cancellable once a physical release qualification has started.
 
-No release documentation should collapse these physical qualification requirements into a hosted-runner claim.
+The physical qualification script exercises real cryptographic operations, not a provider-name assertion:
+
+1. **Windows:** physical Microsoft Platform Crypto Provider probe, exact P-256 consequence-key and RSA request-key resolution, fresh TPM ES256 challenge signing with independent verification, then live MAA collection/verification whose attested consequence fingerprint must equal the signing key.
+2. **macOS:** Secure Enclave hardware probe, exact non-exportable P-256 key resolution, fresh enclave challenge signing and independent verification.
+3. **Linux:** exact PKCS #11 key resolution and challenge signing plus independently signed deployment-verifier evidence binding the precise provider reference and public-key fingerprint; generic PKCS #11 success alone remains insufficient.
+
+Physical release qualification additionally refuses to run until a generated `package-lock.json` is committed. The Windows lane uses `npm ci`; every lane requires the lockfile before hardware evidence is accepted. The lock must come from an actual npm resolver and review/commit process rather than hand-authored dependency metadata.
+
+A green hosted matrix therefore proves deterministic source/build/fail-closed wiring only. It does **not** prove that representative physical hardware has qualified, and no successful self-hosted physical run is claimed merely because the workflow exists.
+
+## Remaining release assurance
+
+Before a final production release can claim these hardware paths as qualified, the repository still needs:
+
+1. a reviewed npm-generated `package-lock.json` committed to the release ref;
+2. successful self-hosted qualification evidence from representative Windows TPM/MAA, macOS Secure Enclave and each approved Linux TPM/HSM deployment;
+3. provider-native hardware mTLS before any opaque-hardware-key mTLS claim;
+4. stronger same-user process isolation/provider ACL policy if the target threat model requires protection against another process running as the same OS user.
