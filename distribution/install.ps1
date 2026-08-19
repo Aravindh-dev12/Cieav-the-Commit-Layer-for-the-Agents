@@ -1,7 +1,8 @@
 param(
   [string]$Channel = $(if ($env:CIEAV_CHANNEL) { $env:CIEAV_CHANNEL } elseif ($env:LATCH_CHANNEL) { $env:LATCH_CHANNEL } else { "stable" }),
   [string]$BaseUrl = $(if ($env:CIEAV_DOWNLOAD_BASE_URL) { $env:CIEAV_DOWNLOAD_BASE_URL } elseif ($env:LATCH_DOWNLOAD_BASE_URL) { $env:LATCH_DOWNLOAD_BASE_URL } else { "__CIEAV_DOWNLOAD_BASE_URL__" }),
-  [switch]$NoService
+  [switch]$NoService,
+  [switch]$NoOpenClaw
 )
 
 $ErrorActionPreference = "Stop"
@@ -71,6 +72,20 @@ function Assert-RuntimePublisher([string]$Executable) {
     Write-Host "CIEAV · macOS Developer ID verified"
   }
 }
+function Try-ConnectOpenClaw([string]$RuntimeCieav) {
+  if ($NoOpenClaw) { Write-Host "CIEAV · OpenClaw auto-connect disabled"; return }
+  $openclaw=Get-Command openclaw -ErrorAction SilentlyContinue
+  if (-not $openclaw) { Write-Host "CIEAV · OpenClaw not detected; standalone install complete"; Write-Host "CIEAV · run 'cieav openclaw connect' after installing OpenClaw"; return }
+  Write-Host "CIEAV · OpenClaw detected; registering governed MCP boundary"
+  try {
+    & $RuntimeCieav openclaw connect
+    if ($LASTEXITCODE -ne 0) { throw "CIEAV OpenClaw connector exited $LASTEXITCODE" }
+    Write-Host "CIEAV · OpenClaw connected"
+  } catch {
+    Write-Warning "CIEAV installed, but OpenClaw auto-connect did not complete: $($_.Exception.Message)"
+    Write-Warning "Retry later with: cieav openclaw connect"
+  }
+}
 
 if (-not $BaseUrl -or $BaseUrl -eq "__CIEAV_DOWNLOAD_BASE_URL__") { Fail "installer was not rendered with an official download endpoint. Pass -BaseUrl or set CIEAV_DOWNLOAD_BASE_URL." }
 if ($PinnedCloudUrl -eq "__CIEAV_CLOUD_URL__" -or $PinnedReleaseVersion -eq "__CIEAV_RELEASE_VERSION__") { Fail "installer is missing pinned release metadata" }
@@ -123,14 +138,15 @@ try {
     Set-Content -Path (Join-Path $binRoot "cieav.cmd") -Encoding ASCII -Value "@echo off`r`n`"$runtimeCieav`" %*`r`n"; Set-Content -Path (Join-Path $binRoot "latch.cmd") -Encoding ASCII -Value "@echo off`r`n`"$runtimeCieav`" %*`r`n"
     $userPath=[Environment]::GetEnvironmentVariable("Path","User"); $parts=@($userPath -split ';'|Where-Object { $_ }); if ($parts -notcontains $binRoot) { [Environment]::SetEnvironmentVariable("Path",(($parts+$binRoot)-join ';'),"User") }; $env:Path="$(Join-Path $installRoot 'runtime');$binRoot;$env:Path"
   } else {
-    foreach ($name in @("cieav","latch")) { $shim=Join-Path $binRoot $name; $script="#!/bin/sh`nexec `"$runtimeCieav`" `"`$@`"`n"; Set-Content -Path $shim -Encoding UTF8 -NoNewline -Value $script; & chmod 0755 $shim }; & chmod 0755 $runtimeCieav $runtimeNode; $env:PATH="$(Join-Path $installRoot 'runtime'):$binRoot:$env:PATH"
+    foreach ($name in @("cieav","latch")) { $shim=Join-Path $binRoot $name; $script="#!/bin/sh`nexec `"$runtimeCieav`" `"`$@`"`n"; Set-Content -Path $shim -Encoding UTF8 -NoNewline -Value $script; & chmod 0755 $shim }; & chmod 0755 $runtimeCieav $runtimeNode; $env:PATH="$(Join-Path $installRoot 'runtime');${binRoot}:$env:PATH"
   }
   $env:CIEAV_HOME=$installRoot; $env:CIEAV_CLOUD_URL=$PinnedCloudUrl; $env:CIEAV_VERSION=$PinnedReleaseVersion; $env:LATCH_HOME=$installRoot; $env:LATCH_CLOUD_URL=$PinnedCloudUrl; $env:LATCH_VERSION=$PinnedReleaseVersion
   Write-Host "CIEAV · running runtime self-check"; & $runtimeCieav doctor; if ($LASTEXITCODE -ne 0) { Fail "runtime self-check failed" }
   Write-Host "CIEAV · enrolling with Cloud Intelligence"; & $runtimeCieav cloud enroll; if ($LASTEXITCODE -ne 0) { Fail "Cloud Intelligence enrollment failed" }
   Write-Host "CIEAV · running cloud safety probe"; & $runtimeCieav cloud probe; if ($LASTEXITCODE -ne 0) { Fail "Cloud Intelligence safety probe failed" }
   if (-not $NoService) { Write-Host "CIEAV · installing always-on Gateway"; & $runtimeCieav gateway install; if ($LASTEXITCODE -ne 0) { Fail "Gateway service installation failed" } }
-  $success=$true; Write-Host ""; Write-Host "CIEAV installed successfully."; Write-Host "Version: $PinnedReleaseVersion"; Write-Host "Runtime: $installRoot"; Write-Host "Privacy: durable user state remains local"; Write-Host ""; Write-Host "Run: cieav gateway status"; Write-Host "Run: cieav cloud status"; Write-Host "Run: cieav test-lab"
+  if (-not $NoService) { Try-ConnectOpenClaw $runtimeCieav } elseif (-not $NoOpenClaw) { Write-Host "CIEAV · OpenClaw auto-connect skipped because -NoService leaves local authority offline" }
+  $success=$true; Write-Host ""; Write-Host "CIEAV installed successfully."; Write-Host "Version: $PinnedReleaseVersion"; Write-Host "Runtime: $installRoot"; Write-Host "Consumer dependencies: none (runtime is bundled)"; Write-Host "Privacy: durable user state remains local"; Write-Host ""; Write-Host "Run: cieav gateway status"; Write-Host "Run: cieav openclaw status"; Write-Host "Run: cieav cloud status"; Write-Host "Run: cieav test-lab"
 }
 catch { Write-Error $_; exit 1 }
 finally {

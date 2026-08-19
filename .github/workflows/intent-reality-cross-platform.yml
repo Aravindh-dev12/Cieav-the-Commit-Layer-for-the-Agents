@@ -1,0 +1,45 @@
+name: intent-reality-cross-platform
+on:
+  push:
+    branches:
+      - main
+      - 'agent/**'
+      - 'production/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  intent-reality:
+    name: Intent-to-Reality · ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify OpenClaw zero-dependency consumer boundary
+        run: node scripts/openclaw-no-deps-static.mjs
+      - name: Parse Windows consumer installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: "[scriptblock]::Create((Get-Content -Raw 'distribution/install.ps1')) | Out-Null"
+      - name: Parse Unix consumer installer
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          sh -n distribution/install.sh
+          if grep -Eqi 'npm install|npx |pip install|pnpm add|yarn add' distribution/install.sh; then echo 'Unix consumer installer must not require package managers'; exit 1; fi
+      - name: Install workspaces
+        run: npm install
+      - name: Build local authority packages
+        run: npm run build:api
+      - name: Verify Intent-to-Reality production invariants
+        run: node scripts/intent-reality-release.mjs
+      - name: Verify full Agent Kernel regression gate
+        run: node scripts/agent-kernel-release.mjs

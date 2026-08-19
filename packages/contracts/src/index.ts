@@ -3,37 +3,18 @@ import { z } from "zod";
 export const RiskLevelSchema = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
 export type RiskLevel = z.infer<typeof RiskLevelSchema>;
 
-export const ReversibilitySchema = z.enum([
-  "REVERSIBLE",
-  "DELAYABLE",
-  "COMPENSABLE",
-  "IRREVERSIBLE",
-  "UNKNOWN"
-]);
+export const ReversibilitySchema = z.enum(["REVERSIBLE","DELAYABLE","COMPENSABLE","IRREVERSIBLE","UNKNOWN"]);
 export type Reversibility = z.infer<typeof ReversibilitySchema>;
-
-export const DataCategorySchema = z.enum([
-  "NONE","ACCOUNT","CONTACT","LOCATION","IDENTITY","FINANCIAL","HEALTH","CREDENTIAL","BIOMETRIC","FILE","MESSAGE","WORK","OTHER"
-]);
+export const DataCategorySchema = z.enum(["NONE","ACCOUNT","CONTACT","LOCATION","IDENTITY","FINANCIAL","HEALTH","CREDENTIAL","BIOMETRIC","FILE","MESSAGE","WORK","OTHER"]);
 export type DataCategory = z.infer<typeof DataCategorySchema>;
-
 export const PageFieldSchema = z.object({name:z.string().max(200),type:z.string().max(80),label:z.string().max(300).optional(),required:z.boolean().optional(),redacted:z.boolean().default(true),dataCategory:DataCategorySchema.optional()});
 export type PageField = z.infer<typeof PageFieldSchema>;
-
-export const ActionContextSchema = z.object({
-  requestId:z.string().min(8).max(128),url:z.string().url().max(4096),origin:z.string().max(512),title:z.string().max(500).optional(),
-  element:z.object({tag:z.string().max(50),role:z.string().max(80).optional(),text:z.string().max(1000).optional(),ariaLabel:z.string().max(500).optional(),name:z.string().max(300).optional(),inputType:z.string().max(100).optional(),href:z.string().max(4096).optional(),method:z.string().max(20).optional(),action:z.string().max(4096).optional(),declaredActionType:z.string().max(160).optional(),declaredSummary:z.string().max(500).optional(),declaredReversibility:ReversibilitySchema.optional()}),
-  form:z.object({method:z.string().max(20).optional(),action:z.string().max(4096).optional(),fields:z.array(PageFieldSchema).max(100).default([]),fileNames:z.array(z.string().max(300)).max(20).default([]),submitterText:z.string().max(500).optional()}).optional(),
-  pageText:z.string().max(5000).optional(),nearbyText:z.string().max(2500).optional(),timestamp:z.string().datetime(),clientVersion:z.string().max(50)
-});
+export const ActionContextSchema = z.object({requestId:z.string().min(8).max(128),url:z.string().url().max(4096),origin:z.string().max(512),title:z.string().max(500).optional(),element:z.object({tag:z.string().max(50),role:z.string().max(80).optional(),text:z.string().max(1000).optional(),ariaLabel:z.string().max(500).optional(),name:z.string().max(300).optional(),inputType:z.string().max(100).optional(),href:z.string().max(4096).optional(),method:z.string().max(20).optional(),action:z.string().max(4096).optional(),declaredActionType:z.string().max(160).optional(),declaredSummary:z.string().max(500).optional(),declaredReversibility:ReversibilitySchema.optional()}),form:z.object({method:z.string().max(20).optional(),action:z.string().max(4096).optional(),fields:z.array(PageFieldSchema).max(100).default([]),fileNames:z.array(z.string().max(300)).max(20).default([]),submitterText:z.string().max(500).optional()}).optional(),pageText:z.string().max(5000).optional(),nearbyText:z.string().max(2500).optional(),timestamp:z.string().datetime(),clientVersion:z.string().max(50)});
 export type ActionContext = z.infer<typeof ActionContextSchema>;
-
 export const UndoDescriptorSchema=z.object({kind:z.enum(["NONE","BROWSER_BACK","REPEAT_INVERSE","SITE_ADAPTER","MANUAL"]),label:z.string().max(200).optional(),instructions:z.string().max(1200).optional(),adapterId:z.string().max(120).optional(),expiresAt:z.string().datetime().optional()});
 export type UndoDescriptor=z.infer<typeof UndoDescriptorSchema>;
-
 export const ActionManifestSchema=z.object({requestId:z.string(),actionType:z.string().min(2).max(160),summary:z.string().min(2).max(500),actor:z.string().max(300).default("You"),target:z.string().max(500).optional(),recipients:z.array(z.string().max(300)).max(20).default([]),dataCategories:z.array(DataCategorySchema).max(20).default([]),effects:z.array(z.string().max(500)).min(1).max(20),reversibility:ReversibilitySchema,undo:UndoDescriptorSchema,risk:RiskLevelSchema,confidence:z.number().min(0).max(1),modelUsed:z.boolean().default(false),warnings:z.array(z.string().max(500)).max(20).default([]),evidence:z.array(z.string().max(600)).max(20).default([]),policyVersion:z.string().max(50)});
 export type ActionManifest=z.infer<typeof ActionManifestSchema>;
-
 export const ActionOutcomeStatusSchema=z.enum(["OBSERVED_SUCCESS","OBSERVED_FAILURE","UNKNOWN"]);export type ActionOutcomeStatus=z.infer<typeof ActionOutcomeStatusSchema>;
 export const ActionOutcomeEvidenceSchema=z.object({kind:z.enum(["NAVIGATION","DOM_STATE","NETWORK","PAGE_MESSAGE","ELEMENT_STATE"]),summary:z.string().min(1).max(700)});export type ActionOutcomeEvidence=z.infer<typeof ActionOutcomeEvidenceSchema>;
 export const ActionOutcomeSchema=z.object({status:ActionOutcomeStatusSchema,confidence:z.number().min(0).max(1),observedAt:z.string().datetime(),evidence:z.array(ActionOutcomeEvidenceSchema).max(20).default([])});export type ActionOutcome=z.infer<typeof ActionOutcomeSchema>;
@@ -47,4 +28,6 @@ export const DeviceRegisterResponseSchema=z.object({deviceId:z.string(),token:z.
 export * from "./commitment.js";
 export * from "./agent-task.js";
 export * from "./intent-reality.js";
-export * from "./reversibility-escrow.js";
+export * from "./execution-fabric.js";
+export * from "./control-plane.js";
+export * from "./framework-interop.js";
