@@ -29,5 +29,7 @@ describe("CieavMaaTpmAttestationVerifier",()=>{
 
   it("rejects signature tampering, signing-key ambiguity and cross-origin JWKS",async()=>{const good=token(),parts=good.split("."),tampered=`${parts[0]}.${b64({...JSON.parse(Buffer.from(parts[1]!,"base64url").toString("utf8")),nonce:"tampered"})}.${parts[2]}`;await expect(verifier().verify(input(tampered))).rejects.toThrow("maa_tpm_signature_invalid");const ambiguous=new CieavMaaTpmAttestationVerifier(async(url)=>url.includes("openid")?{issuer,jwks_uri:jwksUrl}:{keys:[{...signingJwk,kid,use:"sig"},{...signingJwk,kid,use:"sig"}]});await expect(ambiguous.verify(input(good))).rejects.toThrow("maa_tpm_signing_key_ambiguous");const crossOrigin=new CieavMaaTpmAttestationVerifier(async()=>({issuer,jwks_uri:"https://attacker.example/certs"}));await expect(crossOrigin.verify(input(good))).rejects.toThrow("maa_tpm_jwks_origin_mismatch")});
 
+  it("blocks loopback and private metadata destinations before network access",async()=>{const loopback="https://127.0.0.1/",jwt=token({iss:loopback}),local={...input(jwt),issuer:loopback};await expect(new CieavMaaTpmAttestationVerifier().verify(local)).rejects.toThrow("maa_tpm_metadata_destination_not_public")});
+
   it("rejects expired and stale attestation reports",async()=>{const now=Math.floor(Date.now()/1000);await expect(verifier().verify(input(token({iat:now-2000,nbf:now-2000,exp:now+300})))).rejects.toThrow("maa_tpm_token_stale");await expect(verifier().verify(input(token({iat:now-100,nbf:now-100,exp:now-100})))).rejects.toThrow("maa_tpm_token_expired")});
 });
