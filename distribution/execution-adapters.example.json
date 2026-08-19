@@ -31,5 +31,21 @@
       "maxArgumentBytes": 262144,
       "maxStderrBytes": 32768
     }
+  ],
+  "mcpHttp": [
+    {
+      "toolId": "cieav.example.remote-mcp.send",
+      "serverId": "example-remote-server",
+      "downstreamToolName": "send_message",
+      "endpoint": "https://mcp.example.com/mcp",
+      "allowLoopback": false,
+      "staticHeaders": {},
+      "credential": {"kind": "BEARER_ENV", "env": "CIEAV_EXAMPLE_REMOTE_MCP_TOKEN"},
+      "connectTimeoutMs": 8000,
+      "timeoutMs": 15000,
+      "maxArgumentBytes": 262144,
+      "maxRequestBytes": 524288,
+      "maxResponseBytes": 8388608
+    }
   ]
 }
