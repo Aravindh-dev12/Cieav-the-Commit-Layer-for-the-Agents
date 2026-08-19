@@ -17,7 +17,7 @@ export const SenderConstraintSchema=z.enum(["NONE","DPOP","MTLS"]);
 export const CredentialDerivationContractSchema=z.object({
   id:z.string().uuid(),version:z.literal(1),proposalId:z.string().uuid(),taskId:z.string().uuid(),intentId:z.string().uuid(),executionTicketId:z.string().uuid(),realityBoundCommitId:z.string().uuid(),credentialLeaseId:z.string().uuid(),
   toolId:z.string().min(1).max(240),operation:z.string().min(1).max(240),routeDigest:DigestSchema,normalizedArgumentsDigest:DigestSchema,
-  profileId:z.string().min(1).max(160),grantType:OAuthGrantTypeSchema,resource:z.string().min(1).max(2000),audience:z.string().min(1).max(2000),scopes:z.array(z.string().min(1).max(240)).max(100),
+  profileId:z.string().min(1).max(160),grantType:OAuthGrantTypeSchema,resource:z.string().min(1).max(2000),audience:z.string().min(1).max(2000).optional(),scopes:z.array(z.string().min(1).max(240)).max(100),
   senderConstraint:SenderConstraintSchema,keyHandleId:z.string().uuid().optional(),maxTokenLifetimeSeconds:z.number().int().min(5).max(3600),maxUses:z.literal(1),risk:RiskSchema,
   authorizationDetailsDigest:DigestSchema.optional(),issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),bindingDigest:DigestSchema
 }).strict();
