@@ -71,12 +71,20 @@ def main() -> None:
             g=Gateway(s)
             semantic_env=g._semantic_env()
             surface_env=g._surface_env()
+            bootstrap=json.loads(g._semantic_bootstrap().decode("utf-8"))
             assert "HF_TOKEN" not in semantic_env
             assert "HF_TOKEN" not in surface_env
-            assert "CIEAV_GATEWAY_TOKEN" in semantic_env
+            assert semantic_env.get("CIEAV_MANAGED_SECRET_PIPE")=="1"
+            assert "CIEAV_GATEWAY_TOKEN" not in semantic_env
             assert "CIEAV_GATEWAY_TOKEN" not in surface_env
             assert "LATCH_GATEWAY_TOKEN" not in semantic_env
             assert "LATCH_GATEWAY_TOKEN" not in surface_env
+            assert "JWT_SECRET" not in semantic_env
+            assert "RECEIPT_SIGNING_SECRET" not in semantic_env
+            assert bootstrap["gatewayToken"]==g.token
+            assert len(bootstrap["jwtSecret"])>=32
+            assert len(bootstrap["receiptSigningSecret"])>=32
+            assert bootstrap["jwtSecret"]!=bootstrap["receiptSigningSecret"]
         finally:
             if old is None: os.environ.pop("HF_TOKEN",None)
             else: os.environ["HF_TOKEN"]=old
