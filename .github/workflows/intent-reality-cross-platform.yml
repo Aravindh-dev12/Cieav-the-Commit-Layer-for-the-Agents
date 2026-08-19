@@ -37,6 +37,8 @@ jobs:
           if grep -Eqi 'npm install|npx |pip install|pnpm add|yarn add' distribution/install.sh; then echo 'Unix consumer installer must not require package managers'; exit 1; fi
       - name: Verify Windows TPM/CNG native provider boundary
         run: node scripts/windows-tpm-cng-release.mjs
+      - name: Verify live Windows TPM/MAA collector boundary
+        run: node scripts/windows-tpm-maa-collector-release.mjs
       - name: Install workspaces
         run: npm install
       - name: Build local authority packages
