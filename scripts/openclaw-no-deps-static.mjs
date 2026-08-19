@@ -21,14 +21,28 @@ need("python/cieav_platform/__main__.py",['args[0]=="openclaw"','openclaw_main(a
 need("python/cieav_platform/openclaw_cli.py",["latch_platform.openclaw_cli"]);
 need("python/latch_platform/mcp_launcher.py",["runtime","node.exe","CIEAV_AGENT_TOKEN","_SECRET_ENV"]);
 need("packages/core/src/reality.ts",['allowedActionTypes.includes("*")']);
+const releaseBuilder=need("scripts/build-release-runtime.py",[
+  '"--bundle"',
+  '"--platform=node"',
+  '"apps/mcp/dist/index.js"',
+  'stage / "runtime" / node_name'
+]);
 const installer=need("distribution/install.ps1",[
   "Try-ConnectOpenClaw",
   "CIEAV · OpenClaw detected; registering governed MCP boundary",
   "Consumer dependencies: none (runtime is bundled)",
   "cieav openclaw connect"
 ]);
+const unixInstaller=need("distribution/install.sh",[
+  "CIEAV · OpenClaw detected; registering governed MCP boundary",
+  '"$RUNTIME_CIEAV" openclaw connect',
+  "no npm, npx, pip, Node, or Python install required"
+]);
 if(!installer.includes("runtime/node.exe")||!installer.includes("bundled Node"))fail("PowerShell installer must verify bundled runtime Node");
+if(!unixInstaller.includes('RUNTIME_NODE="$INSTALL_ROOT/runtime/node"'))fail("Unix installer must verify bundled runtime Node");
+if(!releaseBuilder.includes('subprocess.run([npx,"esbuild"')||!releaseBuilder.includes('"--bundle"'))fail("release build must bundle MCP dependencies before packaging");
 forbid("python/latch_platform/openclaw_cli.py",["npm install","npm i ","npx ","pip install","pnpm add","yarn add"]);
 forbid("distribution/install.ps1",["npm install","npm i ","npx ","pip install","pnpm add","yarn add"]);
+forbid("distribution/install.sh",["npm install","npm i ","npx ","pip install","pnpm add","yarn add"]);
 if(!launcher.includes('"command": cieav'))fail("OpenClaw MCP config must execute installed CIEAV, not a package runner");
-console.log("CIEAV OpenClaw consumer gate PASS · installed executable + bundled runtime · no npm/npx/pip consumer dependency");
+console.log("CIEAV OpenClaw consumer gate PASS · installed executable + bundled Node + bundled MCP dependencies · no consumer package manager");
