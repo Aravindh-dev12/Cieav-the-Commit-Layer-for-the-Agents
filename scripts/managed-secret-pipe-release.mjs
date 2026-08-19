@@ -11,7 +11,8 @@ const gateway=expect("python/latch_platform/gateway.py",[
   'dist" / "managed-entry.js"','env["CIEAV_MANAGED_SECRET_PIPE"] = "1"',"stdin=subprocess.PIPE","_semantic_bootstrap","child.stdin.write(bootstrap)","child.stdin.close()","bootstrap=private-pipe"
 ]);
 for(const forbidden of ['env["JWT_SECRET"]','env["RECEIPT_SIGNING_SECRET"]','env["CIEAV_GATEWAY_TOKEN"]'])if(gateway.includes(forbidden))fail(`Gateway reintroduced inherited semantic secret: ${forbidden}`);
-expect("apps/api/src/managed-entry.ts",["MAX_BOOTSTRAP_BYTES=16*1024","process.stdin.isTTY","cieav_managed_secret_bootstrap_missing","installManagedSecrets(bootstrap)",'await import("./server.js")']);
+const entrySource=expect("apps/api/src/managed-entry.ts",["MAX_BOOTSTRAP_BYTES=16*1024","process.stdin.isTTY","cieav_managed_secret_bootstrap_missing","installBootstrapFromPrivatePipe","installManagedSecrets(parsed)","encoded?.fill(0)","chunk.fill(0)",'await import("./server.js")']);
+if(entrySource.includes("const bootstrap=await"))fail("managed API reintroduced a module-lifetime bootstrap object");
 expect("apps/api/src/managed-secrets.ts",["bootstrap_already_installed","bootstrap_fields_invalid","roots_must_be_distinct","pending=undefined"]);
 expect("apps/api/src/config.ts",["consumeManagedSecrets()","managed local authority requires private bootstrap secrets","must not be duplicated in process environment"]);
 const npm=process.platform==="win32"?"npm.cmd":"npm";
@@ -26,4 +27,4 @@ if(empty.status===0)fail("managed API accepted an empty bootstrap pipe");
 const weak=spawnSync(process.execPath,[entry],{cwd:ROOT,env:baseEnv,input:JSON.stringify({jwtSecret:"x",receiptSigningSecret:"y",gatewayToken:"z"}),encoding:"utf8",timeout:5000});
 if(weak.error)fail(`weak-bootstrap process failed to execute: ${weak.error.message}`);
 if(weak.status===0)fail("managed API accepted weak bootstrap secrets");
-console.log(`CIEAV managed-secret pipe gate PASS · platform=${process.platform} · production roots/capability leave Gateway only through bounded one-shot private stdin and are absent from inherited semantic environment`);
+console.log(`CIEAV managed-secret pipe gate PASS · platform=${process.platform} · production roots/capability use bounded one-shot private stdin, transient Node pipe buffers are overwritten, and credentials are absent from inherited semantic environment`);
