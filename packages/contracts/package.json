@@ -13,7 +13,8 @@
     "./policy": {"types": "./dist/policy.d.ts", "import": "./dist/policy.js"},
     "./recovery": {"types": "./dist/recovery.d.ts", "import": "./dist/recovery.js"},
     "./commitment": {"types": "./dist/commitment.d.ts", "import": "./dist/commitment.js"},
-    "./execution-fabric": {"types": "./dist/execution-fabric.d.ts", "import": "./dist/execution-fabric.js"}
+    "./execution-fabric": {"types": "./dist/execution-fabric.d.ts", "import": "./dist/execution-fabric.js"},
+    "./control-plane": {"types": "./dist/control-plane.d.ts", "import": "./dist/control-plane.js"}
   },
   "scripts": {"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit"},
   "dependencies": {"zod":"^3.24.0"},
