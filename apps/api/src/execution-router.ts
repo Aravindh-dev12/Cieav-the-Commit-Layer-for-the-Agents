@@ -34,9 +34,12 @@ export class CieavExecutionRouter{
     if(candidates.length===0)throw new Error(`execution_adapter_unavailable:${context.tool.protocol}`);
     if(candidates.length===1){const adapter=candidates[0]!;if(adapter.supports&&!adapter.supports(context))throw new Error(`execution_adapter_unavailable:${context.tool.protocol}`);return adapter}
     const matching=candidates.filter(adapter=>adapter.supports?.(context)===true);
-    if(matching.length===0)throw new Error(`execution_adapter_unavailable:${context.tool.protocol}`);
-    if(matching.length!==1)throw new Error(`execution_adapter_ambiguous:${context.tool.protocol}`);
-    return matching[0]!;
+    if(matching.length===1)return matching[0]!;
+    if(matching.length>1)throw new Error(`execution_adapter_ambiguous:${context.tool.protocol}`);
+    const fallbacks=candidates.filter(adapter=>adapter.supports===undefined);
+    if(fallbacks.length===1)return fallbacks[0]!;
+    if(fallbacks.length>1)throw new Error(`execution_adapter_ambiguous:${context.tool.protocol}`);
+    throw new Error(`execution_adapter_unavailable:${context.tool.protocol}`);
   }
   async dispatch(ticketId:string,normalizedArguments:unknown):Promise<{dispatch:TrustedDispatchContext;result:AdapterExecutionResult}>{
     const inspected=await this.fabric.inspectTicket(ticketId),preflightContext={...inspected,normalizedArguments};
