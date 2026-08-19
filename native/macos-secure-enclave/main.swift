@@ -43,8 +43,8 @@ func tagFor(_ name: String) throws -> Data {
 }
 
 func secureEnclaveAttributes(_ key: SecKey) throws {
-    guard let attrs = SecKeyCopyAttributes(key) as? [CFString: Any], let token = attrs[kSecAttrTokenID] else { throw BridgeError("secure enclave key attributes unavailable") }
-    guard String(describing: token) == String(describing: kSecAttrTokenIDSecureEnclave) else { throw BridgeError("key is not Secure Enclave backed") }
+    guard let attrs = SecKeyCopyAttributes(key) as? [CFString: Any], let token = attrs[kSecAttrTokenID] as? String else { throw BridgeError("secure enclave key attributes unavailable") }
+    guard token == (kSecAttrTokenIDSecureEnclave as String) else { throw BridgeError("key is not Secure Enclave backed") }
     var exportError: Unmanaged<CFError>?
     if SecKeyCopyExternalRepresentation(key, &exportError) != nil { throw BridgeError("secure enclave private key unexpectedly exportable") }
 }
@@ -60,7 +60,8 @@ func lookupPrivateKey(_ name: String) throws -> SecKey {
     ]
     var item: CFTypeRef?
     let status = SecItemCopyMatching(query as CFDictionary, &item)
-    guard status == errSecSuccess, let key = item as! SecKey? else { throw BridgeError("secure enclave key not found: \(status)") }
+    guard status == errSecSuccess, let found = item else { throw BridgeError("secure enclave key not found: \(status)") }
+    let key = found as! SecKey
     try secureEnclaveAttributes(key)
     return key
 }
@@ -76,11 +77,11 @@ func publicJwk(_ privateKey: SecKey) throws -> String {
 
 func createP256(_ name: String) throws -> SecKey {
     let tag = try tagFor(name)
-    let existingQuery: [CFString: Any] = [kSecClass: kSecClassKey, kSecAttrApplicationTag: tag, kSecReturnRef: true, kSecMatchLimit: kSecMatchLimitOne]
+    let existingQuery: [CFString: Any] = [kSecClass: kSecClassKey, kSecAttrApplicationTag: tag, kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom, kSecReturnRef: true, kSecMatchLimit: kSecMatchLimitOne]
     var existing: CFTypeRef?
     if SecItemCopyMatching(existingQuery as CFDictionary, &existing) == errSecSuccess { throw BridgeError("key already exists") }
     var accessError: Unmanaged<CFError>?
-    guard let access = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly, [.privateKeyUsage], &accessError) else { throw BridgeError("access control creation failed") }
+    guard let access = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly, .privateKeyUsage, &accessError) else { throw BridgeError("access control creation failed") }
     let attrs: [CFString: Any] = [
         kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
         kSecAttrKeySizeInBits: 256,
@@ -99,7 +100,7 @@ func createP256(_ name: String) throws -> SecKey {
 
 func probe() -> Int32 {
     var accessError: Unmanaged<CFError>?
-    guard let access = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly, [.privateKeyUsage], &accessError) else {
+    guard let access = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly, .privateKeyUsage, &accessError) else {
         print("{\"protocol\":\"CIEAV_KEY_PROVIDER_V1\",\"provider\":\"SECURE_ENCLAVE\",\"available\":false,\"hardwareBacked\":false,\"reason\":\"access control unavailable\"}")
         return 20
     }
