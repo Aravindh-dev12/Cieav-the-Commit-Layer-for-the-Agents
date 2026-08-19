@@ -157,11 +157,21 @@ There is deliberately no generic endpoint that accepts caller-supplied `verifica
 
 ## Root state secret boundary
 
-Credential Authority state encryption/MAC keys are domain-separated from the local authority's strong root process secret. The hardware signing work does **not** imply that this state root is sealed to TPM, Secure Enclave or HSM. OS-backed root-secret sealing remains a separate hardening track and must not be represented as already provided by hardware JOSE signing.
+Credential Authority state encryption/MAC keys are domain-separated from the local authority's strong root signing secret. In the packaged production runtime, that root is persisted through the platform `SecretStore` rather than a plaintext application file:
+
+- Windows — DPAPI in the current-user context;
+- macOS — Keychain generic-password storage;
+- Linux — Secret Service through `secret-tool` and the user D-Bus session.
+
+Production secure-storage policy rejects an unencrypted backend unless an explicit diagnostic override is supplied. Existing private-file secrets are migrated into the encrypted backend with read-back verification before the legacy file is removed.
+
+The Gateway removes inherited root signing variables, reads the protected `receipt-signing-secret`, injects it only into the managed Node semantic service as `RECEIPT_SIGNING_SECRET`, and strips it from the browser surface environment. The Node local authority then domain-separates that root into Credential Authority, hardware-registry, execution-fabric, control-plane and other state secrets.
+
+This is OS-encrypted-at-rest storage, not a claim that every root secret is directly sealed to a TPM/Secure Enclave/HSM. Stronger hardware sealing, eliminating environment exposure, rotation, and a separate signer/credential broker remain additional hardening tracks.
 
 ## Dependency/release security
 
-CI runs production and full dependency audits. High/critical production advisories fail the gate, and critical advisories in the broader Node build/test graph fail as well. The test stack has been moved to the secure Vitest 4 line on the repository's Node 22 baseline; all compatibility still has to pass the existing regression suite.
+CI runs production and full dependency audits. High/critical production advisories fail the gate, and critical advisories in the broader Node build/test graph fail as well. The test stack has been moved to the secure Vitest 4 line on the repository's Node 22 baseline and currently installs with zero reported npm vulnerabilities in the qualification workflow.
 
 ## Standards interoperability
 
@@ -171,7 +181,7 @@ CIEAV composes with OAuth token exchange, DPoP, mTLS, Rich Authorization Request
 
 1. provider-native hardware mTLS;
 2. deployment-specific Linux TPM/HSM attestation verifiers and concrete external KMS/HSM verifiers;
-3. OS-backed sealing/rotation of the local authority root state secret;
+3. stronger hardware-backed sealing/rotation of the local authority root plus removal of root-secret environment exposure;
 4. stronger process isolation for the Credential Authority / hardware signer broker;
 5. SPIFFE workload identity and workload token exchange;
 6. HTTP Message Signatures and provider-specific request signers;
