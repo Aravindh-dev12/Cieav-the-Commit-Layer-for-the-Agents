@@ -42,7 +42,7 @@ def verify_release_boundaries(root: Path) -> None:
     if not node:raise SystemExit("Node is required to verify CIEAV release boundaries")
     env=dict(os.environ)
     for key in ("CIEAV_AGENT_TOKEN","LATCH_AGENT_TOKEN","CIEAV_A2A_CLIENT_TOKEN","LATCH_A2A_CLIENT_TOKEN","CIEAV_MCP_CLIENT_TOKEN","LATCH_MCP_CLIENT_TOKEN","CIEAV_AGENT_SESSION_TOKEN","LATCH_AGENT_SESSION_TOKEN"):env.pop(key,None)
-    scripts=("scripts/platform-boundary-static.mjs","scripts/package-namespace-smoke.mjs")
+    scripts=("scripts/platform-boundary-static.mjs","scripts/openclaw-no-deps-static.mjs","scripts/package-namespace-smoke.mjs")
     for relative in scripts:
         script=root/relative
         if not script.exists():raise SystemExit(f"Missing CIEAV release-boundary verifier: {relative}")
@@ -57,7 +57,7 @@ def bundle_mcp(root: Path) -> Path:
     source=root/"apps/mcp/src/index.ts";output=root/"apps/mcp/dist/index.js"
     if not source.exists():raise SystemExit("Missing CIEAV MCP source")
     npx=shutil.which("npx.cmd" if platform.system()=="Windows" else "npx") or shutil.which("npx")
-    if not npx:raise SystemExit("npx is required to bundle the CIEAV MCP bridge")
+    if not npx:raise SystemExit("npx is required only in the release-build environment to bundle the CIEAV MCP bridge")
     output.parent.mkdir(parents=True,exist_ok=True)
     subprocess.run([npx,"esbuild",str(source),"--bundle","--platform=node","--format=esm","--target=node22",f"--outfile={output}"],cwd=root,check=True)
     if not output.exists():raise SystemExit("CIEAV MCP bundle was not produced")
@@ -105,10 +105,16 @@ def main() -> None:
         copy_tree(root / "apps/browser", stage / "apps/browser")
         if cdp_win_bridge is not None: shutil.copy2(cdp_win_bridge, stage / "apps/browser/cdp-win-bridge.exe")
         shutil.copy2(root / "apps/api/dist/server.js", stage / "apps/api/dist/server.js");shutil.copy2(mcp_bundle,stage/"apps/mcp/dist/index.js");shutil.copy2(a2a,stage/"apps/a2a/dist/index.mjs")
-        for name in ("package.json", "PRIVACY.md", "SECURITY.md", "README.md"):
+        for name in ("package.json", "PRIVACY.md", "SECURITY.md", "README.md", "OPENCLAW.md", "INTENT-TO-REALITY.md"):
             src = root / name
             if src.exists(): shutil.copy2(src, stage / name)
-        runtime_meta = {"brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":6,"legacyBrand":"LATCH","privateCdpTransport":"windows-handle-pipe" if key.startswith("windows-") else "posix-fd-pipe","agentProtocols":{"mcp":"2026-07-28","a2a":"1.0"},"a2aExposure":"loopback-authenticated","platformBoundaryVerified":True,"releaseBoundaryVerified":True,"canonicalNamespaceVerified":True,"controlCenterRealityBoundaryVerified":True}
+        runtime_meta = {
+            "brand":"CIEAV","version":args.version,"platform":key,"cloudInferenceDefault":True,"durableUserState":"local","bundleFormat":7,
+            "legacyBrand":"LATCH","privateCdpTransport":"windows-handle-pipe" if key.startswith("windows-") else "posix-fd-pipe",
+            "agentProtocols":{"mcp":"2026-07-28","a2a":"1.0","openclaw":"outbound-mcp"},"a2aExposure":"loopback-authenticated",
+            "platformBoundaryVerified":True,"releaseBoundaryVerified":True,"canonicalNamespaceVerified":True,"controlCenterRealityBoundaryVerified":True,
+            "openClawConsumerBoundaryVerified":True,"consumerPackageManagerRequired":False,"bundledNode":True,"bundledMcpDependencies":True
+        }
         (stage / "runtime.json").write_text(json.dumps(runtime_meta, indent=2) + "\n", "utf-8")
         archive = out / f"cieav-runtime-{args.version}-{key}.zip"
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
@@ -116,7 +122,7 @@ def main() -> None:
                 if file.is_dir(): continue
                 arc = Path("cieav-runtime") / file.relative_to(stage);info = zipfile.ZipInfo.from_file(file, arc.as_posix()); info.date_time=(2026,1,1,0,0,0)
                 with file.open("rb") as f: zf.writestr(info, f.read(), compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
-    metadata={"brand":"CIEAV","platform":key,"filename":archive.name,"sha256":sha256(archive),"size":archive.stat().st_size,"version":args.version,"platformBoundaryVerified":True,"releaseBoundaryVerified":True,"bundleFormat":6}
+    metadata={"brand":"CIEAV","platform":key,"filename":archive.name,"sha256":sha256(archive),"size":archive.stat().st_size,"version":args.version,"platformBoundaryVerified":True,"releaseBoundaryVerified":True,"openClawConsumerBoundaryVerified":True,"consumerPackageManagerRequired":False,"bundleFormat":7}
     (out / f"metadata-{key}.json").write_text(json.dumps(metadata, indent=2) + "\n", "utf-8");print(json.dumps(metadata))
 
 
