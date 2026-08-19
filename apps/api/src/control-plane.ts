@@ -3,10 +3,11 @@ import {chmod,mkdir,open,readFile,rename,writeFile} from "node:fs/promises";
 import path from "node:path";
 import {
   ExecutionAttemptReceiptSchema,InterpositionModeSchema,InterpositionPostureSchema,InterpositionRouteSchema,OperationMandateSchema,
-  type ExecutionAttemptReceipt,type InterpositionPosture,type InterpositionRoute,type OperationMandate
+  type ExecutionAttemptReceipt,type InterpositionPosture,type OperationMandate
 } from "@cieav/contracts/control-plane";
 import {ExecutionProposalSchema,type ExecutionProposal} from "@cieav/contracts/execution-fabric";
-import {digest,evaluateInterpositionPosture,issueOperationMandate,operationRouteDigest,verifyOperationMandate} from "@cieav/core/control-plane";
+import {evaluateInterpositionPosture,issueOperationMandate,operationRouteDigest,verifyOperationMandate} from "@cieav/core/control-plane";
+import {digest} from "@cieav/core/execution-fabric";
 import type {CieavAgentKernelStore} from "./agent-kernel.js";
 import type {CieavExecutionFabricStore} from "./execution-fabric.js";
 import {semanticEffectKey} from "./intent-reality-engine.js";
