@@ -118,9 +118,23 @@ Credential Authority state upgrades preserve authentication semantics: an existi
 
 Hardware mTLS remains separate. The current Node TLS path requires software private-key bytes, so CIEAV still rejects pretending an opaque TPM/Secure-Enclave/PKCS#11 key can be used as hardware mTLS. A provider-native TLS implementation is required before that claim can be enabled.
 
+## Root secret storage and process boundary
+
+The strong root secret from which Agent Kernel subsystem state keys are domain-separated is OS-encrypted at rest in the packaged production runtime:
+
+- Windows: current-user DPAPI;
+- macOS: Keychain;
+- Linux: Secret Service through `secret-tool` and the user D-Bus session.
+
+Production secure-storage policy refuses an unencrypted file backend unless an explicit diagnostic override is configured. Legacy private-file secrets are migrated with read-back verification before deletion.
+
+The Python Gateway strips inherited signing-secret variables, reads the protected `receipt-signing-secret`, injects it only into the managed Node semantic authority, and removes it from the browser surface environment. Hardware signing therefore does not depend on a plaintext application secret file in normal packaged production operation.
+
+This still does not mean the root is directly TPM/Secure-Enclave/HSM sealed on every platform. Hardware sealing, secret rotation, removing process-environment exposure and moving Credential Authority/hardware-signing operations behind a narrower broker process remain further hardening work.
+
 ## CI and release qualification
 
-The cross-platform GitHub matrix executes provider and lifecycle gates on Ubuntu, macOS and Windows:
+The cross-platform GitHub matrix executes provider, lifecycle and root-secret gates on Ubuntu, macOS and Windows:
 
 - Windows TPM/CNG source/build/probe boundary;
 - Windows TPM→MAA collector and exact P-256 other-key verifier invariants;
@@ -128,6 +142,7 @@ The cross-platform GitHub matrix executes provider and lifecycle gates on Ubuntu
 - macOS Secure Enclave Swift compilation plus fail-closed runtime probe;
 - Linux PKCS #11 C++ compilation plus fail-closed unconfigured probe;
 - Gateway-only credential/hardware lifecycle and no raw verified-evidence import;
+- DPAPI/Keychain/Secret-Service production root-secret storage wiring and browser-secret isolation;
 - full Agent Kernel and trusted-adapter regressions.
 
 The Node dependency gate rejects high/critical production dependency advisories and critical advisories anywhere in the test/build graph.
@@ -137,7 +152,5 @@ A green hosted matrix proves deterministic source/build wiring and fail-closed b
 1. Windows: physical TPM, enrolled AIK, configured MAA provider/policy and P-256 `other_key` attestation.
 2. macOS: a Secure-Enclave-capable Mac executing create → local evidence → opaque sign → independent JWS verification.
 3. Linux: each approved PKCS #11 TPM/HSM module executing describe → deployment-specific attestation → opaque sign → independent JWS verification.
-
-The root state-integrity secret is still supplied to the local authority as a strong process secret and domain-separated into subsystem keys. Hardware signing does not automatically seal that root secret to TPM/Secure Enclave/HSM. OS-backed root-secret sealing remains a separate release-hardening track.
 
 No release documentation should collapse these physical qualification requirements into a hosted-runner claim.
