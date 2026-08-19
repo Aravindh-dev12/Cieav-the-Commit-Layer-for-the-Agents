@@ -19,6 +19,8 @@ credential readiness preflight
       ↓
 consume one-use authority
       ↓
+atomically reserve one credential derivation
+      ↓
 Credential Authority derives minimum credential
       ↓
 trusted adapter uses credential
@@ -41,13 +43,17 @@ JOSE signing is selected explicitly as `LOCAL` or `HARDWARE`; CIEAV does not inf
 
 If `HARDWARE` is configured and attestation, bridge integrity, purpose, provider-key binding, algorithm, or native signing fails, the derivation fails. A valid local key is not substituted.
 
-Hardware JOSE signing revalidates the provider bridge SHA-256, current verified attestation, public-key fingerprint, purpose and algorithm immediately before the signature. The native bridge receives only the operation, opaque provider key reference and 32-byte SHA-256 digest. Hardware private key material never enters CIEAV state.
+Hardware JOSE signing revalidates the provider bridge SHA-256, current verified attestation, public-key fingerprint, purpose and algorithm immediately before the signature. The provider key reference is resolved through `describe`/`describe-rsa` before each signature and the returned JWK must exactly match the registered JWK. The native bridge receives only the operation, opaque provider key reference and 32-byte SHA-256 digest. Hardware private key material never enters CIEAV state.
 
 ## Credential readiness vs derivation
 
 Credential readiness is checked before one-use consequence authority is spent. CIEAV validates the OAuth profile, exact token endpoint policy, source credentials and selected local/hardware key capability.
 
 Actual token acquisition occurs only after the trusted router consumes the Operation Mandate and Execution Ticket. The derivation contract binds proposal, task, Intent, Reality-Bound Commit, credential lease, route, tool/operation, normalized arguments, sender constraint and explicit key source.
+
+Credential minting itself is also durably **at-most-once per consumed Execution Ticket**. Before network token acquisition, CIEAV persists a derivation-use record containing the ticket ID and derivation binding digest. A second attempt for that ticket is rejected with `credential_authority_ticket_already_derived`, including after restart. This prevents the token endpoint from becoming a replay path after an ambiguous downstream failure.
+
+Credential Authority state migration preserves authentication: legacy state is MAC-verified in its exact stored shape before new schema defaults such as the derivation journal are applied. Tampered legacy state still fails closed.
 
 ## OAuth and sender-constrained credentials
 
@@ -73,11 +79,11 @@ A `PRIVATE_KEY_JWT` profile has its own `keySource` and key ID. This may be diff
 ```text
 HardwareKeyRegistration
   ↓
-verified attestation + public fingerprint
+verified key-specific evidence + public fingerprint
   ↓
 digest-pinned CIEAV_KEY_PROVIDER_V1 bridge
   ↓
-providerKeyRef
+providerKeyRef -> describe -> exact JWK
   ↓
 CieavHardwareSigner
   ↓
@@ -86,13 +92,25 @@ private_key_jwt / DPoP JWS
 OAuth token / protected resource
 ```
 
-Windows TPM/CNG has a concrete provider bridge and TPM/MAA attestation path. Other hardware providers can use the same signer abstraction only after their own bridge and attestation verifier satisfy the Hardware Key Provider Plane.
+Concrete provider paths now exist for:
+
+- Windows TPM/CNG, including Microsoft Azure Attestation binding of the actual P-256 consequence key through `x-ms-tpm-other-keys`;
+- macOS Secure Enclave P-256 signing with trusted local Secure Enclave evidence;
+- Linux vendor-neutral PKCS #11 P-256 signing, with hardware status deliberately withheld until a deployment-specific TPM/HSM verifier establishes key-specific evidence.
+
+A software PKCS #11 module cannot promote itself to hardware trust merely by implementing the API.
+
+## Authentication metadata/JWKS network boundary
+
+Microsoft Azure Attestation OpenID metadata/JWKS retrieval uses a hardened HTTPS path: CIEAV resolves the hostname, rejects loopback/private/link-local/multicast/documentation and mixed public/private answers, pins the accepted address into the actual TLS request, keeps hostname certificate validation on the original URL, rejects redirects and enforces response/header/time limits.
+
+This network-hardening rule is separate from JWT claim verification; the signed report must still pass issuer, signing-key, signature, freshness, CIEAV-owned nonce, policy hash and exact TPM key certification checks.
 
 ## Hardware mTLS boundary
 
 **Hardware mTLS is not implemented by the JOSE hardware path.** The current Node TLS implementation requires the software-wrapped private key bytes for the TLS handshake. CIEAV therefore rejects using `keySource: HARDWARE` as a substitute for mTLS and does not silently export a TPM/KMS key.
 
-A future hardware mTLS implementation requires a provider-native TLS transport (for example Windows Schannel/CNG, Secure Enclave-aware TLS, or an HSM-backed TLS integration) that can use the opaque private key without exporting it.
+A hardware mTLS implementation requires a provider-native TLS transport (for example Windows Schannel/CNG, Secure Enclave-aware TLS, or an HSM-backed TLS integration) that can use the opaque private key without exporting it.
 
 ## Certificate-bound software mTLS
 
@@ -126,22 +144,61 @@ A successful token request, HTTP 2xx, DPoP signature or TLS handshake is not tas
 
 ## Management boundary
 
-The lifecycle API exposes key/profile lifecycle metadata and derivation receipts; it has no private-key export, raw access-token route, arbitrary JWT/DPoP signing route or generic signing oracle. Hardware signing remains an in-process trusted execution capability behind the Agent Kernel and hardware registry.
+Privileged lifecycle administration is mounted only beneath the already Gateway-authenticated Agent Kernel namespace:
+
+```text
+/v1/agent-kernel/credential-authority/...
+/v1/agent-kernel/hardware-key-providers/...
+```
+
+The lifecycle API exposes local key/profile lifecycle metadata, derivation receipts, provider manifests and hardware registrations. It has no private-key export, raw access-token route, arbitrary JWT/DPoP signing route or generic signing oracle.
+
+There is deliberately no generic endpoint that accepts caller-supplied `verification: VERIFIED` hardware evidence. Windows evidence must come from the TPM→MAA collector plus verifier; macOS evidence must come from the Secure Enclave attestor; Linux returns `501 linux_hardware_attestation_verifier_required` until the deployment provides a verifier for its actual TPM/HSM evidence format.
+
+## Root state secret boundary
+
+Credential Authority state encryption/MAC keys are domain-separated from the local authority's strong root signing secret. In the packaged production runtime, that root is persisted through the platform `SecretStore` rather than a plaintext application file:
+
+- Windows — DPAPI in the current-user context;
+- macOS — Keychain generic-password storage;
+- Linux — Secret Service through `secret-tool` and the user D-Bus session.
+
+Production secure-storage policy rejects an unencrypted backend unless an explicit diagnostic override is supplied. Existing private-file secrets are migrated into the encrypted backend with read-back verification before the legacy file is removed.
+
+The Gateway strips JWT, receipt-signing and Gateway credentials from the semantic child's inherited environment. Managed production starts the dedicated `managed-entry.js` and sends an exact four-field bootstrap over a bounded anonymous stdin pipe: JWT root, receipt-signing root, the durable privileged Gateway bearer, and a distinct process-scoped semantic-router capability. The Python Gateway writes through a mutable buffer and overwrites that serialized buffer immediately after delivery; the managed Node entry independently caps input size, rejects TTY/no-pipe startup, overwrites received/concatenated byte buffers, rejects malformed, weak, duplicated, reused-scope or unexpected bootstrap data, consumes the bootstrap before importing the server, and fails if equivalent environment credentials are present.
+
+The privileged Gateway bearer is needed only to validate inbound trusted Gateway administration in Node. `loadConfig()` converts it to a fixed SHA-256 verifier and does not return a raw `gatewayToken` property; inbound verification hashes the presented bearer and uses constant-time digest comparison. Hugging Face semantic routing does not receive that admin bearer. It retains only the separate random semantic-router capability, and the Python control plane rejects that capability on privileged pause/resume/dashboard/control routes. Legacy/development environment mode remains compatibility-oriented; the stronger scope split is mandatory in managed production.
+
+The browser process receives none of the JWT, receipt-signing, privileged Gateway or semantic-router capabilities. The Node local authority domain-separates the receipt root into Credential Authority, hardware-registry, execution-fabric, control-plane and other state secrets.
+
+This removes the previous process-environment exposure and narrows the long-lived Gateway capability available to Node, but it is not a claim of full same-user process isolation or direct TPM/Secure-Enclave/HSM sealing. The Gateway and semantic process still hold cryptographic material required for their duties in memory. Stronger hardware sealing, rotation, provider-native ACLs and a separately privileged signer/credential broker remain additional hardening tracks.
+
+## Dependency/release security
+
+Hosted CI runs production and full dependency audits. High/critical production advisories fail the gate, and critical advisories in the broader Node build/test graph fail as well. The test stack has been moved to the secure Vitest 4 line on the repository's Node 22 baseline and recent hosted qualification installs have reported zero npm vulnerabilities.
+
+The release matrix also executes the managed-secret bootstrap gate on Ubuntu, macOS and Windows. It compiles the managed API, runs one-shot secret-container, Gateway-verifier and configuration-retention tests, and verifies that empty/weak bootstraps fail closed rather than falling back to inherited credentials. Hosted CI uses per-ref concurrency so superseded validation runs do not replace evidence for the newest commit.
+
+A manual `physical-hardware-qualification` workflow is defined for explicitly labeled self-hosted Windows, macOS and Linux release machines. It is restricted to `main` or `cieav-v*` release refs, does not persist checkout credentials, scopes sensitive release credentials to the actual qualification step, and scrubs the checked-out worktree after the job. The Windows lane performs real TPM challenge signing plus live MAA verification of the exact P-256 consequence key; the macOS lane performs Secure Enclave challenge signing; the Linux lane requires signed deployment-verifier evidence bound to the exact PKCS #11 provider reference and public-key fingerprint.
+
+Physical qualification is intentionally blocked until a generated `package-lock.json` is committed. The Windows lane uses `npm ci`; all lanes first require the lockfile. The lockfile must be produced by npm resolution and reviewed/committed—CIEAV does not treat a hand-authored dependency lock as release evidence. No successful self-hosted physical qualification run is claimed merely because the workflow exists.
 
 ## Standards interoperability
 
 CIEAV composes with OAuth token exchange, DPoP, mTLS, Rich Authorization Requests, Transaction Token, SPIFFE/WIMSE and HTTP Message Signatures rather than replacing those standards. CIEAV remains responsible for the broader lifecycle from owner Intent through consequence commit, independent proof, settlement and recovery.
 
-## Pending credential depth
+## Remaining credential depth
 
-1. provider-native hardware mTLS;
-2. macOS Secure Enclave and Linux TPM/PKCS#11 bridges;
-3. concrete external KMS/HSM providers;
-4. SPIFFE workload identity and workload token exchange;
-5. HTTP Message Signatures and provider-specific request signers;
-6. separately pinned OAuth protected-resource / authorization-server discovery;
-7. RAR projection from Consequence Contracts;
-8. Transaction Token / WIMSE projection for downstream call-chain context;
-9. OAuth-aware MCP Streamable HTTP and A2A adapters using the same Credential Authority Plane.
+1. commit and audit a generated `package-lock.json` so physical release qualification can run reproducibly;
+2. execute representative self-hosted physical qualification for Windows TPM/MAA, macOS Secure Enclave and approved Linux TPM/HSM deployments;
+3. provider-native hardware mTLS;
+4. stronger hardware-backed sealing/rotation of the local authority root and reduced in-memory lifetime;
+5. stronger process isolation for the Credential Authority / hardware signer broker plus provider-native ACLs;
+6. SPIFFE workload identity and workload token exchange;
+7. HTTP Message Signatures and provider-specific request signers;
+8. separately pinned OAuth protected-resource / authorization-server discovery;
+9. RAR projection from Consequence Contracts;
+10. Transaction Token / WIMSE projection for downstream call-chain context;
+11. OAuth-aware MCP Streamable HTTP and A2A adapters using the same Credential Authority Plane.
 
-Production architecture/hardening for each row is claimed only after executable implementation and qualification. External release qualification remains pending.
+Production architecture/hardening for each row is claimed only after executable implementation and qualification. Physical-device and provider-specific external release qualification remains required.

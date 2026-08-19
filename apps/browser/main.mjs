@@ -16,6 +16,7 @@ if(CONTROL_TOKEN.length<43){CONTROL_TOKEN=crypto.randomBytes(48).toString("base6
 const CORE_INVARIANTS=[
   "CIEAV_REQUIRE_PRODUCTION_API","refusing standalone/dev","verifyAdapterProposal({",'m.kind==="UNDO_READY"',"liveAdapter(u)",'current.outcome?.status!=="OBSERVED_SUCCESS"',
   'browserControlTransport:browserTransport',"Target.setDiscoverTargets","Target.attachToTarget","flatten:true",
+  "attaching=new Map","if(inflight)return inflight",'await openTarget("about:blank")',"failed to establish a protected startup target","CIEAV browser target attachment failed",
   'if(AUTO&&req.method==="POST"&&u.pathname==="/api/test/eval"','if(AUTO&&req.method==="POST"&&u.pathname==="/api/test/click"',
   "if(!controlAuth.authorized(req))return send(401",'u.pathname==="/api/bootstrap"',
   "async function persistOutcome","p.finalOutcome","p.finalizing","p.persistenceFailures","await persistOutcome(receiptId,value)","pendingOutcomes.delete(receiptId)","Promise.allSettled(finalizers)","await attention.flush()",
@@ -25,7 +26,7 @@ const LAUNCH_INVARIANTS=[
   '"--remote-debugging-pipe"','transport:"private-windows-handle-pipe"','transport:"private-posix-fd-pipe"',
   '"CIEAV_BROWSER_CONTROL_TOKEN"','"LATCH_BROWSER_CONTROL_TOKEN"',"for(const key of SECRET_ENV_KEYS)delete clean[key]"
 ];
-const CORE_FORBIDDEN=["--remote-"+"debugging-port","/json/"+"list","/json/"+"new","webSocket"+"DebuggerUrl"];
+const CORE_FORBIDDEN=["--remote-"+"debugging-port","/json/"+"list","/json/"+"new","webSocket"+"DebuggerUrl","Target.getTargetInfo"];
 const coreSource=await readFile(path.join(HERE,"main-core.mjs"),"utf8"),launchSource=await readFile(path.join(HERE,"chromium-launch.mjs"),"utf8");
 for(const token of CORE_INVARIANTS)if(!coreSource.includes(token))throw new Error(`CIEAV hardened browser core invariant missing: ${token}`);
 for(const token of LAUNCH_INVARIANTS)if(!launchSource.includes(token))throw new Error(`CIEAV private Chromium launch invariant missing: ${token}`);

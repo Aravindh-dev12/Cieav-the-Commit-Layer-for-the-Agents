@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import {afterEach,describe,expect,it} from "vitest";
 import {loadConfig} from "./config.js";
 
@@ -6,8 +7,9 @@ const saved=new Map(keys.map(k=>[k,process.env[k]]));
 afterEach(()=>{for(const k of keys){const v=saved.get(k);if(v===undefined)delete process.env[k];else process.env[k]=v}});
 
 describe("managed local authority config",()=>{
-  it("uses local-only SQLite persistence semantics and pins origins",()=>{
-    process.env.CIEAV_GATEWAY_TOKEN="g".repeat(48);
+  it("uses local-only persistence semantics, pins origins and retains only a Gateway bearer verifier",()=>{
+    const gatewayToken="g".repeat(48);
+    process.env.CIEAV_GATEWAY_TOKEN=gatewayToken;
     process.env.CIEAV_STATE_DIR="/tmp/cieav-user-a";
     process.env.CIEAV_CONTROL_PORT="19090";
     process.env.JWT_SECRET="j".repeat(48);
@@ -21,6 +23,9 @@ describe("managed local authority config",()=>{
     expect(c.databaseUrl).toBeUndefined();
     expect(c.localStateDir).toContain("cieav-user-a");
     expect(c.allowedOrigins).toEqual(["http://127.0.0.1:19090","http://localhost:19090"]);
+    expect(c.gatewayTokenDigest).toBe(crypto.createHash("sha256").update(gatewayToken).digest("hex"));
+    expect("gatewayToken" in c).toBe(false);
+    expect(c.semanticRouterToken).toBe(gatewayToken);
   });
 
   it("does not re-enable PostgreSQL through DATABASE_URL",()=>{
