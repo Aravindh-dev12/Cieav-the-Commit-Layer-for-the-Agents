@@ -6,6 +6,7 @@ if(NOT CIEAV_ATTEST_PACKAGE_DIR)
   message(FATAL_ERROR "CIEAV_ATTEST_PACKAGE_DIR must point to a pre-provisioned Microsoft.Attestation.Client package; this target does not download dependencies")
 endif()
 
+find_package(wil CONFIG REQUIRED)
 find_package(azure-identity-cpp CONFIG REQUIRED)
 find_package(azure-security-attestation-cpp CONFIG REQUIRED)
 
@@ -15,6 +16,7 @@ target_compile_definitions(cieav-windows-tpm-maa-collector PRIVATE UNICODE _UNIC
 target_include_directories(cieav-windows-tpm-maa-collector PRIVATE "${CIEAV_ATTEST_PACKAGE_DIR}/inc")
 target_link_libraries(cieav-windows-tpm-maa-collector PRIVATE
   ncrypt
+  WIL::WIL
   "${CIEAV_ATTEST_PACKAGE_DIR}/lib/azure-attest-manager.lib"
   Azure::azure-identity
   Azure::azure-security-attestation)
