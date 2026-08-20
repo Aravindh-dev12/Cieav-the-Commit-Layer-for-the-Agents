@@ -10,15 +10,36 @@
 #include <azure/core.hpp>
 #include <azure/attestation.hpp>
 #include <azure/identity.hpp>
+#include <wil/resource.h>
 #include <att_manager.h>
 #include <att_manager_logger.h>
+
+using att_session = wil::unique_any<
+    att_session_handle,
+    decltype(&att_close_session),
+    att_close_session>;
+using att_buffer = wil::unique_any<
+    uint8_t*,
+    decltype(&att_free_buffer),
+    att_free_buffer>;
 
 #pragma comment(lib,"ncrypt.lib")
 
 namespace {
 struct NcryptHandle{NCRYPT_HANDLE h{0};explicit NcryptHandle(NCRYPT_HANDLE v=0):h(v){}~NcryptHandle(){if(h)NCryptFreeObject(h);}NcryptHandle(const NcryptHandle&)=delete;NcryptHandle& operator=(const NcryptHandle&)=delete;};
 
-std::string requiredEnv(const char* name){const char* value=std::getenv(name);if(!value||!*value)throw std::runtime_error(std::string("missing required environment: ")+name);return value;}
+std::string requiredEnv(const char* name){
+  size_t len=0;
+  if(::getenv_s(&len,nullptr,0,name)!=0||len==0)
+    throw std::runtime_error(std::string("missing required environment: ")+name);
+  std::string value(len,'\0');
+  if(::getenv_s(&len,value.data(),value.size(),name)!=0||len==0)
+    throw std::runtime_error(std::string("failed to read required environment: ")+name);
+  value.resize(len-1);
+  if(value.empty())
+    throw std::runtime_error(std::string("missing required environment: ")+name);
+  return value;
+}
 std::wstring widen(const std::string& in){if(in.empty())throw std::runtime_error("empty UTF-8 value");int n=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,in.data(),static_cast<int>(in.size()),nullptr,0);if(n<=0)throw std::runtime_error("invalid UTF-8");std::wstring out(static_cast<size_t>(n),L'\0');if(MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,in.data(),static_cast<int>(in.size()),out.data(),n)<=0)throw std::runtime_error("invalid UTF-8");return out;}
 void checkNcrypt(const char* op,SECURITY_STATUS s){if(s!=ERROR_SUCCESS)throw std::runtime_error(std::string(op)+" failed");}
 void checkAtt(const char* op,att_result r){if(att_result_failed(r))throw std::runtime_error(std::string(op)+" failed");}
