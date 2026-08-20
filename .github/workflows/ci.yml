@@ -28,6 +28,8 @@ jobs:
         run: node scripts/windows-tpm-cng-release.mjs
       - name: Verify live Windows TPM/MAA collector boundary
         run: node scripts/windows-tpm-maa-collector-release.mjs
+      - name: Verify Windows TPM native attestation boundary
+        run: node scripts/windows-tpm-native-attestation-release.mjs
       - name: Verify macOS Secure Enclave provider source boundary
         run: node scripts/macos-secure-enclave-release.mjs
       - name: Verify Linux PKCS11 provider boundary
@@ -83,9 +85,11 @@ jobs:
           node --check scripts/openclaw-no-deps-static.mjs
           node --check scripts/windows-tpm-cng-release.mjs
           node --check scripts/windows-tpm-maa-collector-release.mjs
+          node --check scripts/windows-tpm-native-attestation-release.mjs
           node --check scripts/macos-secure-enclave-release.mjs
           node --check scripts/linux-pkcs11-release.mjs
           node --check scripts/physical-hardware-qualification.mjs
+          node --check scripts/physical-windows-tpm-native-qualification.mjs
           node --check scripts/credential-hardware-admin-release.mjs
           node --check scripts/release-gate.mjs
           node --check scripts/agent-kernel-release.mjs
