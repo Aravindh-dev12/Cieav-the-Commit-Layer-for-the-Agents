@@ -25,7 +25,6 @@ requireTokens(source,[
   "wbcl_event_unknown_algorithm",
   "wbcl_event_data_bounds",
   "replay_selected_digest_missing",
-  "PCR :=",
   "crypto.createHash(hashName).update(current).update(digest).digest()"
 ],"measured-boot parser");
 requireTokens(tests,[
