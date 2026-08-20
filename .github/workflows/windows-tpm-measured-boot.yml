@@ -1,0 +1,32 @@
+name: windows-tpm-measured-boot
+on:
+  push:
+  pull_request:
+concurrency:
+  group: windows-tpm-measured-boot-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  parser-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify measured-boot ABI and fail-closed boundary
+        run: node scripts/windows-tpm-measured-boot-static.mjs
+      - run: npm ci
+      - name: Audit production dependency security
+        run: npm audit --omit=dev --audit-level=high
+      - name: Test bounded WBCL parser and PCR replay
+        run: npm run test -w @cieav/api -- src/windows-tpm-measured-boot.test.ts
+      - name: Typecheck API measured-boot foundation
+        run: npm run typecheck -w @cieav/api
+      - name: Assert hosted CI cannot qualify measured boot
+        shell: bash
+        run: |
+          if grep -R -E 'measured.?boot.*verification[[:space:]]*:[[:space:]]*["'"']VERIFIED' apps/api/src scripts; then
+            echo 'Measured-boot foundation must not expose VERIFIED before physical quote/log qualification'
+            exit 1
+          fi
+          echo 'Measured-boot physical qualification remains unavailable on hosted CI'
