@@ -4,6 +4,7 @@ import {CieavCredentialAuthorityApi} from "./credential-authority-api.js";
 import {CieavMaaTpmAttestationVerifier} from "./maa-tpm-attestation.js";
 import {CieavSecureEnclaveAttestor} from "./secure-enclave-attestation.js";
 import {CieavWindowsTpmMaaCollector} from "./windows-tpm-maa-collector.js";
+import {CieavWindowsTpmNativeAttestor} from "./windows-tpm-native-attestation.js";
 
 const MAX_BODY=256_000;
 async function parseBody(req:IncomingMessage){const chunks:Buffer[]=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>MAX_BODY)throw new Error("body_too_large");chunks.push(b)}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{} }
@@ -49,6 +50,14 @@ export class CieavCredentialHardwareAdminApi{
       const raw=await parseBody(req);try{
         const collector=new CieavWindowsTpmMaaCollector(raw?.collectorConfig,new CieavMaaTpmAttestationVerifier());
         const result=await collector.collectAndVerify({providerManifestId:String(raw?.providerManifestId??""),expectedPublicJwk:raw?.expectedPublicJwk,...(raw?.expectedConsequencePublicJwk?{expectedConsequencePublicJwk:raw.expectedConsequencePublicJwk}:{})});
+        const attestation=await this.store.hardwareKeyProviders.putAttestation(result.attestation);
+        return{status:201,body:{attestation,publicJwk:result.publicJwk,requestPublicJwk:result.requestPublicJwk,claims:result.claims}};
+      }catch(err){return conflict(err)}
+    }
+
+    if(pathname===`${hardwarePrefix}/windows-tpm-native/attest`&&req.method==="POST"){
+      const raw=await parseBody(req);try{
+        const result=await new CieavWindowsTpmNativeAttestor(raw?.attestorConfig).attest({providerManifestId:String(raw?.providerManifestId??""),expectedPublicJwk:raw?.expectedPublicJwk,expectedConsequencePublicJwk:raw?.expectedConsequencePublicJwk});
         const attestation=await this.store.hardwareKeyProviders.putAttestation(result.attestation);
         return{status:201,body:{attestation,publicJwk:result.publicJwk,requestPublicJwk:result.requestPublicJwk,claims:result.claims}};
       }catch(err){return conflict(err)}
