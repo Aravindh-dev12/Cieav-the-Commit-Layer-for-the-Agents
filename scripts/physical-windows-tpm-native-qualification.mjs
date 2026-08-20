@@ -1,0 +1,41 @@
+#!/usr/bin/env node
+import crypto from "node:crypto";
+import {lstatSync,readFileSync} from "node:fs";
+import {spawnSync} from "node:child_process";
+import path from "node:path";
+import {fileURLToPath,pathToFileURL} from "node:url";
+
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const fail=m=>{console.error(`CIEAV physical Windows TPM native qualification FAIL: ${m}`);process.exit(2)};
+const required=name=>{const value=process.env[name]?.trim();if(!value)fail(`${name} is required`);return value};
+const digestEnv=name=>{const value=required(name).toLowerCase();if(!/^[0-9a-f]{64}$/.test(value))fail(`${name} must be a SHA-256 hex digest`);return value};
+const canonical=value=>Array.isArray(value)?`[${value.map(canonical).join(",")}]`:value&&typeof value==="object"?`{${Object.keys(value).sort().map(k=>`${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}`:JSON.stringify(value)??"undefined";
+const sha256=value=>crypto.createHash("sha256").update(value).digest("hex");
+const parseJson=(raw,what)=>{try{return JSON.parse(String(raw).trim())}catch{fail(`${what} did not return valid JSON`)}};
+const assertRegularAbsolute=(file,what)=>{if(!path.isAbsolute(file))fail(`${what} path must be absolute`);let st;try{st=lstatSync(file)}catch{fail(`${what} is unavailable`)}if(st.isSymbolicLink()||!st.isFile())fail(`${what} must be a regular non-symlink file`)};
+const assertPinnedFile=(pathEnv,digestName,what)=>{const file=required(pathEnv),expected=digestEnv(digestName);assertRegularAbsolute(file,what);if(sha256(readFileSync(file))!==expected)fail(`${what} digest mismatch`);return file};
+const run=(exe,args,{env=process.env,maxBuffer=1024*1024}={})=>{const r=spawnSync(exe,args,{cwd:ROOT,env,encoding:"utf8",shell:false,maxBuffer});if(r.error)fail(`${path.basename(exe)} failed to execute: ${r.error.message}`);return r};
+const checkedJson=(exe,args,what,opts)=>{const r=run(exe,args,opts);if(r.status!==0)fail(`${what} failed with exit ${r.status}: ${String(r.stderr).trim().slice(0,1000)}`);return parseJson(r.stdout,what)};
+function exactEcJwk(raw,what){if(!raw||raw.kty!=="EC"||raw.crv!=="P-256"||typeof raw.x!=="string"||!raw.x||typeof raw.y!=="string"||!raw.y)fail(`${what} did not expose an exact P-256 public JWK`);return{kty:"EC",crv:"P-256",x:raw.x,y:raw.y}}
+function exactRsaJwk(raw,what){if(!raw||raw.kty!=="RSA"||typeof raw.n!=="string"||raw.n.length<32||typeof raw.e!=="string"||!raw.e)fail(`${what} did not expose an RSA public JWK`);return{kty:"RSA",n:raw.n,e:raw.e}}
+function verifyOpaqueEs256(bridge,keyRef,jwk){const challenge=crypto.randomBytes(64),digest=sha256(challenge),body=checkedJson(bridge,["sign-es256",keyRef,digest],"opaque ES256 challenge");if(body.protocol!=="CIEAV_KEY_PROVIDER_V1"||body.operation!=="sign-es256"||body.signatureEncoding!=="IEEE-P1363"||typeof body.signature!=="string")fail("hardware signer response identity/encoding mismatch");let signature;try{signature=Buffer.from(body.signature,"base64url")}catch{fail("hardware signer returned invalid base64url")};if(signature.length!==64)fail(`hardware signer returned ${signature.length}-byte ES256 signature`);const publicKey=crypto.createPublicKey({key:jwk,format:"jwk"});if(!crypto.verify("sha256",challenge,{key:publicKey,dsaEncoding:"ieee-p1363"},signature))fail("independent ES256 verification failed");return sha256(canonical(jwk))}
+function buildApi(){const npm=process.platform==="win32"?"npm.cmd":"npm",exe=process.platform==="win32"?(process.env.ComSpec||"cmd.exe"):npm,args=process.platform==="win32"?["/d","/s","/c",`${npm} run build:api`]:["run","build:api"],r=run(exe,args);if(r.status!==0)fail(`npm run build:api failed:\n${r.stdout}\n${r.stderr}`)}
+
+if(process.env.CIEAV_PHYSICAL_HARDWARE_QUALIFICATION!=="1")fail("CIEAV_PHYSICAL_HARDWARE_QUALIFICATION=1 is required to prevent accidental hosted-runner qualification");
+if(process.platform!=="win32")fail(`Windows physical native qualification requires win32, got ${process.platform}`);
+const bridge=assertPinnedFile("CIEAV_WINDOWS_TPM_CNG_BRIDGE","CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256","Windows TPM/CNG bridge"),probe=checkedJson(bridge,["probe"],"Windows TPM probe");
+if(probe.provider!=="TPM"||probe.nativeProvider!=="Microsoft Platform Crypto Provider"||probe.available!==true||probe.hardwareBacked!==true)fail("Windows physical TPM is not hardware-available");
+const configPath=assertPinnedFile("CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG","CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256","Windows native attestation qualification config"),config=parseJson(readFileSync(configPath,"utf8"),"Windows native attestation qualification config");
+for(const name of ["executablePath","executableSha256","aikName","requestKeyName","consequenceKeyName","expectedAikCertificateSha256"])if(typeof config?.[name]!=="string"||!config[name])fail(`Windows native attestation config must bind ${name}`);
+if(!/^[0-9a-f]{64}$/.test(config.executableSha256)||!/^[0-9a-f]{64}$/.test(config.expectedAikCertificateSha256))fail("Windows native attestation config digests must be lowercase SHA-256 hex");
+assertRegularAbsolute(config.executablePath,"Windows native attestation bridge");if(sha256(readFileSync(config.executablePath))!==config.executableSha256)fail("Windows native attestation bridge digest mismatch");
+const nativeProbe=checkedJson(config.executablePath,["probe"],"Windows native attestation probe");if(nativeProbe.protocol!=="CIEAV_WINDOWS_TPM_NATIVE_ATTESTATION_V1"||nativeProbe.operation!=="probe"||nativeProbe.available!==true||nativeProbe.hardwareBacked!==true)fail("Windows native attestation bridge did not resolve a hardware TPM");
+const aikArgs=["inspect-aik","--aik",config.aikName,...(config.aikMachineKey===false?["--aik-user"]:[])],aik=checkedJson(config.executablePath,aikArgs,"Windows AIK inspection");if(aik.protocol!=="CIEAV_WINDOWS_TPM_NATIVE_ATTESTATION_V1"||aik.operation!=="inspect-aik"||aik.hardwareBacked!==true||aik.aikCertificateEku!=="2.23.133.8.3"||aik.revocationChecked!==true||aik.aikCertificateSha256!==config.expectedAikCertificateSha256)fail("Windows AIK inspection did not match the pinned certificate/EKU trust policy");
+const consequence=checkedJson(bridge,["describe",config.consequenceKeyName],"Windows consequence key describe"),request=checkedJson(bridge,["describe-rsa",config.requestKeyName],"Windows request key describe");
+if(consequence.hardwareBacked!==true||consequence.exportable!==false||request.hardwareBacked!==true||request.exportable!==false)fail("Windows release keys are not non-exportable hardware-backed keys");
+const consequenceJwk=exactEcJwk(consequence.publicJwk,"Windows consequence key"),requestJwk=exactRsaJwk(request.publicJwk,"Windows request key"),fingerprint=verifyOpaqueEs256(bridge,config.consequenceKeyName,consequenceJwk);
+buildApi();
+const {CieavWindowsTpmNativeAttestor}=await import(pathToFileURL(path.join(ROOT,"apps/api/dist/windows-tpm-native-attestation.js")).href),attestor=new CieavWindowsTpmNativeAttestor(config),result=await attestor.attest({expectedPublicJwk:requestJwk,expectedConsequencePublicJwk:consequenceJwk,providerManifestId:crypto.randomUUID()});
+if(result.attestation.verification!=="VERIFIED"||result.attestation.kind!=="WINDOWS_TPM_KEY_ATTESTATION"||result.attestation.publicKeyFingerprint!==fingerprint||result.claims.consequenceKeyFingerprint!==fingerprint)fail("native attestation did not verify the exact Windows consequence key");
+if(result.claims.attestationMode!=="LOCAL_WINDOWS"||result.claims.aikCertificateFingerprint!==config.expectedAikCertificateSha256||result.claims.aikCertificateEku!=="2.23.133.8.3"||result.claims.revocationChecked!==true)fail("native attestation trust identity/certificate policy mismatch");
+console.log(`CIEAV physical Windows TPM native qualification PASS · TPM opaque-sign verified · local nonce-bound AIK key claims verified · pinned AIK certificate=${result.claims.aikCertificateFingerprint} · exact consequence fingerprint=${fingerprint} · remote-attestation=false`);
