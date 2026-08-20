@@ -13,16 +13,24 @@ on:
           - windows
           - macos
           - linux
+      windows_attestor:
+        description: Windows TPM attestation backend
+        required: true
+        default: native
+        type: choice
+        options:
+          - native
+          - maa
 
 permissions:
   contents: read
 
 concurrency:
-  group: physical-hardware-qualification-${{ github.ref }}-${{ inputs.target }}
+  group: physical-hardware-qualification-${{ github.ref }}-${{ inputs.target }}-${{ inputs.windows_attestor }}
   cancel-in-progress: false
 
 jobs:
-  windows-tpm-maa:
+  windows-tpm-attestation:
     if: ${{ (inputs.target == 'all' || inputs.target == 'windows') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
     runs-on: [self-hosted, windows, cieav-release-hardware, cieav-windows-tpm]
     timeout-minutes: 30
@@ -42,7 +50,17 @@ jobs:
         run: |
           npm audit --omit=dev --audit-level=high
           npm audit --audit-level=critical
-      - name: Qualify physical Windows TPM and live MAA
+      - name: Qualify physical Windows TPM with local native attestation
+        if: ${{ inputs.windows_attestor == 'native' }}
+        env:
+          CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
+          CIEAV_WINDOWS_TPM_CNG_BRIDGE: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE }}
+          CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256 }}
+          CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG: ${{ vars.CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG }}
+          CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256: ${{ vars.CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256 }}
+        run: node scripts/physical-windows-tpm-native-qualification.mjs
+      - name: Qualify physical Windows TPM with live Microsoft Azure Attestation
+        if: ${{ inputs.windows_attestor == 'maa' }}
         env:
           CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
           CIEAV_WINDOWS_TPM_CNG_BRIDGE: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE }}
