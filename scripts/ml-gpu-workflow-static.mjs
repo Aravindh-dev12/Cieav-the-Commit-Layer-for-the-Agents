@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {readFileSync} from "node:fs";
+import {spawnSync} from "node:child_process";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
@@ -10,4 +11,5 @@ if(/pip\s+install|python\s+-m\s+pip\s+install|conda\s+install|uv\s+pip\s+install
 need(envq,["CUBLAS_DETERMINISTIC_CONFIGS",'":4096:8"','":16:8"',"CUDA qualification requires deterministic CUBLAS_WORKSPACE_CONFIG","cublasWorkspaceConfig","torch.use_deterministic_algorithms(True, warn_only=False)","torch.backends.cudnn.benchmark = False","exact-qualified-software-and-hardware-environment"],"ML environment qualifier");
 need(probe,["CIEAV_ML_GPU_DETERMINISM_PROBE_V1","torch.mm","F.conv2d","CUDA deterministic probe produced byte-different outputs","environment manifest is not bound to current head with CUDA required","deterministic CUBLAS_WORKSPACE_CONFIG mismatch","authority","QUALIFIED","reproducibilityScope"],"GPU determinism probe");
 need(smoke,["CUBLAS_WORKSPACE_CONFIG","deterministic PyTorch/cuBLAS settings","CUDA qualification fail-closed","authority=false"],"ML reproducibility smoke");
+for(const p of ["ml/qualify_environment.py","ml/gpu_determinism_probe.py","scripts/ml-reproducibility-smoke.py"]){const r=spawnSync(process.platform==="win32"?"python":"python3",["-m","py_compile",p],{cwd:ROOT,stdio:"inherit",shell:false});if(r.error)throw r.error;if(r.status!==0)fail(`Python syntax check failed: ${p}`)}
 console.log("CIEAV ML GPU workflow gate PASS - self-hosted exact-pinned no-install CUDA environment + deterministic cuBLAS/PyTorch probe + exact-head GitHub attestation enforced");
