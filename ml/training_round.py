@@ -2,8 +2,9 @@
 """Create and advance provenance manifests for CIEAV ML training rounds.
 
 A trained checkpoint is never considered qualified by this module alone. Promotion is
-fail-closed and requires a CIEAV rollout-evaluation report with passing promotion,
-explicit hidden evidence, and a passing hidden verifier bank.
+fail-closed and requires a qualified exact ML environment, a CIEAV rollout-evaluation
+report with passing promotion, explicit hidden evidence, and a passing hidden verifier
+bank.
 """
 from __future__ import annotations
 
@@ -92,6 +93,32 @@ def validate_verifier_health(health: dict[str, Any] | None) -> dict[str, Any] | 
     return {"protocol": PROTOCOL, "authority": False, "capabilities": [str(x) for x in capabilities]}
 
 
+def validate_environment_report(path: Path, expected_git_head: str | None) -> dict[str, Any]:
+    path = path.resolve()
+    report = load_object(path)
+    if report.get("architecture") != "CIEAV_ML_ENVIRONMENT_QUALIFICATION_V1" or report.get("authority") is not False or report.get("qualification") != "QUALIFIED":
+        raise ValueError("ML environment qualification report contract mismatch")
+    report_head = report.get("gitHead")
+    if expected_git_head and report_head != expected_git_head:
+        raise ValueError("ML environment qualification must match the training git head")
+    constraints = report.get("constraints")
+    torch_info = report.get("torch")
+    if not isinstance(constraints, dict) or not isinstance(constraints.get("sha256"), str):
+        raise ValueError("ML environment qualification is missing constraints identity")
+    if not isinstance(torch_info, dict) or torch_info.get("deterministicAlgorithms") is not True or torch_info.get("cudnnBenchmark") not in (False, None):
+        raise ValueError("ML environment qualification is missing deterministic runtime evidence")
+    return {
+        **file_ref(path),
+        "gitHead": report_head,
+        "constraintsSha256": constraints.get("sha256"),
+        "packages": report.get("packages"),
+        "torch": torch_info,
+        "requireCuda": report.get("requireCuda"),
+        "requireScale": report.get("requireScale"),
+        "seed": report.get("seed"),
+    }
+
+
 def create_round(
     *,
     stage: str,
@@ -101,11 +128,14 @@ def create_round(
     hyperparameters: dict[str, Any],
     verifier_health: dict[str, Any] | None = None,
     curriculum_report: Path | None = None,
+    environment_report: Path | None = None,
     previous_manifest: Path | None = None,
 ) -> dict[str, Any]:
     dataset = dataset.resolve()
     if not dataset.is_file():
         raise ValueError(f"training dataset does not exist: {dataset}")
+    current_head = git_head()
+    environment = validate_environment_report(environment_report, current_head) if environment_report is not None else None
     curriculum = None
     if curriculum_report is not None:
         curriculum_report = curriculum_report.resolve()
@@ -127,7 +157,7 @@ def create_round(
         "stage": stage,
         "model": model,
         "datasetSha256": sha256_file(dataset),
-        "gitHead": git_head(),
+        "gitHead": current_head,
         "createdAt": created,
     }
     round_id = hashlib.sha256(json.dumps(seed, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()[:24]
@@ -141,10 +171,11 @@ def create_round(
         "stage": stage,
         "status": "TRAINING",
         "qualification": "UNQUALIFIED",
-        "gitHead": seed["gitHead"],
+        "gitHead": current_head,
         "model": {"input": model, "outputPath": str(output_dir.resolve())},
         "dataset": file_ref(dataset),
         "curriculum": curriculum,
+        "environment": environment,
         "previousRound": previous,
         "verifier": validate_verifier_health(verifier_health),
         "hyperparameters": hyperparameters,
@@ -177,13 +208,15 @@ def apply_promotion(manifest: dict[str, Any], report_path: Path) -> dict[str, An
     hidden_present = report.get("hiddenEvidencePresent") is True
     promotion_passed = isinstance(promotion, dict) and promotion.get("passed") is True
     verifier_bank_passed = isinstance(verifier_bank, dict) and verifier_bank.get("passed") is True
-    qualified = promotion_passed and hidden_present and verifier_bank_passed
+    environment_qualified = isinstance(manifest.get("environment"), dict)
+    qualified = promotion_passed and hidden_present and verifier_bank_passed and environment_qualified
     updated = dict(manifest)
     updated["promotion"] = {
         **file_ref(report_path),
         "promotionPassed": promotion_passed,
         "hiddenEvidencePresent": hidden_present,
         "verifierBankPassed": verifier_bank_passed,
+        "environmentQualified": environment_qualified,
         "qualified": qualified,
         "metrics": promotion.get("metrics") if isinstance(promotion, dict) else None,
         "violations": promotion.get("violations") if isinstance(promotion, dict) else ["promotion_report_missing"],
@@ -211,22 +244,19 @@ def verify_round(manifest: dict[str, Any]) -> list[str]:
                 violations.append(f"{label}_digest_mismatch")
         except Exception:
             violations.append(f"{label}_unavailable")
-    curriculum = manifest.get("curriculum")
-    if isinstance(curriculum, dict):
-        try:
-            if sha256_file(Path(str(curriculum["path"]))) != curriculum.get("sha256"):
-                violations.append("curriculum_digest_mismatch")
-        except Exception:
-            violations.append("curriculum_unavailable")
-    promotion = manifest.get("promotion")
-    if isinstance(promotion, dict):
-        try:
-            if sha256_file(Path(str(promotion["path"]))) != promotion.get("sha256"):
-                violations.append("promotion_digest_mismatch")
-        except Exception:
-            violations.append("promotion_unavailable")
+    for label in ("curriculum", "environment", "promotion"):
+        ref = manifest.get(label)
+        if isinstance(ref, dict):
+            try:
+                if sha256_file(Path(str(ref["path"]))) != ref.get("sha256"):
+                    violations.append(f"{label}_digest_mismatch")
+            except Exception:
+                violations.append(f"{label}_unavailable")
     if manifest.get("qualification") == "QUALIFIED":
-        if not isinstance(promotion, dict) or promotion.get("qualified") is not True:
+        promotion = manifest.get("promotion")
+        if not isinstance(manifest.get("environment"), dict):
+            violations.append("qualified_without_environment_qualification")
+        if not isinstance(promotion, dict) or promotion.get("qualified") is not True or promotion.get("environmentQualified") is not True:
             violations.append("qualified_without_passing_promotion")
     return violations
 
