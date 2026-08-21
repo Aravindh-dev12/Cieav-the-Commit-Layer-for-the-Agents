@@ -13,15 +13,18 @@ const digestEnv=name=>{const value=required(name).toLowerCase();if(!/^[0-9a-f]{6
 const run=(exe,args,{maxBuffer=16*1024*1024}={})=>{const r=spawnSync(exe,args,{cwd:ROOT,encoding:"utf8",shell:false,maxBuffer});if(r.error)fail(`${path.basename(exe)} failed to execute: ${r.error.message}`);return r};
 const parseJson=(raw,what)=>{try{return JSON.parse(String(raw).trim())}catch{fail(`${what} did not return valid JSON`)}};
 const checkedJson=(exe,args,what)=>{const r=run(exe,args);if(r.status!==0)fail(`${what} failed with exit ${r.status}: ${String(r.stderr).trim().slice(0,1000)}`);return parseJson(r.stdout,what)};
+const pinnedExecutable=(pathValue,digestName,label)=>{if(!path.isAbsolute(pathValue))fail(`${label} path must be absolute`);let st;try{st=lstatSync(pathValue)}catch{fail(`${label} is unavailable`)}if(st.isSymbolicLink()||!st.isFile())fail(`${label} must be a regular non-symlink file`);const actual=sha256(readFileSync(pathValue)),expected=digestEnv(digestName);if(actual!==expected)fail(`${label} digest mismatch`);return actual};
 
 if(process.env.CIEAV_WINDOWS_MEASURED_BOOT_DIAGNOSTIC!=="1")fail("CIEAV_WINDOWS_MEASURED_BOOT_DIAGNOSTIC=1 is required");
 if(process.platform!=="win32")fail(`physical measured-boot diagnostic requires win32, got ${process.platform}`);
-const collector=required("CIEAV_WINDOWS_MEASURED_BOOT_COLLECTOR"),expectedCollectorSha=digestEnv("CIEAV_WINDOWS_MEASURED_BOOT_COLLECTOR_SHA256");
-if(!path.isAbsolute(collector))fail("collector path must be absolute");let st;try{st=lstatSync(collector)}catch{fail("collector is unavailable")}if(st.isSymbolicLink()||!st.isFile())fail("collector must be a regular non-symlink file");
-const actualCollectorSha=sha256(readFileSync(collector));if(actualCollectorSha!==expectedCollectorSha)fail("collector digest mismatch");
+const collector=required("CIEAV_WINDOWS_MEASURED_BOOT_COLLECTOR"),actualCollectorSha=pinnedExecutable(collector,"CIEAV_WINDOWS_MEASURED_BOOT_COLLECTOR_SHA256","collector");
+const claimProbe=required("CIEAV_WINDOWS_MEASURED_BOOT_PROBE"),actualProbeSha=pinnedExecutable(claimProbe,"CIEAV_WINDOWS_MEASURED_BOOT_PROBE_SHA256","claim probe"),aikName=required("CIEAV_WINDOWS_TPM_AIK_NAME"),aikUser=process.env.CIEAV_WINDOWS_TPM_AIK_USER==="1";
 
 const probe=checkedJson(collector,["probe"],"TBS collector probe");
 if(probe.protocol!=="CIEAV_WINDOWS_TPM_MEASURED_BOOT_V1"||probe.operation!=="probe"||probe.available!==true||probe.qualification!=="UNQUALIFIED"||probe.pcrRange!=="0-15")fail("collector probe identity mismatch");
+const platformProbeArgs=["probe","--aik",aikName,...(aikUser?["--aik-user"]:[])],platformProbe=checkedJson(claimProbe,platformProbeArgs,"TPM platform-claim probe");
+if(platformProbe.protocol!=="CIEAV_WINDOWS_TPM_MEASURED_BOOT_PROBE_V1"||platformProbe.operation!=="probe"||platformProbe.hardwareBacked!==true||platformProbe.qualification!=="UNQUALIFIED"||platformProbe.pcrMask!==65535||platformProbe.nonceBytes!==32||platformProbe.aikName!==aikName||platformProbe.aikMachineKey===aikUser)fail("platform-claim probe identity mismatch");
+if(!Array.isArray(platformProbe.claimAttempts)||!platformProbe.claimAttempts.some(x=>x?.verified===true&&x?.createStatus==="0x00000000"&&x?.verifyStatus==="0x00000000"&&Number(x?.claimBytes)>0))fail("no nonce-bound platform claim was created and locally verified");
 
 const npm=process.platform==="win32"?"npm.cmd":"npm",shell=process.env.ComSpec||"cmd.exe",build=spawnSync(shell,["/d","/s","/c",`${npm} run build:api`],{cwd:ROOT,encoding:"utf8",shell:false,maxBuffer:16*1024*1024});
 if(build.status!==0)fail(`npm run build:api failed:\n${build.stdout}\n${build.stderr}`);
@@ -36,5 +39,5 @@ function collectAndReplay(type){
   return{type,logType:body.logType,bytes:raw.length,events:parsed.events.length,logSha256:sha256(raw),pcrMask:"0x0000ffff",pcrBank:"sha256",replayedPcrTableSha256:sha256(table),pcrs:Object.fromEntries([...replayed.entries()].map(([index,value])=>[String(index),value.toString("hex")]))};
 }
 
-const current=collectAndReplay("srtm-current"),boot=collectAndReplay("srtm-boot");
-console.log(JSON.stringify({protocol:"CIEAV_WINDOWS_TPM_MEASURED_BOOT_DIAGNOSTIC_V1",collectorSha256:actualCollectorSha,qualification:"UNQUALIFIED",reason:"WBCL replay completed but no AIK-signed NCRYPT_CLAIM_PLATFORM quote/nonce/PCR digest has been verified",current,boot},null,2));
+const current=collectAndReplay("srtm-current"),boot=collectAndReplay("srtm-boot"),verifiedClaimAttempts=platformProbe.claimAttempts.filter(x=>x?.verified===true).map(x=>({name:x.name,claimBytes:x.claimBytes,createStatus:x.createStatus,verifyStatus:x.verifyStatus}));
+console.log(JSON.stringify({protocol:"CIEAV_WINDOWS_TPM_MEASURED_BOOT_DIAGNOSTIC_V1",collectorSha256:actualCollectorSha,claimProbeSha256:actualProbeSha,aikName,aikMachineKey:!aikUser,qualification:"UNQUALIFIED",platformClaim:{nonceBytes:platformProbe.nonceBytes,pcrMask:"0x0000ffff",verifiedAttempts:verifiedClaimAttempts},reason:"Nonce-bound NCRYPT_CLAIM_PLATFORM creation and local verification passed, but the platform claim PCR digest is not yet parsed and bound to the replayed WBCL PCR table",current,boot},null,2));

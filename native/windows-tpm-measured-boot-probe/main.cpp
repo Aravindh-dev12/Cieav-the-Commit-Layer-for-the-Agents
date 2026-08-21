@@ -24,9 +24,10 @@ bool hasFlag(int argc,char** argv,const std::string& name){for(int i=2;i<argc;++
 
 NCRYPT_PROV_HANDLE openPlatformProvider(){NCRYPT_PROV_HANDLE p=0;SECURITY_STATUS s=NCryptOpenStorageProvider(&p,MS_PLATFORM_CRYPTO_PROVIDER,0);if(s!=ERROR_SUCCESS)throw std::runtime_error("NCryptOpenStorageProvider failed: "+hexStatus(s));DWORD impl=0,cb=0;s=NCryptGetProperty(p,NCRYPT_IMPL_TYPE_PROPERTY,reinterpret_cast<PBYTE>(&impl),sizeof(impl),&cb,0);if(s!=ERROR_SUCCESS){NCryptFreeObject(p);throw std::runtime_error("NCryptGetProperty(Impl Type) failed: "+hexStatus(s));}if((impl&NCRYPT_IMPL_HARDWARE_FLAG)==0||(impl&NCRYPT_IMPL_SOFTWARE_FLAG)!=0){NCryptFreeObject(p);throw std::runtime_error("Platform Crypto Provider is not exclusive hardware");}return p;}
 NCRYPT_KEY_HANDLE openAik(NCRYPT_PROV_HANDLE provider,const std::string& name,bool machine){NCRYPT_KEY_HANDLE key=0;DWORD flags=NCRYPT_SILENT_FLAG|(machine?NCRYPT_MACHINE_KEY_FLAG:0);SECURITY_STATUS s=NCryptOpenKey(provider,&key,widen(name).c_str(),0,flags);if(s!=ERROR_SUCCESS)throw std::runtime_error("NCryptOpenKey(AIK) failed: "+hexStatus(s));return key;}
+void freeVerifyOutput(NCryptBufferDesc& output){if(!output.pBuffers)return;for(ULONG i=0;i<output.cBuffers;++i)if(output.pBuffers[i].pvBuffer)NCryptFreeBuffer(output.pBuffers[i].pvBuffer);NCryptFreeBuffer(output.pBuffers);output.pBuffers=nullptr;output.cBuffers=0;}
 
 struct ClaimAttempt{const char* name;NCRYPT_KEY_HANDLE subject;NCRYPT_KEY_HANDLE authority;};
-struct ClaimResult{std::string name;SECURITY_STATUS status;DWORD requiredBytes;};
+struct ClaimResult{std::string name;SECURITY_STATUS status;SECURITY_STATUS createStatus;SECURITY_STATUS verifyStatus;DWORD requiredBytes;DWORD claimBytes;};
 
 ClaimResult tryPlatformClaim(const ClaimAttempt& attempt,std::vector<unsigned char>& nonce){
   DWORD pcrMask=0x0000FFFF;
@@ -35,8 +36,15 @@ ClaimResult tryPlatformClaim(const ClaimAttempt& attempt,std::vector<unsigned ch
   buffers[1].cbBuffer=static_cast<ULONG>(nonce.size());buffers[1].BufferType=NCRYPTBUFFER_TPM_PLATFORM_CLAIM_NONCE;buffers[1].pvBuffer=nonce.data();
   NCryptBufferDesc desc{};desc.ulVersion=NCRYPTBUFFER_VERSION;desc.cBuffers=2;desc.pBuffers=buffers;
   DWORD required=0;
-  SECURITY_STATUS status=NCryptCreateClaim(attempt.subject,attempt.authority,NCRYPT_CLAIM_PLATFORM,&desc,nullptr,0,&required,0);
-  return ClaimResult{attempt.name,status,required};
+  const SECURITY_STATUS sizeStatus=NCryptCreateClaim(attempt.subject,attempt.authority,NCRYPT_CLAIM_PLATFORM,&desc,nullptr,0,&required,0);
+  if(sizeStatus!=ERROR_SUCCESS||required==0||required>1024u*1024u)return ClaimResult{attempt.name,sizeStatus,sizeStatus,static_cast<SECURITY_STATUS>(NTE_BAD_DATA),required,0};
+  std::vector<unsigned char> claim(required);DWORD actual=required;
+  const SECURITY_STATUS createStatus=NCryptCreateClaim(attempt.subject,attempt.authority,NCRYPT_CLAIM_PLATFORM,&desc,claim.data(),static_cast<DWORD>(claim.size()),&actual,0);
+  if(createStatus!=ERROR_SUCCESS||actual==0||actual>claim.size())return ClaimResult{attempt.name,sizeStatus,createStatus,static_cast<SECURITY_STATUS>(NTE_BAD_DATA),required,actual};
+  claim.resize(actual);NCryptBufferDesc output{};
+  const SECURITY_STATUS verifyStatus=NCryptVerifyClaim(attempt.subject,attempt.authority,NCRYPT_CLAIM_PLATFORM,&desc,claim.data(),static_cast<DWORD>(claim.size()),&output,0);
+  freeVerifyOutput(output);
+  return ClaimResult{attempt.name,sizeStatus,createStatus,verifyStatus,required,actual};
 }
 
 struct LogProbe{TBS_RESULT status;UINT32 requiredBytes;};
@@ -55,8 +63,8 @@ int run(int argc,char** argv){
   };
   const auto currentLog=probeLog(TBS_TCGLOG_SRTM_CURRENT),bootLog=probeLog(TBS_TCGLOG_SRTM_BOOT);
 
-  std::cout<<"{\"protocol\":\"CIEAV_WINDOWS_TPM_MEASURED_BOOT_PROBE_V1\",\"operation\":\"probe\",\"hardwareBacked\":true,\"aikName\":\""<<aikName<<"\",\"aikMachineKey\":"<<(machine?"true":"false")<<",\"pcrMask\":65535,\"nonceBytes\":32,\"logs\":{\"srtmCurrent\":{\"status\":\""<<hexTbs(currentLog.status)<<"\",\"requiredBytes\":"<<currentLog.requiredBytes<<"},\"srtmBoot\":{\"status\":\""<<hexTbs(bootLog.status)<<"\",\"requiredBytes\":"<<bootLog.requiredBytes<<"}},\"claimAttempts\":[";
-  for(size_t i=0;i<std::size(attempts);++i){auto result=tryPlatformClaim(attempts[i],nonce);if(i)std::cout<<",";std::cout<<"{\"name\":\""<<result.name<<"\",\"status\":\""<<hexStatus(result.status)<<"\",\"requiredBytes\":"<<result.requiredBytes<<"}";}
+  std::cout<<"{\"protocol\":\"CIEAV_WINDOWS_TPM_MEASURED_BOOT_PROBE_V1\",\"operation\":\"probe\",\"hardwareBacked\":true,\"aikName\":\""<<aikName<<"\",\"aikMachineKey\":"<<(machine?"true":"false")<<",\"pcrMask\":65535,\"nonceBytes\":32,\"qualification\":\"UNQUALIFIED\",\"logs\":{\"srtmCurrent\":{\"status\":\""<<hexTbs(currentLog.status)<<"\",\"requiredBytes\":"<<currentLog.requiredBytes<<"},\"srtmBoot\":{\"status\":\""<<hexTbs(bootLog.status)<<"\",\"requiredBytes\":"<<bootLog.requiredBytes<<"}},\"claimAttempts\":[";
+  for(size_t i=0;i<std::size(attempts);++i){auto result=tryPlatformClaim(attempts[i],nonce);if(i)std::cout<<",";std::cout<<"{\"name\":\""<<result.name<<"\",\"status\":\""<<hexStatus(result.status)<<"\",\"requiredBytes\":"<<result.requiredBytes<<",\"createStatus\":\""<<hexStatus(result.createStatus)<<"\",\"claimBytes\":"<<result.claimBytes<<",\"verifyStatus\":\""<<hexStatus(result.verifyStatus)<<"\",\"verified\":"<<(result.verifyStatus==ERROR_SUCCESS?"true":"false")<<"}";}
   std::cout<<"]}\n";
   return 0;
 }
