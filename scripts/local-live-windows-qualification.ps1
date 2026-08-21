@@ -139,7 +139,7 @@ try {
     Import-Certificate -FilePath $CodeCertFile -CertStoreLocation 'Cert:\CurrentUser\TrustedPublisher' | Out-Null
     foreach ($file in @('dist\cieav.exe','dist\cdp-win-bridge.exe')) {
       $signed = Set-AuthenticodeSignature -FilePath $file -Certificate $cert -HashAlgorithm SHA256
-      if ($signed.Status -ne 'Valid') { throw "Local Authenticode signing failed for $file: $($signed.Status)" }
+      if ($signed.Status -ne 'Valid') { throw "Local Authenticode signing failed for ${file}: $($signed.Status)" }
       $verify = Get-AuthenticodeSignature -FilePath $file
       if ($verify.Status -ne 'Valid' -or $verify.SignerCertificate.Thumbprint -ne $cert.Thumbprint) { throw "Local Authenticode verification failed for $file" }
     }
