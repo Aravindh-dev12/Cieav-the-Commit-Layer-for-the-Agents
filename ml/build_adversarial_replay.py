@@ -122,6 +122,7 @@ def build(client: CieavVerifierClient, scored: list[dict[str, Any]], priorities:
         if not source:
             continue
         base = source["candidate"]
+        context = source.get("context")
         for index, (kind, mutated, perturbation) in enumerate(candidate_mutations(source)):
             replay_id = f"{source['id']}::adv::{kind}"
             reward = client.score_decision(source["expectation"], mutated, source.get("process"))
@@ -132,9 +133,11 @@ def build(client: CieavVerifierClient, scored: list[dict[str, Any]], priorities:
                 "curriculumBand": priority.get("curriculumBand"),
                 "priority": priority.get("priority"),
                 "mutation": kind,
+                "context": context,
                 "expectation": source["expectation"],
                 "candidate": mutated,
                 "canonicalReward": reward,
+                "requiresFreshModelRollout": True,
                 "lineage": {"source": "failure-priorities", "sourceIndex": index, "generated": True},
             }
             replay.append(record)
@@ -164,6 +167,7 @@ def build(client: CieavVerifierClient, scored: list[dict[str, Any]], priorities:
         "replaySamples": len(replay),
         "invariantRerollTasks": len(reroll),
         "canonicalHardFailures": hard_failures,
+        "freshRolloutRequired": True,
         "perturbations": perturbation_report,
     }
     return replay, reroll, report
