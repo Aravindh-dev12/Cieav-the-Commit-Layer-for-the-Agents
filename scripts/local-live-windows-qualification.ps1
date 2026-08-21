@@ -78,6 +78,7 @@ $Tmp = Join-Path $Root '.tmp\local-live-windows'
 $Venv = Join-Path $Tmp 'venv'
 $CodeCertFile = Join-Path $Tmp 'cieav-local-live-code-signing.cer'
 $TlsCer = Join-Path $Tmp 'cieav-local-live-tls.cer'
+$TlsPem = Join-Path $Tmp 'cieav-local-live-tls.pem'
 $TlsPfx = Join-Path $Tmp 'cieav-local-live-tls.pfx'
 $Layout = Join-Path $Tmp 'layout'
 $LayoutInput = Join-Path $Tmp 'layout-input'
@@ -92,6 +93,7 @@ $OldLatchStateDir = $env:LATCH_STATE_DIR
 $OldCloudToken = $env:CIEAV_CLOUD_TOKEN
 $OldLatchCloudToken = $env:LATCH_CLOUD_TOKEN
 $OldChromium = $env:CIEAV_CHROMIUM
+$OldSslCertFile = $env:SSL_CERT_FILE
 
 try {
   Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $Tmp
@@ -170,6 +172,8 @@ try {
     $script:TlsThumbprint = $tls.Thumbprint
     Export-Certificate -Cert $tls -FilePath $TlsCer -Force | Out-Null
     Import-Certificate -FilePath $TlsCer -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
+    $pemBody = [Convert]::ToBase64String($tls.RawData,[Base64FormattingOptions]::InsertLineBreaks)
+    [IO.File]::WriteAllText($TlsPem,"-----BEGIN CERTIFICATE-----`r`n$pemBody`r`n-----END CERTIFICATE-----`r`n",[Text.Encoding]::ASCII)
     $script:TlsPassword = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
     $secure = ConvertTo-SecureString -String $TlsPassword -AsPlainText -Force
     Export-PfxCertificate -Cert $tls -FilePath $TlsPfx -Password $secure -Force | Out-Null
@@ -215,6 +219,7 @@ try {
   $env:LOCALAPPDATA = Join-Path $Tmp 'installer-localappdata'
   $env:CIEAV_STATE_DIR = Join-Path $Tmp 'installer-state'
   $env:LATCH_STATE_DIR = $env:CIEAV_STATE_DIR
+  $env:SSL_CERT_FILE = $TlsPem
   Remove-Item Env:CIEAV_CLOUD_TOKEN -ErrorAction SilentlyContinue
   Remove-Item Env:LATCH_CLOUD_TOKEN -ErrorAction SilentlyContinue
   New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA,$env:CIEAV_STATE_DIR | Out-Null
@@ -270,11 +275,12 @@ finally {
   Stop-LocalFixture $Fixture
   if ($CodeThumbprint) { Remove-TestCertificate $CodeThumbprint }
   if ($TlsThumbprint) { Remove-TestCertificate $TlsThumbprint }
-  foreach ($file in @($CodeCertFile,$TlsCer,$TlsPfx)) { Remove-Item -Force -ErrorAction SilentlyContinue $file }
+  foreach ($file in @($CodeCertFile,$TlsCer,$TlsPem,$TlsPfx)) { Remove-Item -Force -ErrorAction SilentlyContinue $file }
   if ($null -eq $OldLocalAppData) { Remove-Item Env:LOCALAPPDATA -ErrorAction SilentlyContinue } else { $env:LOCALAPPDATA = $OldLocalAppData }
   if ($null -eq $OldStateDir) { Remove-Item Env:CIEAV_STATE_DIR -ErrorAction SilentlyContinue } else { $env:CIEAV_STATE_DIR = $OldStateDir }
   if ($null -eq $OldLatchStateDir) { Remove-Item Env:LATCH_STATE_DIR -ErrorAction SilentlyContinue } else { $env:LATCH_STATE_DIR = $OldLatchStateDir }
   if ($null -eq $OldCloudToken) { Remove-Item Env:CIEAV_CLOUD_TOKEN -ErrorAction SilentlyContinue } else { $env:CIEAV_CLOUD_TOKEN = $OldCloudToken }
   if ($null -eq $OldLatchCloudToken) { Remove-Item Env:LATCH_CLOUD_TOKEN -ErrorAction SilentlyContinue } else { $env:LATCH_CLOUD_TOKEN = $OldLatchCloudToken }
   if ($null -eq $OldChromium) { Remove-Item Env:CIEAV_CHROMIUM -ErrorAction SilentlyContinue } else { $env:CIEAV_CHROMIUM = $OldChromium }
+  if ($null -eq $OldSslCertFile) { Remove-Item Env:SSL_CERT_FILE -ErrorAction SilentlyContinue } else { $env:SSL_CERT_FILE = $OldSslCertFile }
 }
