@@ -27,6 +27,10 @@ on:
         description: Successful public-deployment-qualification run ID for this exact main commit
         required: true
         type: string
+      supply_chain_run_id:
+        description: Successful supply-chain-qualification run ID for this exact main commit
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -68,6 +72,7 @@ jobs:
           INSTALLER_SUCCESS_RUN_ID: ${{ inputs.installer_success_run_id }}
           INSTALLER_ROLLBACK_RUN_ID: ${{ inputs.installer_rollback_run_id }}
           PUBLIC_DEPLOYMENT_RUN_ID: ${{ inputs.public_deployment_run_id }}
+          SUPPLY_CHAIN_RUN_ID: ${{ inputs.supply_chain_run_id }}
         shell: bash
         run: |
           node - <<'NODE'
@@ -79,6 +84,7 @@ jobs:
             [process.env.INSTALLER_SUCCESS_RUN_ID,'.github/workflows/live-installer-qualification.yml'],
             [process.env.INSTALLER_ROLLBACK_RUN_ID,'.github/workflows/live-installer-qualification.yml'],
             [process.env.PUBLIC_DEPLOYMENT_RUN_ID,'.github/workflows/public-deployment-qualification.yml'],
+            [process.env.SUPPLY_CHAIN_RUN_ID,'.github/workflows/supply-chain-qualification.yml'],
           ];
           for(const [id,path] of expected){
             if(!/^\d+$/.test(id||''))throw new Error(`invalid workflow run id: ${id}`);
@@ -87,7 +93,7 @@ jobs:
             if(r.head_sha!==process.env.GITHUB_SHA)throw new Error(`${path} run ${id} head ${r.head_sha} != ${process.env.GITHUB_SHA}`);
             if(r.path!==path)throw new Error(`run ${id} came from ${r.path}, expected ${path}`);
           }
-          console.log('CIEAV production source-run binding PASS - release + physical + GPU + installer success + installer rollback + public deployment all match exact HEAD');
+          console.log('CIEAV production source-run binding PASS - release + physical + GPU + installer success + installer rollback + public deployment + supply chain all match exact HEAD');
           NODE
       - name: Download raw publish qualification evidence
         uses: actions/download-artifact@v4
@@ -148,6 +154,14 @@ jobs:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ inputs.public_deployment_run_id }}
+      - name: Download supply-chain evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: supply-chain-qualification
+          path: release/reports
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.supply_chain_run_id }}
       - name: Require raw evidence layout
         shell: bash
         run: |
@@ -158,6 +172,8 @@ jobs:
           test -f release/reports/ml/environment-qualification.json
           test -f release/reports/ml/gpu-determinism-probe.json
           test -f release/reports/latest-public-deployment-qualification.json
+          test -f release/reports/latest-supply-chain-qualification.json
+          test -f release/reports/cieav-sbom.cdx.json
           test "$(find release/reports -maxdepth 1 -type f -name 'cieav-installer-success-*.json' | wc -l)" -ge 3
           test "$(find release/reports -maxdepth 1 -type f -name 'cieav-installer-rollback-*.json' | wc -l)" -ge 3
       - name: Recompute final production qualification
@@ -181,4 +197,6 @@ jobs:
             release/reports/latest-physical-provenance.json
             release/reports/latest-ml-gpu-qualification.json
             release/reports/latest-public-deployment-qualification.json
+            release/reports/latest-supply-chain-qualification.json
+            release/reports/cieav-sbom.cdx.json
           if-no-files-found: error
