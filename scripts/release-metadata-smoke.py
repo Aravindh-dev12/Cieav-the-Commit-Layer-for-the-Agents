@@ -66,22 +66,36 @@ def render_case(base:str,expect_ok:bool,*,cloud:str=CLOUD,version:str=VERSION,wi
         if expect_ok and proc.returncode!=0: raise AssertionError(proc.stderr or proc.stdout)
         if not expect_ok and proc.returncode==0: raise AssertionError(f"invalid installer trust input was accepted: base={base!r} cloud={cloud!r} version={version!r} windows_signer={windows_signer!r} macos_signer={macos_signer!r}")
         if not expect_ok:return
-        ps=(out/"install.ps1").read_text("utf-8");sh=(out/"install.sh").read_text("utf-8");combined=ps+sh
-        for placeholder in (
-            "__CIEAV_DOWNLOAD_BASE_URL__",
-            "__CIEAV_CLOUD_URL__",
-            "__CIEAV_RELEASE_VERSION__",
-            "__CIEAV_WINDOWS_SIGNER_THUMBPRINT__",
-            "__CIEAV_MACOS_SIGNING_IDENTITY__",
-            "__CIEAV_RELEASE_KEY_ID__",
-            "__CIEAV_RELEASE_RSA_MODULUS_B64__",
-            "__CIEAV_RELEASE_RSA_EXPONENT_B64__",
-            "__CIEAV_RELEASE_PUBLIC_KEY_PEM_B64__",
-        ):
-            assert placeholder not in combined
+        ps=(out/"install.ps1").read_text("utf-8");sh=(out/"install.sh").read_text("utf-8")
+        # The renderer must replace each configuration binding with the supplied
+        # value while preserving later exact placeholder literals used as
+        # fail-closed sentinels. Replacing every occurrence makes a correctly
+        # rendered installer compare its value to itself and reject itself.
         for source in (ps,sh):
             assert base.rstrip('/') in source and cloud.rstrip('/') in source and version in source
             assert windows_signer.upper() in source and macos_signer in source
+            assert RELEASE_KEY_ID in source and RELEASE_RSA_MODULUS_B64 in source
+            assert RELEASE_RSA_EXPONENT_B64 in source and RELEASE_PUBLIC_KEY_PEM_B64 in source
+        for sentinel in (
+            '__CIEAV_DOWNLOAD_BASE_URL__',
+            '__CIEAV_CLOUD_URL__',
+            '__CIEAV_RELEASE_VERSION__',
+            '__CIEAV_RELEASE_KEY_ID__',
+            '__CIEAV_RELEASE_RSA_MODULUS_B64__',
+            '__CIEAV_RELEASE_RSA_EXPONENT_B64__',
+            '__CIEAV_RELEASE_PUBLIC_KEY_PEM_B64__',
+        ):
+            assert sentinel in ps and sentinel in sh
+        assert '__CIEAV_WINDOWS_SIGNER_THUMBPRINT__' in ps
+        assert '__CIEAV_MACOS_SIGNING_IDENTITY__' in ps and '__CIEAV_MACOS_SIGNING_IDENTITY__' in sh
+        assert '$BaseUrl -eq "__CIEAV_DOWNLOAD_BASE_URL__"' in ps
+        assert '$PinnedCloudUrl -eq "__CIEAV_CLOUD_URL__"' in ps
+        assert '$PinnedReleaseVersion -eq "__CIEAV_RELEASE_VERSION__"' in ps
+        assert '$PinnedWindowsSigner -eq "__CIEAV_WINDOWS_SIGNER_THUMBPRINT__"' in ps
+        assert '$PinnedMacSigner -eq "__CIEAV_MACOS_SIGNING_IDENTITY__"' in ps
+        assert '[ "$BASE_URL" != "__CIEAV_DOWNLOAD_BASE_URL__" ]' in sh
+        assert '[ "$PINNED_CLOUD_URL" != "__CIEAV_CLOUD_URL__" ]' in sh
+        assert '[ "$PINNED_RELEASE_VERSION" != "__CIEAV_RELEASE_VERSION__" ]' in sh
         assert "release manifest version does not match the installer-pinned release" in ps
         assert "release metadata version does not match the installer-pinned release" in sh
         assert "does not match the installer-pinned endpoint" in ps and "does not match the installer-pinned endpoint" in sh
