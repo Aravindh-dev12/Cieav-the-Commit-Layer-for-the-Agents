@@ -43,7 +43,7 @@ if(full){
 if(runtimeArchive){
   commandPlan.push(["clean-runtime",process.platform==="win32"?"python":"python3",[path.join(ROOT,"scripts","clean-runtime-smoke.py"),"--archive",path.resolve(ROOT,runtimeArchive)]]);
 }else{
-  record("clean-runtime","NOT_RUN","provide --runtime-archive=<path> after building/downloading a runtime archive; this does not count as a local failure");
+  record("clean-runtime","NOT_RUN","provide --runtime-archive=<path> after building/downloading a runtime archive; complete local qualification requires this check");
 }
 
 for(const [name,cmd,cmdArgs] of commandPlan){
@@ -69,24 +69,31 @@ const externalGates=[
 ];
 
 const failed=checks.filter(x=>x.status==="FAIL");
+const runtimeQualified=checks.some(x=>x.name==="clean-runtime"&&x.status==="PASS");
+const verdict=failed.length?"FAIL":runtimeQualified?"PASS":"PASS_SOURCE_ONLY";
+const localCompleteness=failed.length?"FAILED":runtimeQualified?"COMPLETE":"SOURCE_ONLY";
 const report={
-  schemaVersion:2,
+  schemaVersion:3,
   product:"CIEAV",
   kind:"LOCAL_PRODUCTION_READINESS",
   authority:false,
-  verdict:failed.length?"FAIL":"PASS",
+  verdict,
+  localCompleteness,
+  finalLocalReadiness:failed.length===0&&runtimeQualified,
+  runtimeQualificationRequiredForCompletePass:true,
   productionVerdict:"BLOCKED_EXTERNAL",
   createdAt:new Date().toISOString(),
-  mode:full?"full":"release-focused",
+  mode:full?"full-source-suite":"release-focused",
   branch,
   commit,
   expectedBranch:expectedBranch||null,
   localChecks:checks,
   externalGates,
-  boundary:"A LOCAL_PRODUCTION_READINESS PASS means repository-local tests and production contracts passed on this machine. It is never production authority and cannot satisfy hardware, code-signing/notarization, public Cloud/CDN, independent review, or real operations/DR gates.",
+  boundary:"PASS_SOURCE_ONLY means repository-local source/tests/contracts passed but a built runtime archive was not clean-runtime qualified. Only verdict PASS means complete local qualification, and even that is non-authoritative for production. Hardware, code-signing/notarization, public Cloud/CDN, independent review, and real operations/DR remain external production gates.",
   finalProductionPass:false
 };
 if(!noWrite){mkdirSync(REPORT_DIR,{recursive:true});writeFileSync(path.join(REPORT_DIR,"latest-local-production-readiness.json"),JSON.stringify(report,null,2)+"\n","utf8")}
 console.log(JSON.stringify(report,null,2));
 if(failed.length){console.error(`CIEAV local production readiness FAIL - ${failed.map(x=>x.name).join(", ")}`);process.exitCode=1}
-else if(!jsonOnly)console.log("CIEAV local production readiness PASS - repo-local gates passed; FINAL PRODUCTION PASS remains blocked on external evidence by design");
+else if(!jsonOnly&&runtimeQualified)console.log("CIEAV local production readiness PASS - source gates and clean runtime archive passed; FINAL PRODUCTION PASS remains blocked on external evidence by design");
+else if(!jsonOnly)console.log("CIEAV local production readiness PASS_SOURCE_ONLY - source gates passed; provide --runtime-archive=<path> for complete local qualification; FINAL PRODUCTION PASS remains blocked on external evidence by design");
