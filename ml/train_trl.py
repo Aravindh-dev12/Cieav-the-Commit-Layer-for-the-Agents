@@ -21,6 +21,7 @@ from datasets import load_dataset
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ml"))
 from cieav_rlvr import CieavVerifierClient, NodeVerifierProcess
+from cieav_rlvr.completion import completion_text
 from training_round import atomic_write, create_round, record_checkpoint
 
 
@@ -65,13 +66,28 @@ def main() -> None:
     p.add_argument("--batch-size", type=int, default=1)
     p.add_argument("--num-generations", type=int, default=8)
     p.add_argument("--beta", type=float, default=0.1)
+    p.add_argument("--seed", type=int, default=1729)
+    p.add_argument("--data-seed", type=int, help="Dataset sampler seed; defaults to --seed")
+    p.add_argument("--full-determinism", action="store_true", help="Enable Transformers full deterministic mode; slower, intended for qualification runs")
     p.add_argument("--verifier-mode", choices=["auto", "external"], default="auto", help="GRPO: Python auto-launches the local Node verifier unless an external loopback verifier is explicitly selected")
     p.add_argument("--round-manifest", help="Training-round manifest path; defaults to <output>/training-round.json")
     p.add_argument("--curriculum-report", help="Optional CIEAV_RLVR_CURRICULUM_V1 report bound into this round")
     p.add_argument("--previous-round", help="Optional previous training-round manifest for lineage")
     a = p.parse_args()
+    if a.seed < 0 or (a.data_seed is not None and a.data_seed < 0):
+        raise SystemExit("training seeds must be non-negative")
+    data_seed = a.seed if a.data_seed is None else a.data_seed
     ds = load_dataset("json", data_files=a.dataset, split="train")
-    common = {"output_dir": a.output, "learning_rate": a.learning_rate, "num_train_epochs": a.epochs, "per_device_train_batch_size": a.batch_size, "report_to": []}
+    common = {
+        "output_dir": a.output,
+        "learning_rate": a.learning_rate,
+        "num_train_epochs": a.epochs,
+        "per_device_train_batch_size": a.batch_size,
+        "report_to": [],
+        "seed": a.seed,
+        "data_seed": data_seed,
+        "full_determinism": a.full_determinism,
+    }
     manifest_path = Path(a.round_manifest).resolve() if a.round_manifest else (Path(a.output).resolve() / "training-round.json")
     hyperparameters = {
         "learningRate": a.learning_rate,
@@ -79,6 +95,9 @@ def main() -> None:
         "batchSize": a.batch_size,
         "beta": a.beta,
         "numGenerations": a.num_generations if a.stage == "grpo" else None,
+        "seed": a.seed,
+        "dataSeed": data_seed,
+        "fullDeterminism": a.full_determinism,
     }
 
     def begin_round(verifier_health=None):
@@ -123,7 +142,10 @@ def main() -> None:
             expectations = kwargs.get("expectation") or [{} for _ in completions]
             rewards = []
             for completion, expectation in zip(completions, expectations):
-                text = completion if isinstance(completion, str) else json.dumps(completion)
+                try:
+                    text = completion_text(completion)
+                except ValueError as exc:
+                    text = json.dumps({"invalidCompletion": str(exc)}, separators=(",", ":"))
                 result = verifier.score_decision(expectation, parse_candidate(text))
                 rewards.append(float(result["score"]))
             return rewards
