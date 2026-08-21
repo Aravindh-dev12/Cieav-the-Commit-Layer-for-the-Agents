@@ -1,0 +1,74 @@
+name: public-deployment-qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_run_id:
+        description: Successful release-runtime run ID for this exact main commit whose publish layout was deployed
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: public-deployment-qualification-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-public-deployment:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CIEAV_CLOUD_URL: ${{ vars.CIEAV_CLOUD_URL }}
+      CIEAV_DOWNLOAD_BASE_URL: ${{ vars.CIEAV_DOWNLOAD_BASE_URL }}
+      CIEAV_RELEASE_CHANNEL: stable
+      CIEAV_RELEASE_SIGNING_PUBLIC_KEY_B64: ${{ vars.CIEAV_RELEASE_SIGNING_PUBLIC_KEY_B64 }}
+      CIEAV_RELEASE_SIGNING_KEY_ID: ${{ vars.CIEAV_RELEASE_SIGNING_KEY_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact release source run
+        env:
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const {execFileSync}=require('child_process');
+          const id=process.env.RELEASE_RUN_ID;
+          if(!/^\d+$/.test(id||''))throw new Error('invalid release run id');
+          const r=JSON.parse(execFileSync('gh',['api',`repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${id}`],{encoding:'utf8'}));
+          if(r.path!=='.github/workflows/release-runtime.yml'||r.conclusion!=='success'||r.head_sha!==process.env.GITHUB_SHA)throw new Error('release run is not a successful exact-head release-runtime run');
+          console.log('CIEAV public deployment source binding PASS');
+          NODE
+      - name: Download exact signed publish layout
+        uses: actions/download-artifact@v4
+        with:
+          name: cieav-cdn-publish-layout
+          path: publish
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.release_run_id }}
+      - name: Verify real public deployment over TLS
+        run: node scripts/qualify-public-deployment.mjs
+      - name: Attest public deployment evidence
+        uses: actions/attest@v4
+        with:
+          subject-path: release/reports/latest-public-deployment-qualification.json
+      - name: Upload public deployment qualification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-deployment-qualification
+          path: release/reports/latest-public-deployment-qualification.json
+          if-no-files-found: error
