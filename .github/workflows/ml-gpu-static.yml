@@ -1,0 +1,28 @@
+name: ml-gpu-static
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ml-gpu-static-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify ML GPU qualification boundary
+        run: node scripts/ml-gpu-workflow-static.mjs
+      - name: Verify ML reproducibility contract
+        run: python scripts/ml-reproducibility-smoke.py
