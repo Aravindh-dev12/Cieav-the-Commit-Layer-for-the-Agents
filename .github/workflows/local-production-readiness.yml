@@ -32,8 +32,22 @@ jobs:
         run: python -m pip install -e .
       - name: Syntax-check local production readiness harness
         run: node --check scripts/local-production-readiness.mjs
-      - name: Run full local production readiness
+      - name: Run full source local readiness
         run: node scripts/local-production-readiness.mjs --full
+      - name: Verify evidence cannot claim production or complete runtime readiness
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const r=JSON.parse(fs.readFileSync('release/reports/latest-local-production-readiness.json','utf8'));
+          if(r.kind!=='LOCAL_PRODUCTION_READINESS') throw new Error('wrong evidence kind');
+          if(r.authority!==false) throw new Error('local evidence must be authority=false');
+          if(r.productionVerdict!=='BLOCKED_EXTERNAL') throw new Error('production must remain externally blocked');
+          if(r.finalProductionPass!==false) throw new Error('local CI must never claim final production pass');
+          if(r.verdict!=='PASS_SOURCE_ONLY') throw new Error(`source-only CI expected PASS_SOURCE_ONLY, got ${r.verdict}`);
+          if(r.localCompleteness!=='SOURCE_ONLY'||r.finalLocalReadiness!==false) throw new Error('source-only CI cannot claim complete local readiness');
+          if(r.runtimeQualificationRequiredForCompletePass!==true) throw new Error('runtime archive qualification must remain required');
+          console.log('CIEAV local readiness evidence boundary PASS');
+          NODE
       - name: Upload local production readiness evidence
         if: always()
         uses: actions/upload-artifact@v4
