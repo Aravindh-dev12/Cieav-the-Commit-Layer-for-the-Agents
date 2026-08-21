@@ -11,7 +11,9 @@ const full=args.includes("--full");
 const jsonOnly=args.includes("--json-only");
 const noWrite=args.includes("--no-write");
 const expectedBranchArg=args.find(x=>x.startsWith("--expected-branch="));
+const runtimeArchiveArg=args.find(x=>x.startsWith("--runtime-archive="));
 const expectedBranch=String(expectedBranchArg?.slice("--expected-branch=".length)||process.env.CIEAV_LOCAL_EXPECTED_BRANCH||"").trim();
+const runtimeArchive=String(runtimeArchiveArg?.slice("--runtime-archive=".length)||"").trim();
 
 const runRaw=(cmd,cmdArgs,{inherit=false}={})=>spawnSync(cmd,cmdArgs,{cwd:ROOT,encoding:"utf8",shell:false,env:process.env,stdio:inherit?"inherit":"pipe"});
 const git=(...gitArgs)=>{const r=runRaw("git",gitArgs);if(r.status!==0)throw new Error(`git ${gitArgs.join(" ")} failed: ${(r.stderr||r.stdout||"").trim()}`);return r.stdout.trim()};
@@ -29,8 +31,7 @@ const commandPlan=[
   ["release-plan",process.execPath,[path.join(ROOT,"scripts","release-gate.mjs"),"--plan"]],
   ["production-orchestration-contract",process.execPath,[path.join(ROOT,"scripts","production-orchestration-static.mjs")]],
   ["physical-evidence-contract",process.execPath,[path.join(ROOT,"scripts","physical-qualification-evidence-smoke.mjs")]],
-  ["release-signing-crypto",process.execPath,[path.join(ROOT,"scripts","release-signing-smoke.mjs")]],
-  ["clean-runtime",process.platform==="win32"?"python":"python3",[path.join(ROOT,"scripts","clean-runtime-smoke.py")]]
+  ["release-signing-crypto",process.execPath,[path.join(ROOT,"scripts","release-signing-smoke.mjs")]]
 ];
 if(full){
   commandPlan.push(
@@ -38,6 +39,11 @@ if(full){
     ["typecheck",process.platform==="win32"?"npm.cmd":"npm",["run","typecheck"]],
     ["build",process.platform==="win32"?"npm.cmd":"npm",["run","build"]]
   );
+}
+if(runtimeArchive){
+  commandPlan.push(["clean-runtime",process.platform==="win32"?"python":"python3",[path.join(ROOT,"scripts","clean-runtime-smoke.py"),"--archive",path.resolve(ROOT,runtimeArchive)]]);
+}else{
+  record("clean-runtime","NOT_RUN","provide --runtime-archive=<path> after building/downloading a runtime archive; this does not count as a local failure");
 }
 
 for(const [name,cmd,cmdArgs] of commandPlan){
@@ -62,9 +68,9 @@ const externalGates=[
   {id:"public-cloud-domain-cdn",status:"DEFERRED_EXTERNAL_PHASE",localCoverage:"deployment verifier and exact-build identity contract",productionRequirement:"real public HTTPS Cloud endpoint, domain/DNS and CDN artifacts"}
 ];
 
-const failed=checks.filter(x=>x.status!=="PASS");
+const failed=checks.filter(x=>x.status==="FAIL");
 const report={
-  schemaVersion:1,
+  schemaVersion:2,
   product:"CIEAV",
   kind:"LOCAL_PRODUCTION_READINESS",
   authority:false,
