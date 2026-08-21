@@ -13,6 +13,7 @@ release/reports/
 release-out/
 publish/
 build/
+.tmp/
 *.spec
 *.tsbuildinfo
 __pycache__/
