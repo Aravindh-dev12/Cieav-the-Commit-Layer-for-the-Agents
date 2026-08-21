@@ -98,7 +98,7 @@ export function parseLinuxTpm2Signature(raw:Buffer):LinuxTpm2Signature{
   fail("unsupported_signature_algorithm");
 }
 
-export function verifyLinuxTpm2AttestationSignature(rawAttest:Buffer,rawSignature:Buffer,akPublicJwk:JsonWebKey){
+export function verifyLinuxTpm2AttestationSignature(rawAttest:Buffer,rawSignature:Buffer,akPublicJwk:crypto.JsonWebKey){
   const attestation=parseLinuxTpm2Attest(rawAttest),signature=parseLinuxTpm2Signature(rawSignature),hash=hashInfo(signature.hashAlgorithm);let key:crypto.KeyObject;try{key=crypto.createPublicKey({key:akPublicJwk,format:"jwk"})}catch{fail("ak_public_key_invalid")}
   let verified=false;
   if(signature.scheme==="RSASSA"){if(key.asymmetricKeyType!=="rsa"&&key.asymmetricKeyType!=="rsa-pss")fail("ak_key_type_mismatch");verified=crypto.verify(hash.name,attestation.signedData,{key,padding:crypto.constants.RSA_PKCS1_PADDING},signature.signature)}
