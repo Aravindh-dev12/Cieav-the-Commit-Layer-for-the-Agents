@@ -1,0 +1,51 @@
+name: supply-chain-qualification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: supply-chain-qualification-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-supply-chain:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify locked Node dependency graph
+        run: npm ci --ignore-scripts
+      - name: Generate exact-head CycloneDX SBOM
+        run: node scripts/generate-production-sbom.mjs
+      - name: Attest SBOM and supply-chain evidence
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            release/reports/cieav-sbom.cdx.json
+            release/reports/latest-supply-chain-qualification.json
+      - name: Upload supply-chain evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-qualification
+          path: |
+            release/reports/cieav-sbom.cdx.json
+            release/reports/latest-supply-chain-qualification.json
+          if-no-files-found: error
+      - name: Scrub qualification worktree
+        if: ${{ always() }}
+        run: |
+          git reset --hard HEAD
+          git clean -ffdx
