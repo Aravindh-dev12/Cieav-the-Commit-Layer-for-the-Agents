@@ -22,6 +22,10 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Test bounded WBCL parser and PCR replay
         run: npm run test -w @cieav/api -- src/windows-tpm-measured-boot.test.ts
+      - name: Build API workspace dependencies
+        run: |
+          npm run build -w @cieav/contracts
+          npm run build -w @cieav/core
       - name: Typecheck API measured-boot foundation
         run: npm run typecheck -w @cieav/api
       - name: Assert hosted CI cannot qualify measured boot

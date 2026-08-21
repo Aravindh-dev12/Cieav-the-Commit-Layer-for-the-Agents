@@ -17,9 +17,18 @@ export const ProviderBridgeManifestSchema=z.object({
 export type ProviderBridgeManifest=z.infer<typeof ProviderBridgeManifestSchema>;
 
 export const HardwareAttestationKindSchema=z.enum(["WINDOWS_TPM_KEY_ATTESTATION","APPLE_SECURE_ENCLAVE_KEY","PKCS11_TOKEN_KEY","EXTERNAL_KMS_KEY"]);
+export const HardwareVerificationScopeSchema=z.enum(["LOCAL_HOST","REMOTE_VENDOR","REMOTE_CIEAV","UNKNOWN"]);
+export type HardwareVerificationScope=z.infer<typeof HardwareVerificationScopeSchema>;
+export const HardwareKeyProtectionSchema=z.enum(["TPM","SECURE_ENCLAVE","PKCS11_TOKEN","EXTERNAL_KMS","UNKNOWN"]);
+export type HardwareKeyProtection=z.infer<typeof HardwareKeyProtectionSchema>;
+export const HardwarePlatformStateSchema=z.enum(["NOT_ATTESTED","KEY_ATTESTED","MEASURED_BOOT_VERIFIED"]);
+export type HardwarePlatformState=z.infer<typeof HardwarePlatformStateSchema>;
+export const HardwareAssuranceSchema=z.enum(["BASIC","HARDWARE_KEY","REMOTE_HARDWARE_KEY","HARDWARE_AND_BOOT","REMOTE_HARDWARE_AND_BOOT"]);
+export type HardwareAssurance=z.infer<typeof HardwareAssuranceSchema>;
 export const HardwareKeyAttestationSchema=z.object({
   id:z.string().uuid(),version:z.literal(1),providerManifestId:z.string().min(1).max(160),provider:HardwareProviderSchema,
-  kind:HardwareAttestationKindSchema,publicKeyFingerprint:DigestSchema,evidenceDigest:DigestSchema,claimsDigest:DigestSchema,
+  kind:HardwareAttestationKindSchema,platform:ProviderPlatformSchema.default("ANY"),verificationScope:HardwareVerificationScopeSchema.default("UNKNOWN"),keyProtection:HardwareKeyProtectionSchema.default("UNKNOWN"),platformState:HardwarePlatformStateSchema.default("NOT_ATTESTED"),assurance:HardwareAssuranceSchema.default("BASIC"),
+  publicKeyFingerprint:DigestSchema,evidenceDigest:DigestSchema,claimsDigest:DigestSchema,
   verification:z.enum(["VERIFIED","REJECTED","UNVERIFIED"]),verifiedBy:z.string().min(1).max(300),verifiedAt:z.string().datetime(),expiresAt:z.string().datetime().optional(),reason:z.string().max(1000).optional()
 }).strict();
 export type HardwareKeyAttestation=z.infer<typeof HardwareKeyAttestationSchema>;
