@@ -26,7 +26,7 @@ expect("ml/evaluate_rollouts.py",["CIEAV_PYTHON_NODE_RLVR_EVAL_V1","independentS
 expect("ml/build_adversarial_replay.py",["CIEAV_ADVERSARIAL_REPLAY_V1","adversarial-replay.jsonl","invariant-reroll.jsonl","requiresFreshModelRollout","verifier_bypass","context"]);
 expect("ml/build_curriculum.py",["CIEAV_RLVR_CURRICULUM_V1","combined replay ratio must not exceed 0.5","adversarialReplay","invariantReroll","requiresFreshModelRollout","prompt_for"]);
 expect("ml/ingest_invariant_rerolls.py",["CIEAV_INVARIANT_FEEDBACK_V1","completed rerolls are incomplete","verify_perturbations","perturbationInstability","prioritize_failures","metamorphic-results.jsonl","instability-signals.jsonl"]);
-expect("ml/training_round.py",["CIEAV_ML_TRAINING_ROUND_V1","TRAINED_UNQUALIFIED","hiddenEvidencePresent","verifierBankPassed","checkpoint_digest_mismatch","QUALIFIED","UNQUALIFIED","sha256_tree"]);
+expect("ml/training_round.py",["CIEAV_ML_TRAINING_ROUND_V1","TRAINED_UNQUALIFIED","hiddenEvidencePresent","verifierBankPassed","verify_round","{label}_digest_mismatch","QUALIFIED","UNQUALIFIED","sha256_tree"]);
 expect("ml/cieav_rlvr/verifier.py",["CieavVerifierClient","loopback-only","score_decision","score_trajectory","evaluate_promotion","evaluate_verifier_bank","evaluate_reward_gap","prioritize_failures","verify_perturbations"]);
 expect("ml/cieav_rlvr/node_runtime.py",["NodeVerifierProcess","127.0.0.1","CIEAV_ML_VERIFIER_TOKEN","CIEAV_GATEWAY_TOKEN","packages","core","dist"]);
 expect("scripts/ml-python-node-smoke.py",["NodeVerifierProcess","authority","score_decision","Python-Node RLVR boundary PASS"]);
