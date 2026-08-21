@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import importlib.metadata
 import json
+import os
 import platform
 import random
 import re
@@ -19,12 +20,13 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE_PACKAGES = ("torch", "transformers", "trl", "peft", "accelerate", "datasets", "pyyaml", "vllm")
 SCALE_PACKAGES = ("verl", "ray", "sglang")
 PIN_RE = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s;]+)$")
+CUBLAS_DETERMINISTIC_CONFIGS = frozenset((":4096:8", ":16:8"))
 
 
 def sha256_file(path: Path) -> str:
@@ -143,19 +145,26 @@ def build_manifest(
     torch_info: dict[str, Any] | None = None,
     version_getter: Callable[[str], str] = importlib.metadata.version,
     created_at: str | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     if seed < 0:
         raise ValueError("qualification seed must be non-negative")
     constraints = constraints.resolve()
     pins = parse_exact_constraints(constraints)
     installed = validate_package_set(pins, require_scale=require_scale, version_getter=version_getter)
-    runtime = torch_info if torch_info is not None else qualify_torch(seed, require_cuda)
+    runtime = dict(torch_info) if torch_info is not None else qualify_torch(seed, require_cuda)
     if runtime.get("deterministicAlgorithms") is not True or runtime.get("cudnnBenchmark") not in (False, None):
         raise ValueError("deterministic PyTorch qualification settings are not active")
     if require_cuda and (runtime.get("cudaAvailable") is not True or not runtime.get("devices")):
         raise ValueError("CUDA qualification requires at least one enumerated GPU")
+    env = os.environ if environment is None else environment
+    cublas_workspace_config = str(env.get("CUBLAS_WORKSPACE_CONFIG", "")).strip()
+    if require_cuda and cublas_workspace_config not in CUBLAS_DETERMINISTIC_CONFIGS:
+        allowed = ", ".join(sorted(CUBLAS_DETERMINISTIC_CONFIGS))
+        raise ValueError(f"CUDA qualification requires deterministic CUBLAS_WORKSPACE_CONFIG ({allowed})")
     if installed.get("torch") != pins[normalize_name("torch")]:
         raise ValueError("PyTorch pin mismatch")
+    runtime["cublasWorkspaceConfig"] = cublas_workspace_config or None
     return {
         "schemaVersion": 1,
         "architecture": "CIEAV_ML_ENVIRONMENT_QUALIFICATION_V1",
