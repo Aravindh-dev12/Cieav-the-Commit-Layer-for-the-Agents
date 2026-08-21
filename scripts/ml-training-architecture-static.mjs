@@ -13,9 +13,11 @@ const safety=expect("packages/core/src/ml-safety-spec.ts",["CIEAV_ML_HARD_SAFETY
 const shield=expect("packages/core/src/ml-safety-shield.ts",["applyMlSafetyShield","evaluateMlTrajectoryWithShield","requiresHumanApproval","permitConsumed","unauthorized_tool"]);
 const perturb=expect("packages/core/src/ml-perturbation.ts",["INVARIANT","MATERIAL","irrelevant_perturbation_changed_material_decision","material_perturbation_failed_to_change_decision"]);
 const counter=expect("packages/core/src/ml-counterfactual.ts",["evaluateMlCounterfactual","causalSafetyContribution","intervention_removed_required_safety_step"]);
+const hidden=expect("packages/core/src/ml-hidden-verifier.ts",["HIDDEN_PROMOTION","RUNTIME_SHIELD","hidden_verifier_bank_required","verifier_generalization_gap"]);
+const miner=expect("packages/core/src/ml-active-miner.ts",["prioritizeMlFailures","MlCurriculumBand","ADVERSARIAL","TEACHER_ASSISTED","metamorphic_instability"]);
 expect("packages/core/src/ml-reward-gap.ts",["mean_reward_gap","max_reward_gap","independentSafetyScore"]);
 expect("packages/core/src/ml-selective-action.ts",["REQUIRE_HUMAN","critical_requires_human","counterfactual_instability","ood_high"]);
-expect("packages/core/src/ml-safety.test.ts",["rejects direct commit and unsupported success","causal safety contribution","proxy reward outruns independent safety","critical human commitment"]);
+expect("packages/core/src/ml-safety.test.ts",["rejects direct commit and unsupported success","causal safety contribution","proxy reward outruns independent safety","critical human commitment","hidden promotion verification","classifies them adversarial"]);
 expect("packages/core/src/ml-promotion.ts",["maxCriticalFalseNegatives:0","maxHighFalseNegatives:0","maxHardSafetyFailures:0","maxRewardHackingCases:0","minAbstentionRecall:.9"]);
 expect("ml/README.md",["SFT","DPO","KTO","RLVR/GRPO","PROCESS","SOFT_RLVR","AGENTIC_RL","CALIBRATION","ADVERSARIAL","DISTILL","Models interpret; CIEAV deterministic code authorizes"]);
 expect("ml/dataset/build_from_evals.py",["train","validation","adversarial","promotion","critical_false_negative_is_hard_failure","unknown_must_not_be_claimed_success"]);
@@ -25,6 +27,6 @@ expect("ml/requirements-scale.txt",["verl","ray","sglang"]);
 expect("ml/configs/post_training.yaml",["soft_rlvr","agentic_rl","calibration","adversarial","distill","critical_false_negatives: 0"]);
 expect("ml/configs/verl_grpo.yaml",["algorithm: grpo","vllm","sglang","canonical_cieav_verifier","unknown_claimed_as_success"]);
 expect("scripts/ml-verifier-server.mjs",["127.0.0.1","CIEAV_ML_VERIFIER_TOKEN","authority:false","scoreRlvrDecision","scoreTrajectory","evaluateMlPromotion"]);
-const authoritySurface=reward+trajectory+adversarial+safety+shield+perturb+counter;if(/mint.*permit|authorize.*commit/i.test(authoritySurface))fail("ML learning/safety layer must not gain execution authority");
+const authoritySurface=reward+trajectory+adversarial+safety+shield+perturb+counter+hidden+miner;if(/mint.*permit|authorize.*commit/i.test(authoritySurface))fail("ML learning/safety layer must not gain execution authority");
 for(const p of ["ml/dataset/build_from_evals.py","ml/train_trl.py","ml/distill.py"]){const r=spawnSync(process.platform==="win32"?"python":"python3",["-m","py_compile",p],{cwd:ROOT,stdio:"inherit",shell:false});if(r.error)throw r.error;if(r.status!==0)fail(`Python syntax check failed: ${p}`)}
-console.log("CIEAV ML architecture gate PASS · constrained safety spec + runtime/training shield + metamorphic verification + counterfactual credit + reward-gap monitoring + selective abstention + SFT/DPO/KTO + RLVR/GRPO + process/soft rewards + agentic trajectories + adversarial promotion + scale-out + distillation present; deterministic CIEAV remains authority");
+console.log("CIEAV ML architecture gate PASS · constrained safety spec + shield + metamorphic/counterfactual verification + hidden promotion bank + active failure mining + reward-gap/selective action + SFT/DPO/KTO + RLVR/GRPO + adversarial promotion + scale-out + distillation present; deterministic CIEAV remains authority");
