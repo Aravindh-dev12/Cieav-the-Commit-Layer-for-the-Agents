@@ -59,14 +59,21 @@ function probe(name,cmd,cmdArgs=[],{env=process.env}={}){
   const result={ok:!r.error&&r.status===0,exitCode:r.status??null,error:r.error?.message??null,stdout:String(r.stdout||"").trim().slice(-4000),stderr:String(r.stderr||"").trim().slice(-4000),durationMs:Date.now()-started};
   record(name,result);return result;
 }
-function pythonCommand(){for(const candidate of process.platform==="win32"?["python","py"]:["python3","python"]){const a=candidate==="py"?["-3","--version"]:["--version"],r=capture(candidate,a);if(!r.error&&r.status===0)return{cmd:candidate,prefix:candidate==="py"?["-3"]:[]}}throw new Error("Python 3.11+ is required")}
+function pythonCommand(){
+  for(const candidate of process.platform==="win32"?["python","py"]:["python3","python"]){
+    const prefix=candidate==="py"?["-3"]:[];
+    const r=capture(candidate,[...prefix,"-c","import sys; print('OK' if sys.version_info >= (3,11) else 'OLD')"]);
+    if(!r.error&&r.status===0&&String(r.stdout).trim()==="OK")return{cmd:candidate,prefix};
+  }
+  throw new Error("Python 3.11+ is required");
+}
 const py=pythonCommand();
 
 const nodeMajor=Number(process.versions.node.split(".")[0]);
 record("toolchain",{ok:nodeMajor>=22,node:process.version,python:probe("pythonVersion",py.cmd,[...py.prefix,"--version"]).stdout,platform:process.platform,arch:process.arch});
 if(nodeMajor<22)failures.push(`Node 22+ required, got ${process.version}`);
 
-if(opts.bootstrap)runStep("bootstrapDependencies",npm,["ci","--ignore-scripts"]);
+if(opts.bootstrap)runStep("bootstrapDependencies",npm,["ci"]);
 runStep("productionOrchestrationStatic",process.execPath,["scripts/production-orchestration-static.mjs"]);
 runStep("productionQualificationStatic",process.execPath,["scripts/production-qualification-static.mjs"]);
 runStep("releasePlan",process.execPath,["scripts/release-gate.mjs","--plan"]);
