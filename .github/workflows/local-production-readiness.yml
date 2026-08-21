@@ -1,0 +1,44 @@
+name: local-production-readiness
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-production-readiness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-production-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Install local Python platform package
+        run: python -m pip install -e .
+      - name: Syntax-check local production readiness harness
+        run: node --check scripts/local-production-readiness.mjs
+      - name: Run full local production readiness
+        run: node scripts/local-production-readiness.mjs --full
+      - name: Upload local production readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-production-readiness-${{ github.sha }}
+          path: release/reports/latest-local-production-readiness.json
+          if-no-files-found: error
+          retention-days: 14
