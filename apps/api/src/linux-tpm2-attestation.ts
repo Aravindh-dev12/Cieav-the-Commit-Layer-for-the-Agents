@@ -13,6 +13,7 @@ export const TPM_ALG_ECDSA=0x0018;
 
 const MAX_ATTEST_BYTES=128*1024;
 const MAX_SIGNATURE_BYTES=1024;
+const MAX_PUBLIC_BYTES=16*1024;
 const MAX_NAME_BYTES=128;
 const MAX_EXTRA_DATA_BYTES=1024;
 const MAX_PCR_BANKS=16;
@@ -32,6 +33,7 @@ export type LinuxTpm2Attest=LinuxTpm2QuoteAttest|LinuxTpm2CertifyAttest;
 export type LinuxTpm2Signature=
   |{scheme:"RSASSA";sigAlg:typeof TPM_ALG_RSASSA;hashAlgorithm:number;signature:Buffer}
   |{scheme:"ECDSA";sigAlg:typeof TPM_ALG_ECDSA;hashAlgorithm:number;r:Buffer;s:Buffer};
+export type LinuxTpm2PublicName={format:"TPMT_PUBLIC"|"TPM2B_PUBLIC";publicArea:Buffer;type:number;nameAlg:number;name:Buffer};
 
 function fail(code:string):never{throw new Error(`linux_tpm2_${code}`)}
 class Reader{
@@ -49,6 +51,7 @@ class Reader{
 }
 function safeEqual(a:Buffer,b:Buffer){return a.length===b.length&&crypto.timingSafeEqual(a,b)}
 function hashInfo(algorithm:number){const info=HASHES.get(algorithm);if(!info)fail("unsupported_hash_algorithm");return info}
+function u16be(value:number){const out=Buffer.alloc(2);out.writeUInt16BE(value);return out}
 function unwrapAttest(raw:Buffer){
   if(!Buffer.isBuffer(raw)||raw.length<6||raw.length>MAX_ATTEST_BYTES)fail("attest_size");
   if(raw.readUInt32BE(0)===TPM_GENERATED_VALUE)return{format:"TPMS_ATTEST" as const,signedData:Buffer.from(raw)};
@@ -103,6 +106,13 @@ export function verifyLinuxTpm2AttestationSignature(rawAttest:Buffer,rawSignatur
   if(!verified)fail("attestation_signature_invalid");return{attestation,signature,akPublicKeyType:key.asymmetricKeyType,signatureHashAlgorithm:signature.hashAlgorithm};
 }
 
+export function computeLinuxTpm2PublicName(rawPublic:Buffer):LinuxTpm2PublicName{
+  if(!Buffer.isBuffer(rawPublic)||rawPublic.length<8||rawPublic.length>MAX_PUBLIC_BYTES)fail("public_size");
+  let format:"TPMT_PUBLIC"|"TPM2B_PUBLIC"="TPMT_PUBLIC",publicArea=Buffer.from(rawPublic);
+  const declared=rawPublic.readUInt16BE(0);if(declared===rawPublic.length-2){if(declared<6)fail("public_wrapper");format="TPM2B_PUBLIC";publicArea=Buffer.from(rawPublic.subarray(2))}
+  if(publicArea.length<8)fail("public_area_size");const type=publicArea.readUInt16BE(0),nameAlg=publicArea.readUInt16BE(2),hash=hashInfo(nameAlg),name=Buffer.concat([u16be(nameAlg),crypto.createHash(hash.name).update(publicArea).digest()]);return{format,publicArea,type,nameAlg,name};
+}
+
 export function linuxTpm2PcrKey(hashAlgorithm:number,pcrIndex:number){if(!Number.isInteger(hashAlgorithm)||!Number.isInteger(pcrIndex)||pcrIndex<0||pcrIndex>=MAX_PCR_SELECT_BYTES*8)fail("pcr_key");return`${hashAlgorithm.toString(16).padStart(4,"0")}:${pcrIndex}`}
 export function verifyLinuxTpm2QuoteBinding(raw:Buffer,expectedNonce:Buffer,pcrValues:ReadonlyMap<string,Buffer>,signatureHashAlgorithm:number):LinuxTpm2QuoteAttest{
   const parsed=parseLinuxTpm2Attest(raw);if(parsed.type!=="QUOTE")fail("quote_required");if(expectedNonce.length<16||expectedNonce.length>128||!safeEqual(parsed.extraData,expectedNonce))fail("quote_nonce_mismatch");
@@ -113,3 +123,4 @@ export function verifyLinuxTpm2QuoteBinding(raw:Buffer,expectedNonce:Buffer,pcrV
 export function verifyLinuxTpm2CertifyBinding(raw:Buffer,expectedNonce:Buffer,expectedName:Buffer,expectedQualifiedName?:Buffer):LinuxTpm2CertifyAttest{
   const parsed=parseLinuxTpm2Attest(raw);if(parsed.type!=="CERTIFY")fail("certify_required");if(expectedNonce.length<16||expectedNonce.length>128||!safeEqual(parsed.extraData,expectedNonce))fail("certify_nonce_mismatch");if(!safeEqual(parsed.name,expectedName))fail("certify_name_mismatch");if(expectedQualifiedName&&!safeEqual(parsed.qualifiedName,expectedQualifiedName))fail("certify_qualified_name_mismatch");return parsed;
 }
+export function verifyLinuxTpm2CertifiedPublic(rawAttest:Buffer,expectedNonce:Buffer,rawPublic:Buffer,expectedQualifiedName?:Buffer){const publicName=computeLinuxTpm2PublicName(rawPublic),attestation=verifyLinuxTpm2CertifyBinding(rawAttest,expectedNonce,publicName.name,expectedQualifiedName);return{attestation,publicName}}

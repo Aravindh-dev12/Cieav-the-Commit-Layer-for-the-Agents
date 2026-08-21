@@ -49,10 +49,10 @@ jobs:
         run: node scripts/macos-secure-enclave-release.mjs
       - name: Verify Linux PKCS11 native provider boundary
         run: node scripts/linux-pkcs11-release.mjs
-      - name: Verify Linux TPM2 attestation foundation
-        run: node scripts/linux-tpm2-attestation-release.mjs
       - name: Install workspaces
         run: npm ci
+      - name: Verify Linux TPM2 attestation foundation
+        run: node scripts/linux-tpm2-attestation-release.mjs
       - name: Build local authority packages
         run: npm run build:api
       - name: Verify private managed secret bootstrap
