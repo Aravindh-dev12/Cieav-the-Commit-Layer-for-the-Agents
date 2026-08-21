@@ -58,8 +58,10 @@ jobs:
         run: node scripts/linux-tpm2-attestation-release.mjs
       - name: Build local authority packages
         run: npm run build:api
-      - name: Verify Python↔Node RLVR boundary
+      - name: Verify Python-Node RLVR boundary
         run: python scripts/ml-python-node-smoke.py
+      - name: Verify RLVR rollout evaluation and mining
+        run: python scripts/ml-rollout-eval-smoke.py
       - name: Verify private managed secret bootstrap
         run: node scripts/managed-secret-pipe-release.mjs
       - name: Verify Gateway credential and hardware lifecycle
