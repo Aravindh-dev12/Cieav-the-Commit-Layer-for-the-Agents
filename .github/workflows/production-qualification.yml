@@ -35,6 +35,10 @@ on:
         description: Successful security-review-qualification run ID for this exact main commit
         required: true
         type: string
+      operations_readiness_run_id:
+        description: Successful operations-readiness-qualification run ID for this exact main commit
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -78,6 +82,7 @@ jobs:
           PUBLIC_DEPLOYMENT_RUN_ID: ${{ inputs.public_deployment_run_id }}
           SUPPLY_CHAIN_RUN_ID: ${{ inputs.supply_chain_run_id }}
           SECURITY_REVIEW_RUN_ID: ${{ inputs.security_review_run_id }}
+          OPERATIONS_READINESS_RUN_ID: ${{ inputs.operations_readiness_run_id }}
         shell: bash
         run: |
           node - <<'NODE'
@@ -91,6 +96,7 @@ jobs:
             [process.env.PUBLIC_DEPLOYMENT_RUN_ID,'.github/workflows/public-deployment-qualification.yml'],
             [process.env.SUPPLY_CHAIN_RUN_ID,'.github/workflows/supply-chain-qualification.yml'],
             [process.env.SECURITY_REVIEW_RUN_ID,'.github/workflows/security-review-qualification.yml'],
+            [process.env.OPERATIONS_READINESS_RUN_ID,'.github/workflows/operations-readiness-qualification.yml'],
           ];
           for(const [id,path] of expected){
             if(!/^\d+$/.test(id||''))throw new Error(`invalid workflow run id: ${id}`);
@@ -99,7 +105,7 @@ jobs:
             if(r.head_sha!==process.env.GITHUB_SHA)throw new Error(`${path} run ${id} head ${r.head_sha} != ${process.env.GITHUB_SHA}`);
             if(r.path!==path)throw new Error(`run ${id} came from ${r.path}, expected ${path}`);
           }
-          console.log('CIEAV production source-run binding PASS - release + physical + GPU + installer success + installer rollback + public deployment + supply chain + independent security review all match exact HEAD');
+          console.log('CIEAV production source-run binding PASS - release + physical + GPU + installer success + installer rollback + public deployment + supply chain + independent security review + operations recovery exercise all match exact HEAD');
           NODE
       - name: Download raw publish qualification evidence
         uses: actions/download-artifact@v4
@@ -176,6 +182,14 @@ jobs:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ inputs.security_review_run_id }}
+      - name: Download operations recovery evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: operations-readiness-qualification
+          path: release/reports
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.operations_readiness_run_id }}
       - name: Require raw evidence layout
         shell: bash
         run: |
@@ -189,6 +203,7 @@ jobs:
           test -f release/reports/latest-supply-chain-qualification.json
           test -f release/reports/cieav-sbom.cdx.json
           test -f release/reports/latest-security-review-qualification.json
+          test -f release/reports/latest-operations-readiness.json
           test "$(find release/reports -maxdepth 1 -type f -name 'cieav-installer-success-*.json' | wc -l)" -ge 3
           test "$(find release/reports -maxdepth 1 -type f -name 'cieav-installer-rollback-*.json' | wc -l)" -ge 3
       - name: Recompute final production qualification
@@ -215,4 +230,5 @@ jobs:
             release/reports/latest-supply-chain-qualification.json
             release/reports/cieav-sbom.cdx.json
             release/reports/latest-security-review-qualification.json
+            release/reports/latest-operations-readiness.json
           if-no-files-found: error
