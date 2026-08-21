@@ -1,0 +1,86 @@
+name: security-review-qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_commit:
+        description: Exact Git commit reviewed by the external security reviewer
+        required: true
+        type: string
+      reviewed_version:
+        description: Exact CIEAV version reviewed
+        required: true
+        type: string
+      reviewer:
+        description: Named external reviewer or lead assessor
+        required: true
+        type: string
+      organization:
+        description: Independent reviewing organization
+        required: true
+        type: string
+      report_url:
+        description: Public HTTPS URL of the immutable external security review report
+        required: true
+        type: string
+      report_sha256:
+        description: SHA-256 digest of the external review report
+        required: true
+        type: string
+      outcome:
+        description: Accepted external review outcome
+        required: true
+        type: choice
+        options:
+          - PASS
+          - PASS_WITH_ACCEPTED_RISKS
+      independent_review_confirmed:
+        description: Operator confirms this report was produced by an independent external reviewer and not by the CIEAV implementation team
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: security-review-qualification-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-security-review:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.independent_review_confirmed }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CIEAV_SECURITY_REVIEW_COMMIT: ${{ inputs.reviewed_commit }}
+      CIEAV_SECURITY_REVIEW_VERSION: ${{ inputs.reviewed_version }}
+      CIEAV_SECURITY_REVIEW_REVIEWER: ${{ inputs.reviewer }}
+      CIEAV_SECURITY_REVIEW_ORGANIZATION: ${{ inputs.organization }}
+      CIEAV_SECURITY_REVIEW_REPORT_URL: ${{ inputs.report_url }}
+      CIEAV_SECURITY_REVIEW_REPORT_SHA256: ${{ inputs.report_sha256 }}
+      CIEAV_SECURITY_REVIEW_OUTCOME: ${{ inputs.outcome }}
+      CIEAV_SECURITY_REVIEW_INDEPENDENT_CONFIRMED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify externally produced review report and exact source binding
+        run: node scripts/qualify-security-review.mjs
+      - name: Attest security review binding evidence
+        uses: actions/attest@v4
+        with:
+          subject-path: release/reports/latest-security-review-qualification.json
+      - name: Upload security review qualification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-review-qualification
+          path: release/reports/latest-security-review-qualification.json
+          if-no-files-found: error
