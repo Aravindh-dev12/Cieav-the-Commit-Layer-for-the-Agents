@@ -6,6 +6,15 @@ rollout:
   engines: [vllm, sglang]
   group_size: 8
   multi_turn: true
+curriculum:
+  source: quota_controlled_fresh_rollout_tasks
+  builder: ml/build_curriculum.py
+  base_ratio: 0.70
+  adversarial_replay_ratio: 0.20
+  invariant_reroll_ratio: 0.10
+  max_combined_replay_ratio: 0.50
+  require_fresh_model_rollout: true
+  train_on_bad_replay_completion: false
 reward:
   source: canonical_cieav_verifier
   protocol: CIEAV_ML_VERIFIER_V1
