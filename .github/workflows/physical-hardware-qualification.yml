@@ -13,6 +13,7 @@ on:
           - windows
           - macos
           - linux
+          - linux-tpm2
       windows_attestor:
         description: Windows TPM attestation backend
         required: true
@@ -71,6 +72,11 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_SECRET }}
         run: node scripts/physical-hardware-qualification.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: physical-qualification-windows
+          path: release/reports/physical/*.json
+          if-no-files-found: error
       - name: Scrub release worktree
         if: ${{ always() }}
         run: |
@@ -98,6 +104,11 @@ jobs:
           CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256 }}
           CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME }}
         run: node scripts/physical-hardware-qualification.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: physical-qualification-macos
+          path: release/reports/physical/*.json
+          if-no-files-found: error
       - name: Scrub release worktree
         if: ${{ always() }}
         run: |
@@ -128,6 +139,44 @@ jobs:
           CIEAV_LINUX_ATTESTATION_PUBLIC_KEY: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY }}
           CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256 }}
         run: node scripts/physical-hardware-qualification.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: physical-qualification-linux-pkcs11
+          path: release/reports/physical/*.json
+          if-no-files-found: error
+      - name: Scrub release worktree
+        if: ${{ always() }}
+        run: |
+          git reset --hard HEAD
+          git clean -ffdx
+
+  linux-tpm2:
+    if: ${{ (inputs.target == 'all' || inputs.target == 'linux-tpm2') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
+    runs-on: [self-hosted, linux, cieav-release-hardware, cieav-linux-tpm2]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Require reproducible release dependency lock
+        run: node -e "const fs=require('fs');if(!fs.existsSync('package-lock.json')){console.error('Physical release qualification requires a committed package-lock.json');process.exit(2)}"
+      - name: Install locked workspace graph
+        run: npm ci
+      - name: Qualify native Linux TPM2 EK/AK/measured-boot chain
+        env:
+          CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
+          CIEAV_LINUX_TPM2_PHYSICAL_CONFIG: ${{ vars.CIEAV_LINUX_TPM2_PHYSICAL_CONFIG }}
+          CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256: ${{ vars.CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256 }}
+        run: node scripts/physical-linux-tpm2-qualification.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: physical-qualification-linux-tpm2
+          path: release/reports/physical/*.json
+          if-no-files-found: error
       - name: Scrub release worktree
         if: ${{ always() }}
         run: |
