@@ -2,6 +2,7 @@
 import crypto from "node:crypto";
 import {lstatSync,readFileSync} from "node:fs";
 import path from "node:path";
+import {fileURLToPath} from "node:url";
 
 const MICROSOFT_TPM_ROOT_CA_2014_SHA256="870c7a35ceab3d59979f2c6a524042d404cb71518004350925fb2ced79a999da";
 const fail=m=>{throw new Error(m)};
@@ -39,4 +40,4 @@ export function preflightLinuxTpm2(env=process.env,platform=process.platform){
 }
 
 function main(){const arg=process.argv.find(x=>x.startsWith("--target="))?.slice(9);if(!arg||!["windows-native","macos","linux-tpm2"].includes(arg))throw new Error("usage: physical-qualification-preflight.mjs --target=<windows-native|macos|linux-tpm2>");const result=arg==="windows-native"?preflightWindowsNative():arg==="macos"?preflightMacos():preflightLinuxTpm2();console.log(`CIEAV physical qualification preflight PASS · target=${result.target} · pinned configuration and file digests verified · hardware execution not yet claimed`)}
-if(import.meta.url===`file://${process.argv[1]?.replace(/\\/g,"/")}`){try{main()}catch(err){console.error(`CIEAV physical qualification preflight FAIL: ${err?.message??err}`);process.exit(2)}}
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){try{main()}catch(err){console.error(`CIEAV physical qualification preflight FAIL: ${err?.message??err}`);process.exit(2)}}
