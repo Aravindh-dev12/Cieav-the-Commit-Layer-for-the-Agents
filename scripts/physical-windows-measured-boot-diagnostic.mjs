@@ -20,15 +20,18 @@ if(process.platform!=="win32")fail(`physical measured-boot diagnostic requires w
 const collector=required("CIEAV_WINDOWS_MEASURED_BOOT_COLLECTOR"),actualCollectorSha=pinnedExecutable(collector,"CIEAV_WINDOWS_MEASURED_BOOT_COLLECTOR_SHA256","collector");
 const claimProbe=required("CIEAV_WINDOWS_MEASURED_BOOT_PROBE"),actualProbeSha=pinnedExecutable(claimProbe,"CIEAV_WINDOWS_MEASURED_BOOT_PROBE_SHA256","claim probe"),aikName=required("CIEAV_WINDOWS_TPM_AIK_NAME"),aikUser=process.env.CIEAV_WINDOWS_TPM_AIK_USER==="1";
 
-const probe=checkedJson(collector,["probe"],"TBS collector probe");
-if(probe.protocol!=="CIEAV_WINDOWS_TPM_MEASURED_BOOT_V1"||probe.operation!=="probe"||probe.available!==true||probe.qualification!=="UNQUALIFIED"||probe.pcrRange!=="0-15")fail("collector probe identity mismatch");
-const platformProbeArgs=["probe","--aik",aikName,...(aikUser?["--aik-user"]:[])],platformProbe=checkedJson(claimProbe,platformProbeArgs,"TPM platform-claim probe");
+const collectorProbe=checkedJson(collector,["probe"],"TBS collector probe");
+if(collectorProbe.protocol!=="CIEAV_WINDOWS_TPM_MEASURED_BOOT_V1"||collectorProbe.operation!=="probe"||collectorProbe.available!==true||collectorProbe.qualification!=="UNQUALIFIED"||collectorProbe.pcrRange!=="0-15")fail("collector probe identity mismatch");
+const platformProbe=checkedJson(claimProbe,["probe","--aik",aikName,...(aikUser?["--aik-user"]:[])],"TPM platform-claim probe");
 if(platformProbe.protocol!=="CIEAV_WINDOWS_TPM_MEASURED_BOOT_PROBE_V1"||platformProbe.operation!=="probe"||platformProbe.hardwareBacked!==true||platformProbe.qualification!=="UNQUALIFIED"||platformProbe.pcrMask!==65535||platformProbe.nonceBytes!==32||platformProbe.aikName!==aikName||platformProbe.aikMachineKey===aikUser)fail("platform-claim probe identity mismatch");
-if(!Array.isArray(platformProbe.claimAttempts)||!platformProbe.claimAttempts.some(x=>x?.verified===true&&x?.createStatus==="0x00000000"&&x?.verifyStatus==="0x00000000"&&Number(x?.claimBytes)>0))fail("no nonce-bound platform claim was created and locally verified");
+const verifiedAttempt=Array.isArray(platformProbe.claimAttempts)?platformProbe.claimAttempts.find(x=>x?.verified===true&&x?.createStatus==="0x00000000"&&x?.verifyStatus==="0x00000000"&&Number(x?.claimBytes)>0&&typeof x?.claim==="string"&&x.claim):undefined;
+if(!verifiedAttempt)fail("no nonce-bound platform claim was created, emitted, and locally verified");
+let claimRaw;try{claimRaw=Buffer.from(verifiedAttempt.claim,"base64url")}catch{fail("platform claim is not base64url")}if(claimRaw.length!==verifiedAttempt.claimBytes)fail("platform claim byte count mismatch");
 
 const npm=process.platform==="win32"?"npm.cmd":"npm",shell=process.env.ComSpec||"cmd.exe",build=spawnSync(shell,["/d","/s","/c",`${npm} run build:api`],{cwd:ROOT,encoding:"utf8",shell:false,maxBuffer:16*1024*1024});
 if(build.status!==0)fail(`npm run build:api failed:\n${build.stdout}\n${build.stderr}`);
-const {TPM_ALG_SHA256,parseWindowsWbcl,replaySrtmPcrs,serializePcrTable}=await import(pathToFileURL(path.join(ROOT,"apps/api/dist/windows-tpm-measured-boot.js")).href);
+const measured=await import(pathToFileURL(path.join(ROOT,"apps/api/dist/windows-tpm-measured-boot.js")).href),bindingModule=await import(pathToFileURL(path.join(ROOT,"apps/api/dist/windows-tpm-measured-boot-verifier.js")).href);
+const {TPM_ALG_SHA256,parseWindowsWbcl,replaySrtmPcrs,serializePcrTable}=measured,{verifyWindowsPlatformPcrReplay}=bindingModule;
 
 function collectAndReplay(type){
   const body=checkedJson(collector,["collect-log","--type",type],`TBS ${type} collection`);
@@ -36,8 +39,9 @@ function collectAndReplay(type){
   let raw;try{raw=Buffer.from(body.log,"base64url")}catch{fail(`${type} log is not base64url`)}if(raw.length!==body.bytes)fail(`${type} log byte count mismatch`);
   const parsed=parseWindowsWbcl(raw),sha256Algorithm=parsed.algorithms.find(x=>x.algorithmId===TPM_ALG_SHA256);if(!sha256Algorithm||sha256Algorithm.digestSize!==32)fail(`${type} log does not declare SHA-256 PCR bank`);
   const pcrMask=0xffff,replayed=replaySrtmPcrs(parsed,TPM_ALG_SHA256,pcrMask),table=serializePcrTable(replayed,pcrMask,32);
-  return{type,logType:body.logType,bytes:raw.length,events:parsed.events.length,logSha256:sha256(raw),pcrMask:"0x0000ffff",pcrBank:"sha256",replayedPcrTableSha256:sha256(table),pcrs:Object.fromEntries([...replayed.entries()].map(([index,value])=>[String(index),value.toString("hex")]))};
+  return{raw,summary:{type,logType:body.logType,bytes:raw.length,events:parsed.events.length,logSha256:sha256(raw),pcrMask:"0x0000ffff",pcrBank:"sha256",replayedPcrTableSha256:sha256(table),pcrs:Object.fromEntries([...replayed.entries()].map(([index,value])=>[String(index),value.toString("hex")]))}};
 }
 
-const current=collectAndReplay("srtm-current"),boot=collectAndReplay("srtm-boot"),verifiedClaimAttempts=platformProbe.claimAttempts.filter(x=>x?.verified===true).map(x=>({name:x.name,claimBytes:x.claimBytes,createStatus:x.createStatus,verifyStatus:x.verifyStatus}));
-console.log(JSON.stringify({protocol:"CIEAV_WINDOWS_TPM_MEASURED_BOOT_DIAGNOSTIC_V1",collectorSha256:actualCollectorSha,claimProbeSha256:actualProbeSha,aikName,aikMachineKey:!aikUser,qualification:"UNQUALIFIED",platformClaim:{nonceBytes:platformProbe.nonceBytes,pcrMask:"0x0000ffff",verifiedAttempts:verifiedClaimAttempts},reason:"Nonce-bound NCRYPT_CLAIM_PLATFORM creation and local verification passed, but the platform claim PCR digest is not yet parsed and bound to the replayed WBCL PCR table",current,boot},null,2));
+const current=collectAndReplay("srtm-current"),boot=collectAndReplay("srtm-boot");
+let binding;try{binding=verifyWindowsPlatformPcrReplay(claimRaw,current.raw,0xffff)}catch(err){fail(`platform claim PCRs do not bind to current WBCL replay: ${err instanceof Error?err.message:String(err)}`)}
+console.log(JSON.stringify({protocol:"CIEAV_WINDOWS_TPM_MEASURED_BOOT_DIAGNOSTIC_V1",collectorSha256:actualCollectorSha,claimProbeSha256:actualProbeSha,aikName,aikMachineKey:!aikUser,qualification:"UNQUALIFIED",platformClaim:{claimAttempt:verifiedAttempt.name,claimSha256:sha256(claimRaw),claimBytes:claimRaw.length,nonceBytes:platformProbe.nonceBytes,pcrMask:"0x0000ffff",locallyVerified:true,pcrReplayBound:true,pcrAlgorithm:binding.pcrAlgorithm,pcrTableSha256:binding.pcrTableSha256},reason:"Nonce-bound NCRYPT_CLAIM_PLATFORM creation/local verification and claim-PCR-to-WBCL replay binding passed, but Secure Boot/PCR policy and independent remote-verifier qualification are not yet complete",current:current.summary,boot:boot.summary},null,2));

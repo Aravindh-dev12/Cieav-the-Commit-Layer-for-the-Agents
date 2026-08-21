@@ -18,6 +18,7 @@ struct NcryptHandle{NCRYPT_HANDLE h{0};explicit NcryptHandle(NCRYPT_HANDLE v=0):
 
 std::string hexStatus(SECURITY_STATUS value){std::ostringstream o;o<<"0x"<<std::hex<<std::uppercase<<std::setw(8)<<std::setfill('0')<<static_cast<unsigned long>(value);return o.str();}
 std::string hexTbs(TBS_RESULT value){std::ostringstream o;o<<"0x"<<std::hex<<std::uppercase<<std::setw(8)<<std::setfill('0')<<static_cast<unsigned long>(value);return o.str();}
+std::string b64url(const unsigned char* data,size_t n){static constexpr char table[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";std::string out;out.reserve((n*4+2)/3);for(size_t i=0;i<n;i+=3){unsigned v=static_cast<unsigned>(data[i])<<16;if(i+1<n)v|=static_cast<unsigned>(data[i+1])<<8;if(i+2<n)v|=data[i+2];out.push_back(table[(v>>18)&63]);out.push_back(table[(v>>12)&63]);if(i+1<n)out.push_back(table[(v>>6)&63]);if(i+2<n)out.push_back(table[v&63]);}return out;}
 std::wstring widen(const std::string& in){if(in.empty())throw std::runtime_error("empty UTF-8 value");int n=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,in.data(),static_cast<int>(in.size()),nullptr,0);if(n<=0)throw std::runtime_error("invalid UTF-8");std::wstring out(static_cast<size_t>(n),L'\0');if(MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,in.data(),static_cast<int>(in.size()),out.data(),n)<=0)throw std::runtime_error("invalid UTF-8");return out;}
 std::string argValue(int argc,char** argv,const std::string& name){for(int i=2;i+1<argc;++i)if(argv[i]==name)return argv[i+1];throw std::runtime_error("missing required argument: "+name);}
 bool hasFlag(int argc,char** argv,const std::string& name){for(int i=2;i<argc;++i)if(argv[i]==name)return true;return false;}
@@ -27,7 +28,7 @@ NCRYPT_KEY_HANDLE openAik(NCRYPT_PROV_HANDLE provider,const std::string& name,bo
 void freeVerifyOutput(NCryptBufferDesc& output){if(!output.pBuffers)return;for(ULONG i=0;i<output.cBuffers;++i)if(output.pBuffers[i].pvBuffer)NCryptFreeBuffer(output.pBuffers[i].pvBuffer);NCryptFreeBuffer(output.pBuffers);output.pBuffers=nullptr;output.cBuffers=0;}
 
 struct ClaimAttempt{const char* name;NCRYPT_KEY_HANDLE subject;NCRYPT_KEY_HANDLE authority;};
-struct ClaimResult{std::string name;SECURITY_STATUS status;SECURITY_STATUS createStatus;SECURITY_STATUS verifyStatus;DWORD requiredBytes;DWORD claimBytes;};
+struct ClaimResult{std::string name;SECURITY_STATUS status;SECURITY_STATUS createStatus;SECURITY_STATUS verifyStatus;DWORD requiredBytes;DWORD claimBytes;std::string claim;};
 
 ClaimResult tryPlatformClaim(const ClaimAttempt& attempt,std::vector<unsigned char>& nonce){
   DWORD pcrMask=0x0000FFFF;
@@ -37,14 +38,14 @@ ClaimResult tryPlatformClaim(const ClaimAttempt& attempt,std::vector<unsigned ch
   NCryptBufferDesc desc{};desc.ulVersion=NCRYPTBUFFER_VERSION;desc.cBuffers=2;desc.pBuffers=buffers;
   DWORD required=0;
   const SECURITY_STATUS sizeStatus=NCryptCreateClaim(attempt.subject,attempt.authority,NCRYPT_CLAIM_PLATFORM,&desc,nullptr,0,&required,0);
-  if(sizeStatus!=ERROR_SUCCESS||required==0||required>1024u*1024u)return ClaimResult{attempt.name,sizeStatus,sizeStatus,static_cast<SECURITY_STATUS>(NTE_BAD_DATA),required,0};
+  if(sizeStatus!=ERROR_SUCCESS||required==0||required>1024u*1024u)return ClaimResult{attempt.name,sizeStatus,sizeStatus,static_cast<SECURITY_STATUS>(NTE_BAD_DATA),required,0,""};
   std::vector<unsigned char> claim(required);DWORD actual=required;
   const SECURITY_STATUS createStatus=NCryptCreateClaim(attempt.subject,attempt.authority,NCRYPT_CLAIM_PLATFORM,&desc,claim.data(),static_cast<DWORD>(claim.size()),&actual,0);
-  if(createStatus!=ERROR_SUCCESS||actual==0||actual>claim.size())return ClaimResult{attempt.name,sizeStatus,createStatus,static_cast<SECURITY_STATUS>(NTE_BAD_DATA),required,actual};
+  if(createStatus!=ERROR_SUCCESS||actual==0||static_cast<size_t>(actual)>claim.size())return ClaimResult{attempt.name,sizeStatus,createStatus,static_cast<SECURITY_STATUS>(NTE_BAD_DATA),required,actual,""};
   claim.resize(actual);NCryptBufferDesc output{};
   const SECURITY_STATUS verifyStatus=NCryptVerifyClaim(attempt.subject,attempt.authority,NCRYPT_CLAIM_PLATFORM,&desc,claim.data(),static_cast<DWORD>(claim.size()),&output,0);
   freeVerifyOutput(output);
-  return ClaimResult{attempt.name,sizeStatus,createStatus,verifyStatus,required,actual};
+  return ClaimResult{attempt.name,sizeStatus,createStatus,verifyStatus,required,actual,b64url(claim.data(),claim.size())};
 }
 
 struct LogProbe{TBS_RESULT status;UINT32 requiredBytes;};
@@ -64,7 +65,7 @@ int run(int argc,char** argv){
   const auto currentLog=probeLog(TBS_TCGLOG_SRTM_CURRENT),bootLog=probeLog(TBS_TCGLOG_SRTM_BOOT);
 
   std::cout<<"{\"protocol\":\"CIEAV_WINDOWS_TPM_MEASURED_BOOT_PROBE_V1\",\"operation\":\"probe\",\"hardwareBacked\":true,\"aikName\":\""<<aikName<<"\",\"aikMachineKey\":"<<(machine?"true":"false")<<",\"pcrMask\":65535,\"nonceBytes\":32,\"qualification\":\"UNQUALIFIED\",\"logs\":{\"srtmCurrent\":{\"status\":\""<<hexTbs(currentLog.status)<<"\",\"requiredBytes\":"<<currentLog.requiredBytes<<"},\"srtmBoot\":{\"status\":\""<<hexTbs(bootLog.status)<<"\",\"requiredBytes\":"<<bootLog.requiredBytes<<"}},\"claimAttempts\":[";
-  for(size_t i=0;i<std::size(attempts);++i){auto result=tryPlatformClaim(attempts[i],nonce);if(i)std::cout<<",";std::cout<<"{\"name\":\""<<result.name<<"\",\"status\":\""<<hexStatus(result.status)<<"\",\"requiredBytes\":"<<result.requiredBytes<<",\"createStatus\":\""<<hexStatus(result.createStatus)<<"\",\"claimBytes\":"<<result.claimBytes<<",\"verifyStatus\":\""<<hexStatus(result.verifyStatus)<<"\",\"verified\":"<<(result.verifyStatus==ERROR_SUCCESS?"true":"false")<<"}";}
+  for(size_t i=0;i<std::size(attempts);++i){auto result=tryPlatformClaim(attempts[i],nonce);if(i)std::cout<<",";std::cout<<"{\"name\":\""<<result.name<<"\",\"status\":\""<<hexStatus(result.status)<<"\",\"requiredBytes\":"<<result.requiredBytes<<",\"createStatus\":\""<<hexStatus(result.createStatus)<<"\",\"claimBytes\":"<<result.claimBytes<<",\"verifyStatus\":\""<<hexStatus(result.verifyStatus)<<"\",\"verified\":"<<(result.verifyStatus==ERROR_SUCCESS?"true":"false")<<",\"claim\":\""<<result.claim<<"\"}";}
   std::cout<<"]}\n";
   return 0;
 }

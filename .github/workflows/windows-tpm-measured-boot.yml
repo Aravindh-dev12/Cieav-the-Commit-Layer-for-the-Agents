@@ -17,11 +17,13 @@ jobs:
         run: node scripts/windows-tpm-measured-boot-static.mjs
       - name: Verify read-only TBS collector boundary
         run: node scripts/windows-tpm-measured-boot-release.mjs
+      - name: Verify platform-claim probe and PCR-binding boundary
+        run: node scripts/windows-tpm-measured-boot-probe-release.mjs
       - run: npm ci
       - name: Audit production dependency security
         run: npm audit --omit=dev --audit-level=high
-      - name: Test bounded WBCL parser and PCR replay
-        run: npm run test -w @cieav/api -- src/windows-tpm-measured-boot.test.ts
+      - name: Test bounded WBCL parser, PCR replay and claim binding
+        run: npm run test -w @cieav/api -- src/windows-tpm-measured-boot.test.ts src/windows-tpm-measured-boot-verifier.test.ts
       - name: Build API workspace dependencies
         run: |
           npm run build -w @cieav/contracts
