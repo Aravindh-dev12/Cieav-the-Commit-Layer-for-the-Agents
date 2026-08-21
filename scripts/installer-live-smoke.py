@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -90,6 +91,15 @@ def clean_local_base_url(value:str)->str:
     return urlunsplit(("https",netloc,"","",""))
 
 
+def rendered_local_base_url(installer:Path)->str|None:
+    if os.name!="nt" or installer.suffix.lower()!=".ps1":return None
+    text=installer.read_text("utf-8",errors="strict")
+    match=re.search(r'^\$PinnedCloudUrl\s*=\s*"([^"]+)"\s*$',text,re.MULTILINE)
+    if not match:return None
+    try:return clean_local_base_url(match.group(1))
+    except SystemExit:return None
+
+
 def installer_command(installer:Path)->list[str]:
     if os.name=="nt":
         ps=shutil.which("pwsh") or shutil.which("powershell")
@@ -110,14 +120,17 @@ def main()->None:
     ap.add_argument("--confirm-install-mutation",action="store_true",help="Required: acknowledges mutation of the current user's CIEAV install paths")
     args=ap.parse_args()
     if not args.confirm_install_mutation:raise SystemExit("Refusing installer mutation without --confirm-install-mutation")
-    base_url=None
-    if args.base_url:
-        if args.mode!="local":raise SystemExit("--base-url override is forbidden outside local mode")
-        base_url=clean_local_base_url(args.base_url)
     installer=args.installer.resolve()
     if not installer.is_file():raise SystemExit(f"Installer not found: {installer}")
     if os.name=="nt" and installer.suffix.lower()!=".ps1":raise SystemExit("Windows live installer test requires rendered install.ps1")
     if os.name!="nt" and installer.name!="install.sh":raise SystemExit("Unix/macOS live installer test requires rendered install.sh")
+    base_url=None
+    if args.base_url:
+        if args.mode!="local":raise SystemExit("--base-url override is forbidden outside local mode")
+        base_url=clean_local_base_url(args.base_url)
+    elif args.mode=="local":
+        base_url=rendered_local_base_url(installer)
+        if not base_url:raise SystemExit("local installer qualification requires a rendered localhost HTTPS trust origin or explicit --base-url")
     dirty=subprocess.run(["git","status","--porcelain"],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
     if dirty:raise SystemExit("Installer qualification requires a clean git worktree")
     if service_present():raise SystemExit("Refusing live installer test while a CIEAV Gateway service already exists")
