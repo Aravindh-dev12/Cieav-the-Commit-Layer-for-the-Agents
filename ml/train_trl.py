@@ -72,6 +72,7 @@ def main() -> None:
     p.add_argument("--verifier-mode", choices=["auto", "external"], default="auto", help="GRPO: Python auto-launches the local Node verifier unless an external loopback verifier is explicitly selected")
     p.add_argument("--round-manifest", help="Training-round manifest path; defaults to <output>/training-round.json")
     p.add_argument("--curriculum-report", help="Optional CIEAV_RLVR_CURRICULUM_V1 report bound into this round")
+    p.add_argument("--environment-qualification", help="Optional CIEAV_ML_ENVIRONMENT_QUALIFICATION_V1 report; required later for promotion to QUALIFIED")
     p.add_argument("--previous-round", help="Optional previous training-round manifest for lineage")
     a = p.parse_args()
     if a.seed < 0 or (a.data_seed is not None and a.data_seed < 0):
@@ -109,6 +110,7 @@ def main() -> None:
             hyperparameters=hyperparameters,
             verifier_health=verifier_health,
             curriculum_report=Path(a.curriculum_report) if a.curriculum_report else None,
+            environment_report=Path(a.environment_qualification) if a.environment_qualification else None,
             previous_manifest=Path(a.previous_round) if a.previous_round else None,
         )
         atomic_write(manifest_path, manifest)
