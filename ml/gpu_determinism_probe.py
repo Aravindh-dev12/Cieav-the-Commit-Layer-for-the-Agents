@@ -26,7 +26,8 @@ def git_head() -> str:
 
 
 def tensor_digest(tensor) -> str:
-    raw = bytes(tensor.detach().contiguous().cpu().view(__import__("torch").uint8).tolist())
+    torch = __import__("torch")
+    raw = bytes(tensor.detach().contiguous().cpu().view(torch.uint8).reshape(-1).tolist())
     return hashlib.sha256(raw).hexdigest()
 
 
