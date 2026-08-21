@@ -14,11 +14,12 @@ const git=(...args)=>{const r=spawnSync("git",args,{cwd:ROOT,encoding:"utf8",she
 const packageVersion=()=>load(path.join(ROOT,"package.json")).version;
 const repoFromRemote=()=>{const raw=git("config","--get","remote.origin.url");const m=raw.match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?$/i);if(!m)throw new Error("unable to resolve GitHub repository from origin");return`${m[1]}/${m[2]}`};
 const ghExecutable=()=>process.platform==="win32"?"gh.exe":"gh";
+const ghCommand=gh=>{if(typeof gh==="string"&&gh)return{command:gh,prefix:[]};if(gh&&typeof gh==="object"&&typeof gh.command==="string"&&gh.command&&Array.isArray(gh.args)&&gh.args.every(x=>typeof x==="string"))return{command:gh.command,prefix:gh.args};throw new Error("invalid GitHub CLI command specification")};
 
 export function verifyGhAttestation({file,repo,commit,gh=ghExecutable()}){
   const signer=`${repo}/.github/workflows/physical-hardware-qualification.yml`;
-  const args=["attestation","verify",file,"--repo",repo,"--signer-workflow",signer,"--source-digest",commit,"--format","json"];
-  const r=spawnSync(gh,args,{cwd:ROOT,encoding:"utf8",shell:false,env:process.env});
+  const args=["attestation","verify",file,"--repo",repo,"--signer-workflow",signer,"--source-digest",commit,"--format","json"],resolved=ghCommand(gh);
+  const r=spawnSync(resolved.command,[...resolved.prefix,...args],{cwd:ROOT,encoding:"utf8",shell:false,env:process.env});
   if(r.error)throw new Error(`GitHub CLI unavailable: ${r.error.message}`);
   if(r.status!==0)throw new Error(`physical evidence provenance verification failed for ${path.basename(file)}: ${(r.stderr||r.stdout||"").trim().slice(0,2000)}`);
   let value;try{value=JSON.parse(r.stdout)}catch{throw new Error(`GitHub attestation verification returned invalid JSON for ${path.basename(file)}`)}
