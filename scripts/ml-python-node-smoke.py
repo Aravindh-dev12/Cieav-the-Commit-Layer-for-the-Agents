@@ -36,7 +36,8 @@ def main() -> int:
         )
         assert isinstance(result.get("score"), (int, float))
         assert result.get("hardFailure") is False
-    print("CIEAV Python↔Node RLVR boundary PASS · Python orchestrates ML; Node verifier authority=false")
+    # ASCII-only output keeps the smoke portable across Windows CI code pages.
+    print("CIEAV Python-Node RLVR boundary PASS - Python orchestrates ML; Node verifier authority=false")
     return 0
 
 
