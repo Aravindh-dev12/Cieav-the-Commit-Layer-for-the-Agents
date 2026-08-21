@@ -2,9 +2,9 @@
 """Create and advance provenance manifests for CIEAV ML training rounds.
 
 A trained checkpoint is never considered qualified by this module alone. Promotion is
-fail-closed and requires a qualified exact ML environment, a CIEAV rollout-evaluation
-report with passing promotion, explicit hidden evidence, and a passing hidden verifier
-bank.
+fail-closed and requires a qualified exact ML environment, a matching exact-head GPU
+determinism probe, a CIEAV rollout-evaluation report with passing promotion, explicit
+hidden evidence, and a passing hidden verifier bank.
 """
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = "CIEAV_ML_VERIFIER_V1"
+ALLOWED_CUBLAS = {":4096:8", ":16:8"}
 
 
 def utc_now() -> str:
@@ -119,6 +120,37 @@ def validate_environment_report(path: Path, expected_git_head: str | None) -> di
     }
 
 
+def validate_gpu_probe_report(path: Path, expected_git_head: str | None, environment: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(environment, dict):
+        raise ValueError("GPU determinism probe requires a qualified environment report")
+    path = path.resolve()
+    report = load_object(path)
+    if report.get("architecture") != "CIEAV_ML_GPU_DETERMINISM_PROBE_V1" or report.get("authority") is not False or report.get("qualification") != "QUALIFIED":
+        raise ValueError("ML GPU determinism probe report contract mismatch")
+    if expected_git_head and report.get("gitHead") != expected_git_head:
+        raise ValueError("ML GPU determinism probe must match the training git head")
+    environment_manifest = report.get("environmentManifest")
+    if not isinstance(environment_manifest, dict) or environment_manifest.get("sha256") != environment.get("sha256"):
+        raise ValueError("ML GPU determinism probe must bind the exact environment qualification")
+    if report.get("cublasWorkspaceConfig") not in ALLOWED_CUBLAS or report.get("deterministicAlgorithms") is not True or report.get("cudnnBenchmark") is not False:
+        raise ValueError("ML GPU determinism probe is missing deterministic CUDA runtime evidence")
+    device = report.get("device")
+    probes = report.get("probes")
+    if not isinstance(device, dict) or not isinstance(device.get("name"), str) or not device.get("name"):
+        raise ValueError("ML GPU determinism probe is missing GPU identity")
+    if not isinstance(probes, dict) or any(not isinstance(probes.get(name), str) or len(probes.get(name)) != 64 for name in ("torch.mm", "torch.nn.functional.conv2d")):
+        raise ValueError("ML GPU determinism probe is missing deterministic probe digests")
+    return {
+        **file_ref(path),
+        "gitHead": report.get("gitHead"),
+        "environmentSha256": environment.get("sha256"),
+        "cublasWorkspaceConfig": report.get("cublasWorkspaceConfig"),
+        "device": device,
+        "probes": probes,
+        "seed": report.get("seed"),
+    }
+
+
 def create_round(
     *,
     stage: str,
@@ -129,6 +161,7 @@ def create_round(
     verifier_health: dict[str, Any] | None = None,
     curriculum_report: Path | None = None,
     environment_report: Path | None = None,
+    gpu_probe_report: Path | None = None,
     previous_manifest: Path | None = None,
 ) -> dict[str, Any]:
     dataset = dataset.resolve()
@@ -136,6 +169,7 @@ def create_round(
         raise ValueError(f"training dataset does not exist: {dataset}")
     current_head = git_head()
     environment = validate_environment_report(environment_report, current_head) if environment_report is not None else None
+    gpu_determinism = validate_gpu_probe_report(gpu_probe_report, current_head, environment) if gpu_probe_report is not None else None
     curriculum = None
     if curriculum_report is not None:
         curriculum_report = curriculum_report.resolve()
@@ -176,6 +210,7 @@ def create_round(
         "dataset": file_ref(dataset),
         "curriculum": curriculum,
         "environment": environment,
+        "gpuDeterminism": gpu_determinism,
         "previousRound": previous,
         "verifier": validate_verifier_health(verifier_health),
         "hyperparameters": hyperparameters,
@@ -209,7 +244,8 @@ def apply_promotion(manifest: dict[str, Any], report_path: Path) -> dict[str, An
     promotion_passed = isinstance(promotion, dict) and promotion.get("passed") is True
     verifier_bank_passed = isinstance(verifier_bank, dict) and verifier_bank.get("passed") is True
     environment_qualified = isinstance(manifest.get("environment"), dict)
-    qualified = promotion_passed and hidden_present and verifier_bank_passed and environment_qualified
+    gpu_determinism_qualified = isinstance(manifest.get("gpuDeterminism"), dict)
+    qualified = promotion_passed and hidden_present and verifier_bank_passed and environment_qualified and gpu_determinism_qualified
     updated = dict(manifest)
     updated["promotion"] = {
         **file_ref(report_path),
@@ -217,6 +253,7 @@ def apply_promotion(manifest: dict[str, Any], report_path: Path) -> dict[str, An
         "hiddenEvidencePresent": hidden_present,
         "verifierBankPassed": verifier_bank_passed,
         "environmentQualified": environment_qualified,
+        "gpuDeterminismQualified": gpu_determinism_qualified,
         "qualified": qualified,
         "metrics": promotion.get("metrics") if isinstance(promotion, dict) else None,
         "violations": promotion.get("violations") if isinstance(promotion, dict) else ["promotion_report_missing"],
@@ -244,7 +281,7 @@ def verify_round(manifest: dict[str, Any]) -> list[str]:
                 violations.append(f"{label}_digest_mismatch")
         except Exception:
             violations.append(f"{label}_unavailable")
-    for label in ("curriculum", "environment", "promotion"):
+    for label in ("curriculum", "environment", "gpuDeterminism", "promotion"):
         ref = manifest.get(label)
         if isinstance(ref, dict):
             try:
@@ -256,7 +293,9 @@ def verify_round(manifest: dict[str, Any]) -> list[str]:
         promotion = manifest.get("promotion")
         if not isinstance(manifest.get("environment"), dict):
             violations.append("qualified_without_environment_qualification")
-        if not isinstance(promotion, dict) or promotion.get("qualified") is not True or promotion.get("environmentQualified") is not True:
+        if not isinstance(manifest.get("gpuDeterminism"), dict):
+            violations.append("qualified_without_gpu_determinism_probe")
+        if not isinstance(promotion, dict) or promotion.get("qualified") is not True or promotion.get("environmentQualified") is not True or promotion.get("gpuDeterminismQualified") is not True:
             violations.append("qualified_without_passing_promotion")
     return violations
 
