@@ -39,6 +39,18 @@ def verifier_context(mode: str):
     return NodeVerifierProcess(ROOT, port=port, token=token)
 
 
+def validate_grpo_dataset(ds) -> None:
+    columns = set(ds.column_names)
+    required = {"prompt", "expectation"}
+    missing = sorted(required - columns)
+    if missing:
+        raise ValueError(f"GRPO dataset missing required fresh-rollout columns: {', '.join(missing)}; build it with ml/build_curriculum.py")
+    if "candidate" in columns and "requiresFreshModelRollout" in columns:
+        bad = [row["id"] for row in ds if row.get("candidate") is not None and row.get("requiresFreshModelRollout") is not True]
+        if bad:
+            raise ValueError(f"GRPO replay rows must require fresh model rollouts: {bad[:5]}")
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--stage", choices=["sft", "dpo", "kto", "grpo"], required=True)
@@ -68,6 +80,7 @@ def main() -> None:
         trainer = KTOTrainer(model=a.model, args=KTOConfig(beta=a.beta, **common), train_dataset=ds)
         trainer.train(); trainer.save_model(a.output); return
 
+    validate_grpo_dataset(ds)
     from trl import GRPOConfig, GRPOTrainer
     with verifier_context(a.verifier_mode) as verifier:
         verifier.health()
