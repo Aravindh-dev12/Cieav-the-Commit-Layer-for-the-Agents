@@ -16,6 +16,8 @@ export * from "./ml-perturbation.js";
 export * from "./ml-counterfactual.js";
 export * from "./ml-reward-gap.js";
 export * from "./ml-selective-action.js";
+export * from "./ml-hidden-verifier.js";
+export * from "./ml-active-miner.js";
 
 import type {ActionContext,ActionManifest,Reversibility,RiskLevel} from "@cieav/contracts";
 
