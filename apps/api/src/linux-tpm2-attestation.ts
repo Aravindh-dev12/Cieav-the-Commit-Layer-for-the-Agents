@@ -7,8 +7,12 @@ export const TPM_ALG_SHA1=0x0004;
 export const TPM_ALG_SHA256=0x000b;
 export const TPM_ALG_SHA384=0x000c;
 export const TPM_ALG_SHA512=0x000d;
+export const TPM_ALG_RSASSA=0x0014;
+export const TPM_ALG_RSAPSS=0x0016;
+export const TPM_ALG_ECDSA=0x0018;
 
 const MAX_ATTEST_BYTES=128*1024;
+const MAX_SIGNATURE_BYTES=1024;
 const MAX_NAME_BYTES=128;
 const MAX_EXTRA_DATA_BYTES=1024;
 const MAX_PCR_BANKS=16;
@@ -25,6 +29,9 @@ export type LinuxTpm2AttestCommon={format:"TPMS_ATTEST"|"TPM2B_ATTEST";signedDat
 export type LinuxTpm2QuoteAttest=LinuxTpm2AttestCommon&{type:"QUOTE";attestType:typeof TPM_ST_ATTEST_QUOTE;pcrSelections:readonly LinuxTpm2PcrSelection[];pcrDigest:Buffer};
 export type LinuxTpm2CertifyAttest=LinuxTpm2AttestCommon&{type:"CERTIFY";attestType:typeof TPM_ST_ATTEST_CERTIFY;name:Buffer;qualifiedName:Buffer};
 export type LinuxTpm2Attest=LinuxTpm2QuoteAttest|LinuxTpm2CertifyAttest;
+export type LinuxTpm2Signature=
+  |{scheme:"RSASSA";sigAlg:typeof TPM_ALG_RSASSA;hashAlgorithm:number;signature:Buffer}
+  |{scheme:"ECDSA";sigAlg:typeof TPM_ALG_ECDSA;hashAlgorithm:number;r:Buffer;s:Buffer};
 
 function fail(code:string):never{throw new Error(`linux_tpm2_${code}`)}
 class Reader{
@@ -60,6 +67,9 @@ function parseSelections(r:Reader){
   }
   return selections;
 }
+function derLength(length:number){if(length<0||length>255)fail("ecdsa_der_length");return length<128?Buffer.from([length]):Buffer.from([0x81,length])}
+function derInteger(raw:Buffer){let value=Buffer.from(raw);while(value.length>1&&value[0]===0)value=value.subarray(1);if(value.length===0)value=Buffer.from([0]);if((value[0]!&0x80)!==0)value=Buffer.concat([Buffer.from([0]),value]);return Buffer.concat([Buffer.from([0x02]),derLength(value.length),value])}
+function ecdsaDer(r:Buffer,s:Buffer){const body=Buffer.concat([derInteger(r),derInteger(s)]);return Buffer.concat([Buffer.from([0x30]),derLength(body.length),body])}
 
 export function parseLinuxTpm2Attest(raw:Buffer):LinuxTpm2Attest{
   const {format,signedData}=unwrapAttest(raw),r=new Reader(signedData),magic=r.u32("attest_magic");if(magic!==TPM_GENERATED_VALUE)fail("attest_magic");
@@ -75,6 +85,22 @@ export function parseLinuxTpm2Attest(raw:Buffer):LinuxTpm2Attest{
     return{...common,type:"CERTIFY",attestType:TPM_ST_ATTEST_CERTIFY,name,qualifiedName};
   }
   fail("unsupported_attest_type");
+}
+
+export function parseLinuxTpm2Signature(raw:Buffer):LinuxTpm2Signature{
+  if(!Buffer.isBuffer(raw)||raw.length<6||raw.length>MAX_SIGNATURE_BYTES+16)fail("signature_size");const r=new Reader(raw),sigAlg=r.u16("signature_algorithm");
+  if(sigAlg===TPM_ALG_RSAPSS)fail("signature_rsapss_unqualified");
+  if(sigAlg===TPM_ALG_RSASSA){const hashAlgorithm=r.u16("signature_hash");hashInfo(hashAlgorithm);const signature=r.sized(MAX_SIGNATURE_BYTES,"rsa_signature");if(signature.length<128||!r.done())fail(signature.length<128?"rsa_signature_size":"signature_trailing_data");return{scheme:"RSASSA",sigAlg:TPM_ALG_RSASSA,hashAlgorithm,signature}}
+  if(sigAlg===TPM_ALG_ECDSA){const hashAlgorithm=r.u16("signature_hash");hashInfo(hashAlgorithm);const rr=r.sized(80,"ecdsa_r"),s=r.sized(80,"ecdsa_s");if(rr.length===0||s.length===0||!r.done())fail(rr.length===0||s.length===0?"ecdsa_signature_empty":"signature_trailing_data");return{scheme:"ECDSA",sigAlg:TPM_ALG_ECDSA,hashAlgorithm,r:rr,s}}
+  fail("unsupported_signature_algorithm");
+}
+
+export function verifyLinuxTpm2AttestationSignature(rawAttest:Buffer,rawSignature:Buffer,akPublicJwk:JsonWebKey){
+  const attestation=parseLinuxTpm2Attest(rawAttest),signature=parseLinuxTpm2Signature(rawSignature),hash=hashInfo(signature.hashAlgorithm);let key:crypto.KeyObject;try{key=crypto.createPublicKey({key:akPublicJwk,format:"jwk"})}catch{fail("ak_public_key_invalid")}
+  let verified=false;
+  if(signature.scheme==="RSASSA"){if(key.asymmetricKeyType!=="rsa"&&key.asymmetricKeyType!=="rsa-pss")fail("ak_key_type_mismatch");verified=crypto.verify(hash.name,attestation.signedData,{key,padding:crypto.constants.RSA_PKCS1_PADDING},signature.signature)}
+  else{if(key.asymmetricKeyType!=="ec")fail("ak_key_type_mismatch");verified=crypto.verify(hash.name,attestation.signedData,{key,dsaEncoding:"der"},ecdsaDer(signature.r,signature.s))}
+  if(!verified)fail("attestation_signature_invalid");return{attestation,signature,akPublicKeyType:key.asymmetricKeyType,signatureHashAlgorithm:signature.hashAlgorithm};
 }
 
 export function linuxTpm2PcrKey(hashAlgorithm:number,pcrIndex:number){if(!Number.isInteger(hashAlgorithm)||!Number.isInteger(pcrIndex)||pcrIndex<0||pcrIndex>=MAX_PCR_SELECT_BYTES*8)fail("pcr_key");return`${hashAlgorithm.toString(16).padStart(4,"0")}:${pcrIndex}`}
