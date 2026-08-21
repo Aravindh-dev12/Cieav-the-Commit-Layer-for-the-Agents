@@ -4,6 +4,7 @@ import {lstatSync,readFileSync} from "node:fs";
 import {spawnSync} from "node:child_process";
 import path from "node:path";
 import {fileURLToPath,pathToFileURL} from "node:url";
+import {writePhysicalQualificationEvidence} from "./physical-qualification-evidence.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),".."),MAX_LINUX_EVIDENCE_AGE_MS=24*60*60*1000;
 const fail=m=>{console.error(`CIEAV physical hardware qualification FAIL: ${m}`);process.exit(2)};
@@ -39,7 +40,8 @@ async function windows(){
   const verifier=new CieavMaaTpmAttestationVerifier(),collector=new CieavWindowsTpmMaaCollector(config,verifier);
   const result=await collector.collectAndVerify({expectedPublicJwk:{kty:"RSA",n:requestJwk.n,e:requestJwk.e},expectedConsequencePublicJwk:consequenceJwk,providerManifestId:crypto.randomUUID()});
   if(result.attestation.verification!=="VERIFIED"||result.attestation.kind!=="WINDOWS_TPM_KEY_ATTESTATION"||result.attestation.publicKeyFingerprint!==fingerprint||result.claims.consequenceKeyFingerprint!==fingerprint)fail("live MAA did not verify the exact Windows consequence key");
-  console.log(`CIEAV physical hardware qualification PASS · windows · TPM opaque-sign verified · live MAA exact consequence-key attestation verified · fingerprint=${fingerprint}`);
+  const evidence=writePhysicalQualificationEvidence({mechanism:"WINDOWS_TPM_MAA",claims:{hardwareBacked:true,verification:"VERIFIED",consequenceKeyFingerprint:fingerprint,attestationKind:result.attestation.kind}});
+  console.log(`CIEAV physical hardware qualification PASS · windows · TPM opaque-sign verified · live MAA exact consequence-key attestation verified · fingerprint=${fingerprint} · evidence=${evidence.file}`);
 }
 
 async function macos(){
@@ -47,7 +49,8 @@ async function macos(){
   const probe=checkedJson(bridge,["probe"],"Secure Enclave probe");if(probe.provider!=="SECURE_ENCLAVE"||probe.nativeProvider!=="Security.framework Secure Enclave"||probe.available!==true||probe.hardwareBacked!==true)fail("Secure Enclave is not hardware-available");
   const description=checkedJson(bridge,["describe",keyName],"Secure Enclave key describe");if(description.provider!=="SECURE_ENCLAVE"||description.algorithm!=="ES256"||description.keyName!==keyName||description.hardwareBacked!==true||description.exportable!==false)fail("Secure Enclave key description failed hardware/non-exportability contract");
   const jwk=exactEcJwk(description.publicJwk,"Secure Enclave key"),fingerprint=verifyOpaqueEs256(bridge,keyName,jwk);
-  console.log(`CIEAV physical hardware qualification PASS · macos · Secure Enclave key resolved · opaque-sign independently verified · fingerprint=${fingerprint}`);
+  const evidence=writePhysicalQualificationEvidence({mechanism:"MACOS_SECURE_ENCLAVE",claims:{hardwareBacked:true,exportable:false,algorithm:"ES256",keyFingerprint:fingerprint}});
+  console.log(`CIEAV physical hardware qualification PASS · macos · Secure Enclave key resolved · opaque-sign independently verified · fingerprint=${fingerprint} · evidence=${evidence.file}`);
 }
 
 function verifyLinuxAttestation(providerRef,jwk){
@@ -65,7 +68,8 @@ async function linux(){
   const probe=checkedJson(bridge,["probe"],"Linux PKCS11 probe",{env:probeEnv});if(probe.provider!=="TPM"||probe.nativeProvider!=="PKCS11"||probe.available!==true||probe.hardwareBacked!==false||probe.attestationRequired!==true)fail("Linux PKCS11 probe must be available while still withholding generic hardware assurance");
   const description=checkedJson(bridge,["describe",providerRef],"Linux PKCS11 key describe"),jwk=exactEcJwk(description.publicJwk,"Linux PKCS11 key"),signingFingerprint=verifyOpaqueEs256(bridge,providerRef,jwk),attestedFingerprint=verifyLinuxAttestation(providerRef,jwk);
   if(signingFingerprint!==attestedFingerprint)fail("Linux signing key and deployment-attested hardware key differ");
-  console.log(`CIEAV physical hardware qualification PASS · linux · PKCS11 opaque-sign verified · pinned deployment-verifier evidence signature verified · fingerprint=${signingFingerprint}`);
+  const evidence=writePhysicalQualificationEvidence({mechanism:"LINUX_PKCS11_ATTESTED_HARDWARE",claims:{hardwareBacked:true,verification:"VERIFIED",keyFingerprint:signingFingerprint}});
+  console.log(`CIEAV physical hardware qualification PASS · linux · PKCS11 opaque-sign verified · pinned deployment-verifier evidence signature verified · fingerprint=${signingFingerprint} · evidence=${evidence.file}`);
 }
 
 if(process.env.CIEAV_PHYSICAL_HARDWARE_QUALIFICATION!=="1")fail("CIEAV_PHYSICAL_HARDWARE_QUALIFICATION=1 is required to prevent accidental hosted-runner qualification");
