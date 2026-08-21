@@ -10,6 +10,12 @@ export * from "./ml-reward.js";
 export * from "./ml-trajectory.js";
 export * from "./ml-adversarial.js";
 export * from "./ml-promotion.js";
+export * from "./ml-safety-spec.js";
+export * from "./ml-safety-shield.js";
+export * from "./ml-perturbation.js";
+export * from "./ml-counterfactual.js";
+export * from "./ml-reward-gap.js";
+export * from "./ml-selective-action.js";
 
 import type {ActionContext,ActionManifest,Reversibility,RiskLevel} from "@cieav/contracts";
 
