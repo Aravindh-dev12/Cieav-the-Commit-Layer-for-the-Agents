@@ -46,5 +46,5 @@ const server=https.createServer({pfx:fs.readFileSync(pfxPath),passphrase:passwor
     const stream=fs.createReadStream(file);stream.on("error",e=>res.destroy(e));stream.on("end",()=>{if(failAfterArtifact&&ext===".zip")cloudUnavailable=true});stream.pipe(res);
   }catch(err){if(!res.headersSent)json(res,500,{error:String(err?.message??err).slice(0,300)});else res.destroy(err)}
 });
-server.listen(port,"127.0.0.1",()=>console.log(`CIEAV local live HTTPS fixture ready · https://localhost:${port} · failAfterArtifact=${failAfterArtifact}`));
+server.listen(port,"localhost",()=>console.log(`CIEAV local live HTTPS fixture ready · https://localhost:${port} · failAfterArtifact=${failAfterArtifact}`));
 const stop=()=>server.close(()=>process.exit(0));process.on("SIGINT",stop);process.on("SIGTERM",stop);
