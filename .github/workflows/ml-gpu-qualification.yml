@@ -1,0 +1,117 @@
+name: ml-gpu-qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      constraints_path:
+        description: Repository-relative exact package==version constraints file already provisioned on the GPU runner
+        required: true
+        type: string
+      require_scale:
+        description: Require verl/ray/sglang exact pins and installed versions
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: ml-gpu-qualification-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-gpu:
+    if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v') }}
+    runs-on: [self-hosted, linux, cieav-release-hardware, cieav-ml-gpu]
+    timeout-minutes: 30
+    env:
+      CUBLAS_WORKSPACE_CONFIG: ':4096:8'
+      PYTHONHASHSEED: '1729'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
+      - name: Validate tracked exact constraints path
+        id: constraints
+        shell: bash
+        env:
+          INPUT_CONSTRAINTS: ${{ inputs.constraints_path }}
+        run: |
+          set -euo pipefail
+          case "$INPUT_CONSTRAINTS" in
+            ''|/*|*'..'*) echo 'constraints_path must be non-empty, repository-relative, and contain no .. segments' >&2; exit 2 ;;
+          esac
+          test -f "$INPUT_CONSTRAINTS" || { echo 'constraints file is missing' >&2; exit 2; }
+          test ! -L "$INPUT_CONSTRAINTS" || { echo 'constraints file must not be a symlink' >&2; exit 2; }
+          git ls-files --error-unmatch -- "$INPUT_CONSTRAINTS" >/dev/null || { echo 'constraints file must be committed' >&2; exit 2; }
+          python3 - "$INPUT_CONSTRAINTS" <<'PY'
+          import re, sys
+          p=sys.argv[1]
+          seen=set(); count=0
+          for n,raw in enumerate(open(p,encoding='utf-8'),1):
+              line=raw.strip()
+              if not line or line.startswith('#'): continue
+              m=re.fullmatch(r'([A-Za-z0-9_.-]+)==([^\s;]+)',line)
+              if not m: raise SystemExit(f'{p}:{n}: exact package==version pin required')
+              key=re.sub(r'[-_.]+','-',m.group(1)).lower()
+              if key in seen: raise SystemExit(f'{p}:{n}: duplicate package pin {key}')
+              seen.add(key); count+=1
+          if not count: raise SystemExit('constraints file is empty')
+          print(f'CIEAV GPU constraints preflight PASS - exact pins={count}')
+          PY
+          echo "path=$INPUT_CONSTRAINTS" >> "$GITHUB_OUTPUT"
+      - name: Inspect provisioned GPU runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v python3
+          command -v nvidia-smi
+          python3 --version
+          nvidia-smi
+          python3 - <<'PY'
+          import torch
+          print('torch', torch.__version__)
+          print('cuda', torch.version.cuda)
+          print('cuda_available', torch.cuda.is_available())
+          print('gpu_count', torch.cuda.device_count())
+          if not torch.cuda.is_available() or torch.cuda.device_count() < 1:
+              raise SystemExit('real CUDA GPU is required')
+          PY
+      - name: Qualify exact installed ML environment
+        shell: bash
+        env:
+          CONSTRAINTS: ${{ steps.constraints.outputs.path }}
+          REQUIRE_SCALE: ${{ inputs.require_scale }}
+        run: |
+          set -euo pipefail
+          args=(--constraints "$CONSTRAINTS" --output release/reports/ml/environment-qualification.json --seed 1729 --require-cuda)
+          if [ "$REQUIRE_SCALE" = 'true' ]; then args+=(--require-scale); fi
+          python3 ml/qualify_environment.py "${args[@]}"
+      - name: Exercise deterministic CUDA kernels
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ml/gpu_determinism_probe.py \
+            --environment-manifest release/reports/ml/environment-qualification.json \
+            --output release/reports/ml/gpu-determinism-probe.json \
+            --seed 1729
+      - name: Attest exact-head ML GPU qualification evidence
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/ml/*.json'
+      - name: Upload ML GPU qualification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ml-gpu-qualification
+          path: release/reports/ml/*.json
+          if-no-files-found: error
+      - name: Scrub qualification worktree
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          git reset --hard HEAD
+          git clean -ffdx
