@@ -53,6 +53,14 @@ jobs:
         run: |
           npm audit --omit=dev --audit-level=high
           npm audit --audit-level=critical
+      - name: Preflight pinned Windows native qualification inputs
+        if: ${{ inputs.windows_attestor == 'native' }}
+        env:
+          CIEAV_WINDOWS_TPM_CNG_BRIDGE: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE }}
+          CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256 }}
+          CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG: ${{ vars.CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG }}
+          CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256: ${{ vars.CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256 }}
+        run: node scripts/physical-qualification-preflight.mjs --target=windows-native
       - name: Qualify physical Windows TPM with local native attestation
         if: ${{ inputs.windows_attestor == 'native' }}
         env:
@@ -103,6 +111,12 @@ jobs:
           node-version: "22"
       - name: Require reproducible release dependency lock
         run: node -e "const fs=require('fs');if(!fs.existsSync('package-lock.json')){console.error('Physical release qualification requires a committed package-lock.json');process.exit(2)}"
+      - name: Preflight pinned macOS Secure Enclave qualification inputs
+        env:
+          CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE }}
+          CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256 }}
+          CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME }}
+        run: node scripts/physical-qualification-preflight.mjs --target=macos
       - name: Qualify physical macOS Secure Enclave
         env:
           CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
@@ -180,6 +194,11 @@ jobs:
         run: node -e "const fs=require('fs');if(!fs.existsSync('package-lock.json')){console.error('Physical release qualification requires a committed package-lock.json');process.exit(2)}"
       - name: Install locked workspace graph
         run: npm ci
+      - name: Preflight pinned Linux TPM2 qualification inputs
+        env:
+          CIEAV_LINUX_TPM2_PHYSICAL_CONFIG: ${{ vars.CIEAV_LINUX_TPM2_PHYSICAL_CONFIG }}
+          CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256: ${{ vars.CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256 }}
+        run: node scripts/physical-qualification-preflight.mjs --target=linux-tpm2
       - name: Qualify native Linux TPM2 EK/AK/measured-boot chain
         env:
           CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
