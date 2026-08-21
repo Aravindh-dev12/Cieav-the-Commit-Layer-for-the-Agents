@@ -18,7 +18,8 @@
     "test:core": "npm run test -w @cieav/core && npm run test -w @cieav/api",
     "test:agent-kernel": "npm run test -w @cieav/core -- agent-task.test.ts && npm run test -w @cieav/api -- agent-kernel.test.ts agent-kernel-api.test.ts",
     "test:ml-training": "node scripts/ml-training-architecture-static.mjs",
-    "test:boundaries": "node scripts/platform-boundary-static.mjs && node scripts/release-workflow-static.mjs && node scripts/production-qualification-static.mjs && npm run test:ml-training",
+    "test:physical-evidence": "node scripts/physical-qualification-evidence-smoke.mjs",
+    "test:boundaries": "node scripts/platform-boundary-static.mjs && node scripts/release-workflow-static.mjs && node scripts/production-qualification-static.mjs && npm run test:ml-training && npm run test:physical-evidence",
     "test:namespace": "node scripts/package-namespace-smoke.mjs && python scripts/python-namespace-smoke.py",
     "test:dashboard-reality": "node scripts/dashboard-reality-smoke.mjs",
     "test:adapters": "node scripts/adapter-registry-e2e.mjs",
@@ -65,6 +66,7 @@
     "release:qualify:layout": "node scripts/qualify-publish-layout.mjs",
     "release:qualify:installers": "node scripts/qualify-installers.mjs",
     "release:qualify:governance": "node scripts/repository-governance-check.mjs",
+    "release:qualify:physical": "node scripts/qualify-physical-evidence.mjs",
     "release:qualify:production": "node scripts/qualify-production.mjs",
     "release:qualify:current:publish": "node scripts/qualify-current-publish.mjs",
     "release:build:publish-layout": "node scripts/build-publish-layout.mjs"
