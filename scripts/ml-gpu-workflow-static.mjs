@@ -1,0 +1,13 @@
+#!/usr/bin/env node
+import {readFileSync} from "node:fs";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const workflow=readFileSync(path.join(ROOT,".github/workflows/ml-gpu-qualification.yml"),"utf8"),envq=readFileSync(path.join(ROOT,"ml/qualify_environment.py"),"utf8"),probe=readFileSync(path.join(ROOT,"ml/gpu_determinism_probe.py"),"utf8"),smoke=readFileSync(path.join(ROOT,"scripts/ml-reproducibility-smoke.py"),"utf8");
+const fail=m=>{console.error(`CIEAV ML GPU workflow gate FAIL: ${m}`);process.exit(2)},need=(text,tokens,label)=>{for(const t of tokens)if(!text.includes(t))fail(`${label} missing invariant: ${t}`)};
+need(workflow,["workflow_dispatch:","constraints_path:","require_scale:","github.ref == 'refs/heads/main'","startsWith(github.ref, 'refs/tags/cieav-v')","runs-on: [self-hosted, linux, cieav-release-hardware, cieav-ml-gpu]","contents: read","id-token: write","attestations: write","CUBLAS_WORKSPACE_CONFIG: ':4096:8'","PYTHONHASHSEED: '1729'","git ls-files --error-unmatch","exact package==version pin required","command -v nvidia-smi","torch.cuda.is_available()","ml/qualify_environment.py","--require-cuda","ml/gpu_determinism_probe.py","actions/attest@v4","subject-path: 'release/reports/ml/*.json'","actions/upload-artifact@v4","name: ml-gpu-qualification","git clean -ffdx"],"GPU qualification workflow");
+if(/pip\s+install|python\s+-m\s+pip\s+install|conda\s+install|uv\s+pip\s+install/i.test(workflow))fail("GPU qualification workflow must not mutate/install the qualified ML environment");
+need(envq,["CUBLAS_DETERMINISTIC_CONFIGS",'":4096:8"','":16:8"',"CUDA qualification requires deterministic CUBLAS_WORKSPACE_CONFIG","cublasWorkspaceConfig","torch.use_deterministic_algorithms(True, warn_only=False)","torch.backends.cudnn.benchmark = False","exact-qualified-software-and-hardware-environment"],"ML environment qualifier");
+need(probe,["CIEAV_ML_GPU_DETERMINISM_PROBE_V1","torch.mm","F.conv2d","CUDA deterministic probe produced byte-different outputs","environment manifest is not bound to current head with CUDA required","deterministic CUBLAS_WORKSPACE_CONFIG mismatch","authority","QUALIFIED","reproducibilityScope"],"GPU determinism probe");
+need(smoke,["CUBLAS_WORKSPACE_CONFIG","deterministic PyTorch/cuBLAS settings","CUDA qualification fail-closed","authority=false"],"ML reproducibility smoke");
+console.log("CIEAV ML GPU workflow gate PASS - self-hosted exact-pinned no-install CUDA environment + deterministic cuBLAS/PyTorch probe + exact-head GitHub attestation enforced");
