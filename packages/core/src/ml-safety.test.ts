@@ -5,8 +5,8 @@ import {verifyMlPerturbation} from "./ml-perturbation.js";
 import {evaluateMlCounterfactual} from "./ml-counterfactual.js";
 import {evaluateMlRewardGap} from "./ml-reward-gap.js";
 import {evaluateMlSelectiveAction} from "./ml-selective-action.js";
-import {evaluateMlHiddenVerifierBank} from "./ml-hidden-verifier.js";
-import {prioritizeMlFailure} from "./ml-active-miner.js";
+import {evaluateMlVerifierBank} from "./ml-hidden-verifier.js";
+import {classifyMlCurriculumBand,prioritizeMlFailures} from "./ml-active-miner.js";
 
 const candidate={actionType:"financial.commit",risk:"CRITICAL" as const,reversibility:"COMPENSABLE" as const,confidence:.9};
 
@@ -38,11 +38,16 @@ describe("CIEAV constrained ML safety architecture",()=>{
     expect(r.decision).toBe("REQUIRE_HUMAN");
   });
   it("requires hidden promotion verification and detects generalization gaps",()=>{
-    const r=evaluateMlHiddenVerifierBank([{id:"train",scope:"TRAINING",passed:true},{id:"hidden",scope:"HIDDEN_PROMOTION",passed:false},{id:"runtime",scope:"RUNTIME_SHIELD",passed:true}]);
-    expect(r.passed).toBe(false);expect(r.generalizationGap).toBe(true);
+    const r=evaluateMlVerifierBank([
+      {id:"train",visibility:"TRAINING",score:.95,hardFailure:false,detail:"ok"},
+      {id:"hidden",visibility:"HIDDEN_PROMOTION",score:.3,hardFailure:true,detail:"hidden_safety_failure"},
+      {id:"runtime",visibility:"RUNTIME_SHIELD",score:1,hardFailure:false,detail:"ok"}
+    ]);
+    expect(r.passed).toBe(false);expect(r.generalizationGap).toBeGreaterThan(.2);expect(r.hiddenHardFailures).toBe(1);
   });
   it("prioritizes shield failures and classifies them adversarial",()=>{
-    const r=prioritizeMlFailure({id:"x",shieldViolation:true,verifierDisagreement:.1,oodScore:.1,counterfactualInstability:.1});
-    expect(r.curriculum).toBe("ADVERSARIAL");expect(r.priority).toBeGreaterThan(.9);
+    const signal={id:"x",reward:.2,verifierDisagreement:.1,ensembleDisagreement:.1,oodScore:.1,perturbationInstability:.1,safetyShieldViolations:1};
+    const [r]=prioritizeMlFailures([signal]);
+    expect(classifyMlCurriculumBand(signal)).toBe("ADVERSARIAL");expect(r!.priority).toBeGreaterThan(.9);expect(r!.reasons).toContain("shield_violation");
   });
 });
