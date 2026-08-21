@@ -1,10 +1,10 @@
 const MAX_MESSAGE_BYTES=32*1024*1024;
 
 export class CDPPipe{
-  constructor(readable,writable,{timeoutMs=12_000,firstCommandTimeoutMs=30_000}={}){
+  constructor(readable,writable,{timeoutMs=12_000,firstCommandTimeoutMs=30_000,firstCommandRetries=1}={}){
     if(!readable||typeof readable.on!=="function"||!writable||typeof writable.write!=="function")throw new Error("CDP pipe requires readable and writable streams");
-    if(!Number.isFinite(timeoutMs)||timeoutMs<=0||!Number.isFinite(firstCommandTimeoutMs)||firstCommandTimeoutMs<timeoutMs)throw new Error("CDP pipe timeout policy is invalid");
-    this.readable=readable;this.writable=writable;this.timeoutMs=timeoutMs;this.firstCommandTimeoutMs=firstCommandTimeoutMs;this.nextId=0;this.pending=new Map();this.listeners=new Set();this.buffer=Buffer.alloc(0);this.closed=false;
+    if(!Number.isFinite(timeoutMs)||timeoutMs<=0||!Number.isFinite(firstCommandTimeoutMs)||firstCommandTimeoutMs<timeoutMs||!Number.isInteger(firstCommandRetries)||firstCommandRetries<0||firstCommandRetries>2)throw new Error("CDP pipe timeout policy is invalid");
+    this.readable=readable;this.writable=writable;this.timeoutMs=timeoutMs;this.firstCommandTimeoutMs=firstCommandTimeoutMs;this.firstCommandRetries=firstCommandRetries;this.nextId=0;this.pending=new Map();this.listeners=new Set();this.buffer=Buffer.alloc(0);this.closed=false;this.firstCommandSettled=false;
     readable.on("data",chunk=>this._data(chunk));
     readable.on("error",err=>this._close(err));
     readable.on("end",()=>this._close(new Error("CDP pipe ended")));
@@ -33,16 +33,25 @@ export class CDPPipe{
     for(const pending of this.pending.values()){clearTimeout(pending.timer);pending.reject(error)}this.pending.clear();
   }
   on(listener){this.listeners.add(listener);return()=>this.listeners.delete(listener)}
-  send(method,params={},sessionId){
+  _sendOnce(method,params={},sessionId,{startup=false}={}){
     if(this.closed)return Promise.reject(new Error("CDP pipe is closed"));
     const id=++this.nextId,msg={id,method,params};if(sessionId)msg.sessionId=sessionId;
     return new Promise((resolve,reject)=>{
-      const timeoutMs=id===1?this.firstCommandTimeoutMs:this.timeoutMs;
+      const timeoutMs=startup?this.firstCommandTimeoutMs:this.timeoutMs;
       const timer=setTimeout(()=>{if(this.pending.delete(id))reject(new Error(`CDP timeout: ${method}`))},timeoutMs);
       this.pending.set(id,{resolve,reject,timer});
       const data=Buffer.from(JSON.stringify(msg)+"\0","utf8");
       this.writable.write(data,err=>{if(err){const pending=this.pending.get(id);if(pending){this.pending.delete(id);clearTimeout(timer);pending.reject(err)}}});
     });
+  }
+  async send(method,params={},sessionId){
+    const startup=!this.firstCommandSettled&&this.nextId===0;
+    if(!startup)return this._sendOnce(method,params,sessionId);
+    let last;
+    for(let attempt=0;attempt<=this.firstCommandRetries;attempt++){
+      try{const value=await this._sendOnce(method,params,sessionId,{startup:true});this.firstCommandSettled=true;return value}catch(err){last=err;if(this.closed||!String(err?.message??err).startsWith("CDP timeout:")||attempt>=this.firstCommandRetries)break}
+    }
+    throw last??new Error(`CDP startup command failed: ${method}`);
   }
   session(sessionId){return new CDPSession(this,sessionId)}
   close(){if(this.closed)return;this._close();try{this.writable.end?.()}catch{}try{this.readable.destroy?.()}catch{}}
