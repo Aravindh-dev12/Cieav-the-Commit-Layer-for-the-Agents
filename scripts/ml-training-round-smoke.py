@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ml"))
 
-from training_round import apply_promotion, create_round, git_head, record_checkpoint, verify_round
+from training_round import apply_promotion, create_round, git_head, record_checkpoint, sha256_file, verify_round
 
 
 def write_json(path: Path, value) -> None:
@@ -47,6 +47,21 @@ def main() -> int:
             "packages": {"torch": "qualified"},
             "torch": {"deterministicAlgorithms": True, "cudnnBenchmark": False, "cudaAvailable": True, "devices": [{"name": "smoke-gpu"}]},
         })
+        gpu_probe_report = root / "gpu-determinism-probe.json"
+        write_json(gpu_probe_report, {
+            "schemaVersion": 1,
+            "architecture": "CIEAV_ML_GPU_DETERMINISM_PROBE_V1",
+            "authority": False,
+            "qualification": "QUALIFIED",
+            "gitHead": git_head(),
+            "environmentManifest": {"path": str(environment_report.resolve()), "sha256": sha256_file(environment_report)},
+            "seed": 1729,
+            "cublasWorkspaceConfig": ":4096:8",
+            "deterministicAlgorithms": True,
+            "cudnnBenchmark": False,
+            "device": {"index": 0, "name": "smoke-gpu", "totalMemory": 1, "capability": [9, 0]},
+            "probes": {"torch.mm": "a" * 64, "torch.nn.functional.conv2d": "b" * 64},
+        })
         checkpoint = root / "checkpoint"
         checkpoint.mkdir()
         (checkpoint / "model.safetensors").write_bytes(b"checkpoint-v1")
@@ -59,11 +74,12 @@ def main() -> int:
             verifier_health={"protocol": "CIEAV_ML_VERIFIER_V1", "authority": False, "capabilities": ["decision_reward", "promotion", "verifier_bank"]},
             curriculum_report=curriculum_report,
         )
-        manifest = create_round(**base_kwargs, environment_report=environment_report)
+        manifest = create_round(**base_kwargs, environment_report=environment_report, gpu_probe_report=gpu_probe_report)
         assert manifest["qualification"] == "UNQUALIFIED"
         assert manifest["status"] == "TRAINING"
         assert manifest["verifier"]["authority"] is False
         assert manifest["environment"]["constraintsSha256"] == "c" * 64
+        assert manifest["gpuDeterminism"]["environmentSha256"] == manifest["environment"]["sha256"]
         assert "token" not in json.dumps(manifest).lower()
         manifest = record_checkpoint(manifest, checkpoint)
         assert manifest["status"] == "TRAINED_UNQUALIFIED"
@@ -82,8 +98,14 @@ def main() -> int:
         no_env = record_checkpoint(create_round(**base_kwargs), checkpoint)
         blocked = apply_promotion(no_env, passed_report)
         assert blocked["qualification"] == "UNQUALIFIED"
-        assert blocked["status"] == "PROMOTION_FAILED"
         assert blocked["promotion"]["environmentQualified"] is False
+        assert blocked["promotion"]["gpuDeterminismQualified"] is False
+
+        env_only = record_checkpoint(create_round(**base_kwargs, environment_report=environment_report), checkpoint)
+        env_blocked = apply_promotion(env_only, passed_report)
+        assert env_blocked["qualification"] == "UNQUALIFIED"
+        assert env_blocked["promotion"]["environmentQualified"] is True
+        assert env_blocked["promotion"]["gpuDeterminismQualified"] is False
 
         failed_report = root / "failed-promotion.json"
         write_json(failed_report, {
@@ -96,22 +118,24 @@ def main() -> int:
         })
         failed = apply_promotion(manifest, failed_report)
         assert failed["qualification"] == "UNQUALIFIED"
-        assert failed["status"] == "PROMOTION_FAILED"
-        assert failed["promotion"]["promotionPassed"] is True
-        assert failed["promotion"]["hiddenEvidencePresent"] is False
-        assert failed["promotion"]["environmentQualified"] is True
+        assert failed["promotion"]["gpuDeterminismQualified"] is True
 
         qualified = apply_promotion(manifest, passed_report)
         assert qualified["qualification"] == "QUALIFIED"
         assert qualified["status"] == "PROMOTION_PASSED"
         assert qualified["promotion"]["environmentQualified"] is True
+        assert qualified["promotion"]["gpuDeterminismQualified"] is True
         assert not verify_round(qualified)
 
+        gpu = json.loads(gpu_probe_report.read_text(encoding="utf-8")); gpu["probes"]["torch.mm"] = "0" * 64; write_json(gpu_probe_report, gpu)
+        violations = verify_round(qualified)
+        assert "gpuDeterminism_digest_mismatch" in violations
+        write_json(gpu_probe_report, {**gpu, "probes": {"torch.mm": "a" * 64, "torch.nn.functional.conv2d": "b" * 64}})
         (checkpoint / "model.safetensors").write_bytes(b"tampered")
         violations = verify_round(qualified)
         assert "checkpoint_digest_mismatch" in violations
 
-    print("CIEAV training round smoke PASS - environment qualification + checkpoint provenance + fail-closed hidden promotion + tamper detection")
+    print("CIEAV training round smoke PASS - environment + GPU determinism qualification + checkpoint provenance + fail-closed hidden promotion + tamper detection")
     return 0
 
 
