@@ -15,6 +15,25 @@ Windows exposes separate platform-attestation evidence for PCR state. Microsoft 
 
 CIEAV must therefore treat key attestation and measured-boot/platform-state attestation as two evidence classes.
 
+## Research status — 2026-08-21
+
+The current research pass established the following implementation facts before production collector code is allowed to emit measured-boot evidence:
+
+1. Microsoft documents the Azure TPM/VBS `current_claim` as the result of `NCryptCreateClaim` with `dwClaimType = NCRYPT_CLAIM_PLATFORM`, `NCRYPTBUFFER_TPM_PLATFORM_CLAIM_PCR_MASK`, and the service challenge included in the claim computation.
+2. Microsoft documents the corresponding `boot_claim` as a platform claim for PCR state at boot without the current challenge freshness semantics.
+3. Current Windows SDK metadata defines `NCRYPTBUFFER_TPM_PLATFORM_CLAIM_PCR_MASK = 80`, `NCRYPTBUFFER_TPM_PLATFORM_CLAIM_NONCE = 81`, and `NCRYPTBUFFER_TPM_PLATFORM_CLAIM_STATIC_CREATE = 82`.
+4. Current Windows SDK metadata defines `NCRYPT_TPM_PLATFORM_ATTESTATION_STATEMENT` as exactly six 32-bit fields: `Magic`, `Version`, `pcrAlg`, `cbSignature`, `cbQuote`, and `cbPcrs`.
+5. The SDK platform-attestation magic is `NCRYPT_PLATFORM_ATTEST_MAGIC = 0x44504150`; the statement version is `0`.
+6. `Tbsi_Get_TCG_Log_Ex(TBS_TCGLOG_SRTM_CURRENT)` returns the WBCL associated with PCR 0-15 for the current boot/resume session. `TBS_TCGLOG_SRTM_BOOT` returns the most recent clean-boot SRTM log.
+7. Microsoft documents that a crypto-agile WBCL starts with a legacy-format event whose event data has the null-terminated `Spec ID Event03` signature and algorithm/digest-size table. Subsequent events are TCG PCR Event2 records.
+8. Microsoft's open TSS.MSR WBCL parser bounds the number of digests, validates descriptor/event lengths, selects SHA-256 when present, and reconstructs software PCR values from the event log. CIEAV independently implements the same security properties rather than importing that code.
+9. The public `NCryptCreateClaim` documentation does not specify the exact subject/authority handle pairing required for `NCRYPT_CLAIM_PLATFORM`. CIEAV therefore will not guess this contract in production code.
+10. A separate read-only diagnostic probe now exists to test plausible handle combinations on the physical TPM. It does not create/delete/finalize keys and cannot emit measured-boot `VERIFIED`.
+
+The current TypeScript module `apps/api/src/windows-tpm-measured-boot.ts` implements strict platform-statement parsing, strict TCG2/WBCL parsing, SHA-bank PCR replay, and selected-PCR digest omission failure. Its focused tests exercise malformed magic/version, truncation, duplicate algorithms, forged digest sizes, undeclared/duplicate event digest algorithms, selected-bank omission, invalid masks and incomplete PCR tables.
+
+The diagnostic executable lives in `native/windows-tpm-measured-boot-probe`. It intentionally leaves the already physically qualified native key-attestation bridge unchanged, because changing those bytes would invalidate the recorded key-attestation qualification hash.
+
 ## Required evidence
 
 The future local measured-boot lane must collect, at minimum:
@@ -79,6 +98,21 @@ Required parser properties:
 - no use of event display strings as trust decisions without validating the corresponding measured digest/event semantics.
 
 Fuzz/property tests should exercise the parser before it is used in the production qualification gate.
+
+## Diagnostic hardware probe
+
+The diagnostic measured-boot probe is intentionally read-only. It:
+
+- opens the existing AIK through `Microsoft Platform Crypto Provider`;
+- requires the provider to report hardware implementation without software implementation;
+- generates a fresh 32-byte nonce;
+- requests an SRTM PCR mask of `0x0000FFFF` (PCR 0-15);
+- probes `Tbsi_Get_TCG_Log_Ex` for both current and clean-boot SRTM WBCLs;
+- performs only size-query `NCryptCreateClaim` calls for three plausible subject/authority handle combinations;
+- reports raw Windows status codes and required claim sizes;
+- never creates, finalizes, rotates or deletes TPM keys.
+
+The output is discovery evidence only. A successful combination must still be implemented as a pinned collector and followed by independent quote signature, nonce, PCR selection and WBCL replay verification before measured boot can be `VERIFIED`.
 
 ## Release policy
 
