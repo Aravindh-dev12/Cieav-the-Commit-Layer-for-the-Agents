@@ -78,3 +78,9 @@ class CieavVerifierClient:
         if not isinstance(priorities, list):
             raise VerifierError("CIEAV failure-priority response is invalid")
         return priorities
+
+    def verify_perturbations(self, rows: list[dict[str, Any]]) -> dict[str, Any]:
+        value = self._request("/v1/perturbations/verify", {"rows": rows})
+        if not isinstance(value.get("results"), list) or not isinstance(value.get("summary"), dict):
+            raise VerifierError("CIEAV perturbation response is invalid")
+        return value
