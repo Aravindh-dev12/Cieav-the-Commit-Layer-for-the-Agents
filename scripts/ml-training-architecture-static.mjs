@@ -23,7 +23,7 @@ expect("ml/README.md",["Python = ML orchestration. Node/TypeScript = determinist
 expect("ml/dataset/build_from_evals.py",["train","validation","adversarial","promotion","critical_false_negative_is_hard_failure","unknown_must_not_be_claimed_success"]);
 expect("ml/train_trl.py",["SFTTrainer","DPOTrainer","KTOTrainer","GRPOTrainer","NodeVerifierProcess","CieavVerifierClient","--verifier-mode","verifier.score_decision"]);
 expect("ml/cieav_rlvr/verifier.py",["CieavVerifierClient","loopback-only","score_decision","score_trajectory","evaluate_promotion","authority"]);
-expect("ml/cieav_rlvr/node_runtime.py",["NodeVerifierProcess","127.0.0.1","CIEAV_ML_VERIFIER_TOKEN","CIEAV_GATEWAY_TOKEN","authority"]);
+expect("ml/cieav_rlvr/node_runtime.py",["NodeVerifierProcess","127.0.0.1","CIEAV_ML_VERIFIER_TOKEN","CIEAV_GATEWAY_TOKEN","packages","core","dist"]);
 expect("scripts/ml-python-node-smoke.py",["NodeVerifierProcess","authority","score_decision","Python↔Node RLVR boundary PASS"]);
 expect("ml/distill.py",["Sequence-distill","LoraConfig","SFTTrainer","UNQUALIFIED","promotion gate"]);
 expect("ml/requirements-scale.txt",["verl","ray","sglang"]);
