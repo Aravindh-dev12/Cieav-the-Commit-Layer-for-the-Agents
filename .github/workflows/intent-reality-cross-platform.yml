@@ -74,6 +74,8 @@ jobs:
         run: python scripts/ml-reproducibility-smoke.py
       - name: Verify physical qualification evidence contract
         run: node scripts/physical-qualification-evidence-smoke.mjs
+      - name: Verify physical evidence provenance policy
+        run: node scripts/physical-provenance-smoke.mjs
       - name: Verify private managed secret bootstrap
         run: node scripts/managed-secret-pipe-release.mjs
       - name: Verify Gateway credential and hardware lifecycle
