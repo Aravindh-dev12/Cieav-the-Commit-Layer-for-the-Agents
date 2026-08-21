@@ -74,15 +74,31 @@ def inspect_archive_names(archive: Path) -> list[str]:
     return sorted(set(bad))
 
 
+def archive_uncompressed_size(archive: Path) -> int:
+    with zipfile.ZipFile(archive) as zf:
+        return sum(info.file_size for info in zf.infolist() if not info.is_dir())
+
+
+def ensure_temp_space(archive: Path) -> dict[str, object]:
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    payload_bytes = archive_uncompressed_size(archive)
+    minimum = payload_bytes + max(64 * 1024 * 1024, payload_bytes // 10)
+    free = shutil.disk_usage(temp_root).free
+    if free < minimum:
+        raise SystemExit(
+            "Clean runtime qualification needs more temporary disk space: "
+            f"free={free / (1024**2):.1f} MiB, required≈{minimum / (1024**2):.1f} MiB, temp={temp_root}. "
+            "Free disk space or point TEMP/TMP at a drive with sufficient space before rerunning."
+        )
+    return {"tempRoot": str(temp_root), "freeBytesBefore": free, "minimumRequiredBytes": minimum, "archiveUncompressedBytes": payload_bytes}
+
+
 def check_windows_signature(path: Path, thumbprint: str | None) -> dict | None:
     if platform.system() != "Windows":
         return None
     ps = shutil.which("pwsh") or shutil.which("powershell")
     if not ps:
         raise RuntimeError("PowerShell is required to verify Windows Authenticode signatures")
-    # Windows PowerShell 5.1 does not reliably expose arguments placed after
-    # -Command through $args. Embed a single-quoted, escaped LiteralPath instead
-    # so verification works identically with powershell.exe and pwsh.
     literal_path = "'" + str(path).replace("'", "''") + "'"
     script = (
         f"$s=Get-AuthenticodeSignature -LiteralPath {literal_path};"
@@ -133,6 +149,7 @@ def main() -> None:
     bad_names = inspect_archive_names(archive)
     if bad_names:
         raise SystemExit("Release archive contains forbidden secret material: " + ", ".join(bad_names[:20]))
+    temp_space = ensure_temp_space(archive)
 
     git = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
     dirty = subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
@@ -140,7 +157,7 @@ def main() -> None:
         raise SystemExit("Clean runtime qualification requires a clean git worktree")
     package = json.loads((ROOT / "package.json").read_text("utf-8"))
 
-    checks: dict[str, object] = {}
+    checks: dict[str, object] = {"temporaryStorage": temp_space}
     with tempfile.TemporaryDirectory(prefix="cieav-clean-runtime-") as td:
         extract_root = Path(td) / "first-extract"
         with zipfile.ZipFile(archive) as zf:
@@ -195,14 +212,14 @@ def main() -> None:
         relocated_parent = Path(td) / "relocated" / "deep" / "path"
         relocated_parent.mkdir(parents=True)
         relocated = relocated_parent / "cieav-runtime"
-        shutil.copytree(runtime, relocated)
+        runtime.rename(relocated)
         relocated_exe = relocated / "bin" / exe.name
         executable(relocated_exe)
         run([str(relocated_exe), "--help"], cwd=relocated)
         checks["relocation"] = True
 
     evidence = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "product": "CIEAV",
         "version": package["version"],
         "mode": args.mode,

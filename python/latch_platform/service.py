@@ -239,7 +239,10 @@ def _delete_windows_registration() -> None:
 
 def _windows_gateway_health(settings: Settings) -> dict | None:
     try:
-        with urlopen(f"http://127.0.0.1:{settings.gateway_port}/health",timeout=.6) as response:
+        # Gateway /health can synchronously inspect the semantic child with a
+        # 1.5s inner timeout. Keep the outer Windows service probe above that
+        # bound so a live Gateway is not misclassified as offline.
+        with urlopen(f"http://127.0.0.1:{settings.gateway_port}/health",timeout=2.5) as response:
             raw=response.read(65537)
         if len(raw)>65536:return None
         value=json.loads(raw.decode("utf-8") or "{}")

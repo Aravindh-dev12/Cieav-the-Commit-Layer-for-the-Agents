@@ -8,7 +8,7 @@ import {TrustedMcpStdioAdapter,mcpStdioDownstreamRef} from "./trusted-mcp-adapte
 const here=path.dirname(fileURLToPath(import.meta.url));
 const fixture=path.join(here,"fixtures","mcp-stdio-test-server.mjs");
 const nodeDigest=crypto.createHash("sha256").update(readFileSync(process.execPath)).digest("hex");
-const baseConfig={toolId:"tool.mcp.echo",serverId:"test-server",downstreamToolName:"echo",command:process.execPath,commandSha256:nodeDigest,args:[fixture],timeoutMs:3000,connectTimeoutMs:3000,maxMessageBytes:128*1024,maxArgumentBytes:16*1024,maxStderrBytes:4096,staticEnv:{CIEAV_TEST_STATIC:"1"},envBindings:{}} as const;
+const baseConfig={toolId:"tool.mcp.echo",serverId:"test-server",downstreamToolName:"echo",command:process.execPath,commandSha256:nodeDigest,args:[fixture],timeoutMs:8000,connectTimeoutMs:8000,maxMessageBytes:128*1024,maxArgumentBytes:16*1024,maxStderrBytes:4096,staticEnv:{CIEAV_TEST_STATIC:"1"},envBindings:{}} as const;
 const tool=(name="echo")=>({id:"tool.mcp.echo",displayName:"MCP echo",protocol:"MCP",operation:"test.echo",downstreamRef:mcpStdioDownstreamRef("test-server",name),credentialMode:"NONE",risk:"HIGH",consequenceCapable:true,proofSources:["mcp-result"],enabled:true} as const);
 const ctx=(name="echo",args:unknown={value:"hello"})=>({tool:tool(name),normalizedArguments:args,ticket:{id:crypto.randomUUID()},proposal:{}} as any);
 

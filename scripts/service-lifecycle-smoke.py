@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import platform
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -91,6 +92,20 @@ def wait_active(exe:Path,runtime:Path,env:dict[str,str],expected:bool,timeout:fl
     raise RuntimeError(f"Gateway service active={expected} was not observed before timeout; last={json.dumps(last)[:1800]}")
 
 
+def force_cleanup_windows_test_process(exe:Path)->None:
+    if platform.system()!="Windows":return
+    ps=shutil.which("powershell") or shutil.which("pwsh")
+    if not ps:return
+    target=str(exe.resolve()).replace("'","''")
+    script=(
+        f"$target='{target}'; "
+        "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and "
+        "[string]::Equals($_.ExecutablePath,$target,[System.StringComparison]::OrdinalIgnoreCase) } | "
+        "ForEach-Object { taskkill /PID $_.ProcessId /T /F | Out-Null }"
+    )
+    subprocess.run([ps,"-NoProfile","-NonInteractive","-Command",script],capture_output=True,text=True,timeout=20,check=False)
+
+
 def main()->None:
     ap=argparse.ArgumentParser(description="Exercise the packaged CIEAV per-user OS service lifecycle on a clean test account")
     ap.add_argument("--archive",type=Path)
@@ -128,7 +143,12 @@ def main()->None:
             if service_present():raise RuntimeError("Gateway service still exists after uninstall")
             post=status_payload(exe,runtime,env);checks["uninstall"]=not bool(post.get("service",{}).get("installed"))
         finally:
-            if installed or service_present():subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=30)
+            if installed or service_present():
+                subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=30)
+            force_cleanup_windows_test_process(exe)
+            if service_present():
+                subprocess.run([str(exe),"gateway","uninstall"],cwd=runtime,env=env,capture_output=True,text=True,timeout=30)
+            force_cleanup_windows_test_process(exe)
         if service_present():raise RuntimeError("cleanup failed: CIEAV service still present")
         checks["cleanup"]=True
     evidence={"schemaVersion":1,"product":"CIEAV","version":package["version"],"mode":args.mode,"target":target,"commit":commit,"archive":archive_identity,"verifiedAt":__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),"checks":checks}

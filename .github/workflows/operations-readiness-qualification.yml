@@ -1,0 +1,127 @@
+name: operations-readiness-qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      exercise_commit:
+        description: Exact CIEAV Git commit exercised
+        required: true
+        type: string
+      exercise_version:
+        description: Exact CIEAV version exercised
+        required: true
+        type: string
+      operator:
+        description: Responsible production exercise operator
+        required: true
+        type: string
+      organization:
+        description: Production operating organization
+        required: true
+        type: string
+      environment:
+        description: Production or production-equivalent environment exercised
+        required: true
+        type: string
+      report_url:
+        description: Clean public HTTPS URL of immutable operations exercise report
+        required: true
+        type: string
+      report_sha256:
+        description: SHA-256 of operations exercise report
+        required: true
+        type: string
+      declared_rto_minutes:
+        description: Declared recovery-time objective in minutes
+        required: true
+        type: string
+      measured_rto_minutes:
+        description: Measured recovery time in minutes
+        required: true
+        type: string
+      declared_rpo_minutes:
+        description: Declared recovery-point objective in minutes
+        required: true
+        type: string
+      measured_rpo_minutes:
+        description: Measured recoverable-data gap in minutes
+        required: true
+        type: string
+      cloud_recovery_confirmed:
+        required: true
+        default: false
+        type: boolean
+      cdn_restore_confirmed:
+        required: true
+        default: false
+        type: boolean
+      backup_restore_confirmed:
+        required: true
+        default: false
+        type: boolean
+      secret_rotation_confirmed:
+        required: true
+        default: false
+        type: boolean
+      alerting_confirmed:
+        required: true
+        default: false
+        type: boolean
+      public_requalification_confirmed:
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: operations-readiness-qualification-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-operations:
+    if: ${{ github.ref == 'refs/heads/main' && inputs.cloud_recovery_confirmed && inputs.cdn_restore_confirmed && inputs.backup_restore_confirmed && inputs.secret_rotation_confirmed && inputs.alerting_confirmed && inputs.public_requalification_confirmed }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CIEAV_OPS_EXERCISE_COMMIT: ${{ inputs.exercise_commit }}
+      CIEAV_OPS_EXERCISE_VERSION: ${{ inputs.exercise_version }}
+      CIEAV_OPS_EXERCISE_OPERATOR: ${{ inputs.operator }}
+      CIEAV_OPS_EXERCISE_ORGANIZATION: ${{ inputs.organization }}
+      CIEAV_OPS_EXERCISE_ENVIRONMENT: ${{ inputs.environment }}
+      CIEAV_OPS_EXERCISE_REPORT_URL: ${{ inputs.report_url }}
+      CIEAV_OPS_EXERCISE_REPORT_SHA256: ${{ inputs.report_sha256 }}
+      CIEAV_OPS_DECLARED_RTO_MINUTES: ${{ inputs.declared_rto_minutes }}
+      CIEAV_OPS_MEASURED_RTO_MINUTES: ${{ inputs.measured_rto_minutes }}
+      CIEAV_OPS_DECLARED_RPO_MINUTES: ${{ inputs.declared_rpo_minutes }}
+      CIEAV_OPS_MEASURED_RPO_MINUTES: ${{ inputs.measured_rpo_minutes }}
+      CIEAV_OPS_CLOUD_RECOVERY_CONFIRMED: 'true'
+      CIEAV_OPS_CDN_RESTORE_CONFIRMED: 'true'
+      CIEAV_OPS_BACKUP_RESTORE_CONFIRMED: 'true'
+      CIEAV_OPS_SECRET_ROTATION_CONFIRMED: 'true'
+      CIEAV_OPS_ALERTING_CONFIRMED: 'true'
+      CIEAV_OPS_PUBLIC_REQUALIFICATION_CONFIRMED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify real operations exercise and recovery objectives
+        run: node scripts/qualify-operations-readiness.mjs
+      - name: Attest production operations readiness evidence
+        uses: actions/attest@v4
+        with:
+          subject-path: release/reports/latest-operations-readiness.json
+      - name: Upload operations readiness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: operations-readiness-qualification
+          path: release/reports/latest-operations-readiness.json
+          if-no-files-found: error

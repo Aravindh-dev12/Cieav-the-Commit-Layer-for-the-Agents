@@ -74,7 +74,6 @@ def main() -> int:
                 assert "CIEAV_BROWSER_CONTROL_TOKEN" not in base_env
                 assert "LATCH_BROWSER_CONTROL_TOKEN" not in base_env
 
-            # The Node mediator receives one dedicated capability, but not Gateway/API/receipt secrets.
             dedicated="B"*64
             surface_env = gateway._surface_env(dedicated)
             for key in ("JWT_SECRET", "RECEIPT_SIGNING_SECRET", "CIEAV_GATEWAY_TOKEN", "LATCH_GATEWAY_TOKEN"):
@@ -84,19 +83,29 @@ def main() -> int:
             assert surface_env["CIEAV_REQUIRE_PRODUCTION_API"] == "1"
             assert surface_env["CIEAV_TEST_AUTO_APPROVE"] == "0"
 
+            # Semantic process environment carries no privileged secrets. Those are
+            # delivered once through the private child-stdin bootstrap pipe.
             semantic_env = gateway._semantic_env()
-            assert semantic_env["CIEAV_GATEWAY_TOKEN"] == gateway.token
-            assert "CIEAV_BROWSER_CONTROL_TOKEN" not in semantic_env
-            assert semantic_env["JWT_SECRET"] != semantic_env["RECEIPT_SIGNING_SECRET"]
-            assert len(semantic_env["JWT_SECRET"]) >= 32
-            assert len(semantic_env["RECEIPT_SIGNING_SECRET"]) >= 32
+            for key in ("CIEAV_GATEWAY_TOKEN", "LATCH_GATEWAY_TOKEN", "JWT_SECRET", "RECEIPT_SIGNING_SECRET", "CIEAV_BROWSER_CONTROL_TOKEN"):
+                assert key not in semantic_env
+            assert semantic_env["CIEAV_MANAGED_SECRET_PIPE"] == "1"
+            bootstrap = gateway._semantic_bootstrap()
+            try:
+                secret_payload = json.loads(bytes(bootstrap).decode("utf-8"))
+                assert secret_payload["gatewayToken"] == gateway.token
+                assert secret_payload["semanticRouterToken"] == gateway.semantic_router_token
+                assert secret_payload["jwtSecret"] != secret_payload["receiptSigningSecret"]
+                assert len(secret_payload["jwtSecret"]) >= 32
+                assert len(secret_payload["receiptSigningSecret"]) >= 32
+            finally:
+                bootstrap[:] = b"\0" * len(bootstrap)
         finally:
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)
 
     print("CIEAV control-plane smoke passed")
-    print("CIEAV Gateway/browser control authorities are separated")
+    print("CIEAV Gateway/browser/semantic authorities are separated; semantic secrets use private bootstrap")
     return 0
 
 

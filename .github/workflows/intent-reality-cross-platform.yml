@@ -27,6 +27,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Verify OS-backed root secret boundary
         run: node scripts/os-secret-root-release.mjs
       - name: Verify OpenClaw zero-dependency consumer boundary
@@ -51,8 +54,30 @@ jobs:
         run: node scripts/linux-pkcs11-release.mjs
       - name: Install workspaces
         run: npm ci
+      - name: Verify Linux TPM2 attestation foundation
+        run: node scripts/linux-tpm2-attestation-release.mjs
       - name: Build local authority packages
         run: npm run build:api
+      - name: Verify Python-Node RLVR boundary
+        run: python scripts/ml-python-node-smoke.py
+      - name: Verify RLVR rollout evaluation and mining
+        run: python scripts/ml-rollout-eval-smoke.py
+      - name: Verify RLVR curriculum mixing and fresh-rollout contract
+        run: python scripts/ml-curriculum-smoke.py
+      - name: Verify invariant reroll feedback into active mining
+        run: python scripts/ml-invariant-feedback-smoke.py
+      - name: Verify ML training round provenance and promotion binding
+        run: python scripts/ml-training-round-smoke.py
+      - name: Verify signed qualified-checkpoint release binding
+        run: node scripts/ml-release-binding-smoke.mjs
+      - name: Verify ML reproducibility and completion contracts
+        run: python scripts/ml-reproducibility-smoke.py
+      - name: Verify physical qualification preflight contract
+        run: node scripts/physical-qualification-preflight-smoke.mjs
+      - name: Verify physical qualification evidence contract
+        run: node scripts/physical-qualification-evidence-smoke.mjs
+      - name: Verify physical evidence provenance policy
+        run: node scripts/physical-provenance-smoke.mjs
       - name: Verify private managed secret bootstrap
         run: node scripts/managed-secret-pipe-release.mjs
       - name: Verify Gateway credential and hardware lifecycle

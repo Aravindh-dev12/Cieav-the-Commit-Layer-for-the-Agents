@@ -1,0 +1,16 @@
+import crypto from "node:crypto";
+import {describe,expect,it} from "vitest";
+import {HardwareKeyAttestationSchema} from "@cieav/contracts/hardware-key-provider";
+import {CieavSecureEnclaveAttestor,type SecureEnclaveBridgeRunner} from "./secure-enclave-attestation.js";
+
+const keyPair=()=>crypto.generateKeyPairSync("ec",{namedCurve:"P-256"});
+const publicJwk=(key:crypto.KeyObject)=>{const raw=key.export({format:"jwk"}) as JsonWebKey;if(!raw.x||!raw.y)throw new Error("P-256 fixture unavailable");return{kty:"EC" as const,crv:"P-256" as const,x:raw.x,y:raw.y}};
+const manifest={id:"mac-secure-enclave",version:1 as const,provider:"SECURE_ENCLAVE" as const,platform:"MACOS" as const,executablePath:"/Applications/CIEAV/cieav-macos-secure-enclave",executableSha256:"a".repeat(64),protocol:"CIEAV_KEY_PROVIDER_V1" as const,capabilities:["CREATE_P256","SIGN_ES256","ATTEST_KEY"] as const,allowedPurposes:["PROVIDER_SIGNING"] as const,providerLocator:"Security.framework",enabled:true,createdAt:new Date().toISOString()};
+
+function registry(){let persisted:any;return{value:()=>persisted,listManifests:async()=>[manifest],putAttestation:async(raw:unknown)=>(persisted=HardwareKeyAttestationSchema.parse(raw))} as any}
+function runnerFor(privateKey:crypto.KeyObject,jwk:ReturnType<typeof publicJwk>,tamper=false):SecureEnclaveBridgeRunner{return async(_executable,args)=>{if(args[0]==="probe")return{protocol:"CIEAV_KEY_PROVIDER_V1",provider:"SECURE_ENCLAVE",nativeProvider:"Security.framework Secure Enclave",available:true,hardwareBacked:true};if(args[0]==="describe")return{protocol:"CIEAV_KEY_PROVIDER_V1",operation:"describe",provider:"SECURE_ENCLAVE",algorithm:"ES256",keyName:args[1],hardwareBacked:true,exportable:false,publicJwk:jwk};if(args[0]==="sign-es256"){const digest=Buffer.from(args[2]!,"hex"),signature=tamper?crypto.randomBytes(64):crypto.sign(null,digest,{key:privateKey,dsaEncoding:"ieee-p1363"});return{protocol:"CIEAV_KEY_PROVIDER_V1",operation:"sign-es256",provider:"SECURE_ENCLAVE",keyName:args[1],signatureEncoding:"IEEE-P1363",signature:signature.toString("base64url")}}throw new Error("unexpected bridge operation")}}
+
+describe("CieavSecureEnclaveAttestor",()=>{
+  it("requires a fresh private-key proof before persisting local Secure Enclave assurance",async()=>{const {privateKey,publicKey}=keyPair(),jwk=publicJwk(publicKey),store=registry(),attestor=new CieavSecureEnclaveAttestor(store,runnerFor(privateKey,jwk),5000,"darwin"),result=await attestor.attest(manifest.id,"consequence",jwk);expect(result.attestation.verification).toBe("VERIFIED");expect(result.attestation.verificationScope).toBe("LOCAL_HOST");expect(result.attestation.keyProtection).toBe("SECURE_ENCLAVE");expect(result.attestation.platformState).toBe("KEY_ATTESTED");expect(result.attestation.assurance).toBe("HARDWARE_KEY");expect(store.value().id).toBe(result.attestation.id)});
+  it("rejects a describe-only key when the fresh proof is not signed by that key",async()=>{const {privateKey,publicKey}=keyPair(),jwk=publicJwk(publicKey),store=registry(),attestor=new CieavSecureEnclaveAttestor(store,runnerFor(privateKey,jwk,true),5000,"darwin");await expect(attestor.attest(manifest.id,"consequence",jwk)).rejects.toThrow("secure_enclave_attestor_proof_mismatch");expect(store.value()).toBeUndefined()});
+});

@@ -22,12 +22,18 @@ jobs:
         run: node scripts/os-secret-root-release.mjs
       - name: Verify physical release workflow boundary
         run: node scripts/physical-release-workflow-static.mjs
+      - name: Verify production qualification static contract
+        run: node scripts/production-qualification-static.mjs
+      - name: Verify production orchestration boundary
+        run: node scripts/production-orchestration-static.mjs
       - name: Verify OpenClaw zero-dependency consumer boundary
         run: node scripts/openclaw-no-deps-static.mjs
       - name: Verify Windows TPM/CNG native provider boundary
         run: node scripts/windows-tpm-cng-release.mjs
       - name: Verify live Windows TPM/MAA collector boundary
         run: node scripts/windows-tpm-maa-collector-release.mjs
+      - name: Verify Windows TPM native attestation boundary
+        run: node scripts/windows-tpm-native-attestation-release.mjs
       - name: Verify macOS Secure Enclave provider source boundary
         run: node scripts/macos-secure-enclave-release.mjs
       - name: Verify Linux PKCS11 provider boundary
@@ -80,12 +86,18 @@ jobs:
           node --check scripts/os-secret-root-release.mjs
           node --check scripts/managed-secret-pipe-release.mjs
           node --check scripts/physical-release-workflow-static.mjs
+          node --check scripts/production-orchestration-static.mjs
+          node --check scripts/production-release-preflight.mjs
+          node --check scripts/production-release-signing-bootstrap.mjs
           node --check scripts/openclaw-no-deps-static.mjs
           node --check scripts/windows-tpm-cng-release.mjs
           node --check scripts/windows-tpm-maa-collector-release.mjs
+          node --check scripts/windows-tpm-native-attestation-release.mjs
           node --check scripts/macos-secure-enclave-release.mjs
           node --check scripts/linux-pkcs11-release.mjs
+          node --check scripts/linux-tpm2-attestation-release.mjs
           node --check scripts/physical-hardware-qualification.mjs
+          node --check scripts/physical-windows-tpm-native-qualification.mjs
           node --check scripts/credential-hardware-admin-release.mjs
           node --check scripts/release-gate.mjs
           node --check scripts/agent-kernel-release.mjs
@@ -120,6 +132,8 @@ jobs:
           node scripts/browser-e2e.mjs
           node scripts/noinstall-selftest.mjs
       - run: npm ci
+      - name: Verify Linux TPM2 attestation foundation
+        run: node scripts/linux-tpm2-attestation-release.mjs
       - name: Audit Node dependency security
         run: |
           npm audit --omit=dev --audit-level=high

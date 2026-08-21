@@ -79,7 +79,11 @@ def render(src: Path, dst: Path, replacements: dict[str, str]) -> None:
     text=src.read_text("utf-8")
     for placeholder,value in replacements.items():
         if placeholder not in text: raise SystemExit(f"installer placeholder {placeholder} missing from {src}")
-        text=text.replace(placeholder,value)
+        # The first occurrence is the rendered binding. Later exact occurrences
+        # are fail-closed sentinel literals used by the installer to detect an
+        # unrendered template. Replacing every occurrence makes a correctly
+        # rendered value compare equal to its own sentinel and reject itself.
+        text=text.replace(placeholder,value,1)
     dst.parent.mkdir(parents=True,exist_ok=True);dst.write_text(text,"utf-8")
 
 

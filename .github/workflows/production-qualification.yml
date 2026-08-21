@@ -1,0 +1,234 @@
+name: production-qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_run_id:
+        description: Successful release-runtime run ID for this exact main commit
+        required: true
+        type: string
+      physical_run_id:
+        description: Successful physical-hardware-qualification target=all run ID for this exact main commit
+        required: true
+        type: string
+      ml_gpu_run_id:
+        description: Successful ml-gpu-qualification run ID for this exact main commit
+        required: true
+        type: string
+      installer_success_run_id:
+        description: Successful live-installer-qualification success run ID for this exact main commit
+        required: true
+        type: string
+      installer_rollback_run_id:
+        description: Successful live-installer-qualification rollback run ID for this exact main commit
+        required: true
+        type: string
+      public_deployment_run_id:
+        description: Successful public-deployment-qualification run ID for this exact main commit
+        required: true
+        type: string
+      supply_chain_run_id:
+        description: Successful supply-chain-qualification run ID for this exact main commit
+        required: true
+        type: string
+      security_review_run_id:
+        description: Successful security-review-qualification run ID for this exact main commit
+        required: true
+        type: string
+      operations_readiness_run_id:
+        description: Successful operations-readiness-qualification run ID for this exact main commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: production-qualification-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-production:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CIEAV_GITHUB_REPOSITORY: ${{ github.repository }}
+      CIEAV_WINDOWS_SIGNING_PROVIDER: ${{ vars.CIEAV_WINDOWS_SIGNING_PROVIDER || 'pfx' }}
+      CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_THUMBPRINT }}
+      CIEAV_WINDOWS_CODE_SIGN_SUBJECT: ${{ vars.CIEAV_WINDOWS_CODE_SIGN_SUBJECT }}
+      CIEAV_MACOS_SIGNING_IDENTITY: ${{ vars.CIEAV_MACOS_SIGNING_IDENTITY }}
+      CIEAV_RELEASE_SIGNING_KEY_ID: ${{ vars.CIEAV_RELEASE_SIGNING_KEY_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact successful source workflow runs
+        env:
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          PHYSICAL_RUN_ID: ${{ inputs.physical_run_id }}
+          ML_GPU_RUN_ID: ${{ inputs.ml_gpu_run_id }}
+          INSTALLER_SUCCESS_RUN_ID: ${{ inputs.installer_success_run_id }}
+          INSTALLER_ROLLBACK_RUN_ID: ${{ inputs.installer_rollback_run_id }}
+          PUBLIC_DEPLOYMENT_RUN_ID: ${{ inputs.public_deployment_run_id }}
+          SUPPLY_CHAIN_RUN_ID: ${{ inputs.supply_chain_run_id }}
+          SECURITY_REVIEW_RUN_ID: ${{ inputs.security_review_run_id }}
+          OPERATIONS_READINESS_RUN_ID: ${{ inputs.operations_readiness_run_id }}
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const {execFileSync}=require('child_process');
+          const expected=[
+            [process.env.RELEASE_RUN_ID,'.github/workflows/release-runtime.yml'],
+            [process.env.PHYSICAL_RUN_ID,'.github/workflows/physical-hardware-qualification.yml'],
+            [process.env.ML_GPU_RUN_ID,'.github/workflows/ml-gpu-qualification.yml'],
+            [process.env.INSTALLER_SUCCESS_RUN_ID,'.github/workflows/live-installer-qualification.yml'],
+            [process.env.INSTALLER_ROLLBACK_RUN_ID,'.github/workflows/live-installer-qualification.yml'],
+            [process.env.PUBLIC_DEPLOYMENT_RUN_ID,'.github/workflows/public-deployment-qualification.yml'],
+            [process.env.SUPPLY_CHAIN_RUN_ID,'.github/workflows/supply-chain-qualification.yml'],
+            [process.env.SECURITY_REVIEW_RUN_ID,'.github/workflows/security-review-qualification.yml'],
+            [process.env.OPERATIONS_READINESS_RUN_ID,'.github/workflows/operations-readiness-qualification.yml'],
+          ];
+          for(const [id,path] of expected){
+            if(!/^\d+$/.test(id||''))throw new Error(`invalid workflow run id: ${id}`);
+            const r=JSON.parse(execFileSync('gh',['api',`repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${id}`],{encoding:'utf8'}));
+            if(r.conclusion!=='success')throw new Error(`${path} run ${id} is not successful`);
+            if(r.head_sha!==process.env.GITHUB_SHA)throw new Error(`${path} run ${id} head ${r.head_sha} != ${process.env.GITHUB_SHA}`);
+            if(r.path!==path)throw new Error(`run ${id} came from ${r.path}, expected ${path}`);
+          }
+          console.log('CIEAV production source-run binding PASS - release + physical + GPU + installer success + installer rollback + public deployment + supply chain + independent security review + operations recovery exercise all match exact HEAD');
+          NODE
+      - name: Download raw publish qualification evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: qualification-evidence-*
+          path: release/reports
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.release_run_id }}
+      - name: Download exact signed publish layout
+        uses: actions/download-artifact@v4
+        with:
+          name: cieav-cdn-publish-layout
+          path: publish
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.release_run_id }}
+      - name: Download exact-head physical evidence set
+        uses: actions/download-artifact@v4
+        with:
+          name: physical-qualification-set
+          path: release/reports
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.physical_run_id }}
+      - name: Download exact-head real GPU evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: ml-gpu-qualification
+          path: release/reports/ml
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.ml_gpu_run_id }}
+      - name: Download live installer success evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: live-installer-success-*
+          path: release/reports
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.installer_success_run_id }}
+      - name: Download live installer rollback evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: live-installer-rollback-*
+          path: release/reports
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.installer_rollback_run_id }}
+      - name: Download public deployment evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: public-deployment-qualification
+          path: release/reports
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.public_deployment_run_id }}
+      - name: Download supply-chain evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: supply-chain-qualification
+          path: release/reports
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.supply_chain_run_id }}
+      - name: Download independent security review evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: security-review-qualification
+          path: release/reports
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.security_review_run_id }}
+      - name: Download operations recovery evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: operations-readiness-qualification
+          path: release/reports
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.operations_readiness_run_id }}
+      - name: Require raw evidence layout
+        shell: bash
+        run: |
+          test -f publish/install.ps1
+          test -f publish/install.sh
+          test -d release/reports/physical
+          test "$(find release/reports/physical -maxdepth 1 -type f -name '*.json' | wc -l)" -ge 3
+          test -f release/reports/ml/environment-qualification.json
+          test -f release/reports/ml/gpu-determinism-probe.json
+          test -f release/reports/latest-public-deployment-qualification.json
+          test -f release/reports/latest-supply-chain-qualification.json
+          test -f release/reports/cieav-sbom.cdx.json
+          test -f release/reports/latest-security-review-qualification.json
+          test -f release/reports/latest-operations-readiness.json
+          test "$(find release/reports -maxdepth 1 -type f -name 'cieav-installer-success-*.json' | wc -l)" -ge 3
+          test "$(find release/reports -maxdepth 1 -type f -name 'cieav-installer-rollback-*.json' | wc -l)" -ge 3
+      - name: Recompute final production qualification
+        run: npm run release:qualify:production
+      - name: Attest exact production qualification report
+        uses: actions/attest@v4
+        with:
+          subject-path: release/reports/latest-production-qualification.json
+      - name: Upload final production qualification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-qualification
+          path: |
+            release/reports/latest-production-qualification.json
+            release/reports/latest-production-qualification.txt
+            release/reports/latest-publish-qualification.json
+            release/reports/latest-publish-layout.json
+            release/reports/latest-installer-qualification.json
+            release/reports/latest-repository-governance.json
+            release/reports/latest-physical-qualification.json
+            release/reports/latest-physical-provenance.json
+            release/reports/latest-ml-gpu-qualification.json
+            release/reports/latest-public-deployment-qualification.json
+            release/reports/latest-supply-chain-qualification.json
+            release/reports/cieav-sbom.cdx.json
+            release/reports/latest-security-review-qualification.json
+            release/reports/latest-operations-readiness.json
+          if-no-files-found: error

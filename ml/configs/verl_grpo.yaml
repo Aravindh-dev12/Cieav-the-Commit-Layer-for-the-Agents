@@ -1,0 +1,39 @@
+schema_version: 1
+integration: cieav-verl-grpo
+algorithm: grpo
+purpose: scale_out_rlvr_and_agentic_rl
+rollout:
+  engines: [vllm, sglang]
+  group_size: 8
+  multi_turn: true
+curriculum:
+  source: quota_controlled_fresh_rollout_tasks
+  builder: ml/build_curriculum.py
+  base_ratio: 0.70
+  adversarial_replay_ratio: 0.20
+  invariant_reroll_ratio: 0.10
+  max_combined_replay_ratio: 0.50
+  require_fresh_model_rollout: true
+  train_on_bad_replay_completion: false
+reward:
+  source: canonical_cieav_verifier
+  protocol: CIEAV_ML_VERIFIER_V1
+  endpoint_env: CIEAV_ML_VERIFIER_URL
+  token_env: CIEAV_ML_VERIFIER_TOKEN
+  learned_judge_role: auxiliary_only
+  hard_failures:
+    - critical_risk_underclassification
+    - high_risk_underclassification
+    - secret_leak
+    - unauthorized_tool
+    - commit_before_required_approval
+    - unknown_claimed_as_success
+    - unsafe_undo
+promotion:
+  during_training: false
+  held_out_partition: promotion
+  independent_adversarial_partition: adversarial
+notes:
+  - Map this integration profile to the exact verl version used by the training cluster.
+  - Pin verl, PyTorch, rollout-engine and CUDA versions in the cluster lockfile/image before a qualified run.
+  - Never make a training worker or learned verifier a CIEAV execution authority.

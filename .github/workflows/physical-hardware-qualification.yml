@@ -13,16 +13,27 @@ on:
           - windows
           - macos
           - linux
+          - linux-tpm2
+      windows_attestor:
+        description: Windows TPM attestation backend
+        required: true
+        default: native
+        type: choice
+        options:
+          - native
+          - maa
 
 permissions:
   contents: read
+  id-token: write
+  attestations: write
 
 concurrency:
-  group: physical-hardware-qualification-${{ github.ref }}-${{ inputs.target }}
+  group: physical-hardware-qualification-${{ github.ref }}-${{ inputs.target }}-${{ inputs.windows_attestor }}
   cancel-in-progress: false
 
 jobs:
-  windows-tpm-maa:
+  windows-tpm-attestation:
     if: ${{ (inputs.target == 'all' || inputs.target == 'windows') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
     runs-on: [self-hosted, windows, cieav-release-hardware, cieav-windows-tpm]
     timeout-minutes: 30
@@ -42,7 +53,25 @@ jobs:
         run: |
           npm audit --omit=dev --audit-level=high
           npm audit --audit-level=critical
-      - name: Qualify physical Windows TPM and live MAA
+      - name: Preflight pinned Windows native qualification inputs
+        if: ${{ inputs.windows_attestor == 'native' }}
+        env:
+          CIEAV_WINDOWS_TPM_CNG_BRIDGE: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE }}
+          CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256 }}
+          CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG: ${{ vars.CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG }}
+          CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256: ${{ vars.CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256 }}
+        run: node scripts/physical-qualification-preflight.mjs --target=windows-native
+      - name: Qualify physical Windows TPM with local native attestation
+        if: ${{ inputs.windows_attestor == 'native' }}
+        env:
+          CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
+          CIEAV_WINDOWS_TPM_CNG_BRIDGE: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE }}
+          CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256 }}
+          CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG: ${{ vars.CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG }}
+          CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256: ${{ vars.CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256 }}
+        run: node scripts/physical-windows-tpm-native-qualification.mjs
+      - name: Qualify physical Windows TPM with live Microsoft Azure Attestation
+        if: ${{ inputs.windows_attestor == 'maa' }}
         env:
           CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
           CIEAV_WINDOWS_TPM_CNG_BRIDGE: ${{ vars.CIEAV_WINDOWS_TPM_CNG_BRIDGE }}
@@ -53,6 +82,15 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_SECRET }}
         run: node scripts/physical-hardware-qualification.mjs
+      - name: Attest Windows physical evidence provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/physical/*.json'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: physical-qualification-windows
+          path: release/reports/physical/*.json
+          if-no-files-found: error
       - name: Scrub release worktree
         if: ${{ always() }}
         run: |
@@ -73,6 +111,12 @@ jobs:
           node-version: "22"
       - name: Require reproducible release dependency lock
         run: node -e "const fs=require('fs');if(!fs.existsSync('package-lock.json')){console.error('Physical release qualification requires a committed package-lock.json');process.exit(2)}"
+      - name: Preflight pinned macOS Secure Enclave qualification inputs
+        env:
+          CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE }}
+          CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256 }}
+          CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME }}
+        run: node scripts/physical-qualification-preflight.mjs --target=macos
       - name: Qualify physical macOS Secure Enclave
         env:
           CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
@@ -80,6 +124,15 @@ jobs:
           CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256 }}
           CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME }}
         run: node scripts/physical-hardware-qualification.mjs
+      - name: Attest macOS physical evidence provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/physical/*.json'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: physical-qualification-macos
+          path: release/reports/physical/*.json
+          if-no-files-found: error
       - name: Scrub release worktree
         if: ${{ always() }}
         run: |
@@ -87,7 +140,7 @@ jobs:
           git clean -ffdx
 
   linux-pkcs11:
-    if: ${{ (inputs.target == 'all' || inputs.target == 'linux') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
+    if: ${{ inputs.target == 'linux' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
     runs-on: [self-hosted, linux, cieav-release-hardware, cieav-linux-hsm]
     timeout-minutes: 20
     steps:
@@ -110,8 +163,100 @@ jobs:
           CIEAV_LINUX_ATTESTATION_PUBLIC_KEY: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY }}
           CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256 }}
         run: node scripts/physical-hardware-qualification.mjs
+      - name: Attest Linux PKCS11 physical evidence provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/physical/*.json'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: physical-qualification-linux-pkcs11
+          path: release/reports/physical/*.json
+          if-no-files-found: error
       - name: Scrub release worktree
         if: ${{ always() }}
         run: |
           git reset --hard HEAD
           git clean -ffdx
+
+  linux-tpm2:
+    if: ${{ (inputs.target == 'all' || inputs.target == 'linux-tpm2') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
+    runs-on: [self-hosted, linux, cieav-release-hardware, cieav-linux-tpm2]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Require reproducible release dependency lock
+        run: node -e "const fs=require('fs');if(!fs.existsSync('package-lock.json')){console.error('Physical release qualification requires a committed package-lock.json');process.exit(2)}"
+      - name: Install locked workspace graph
+        run: npm ci
+      - name: Preflight pinned Linux TPM2 qualification inputs
+        env:
+          CIEAV_LINUX_TPM2_PHYSICAL_CONFIG: ${{ vars.CIEAV_LINUX_TPM2_PHYSICAL_CONFIG }}
+          CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256: ${{ vars.CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256 }}
+        run: node scripts/physical-qualification-preflight.mjs --target=linux-tpm2
+      - name: Qualify native Linux TPM2 EK/AK/measured-boot chain
+        env:
+          CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: "1"
+          CIEAV_LINUX_TPM2_PHYSICAL_CONFIG: ${{ vars.CIEAV_LINUX_TPM2_PHYSICAL_CONFIG }}
+          CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256: ${{ vars.CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256 }}
+        run: node scripts/physical-linux-tpm2-qualification.mjs
+      - name: Attest Linux TPM2 physical evidence provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/physical/*.json'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: physical-qualification-linux-tpm2
+          path: release/reports/physical/*.json
+          if-no-files-found: error
+      - name: Scrub release worktree
+        if: ${{ always() }}
+        run: |
+          git reset --hard HEAD
+          git clean -ffdx
+
+  physical-evidence-set:
+    if: ${{ inputs.target == 'all' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
+    needs: [windows-tpm-attestation, macos-secure-enclave, linux-tpm2]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Download physical platform evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: physical-qualification-*
+          path: release/reports/physical
+          merge-multiple: true
+      - name: Qualify exact-head physical evidence set
+        run: node scripts/qualify-physical-evidence.mjs
+      - name: Verify GitHub provenance for selected physical evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CIEAV_GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/verify-physical-provenance.mjs
+      - name: Attest aggregate physical qualification reports
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/latest-physical-*.json'
+      - name: Upload verified physical qualification set
+        uses: actions/upload-artifact@v4
+        with:
+          name: physical-qualification-set
+          path: |
+            release/reports/physical/*.json
+            release/reports/latest-physical-qualification.json
+            release/reports/latest-physical-qualification.txt
+            release/reports/latest-physical-provenance.json
+          if-no-files-found: error

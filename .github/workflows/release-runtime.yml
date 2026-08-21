@@ -23,6 +23,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  attestations: write
 
 jobs:
   build-runtime:
@@ -196,6 +197,10 @@ jobs:
       - name: Qualify current publish target
         shell: bash
         run: node scripts/qualify-publish-candidate.mjs --require '${{ matrix.target }}'
+      - name: Attest qualified runtime build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release-out/cieav-runtime-*.zip'
       - uses: actions/upload-artifact@v4
         with: {name: 'runtime-${{ steps.identity.outputs.key }}', path: 'release-out/*', if-no-files-found: error}
       - uses: actions/upload-artifact@v4

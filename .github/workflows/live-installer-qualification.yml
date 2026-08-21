@@ -1,0 +1,110 @@
+name: live-installer-qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_run_id:
+        description: Successful release-runtime run ID for this exact main commit
+        required: true
+        type: string
+      scenario:
+        description: Live installer qualification scenario
+        required: true
+        default: success
+        type: choice
+        options:
+          - success
+          - rollback
+      rollback_cloud_outage_confirmed:
+        description: For rollback only: confirm the installer-pinned Cloud endpoint is intentionally unavailable after CDN verification
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: live-installer-qualification-${{ github.sha }}-${{ inputs.scenario }}
+  cancel-in-progress: false
+
+jobs:
+  verify-source:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
+      - name: Require explicit rollback outage confirmation
+        if: ${{ inputs.scenario == 'rollback' }}
+        shell: bash
+        run: test '${{ inputs.rollback_cloud_outage_confirmed }}' = 'true' || { echo 'Rollback qualification requires an operator-controlled outage of the pinned Cloud endpoint after real HTTPS CDN verification'; exit 2; }
+      - name: Verify exact successful release source run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID" > "$RUNNER_TEMP/release-run.json"
+          node - "$RUNNER_TEMP/release-run.json" <<'NODE'
+          const fs=require('fs'); const r=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const fail=m=>{console.error(m);process.exit(2)};
+          if(r.conclusion!=='success') fail('release source run is not successful');
+          if(r.head_sha!==process.env.GITHUB_SHA) fail(`release source run head ${r.head_sha} != qualification head ${process.env.GITHUB_SHA}`);
+          if(r.path!=='.github/workflows/release-runtime.yml') fail(`unexpected source workflow: ${r.path}`);
+          NODE
+
+  live-installer:
+    needs: verify-source
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            runs_on: '["self-hosted","windows","cieav-release-hardware","cieav-live-installer"]'
+            installer: publish/install.ps1
+          - target: macos-arm64
+            runs_on: '["self-hosted","macOS","cieav-release-hardware","cieav-live-installer"]'
+            installer: publish/install.sh
+          - target: linux-x64
+            runs_on: '["self-hosted","linux","cieav-release-hardware","cieav-live-installer"]'
+            installer: publish/install.sh
+    runs-on: ${{ fromJSON(matrix.runs_on) }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download exact signed publish layout
+        uses: actions/download-artifact@v4
+        with:
+          name: cieav-cdn-publish-layout
+          path: publish
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.release_run_id }}
+      - name: Require rendered installer bytes
+        shell: bash
+        run: |
+          test -f '${{ matrix.installer }}'
+          if grep -q '__CIEAV_DOWNLOAD_BASE_URL__\|__CIEAV_RELEASE_VERSION__\|__CIEAV_RELEASE_KEY_ID__' '${{ matrix.installer }}'; then echo 'installer is not fully rendered'; exit 2; fi
+      - name: Exercise real HTTPS installer transaction
+        run: python scripts/installer-live-smoke.py --installer '${{ matrix.installer }}' --scenario '${{ inputs.scenario }}' --mode publish --confirm-install-mutation
+      - name: Upload live installer evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-installer-${{ inputs.scenario }}-${{ matrix.target }}
+          path: release/reports/cieav-installer-${{ inputs.scenario }}-*.json
+          if-no-files-found: error
+      - name: Scrub qualification worktree
+        if: ${{ always() }}
+        run: |
+          git reset --hard HEAD
+          git clean -ffdx

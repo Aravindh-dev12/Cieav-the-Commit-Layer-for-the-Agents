@@ -5,6 +5,19 @@ export * from "./agent-task.js";
 export * from "./execution-fabric.js";
 export * from "./control-plane.js";
 export * from "./framework-interop.js";
+export * from "./ml-types.js";
+export * from "./ml-reward.js";
+export * from "./ml-trajectory.js";
+export * from "./ml-adversarial.js";
+export * from "./ml-promotion.js";
+export * from "./ml-safety-spec.js";
+export * from "./ml-safety-shield.js";
+export * from "./ml-perturbation.js";
+export * from "./ml-counterfactual.js";
+export * from "./ml-reward-gap.js";
+export * from "./ml-selective-action.js";
+export * from "./ml-hidden-verifier.js";
+export * from "./ml-active-miner.js";
 
 import type {ActionContext,ActionManifest,Reversibility,RiskLevel} from "@cieav/contracts";
 
