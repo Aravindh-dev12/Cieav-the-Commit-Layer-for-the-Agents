@@ -15,7 +15,12 @@ const runtimeArchiveArg=args.find(x=>x.startsWith("--runtime-archive="));
 const expectedBranch=String(expectedBranchArg?.slice("--expected-branch=".length)||process.env.CIEAV_LOCAL_EXPECTED_BRANCH||"").trim();
 const runtimeArchive=String(runtimeArchiveArg?.slice("--runtime-archive=".length)||"").trim();
 
-const runRaw=(cmd,cmdArgs,{inherit=false}={})=>spawnSync(cmd,cmdArgs,{cwd:ROOT,encoding:"utf8",shell:false,env:process.env,stdio:inherit?"inherit":"pipe"});
+const runRaw=(cmd,cmdArgs,{inherit=false}={})=>{
+  const winScript=process.platform==="win32"&&/\.(?:cmd|bat)$/i.test(cmd);
+  const file=winScript?(process.env.ComSpec||"cmd.exe"):cmd;
+  const runArgs=winScript?["/d","/s","/c",cmd,...cmdArgs]:cmdArgs;
+  return spawnSync(file,runArgs,{cwd:ROOT,encoding:"utf8",shell:false,env:process.env,stdio:inherit?"inherit":"pipe"});
+};
 const git=(...gitArgs)=>{const r=runRaw("git",gitArgs);if(r.status!==0)throw new Error(`git ${gitArgs.join(" ")} failed: ${(r.stderr||r.stdout||"").trim()}`);return r.stdout.trim()};
 const branch=git("branch","--show-current"),commit=git("rev-parse","HEAD"),dirty=git("status","--porcelain");
 const nodeMajor=Number(process.versions.node.split(".")[0]);
