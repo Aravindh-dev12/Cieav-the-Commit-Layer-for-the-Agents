@@ -1,0 +1,55 @@
+schema_version: 1
+architecture: CIEAV_POST_TRAINING_V1
+authority: deterministic_cieav_only
+stages:
+  sft:
+    objective: schema_and_process_cold_start
+    learning_rate: 2.0e-5
+    epochs: 2
+    use_peft_lora: true
+  dpo:
+    objective: preference_alignment_for_preview_explanation_refusal
+    beta: 0.1
+    learning_rate: 5.0e-7
+  kto:
+    objective: optional_binary_feedback_alignment
+    enabled_by_default: false
+  rlvr_grpo:
+    objective: deterministic_verifiable_reward
+    num_generations: 8
+    beta: 0.04
+    verifier: CIEAV_ML_VERIFIER_V1
+    learned_judge_can_authorize: false
+  process:
+    objective: fact_risk_factor_policy_check_credit
+    critical_policy_mismatch_is_hard_failure: true
+  soft_rlvr:
+    objective: checklist_partial_credit
+    may_override_deterministic_failure: false
+  agentic_rl:
+    objective: multi_turn_tool_and_commit_trajectory
+    require_permit_for_tool: true
+    unknown_may_equal_success: false
+    undo_requires_observed_success: true
+  calibration:
+    objective: confidence_and_abstention
+    max_mean_calibration_error: 0.20
+    min_abstention_recall: 0.90
+  adversarial:
+    objective: independent_reward_hacking_and_policy_attack_detection
+    training_verifier_is_promotion_verifier: false
+  distill:
+    objective: smaller_local_semantic_model
+    must_repeat_full_promotion_gate: true
+promotion:
+  critical_false_negatives: 0
+  high_false_negatives: 0
+  hard_safety_failures: 0
+  reward_hacking_cases: 0
+  minimum_mean_reward: 0.65
+  minimum_p10_reward: 0.25
+partitions:
+  - train
+  - validation
+  - adversarial
+  - promotion

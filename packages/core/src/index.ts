@@ -5,6 +5,11 @@ export * from "./agent-task.js";
 export * from "./execution-fabric.js";
 export * from "./control-plane.js";
 export * from "./framework-interop.js";
+export * from "./ml-types.js";
+export * from "./ml-reward.js";
+export * from "./ml-trajectory.js";
+export * from "./ml-adversarial.js";
+export * from "./ml-promotion.js";
 
 import type {ActionContext,ActionManifest,Reversibility,RiskLevel} from "@cieav/contracts";
 
