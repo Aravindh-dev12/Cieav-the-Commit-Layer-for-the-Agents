@@ -25,6 +25,8 @@ on:
 
 permissions:
   contents: read
+  id-token: write
+  attestations: write
 
 concurrency:
   group: physical-hardware-qualification-${{ github.ref }}-${{ inputs.target }}-${{ inputs.windows_attestor }}
@@ -72,6 +74,10 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.CIEAV_MAA_AZURE_CLIENT_SECRET }}
         run: node scripts/physical-hardware-qualification.mjs
+      - name: Attest Windows physical evidence provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/physical/*.json'
       - uses: actions/upload-artifact@v4
         with:
           name: physical-qualification-windows
@@ -104,6 +110,10 @@ jobs:
           CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256 }}
           CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME: ${{ vars.CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME }}
         run: node scripts/physical-hardware-qualification.mjs
+      - name: Attest macOS physical evidence provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/physical/*.json'
       - uses: actions/upload-artifact@v4
         with:
           name: physical-qualification-macos
@@ -139,6 +149,10 @@ jobs:
           CIEAV_LINUX_ATTESTATION_PUBLIC_KEY: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY }}
           CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256: ${{ vars.CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256 }}
         run: node scripts/physical-hardware-qualification.mjs
+      - name: Attest Linux PKCS11 physical evidence provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/physical/*.json'
       - uses: actions/upload-artifact@v4
         with:
           name: physical-qualification-linux-pkcs11
@@ -172,6 +186,10 @@ jobs:
           CIEAV_LINUX_TPM2_PHYSICAL_CONFIG: ${{ vars.CIEAV_LINUX_TPM2_PHYSICAL_CONFIG }}
           CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256: ${{ vars.CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256 }}
         run: node scripts/physical-linux-tpm2-qualification.mjs
+      - name: Attest Linux TPM2 physical evidence provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/physical/*.json'
       - uses: actions/upload-artifact@v4
         with:
           name: physical-qualification-linux-tpm2
