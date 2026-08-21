@@ -11,6 +11,10 @@ on:
         description: Successful physical-hardware-qualification target=all run ID for this exact main commit
         required: true
         type: string
+      ml_gpu_run_id:
+        description: Successful ml-gpu-qualification run ID for this exact main commit
+        required: true
+        type: string
       installer_success_run_id:
         description: Successful live-installer-qualification success run ID for this exact main commit
         required: true
@@ -56,6 +60,7 @@ jobs:
         env:
           RELEASE_RUN_ID: ${{ inputs.release_run_id }}
           PHYSICAL_RUN_ID: ${{ inputs.physical_run_id }}
+          ML_GPU_RUN_ID: ${{ inputs.ml_gpu_run_id }}
           INSTALLER_SUCCESS_RUN_ID: ${{ inputs.installer_success_run_id }}
           INSTALLER_ROLLBACK_RUN_ID: ${{ inputs.installer_rollback_run_id }}
         shell: bash
@@ -65,6 +70,7 @@ jobs:
           const expected=[
             [process.env.RELEASE_RUN_ID,'.github/workflows/release-runtime.yml'],
             [process.env.PHYSICAL_RUN_ID,'.github/workflows/physical-hardware-qualification.yml'],
+            [process.env.ML_GPU_RUN_ID,'.github/workflows/ml-gpu-qualification.yml'],
             [process.env.INSTALLER_SUCCESS_RUN_ID,'.github/workflows/live-installer-qualification.yml'],
             [process.env.INSTALLER_ROLLBACK_RUN_ID,'.github/workflows/live-installer-qualification.yml'],
           ];
@@ -75,7 +81,7 @@ jobs:
             if(r.head_sha!==process.env.GITHUB_SHA)throw new Error(`${path} run ${id} head ${r.head_sha} != ${process.env.GITHUB_SHA}`);
             if(r.path!==path)throw new Error(`run ${id} came from ${r.path}, expected ${path}`);
           }
-          console.log('CIEAV production source-run binding PASS - release + physical + installer success + installer rollback all match exact HEAD');
+          console.log('CIEAV production source-run binding PASS - release + physical + GPU + installer success + installer rollback all match exact HEAD');
           NODE
       - name: Download raw publish qualification evidence
         uses: actions/download-artifact@v4
@@ -102,6 +108,14 @@ jobs:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ inputs.physical_run_id }}
+      - name: Download exact-head real GPU evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: ml-gpu-qualification
+          path: release/reports/ml
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.ml_gpu_run_id }}
       - name: Download live installer success evidence
         uses: actions/download-artifact@v4
         with:
@@ -127,6 +141,8 @@ jobs:
           test -f publish/install.sh
           test -d release/reports/physical
           test "$(find release/reports/physical -maxdepth 1 -type f -name '*.json' | wc -l)" -ge 3
+          test -f release/reports/ml/environment-qualification.json
+          test -f release/reports/ml/gpu-determinism-probe.json
           test "$(find release/reports -maxdepth 1 -type f -name 'cieav-installer-success-*.json' | wc -l)" -ge 3
           test "$(find release/reports -maxdepth 1 -type f -name 'cieav-installer-rollback-*.json' | wc -l)" -ge 3
       - name: Recompute final production qualification
@@ -148,4 +164,5 @@ jobs:
             release/reports/latest-repository-governance.json
             release/reports/latest-physical-qualification.json
             release/reports/latest-physical-provenance.json
+            release/reports/latest-ml-gpu-qualification.json
           if-no-files-found: error
