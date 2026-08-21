@@ -6,11 +6,11 @@ import path from "node:path";
 import {z} from "zod";
 
 const DigestSchema=z.string().regex(/^[0-9a-f]{64}$/);
-const PersistentHandleSchema=z.string().regex(/^0x81[0-9a-fA-F]{6}$/);
-const ConfigSchema=z.object({executablePath:z.string().min(1).max(4096),executableSha256:DigestSchema,akHandle:PersistentHandleSchema,ekHandle:PersistentHandleSchema,tcti:z.string().min(1).max(300).regex(/^[A-Za-z0-9_.,:=+\-\/]+$/).optional(),timeoutMs:z.number().int().min(1000).max(120000).default(15000)}).strict();
+const ConfigSchema=z.object({executablePath:z.string().min(1).max(4096),executableSha256:DigestSchema,tcti:z.string().min(1).max(300).regex(/^[A-Za-z0-9_.,:=+\-\/]+$/).optional(),timeoutMs:z.number().int().min(1000).max(120000).default(15000)}).strict();
 export type LinuxTpm2ActivateCredentialConfig=z.infer<typeof ConfigSchema>;
 export type LinuxTpm2ActivateCredentialRunner=(executable:string,args:string[],env:NodeJS.ProcessEnv,timeoutMs:number,maxOutputBytes:number)=>Promise<{stdout:string;stderr:string}>;
-const MAX_CREDENTIAL_BYTES=32*1024,MAX_ACTIVATION_BYTES=1024,MAX_STDOUT_BYTES=64*1024;
+export type LinuxTpm2VerifiedHandleSet={akSerializedHandle:Buffer;ekSerializedHandle:Buffer};
+const MAX_CREDENTIAL_BYTES=32*1024,MAX_HANDLE_BYTES=16*1024,MAX_ACTIVATION_BYTES=1024,MAX_STDOUT_BYTES=64*1024;
 
 function fail(code:string):never{throw new Error(`linux_tpm2_activate_credential_${code}`)}
 const sha256=(value:Buffer)=>crypto.createHash("sha256").update(value).digest("hex");
@@ -25,10 +25,10 @@ export class CieavLinuxTpm2ActivateCredential{
   constructor(rawConfig:unknown,private readonly runtimePlatform:NodeJS.Platform=process.platform,private readonly runner:LinuxTpm2ActivateCredentialRunner=defaultRunner){this.config=ConfigSchema.parse(rawConfig)}
   private async assertPinnedExecutable(){if(!path.isAbsolute(this.config.executablePath))fail("absolute_path_required");const info=await lstat(this.config.executablePath);if(info.isSymbolicLink()||!info.isFile())fail("executable_not_regular");if(sha256(await readFile(this.config.executablePath))!==this.config.executableSha256)fail("executable_digest_mismatch")}
   private env(){return this.config.tcti?{TPM2TOOLS_TCTI:this.config.tcti}:{} as NodeJS.ProcessEnv}
-  async activate(credentialBlob:Buffer):Promise<Buffer>{
-    if(this.runtimePlatform!=="linux")fail("linux_required");if(!Buffer.isBuffer(credentialBlob)||credentialBlob.length===0||credentialBlob.length>MAX_CREDENTIAL_BYTES)fail("credential_blob_size");await this.assertPinnedExecutable();
-    const temp=await mkdtemp(path.join(os.tmpdir(),"cieav-tpm2-activate-"));try{const credentialPath=path.join(temp,"credential.blob"),outputPath=path.join(temp,"activation.bin");await writeFile(credentialPath,credentialBlob,{flag:"wx",mode:0o600});
-      await this.runner(this.config.executablePath,["-c",this.config.akHandle,"-C",this.config.ekHandle,"-i",credentialPath,"-o",outputPath],this.env(),this.config.timeoutMs,MAX_STDOUT_BYTES);
+  async activate(credentialBlob:Buffer,handles:LinuxTpm2VerifiedHandleSet):Promise<Buffer>{
+    if(this.runtimePlatform!=="linux")fail("linux_required");if(!Buffer.isBuffer(credentialBlob)||credentialBlob.length===0||credentialBlob.length>MAX_CREDENTIAL_BYTES)fail("credential_blob_size");if(!Buffer.isBuffer(handles?.akSerializedHandle)||handles.akSerializedHandle.length===0||handles.akSerializedHandle.length>MAX_HANDLE_BYTES)fail("ak_serialized_handle_size");if(!Buffer.isBuffer(handles?.ekSerializedHandle)||handles.ekSerializedHandle.length===0||handles.ekSerializedHandle.length>MAX_HANDLE_BYTES)fail("ek_serialized_handle_size");await this.assertPinnedExecutable();
+    const temp=await mkdtemp(path.join(os.tmpdir(),"cieav-tpm2-activate-"));try{const credentialPath=path.join(temp,"credential.blob"),akHandlePath=path.join(temp,"ak.handle"),ekHandlePath=path.join(temp,"ek.handle"),outputPath=path.join(temp,"activation.bin");await writeFile(credentialPath,credentialBlob,{flag:"wx",mode:0o600});await writeFile(akHandlePath,handles.akSerializedHandle,{flag:"wx",mode:0o600});await writeFile(ekHandlePath,handles.ekSerializedHandle,{flag:"wx",mode:0o600});
+      await this.runner(this.config.executablePath,["-c",akHandlePath,"-C",ekHandlePath,"-i",credentialPath,"-o",outputPath],this.env(),this.config.timeoutMs,MAX_STDOUT_BYTES);
       let info;try{info=await stat(outputPath)}catch{fail("activation_output_missing")};if(!info.isFile()||info.size<=0||info.size>MAX_ACTIVATION_BYTES)fail("activation_output_size");const activated=await readFile(outputPath);if(activated.length!==info.size)fail("activation_output_changed");return Buffer.from(activated);
     } finally {await rm(temp,{recursive:true,force:true})}
   }
