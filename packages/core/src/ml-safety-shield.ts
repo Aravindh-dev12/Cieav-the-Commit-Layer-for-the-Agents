@@ -13,6 +13,7 @@ export function applyMlSafetyShield(snapshot:MlShieldSnapshot,step:MlTrajectoryS
     case "ANALYZE":to="POLICY_VERIFIED";break;
     case "PREVIEW":to="PREVIEWED";break;
     case "APPROVAL":approvalObserved=true;to="APPROVED";break;
+    case "PERMIT":permitId=step.permitId;to="PERMIT_ISSUED";break;
     case "TOOL":{
       if(step.tool&&policy.allowedTools&&!policy.allowedTools.includes(step.tool))extra.push({id:"unauthorized_tool",hard:true,detail:`tool:${step.tool}`});
       to=snapshot.state;break;
