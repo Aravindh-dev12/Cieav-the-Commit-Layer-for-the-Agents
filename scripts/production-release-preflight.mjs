@@ -31,23 +31,19 @@ requiredVar("CIEAV_RELEASE_SIGNING_PUBLIC_KEY_B64");requiredVar("CIEAV_RELEASE_S
 for(const n of [
  "CIEAV_WINDOWS_TPM_CNG_BRIDGE","CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG",
  "CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE","CIEAV_MACOS_SECURE_ENCLAVE_KEY_NAME",
- "CIEAV_LINUX_PKCS11_BRIDGE","CIEAV_LINUX_ATTESTATION_EVIDENCE","CIEAV_LINUX_ATTESTATION_PUBLIC_KEY",
  "CIEAV_LINUX_TPM2_PHYSICAL_CONFIG"
 ])requiredVar(n);
 for(const n of [
  "CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256","CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256",
- "CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256","CIEAV_LINUX_PKCS11_BRIDGE_SHA256",
- "CIEAV_LINUX_ATTESTATION_PUBLIC_KEY_SHA256","CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256"
+ "CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256","CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256"
 ])requiredVar(n,{pattern:/^[a-f0-9]{64}$/});
-requiredSecret("CIEAV_LINUX_PKCS11_PROVIDER_REF");
 const report={schemaVersion:1,product:"CIEAV",kind:"PRODUCTION_RELEASE_CONFIGURATION_PREFLIGHT",authority:false,repository:repo,windowsSigningProvider:provider,checkedVariables:vars.size,checkedSecretNames:secrets.size,requiredRunnerLabels:[
  ["self-hosted","windows","cieav-release-hardware","cieav-windows-tpm"],
  ["self-hosted","macOS","cieav-release-hardware","cieav-macos-secure-enclave"],
- ["self-hosted","linux","cieav-release-hardware","cieav-linux-hsm"],
  ["self-hosted","linux","cieav-release-hardware","cieav-linux-tpm2"],
  ["self-hosted","linux","cieav-release-hardware","cieav-ml-gpu"],
  ["self-hosted","windows|macOS|linux","cieav-release-hardware","cieav-live-installer"]
-],reasons,verdict:reasons.length?"FAIL":"PASS"};
+],optionalQualificationPaths:{linuxPkcs11:"explicit physical target=linux only; not part of production target=all aggregate"},reasons,verdict:reasons.length?"FAIL":"PASS"};
 console.log(JSON.stringify(report,null,2));
 if(reasons.length){console.error(`CIEAV production release configuration preflight FAIL - ${reasons.join(",")}`);process.exit(2)}
 console.log(`CIEAV production release configuration preflight PASS - signing/notarization/CDN/physical configuration names present for ${repo}; secret values were not read; runner availability still requires GitHub self-hosted runner administration`);
