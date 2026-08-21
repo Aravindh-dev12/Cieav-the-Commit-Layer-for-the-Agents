@@ -34,6 +34,8 @@ jobs:
         run: node scripts/macos-secure-enclave-release.mjs
       - name: Verify Linux PKCS11 provider boundary
         run: node scripts/linux-pkcs11-release.mjs
+      - name: Verify Linux TPM2 attestation foundation
+        run: node scripts/linux-tpm2-attestation-release.mjs
       - name: Verify CIEAV package namespace
         run: node scripts/package-namespace-smoke.mjs
       - name: Verify Python platform package
@@ -88,6 +90,7 @@ jobs:
           node --check scripts/windows-tpm-native-attestation-release.mjs
           node --check scripts/macos-secure-enclave-release.mjs
           node --check scripts/linux-pkcs11-release.mjs
+          node --check scripts/linux-tpm2-attestation-release.mjs
           node --check scripts/physical-hardware-qualification.mjs
           node --check scripts/physical-windows-tpm-native-qualification.mjs
           node --check scripts/credential-hardware-admin-release.mjs
