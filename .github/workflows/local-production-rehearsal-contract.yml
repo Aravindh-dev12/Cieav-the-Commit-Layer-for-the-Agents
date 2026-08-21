@@ -1,0 +1,30 @@
+name: local-production-rehearsal-contract
+on:
+  push:
+    branches:
+      - feat/local-production-rehearsal
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-production-rehearsal-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fail-closed-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check local rehearsal tooling
+        run: |
+          node --check scripts/local-production-rehearsal.mjs
+          node --check scripts/local-production-rehearsal-static.mjs
+      - name: Prove local rehearsal cannot emit production authority
+        run: node scripts/local-production-rehearsal-static.mjs
+      - name: Validate package metadata
+        run: node -e "const p=require('./package.json'); if(!p.scripts['release:rehearse:local']||!p.scripts['release:rehearse:local:full']) process.exit(2); console.log('local rehearsal commands present')"
