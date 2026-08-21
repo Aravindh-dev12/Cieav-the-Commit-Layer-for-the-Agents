@@ -8,7 +8,10 @@ def completion_text(completion: Any) -> str:
     if isinstance(completion, str):
         return completion
     if isinstance(completion, dict):
+        role = completion.get("role")
         content = completion.get("content")
+        if role not in (None, "assistant"):
+            raise ValueError("GRPO completion message is not an assistant message")
         if isinstance(content, str):
             return content
         raise ValueError("GRPO completion message is missing string content")
@@ -21,7 +24,7 @@ def completion_text(completion: Any) -> str:
         for message in reversed(completion):
             if isinstance(message, dict) and message.get("role") == "assistant" and isinstance(message.get("content"), str):
                 return message["content"]
-        if len(completion) == 1 and isinstance(completion[0], dict) and isinstance(completion[0].get("content"), str):
+        if len(completion) == 1 and isinstance(completion[0], dict) and completion[0].get("role") is None and isinstance(completion[0].get("content"), str):
             return completion[0]["content"]
         raise ValueError("GRPO conversational completion has no assistant content")
     raise ValueError(f"unsupported GRPO completion type: {type(completion).__name__}")
