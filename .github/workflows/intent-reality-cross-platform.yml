@@ -72,6 +72,8 @@ jobs:
         run: node scripts/ml-release-binding-smoke.mjs
       - name: Verify ML reproducibility and completion contracts
         run: python scripts/ml-reproducibility-smoke.py
+      - name: Verify physical qualification preflight contract
+        run: node scripts/physical-qualification-preflight-smoke.mjs
       - name: Verify physical qualification evidence contract
         run: node scripts/physical-qualification-evidence-smoke.mjs
       - name: Verify physical evidence provenance policy
