@@ -22,6 +22,8 @@ jobs:
         run: node scripts/os-secret-root-release.mjs
       - name: Verify physical release workflow boundary
         run: node scripts/physical-release-workflow-static.mjs
+      - name: Verify production qualification static contract
+        run: node scripts/production-qualification-static.mjs
       - name: Verify OpenClaw zero-dependency consumer boundary
         run: node scripts/openclaw-no-deps-static.mjs
       - name: Verify Windows TPM/CNG native provider boundary
