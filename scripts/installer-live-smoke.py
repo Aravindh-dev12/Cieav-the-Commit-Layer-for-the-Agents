@@ -9,11 +9,14 @@ import platform
 import shutil
 import subprocess
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 ROOT=Path(__file__).resolve().parents[1]
 REPORTS=ROOT/"release"/"reports"
 MAX_CAPTURE=64_000
 MARKER_TEXT="CIEAV_ROLLBACK_SENTINEL_V1"
+WINDOWS_RUN_KEY=r"Software\Microsoft\Windows\CurrentVersion\Run"
+WINDOWS_RUN_VALUE="CIEAV Gateway"
 
 
 def canonical(value):
@@ -47,7 +50,17 @@ def service_present()->bool:
     system=platform.system()
     if system=="Linux":return (Path.home()/".config/systemd/user/cieav-gateway.service").exists()
     if system=="Darwin":return (Path.home()/"Library/LaunchAgents/ai.cieav.gateway.plist").exists()
-    if system=="Windows":return subprocess.run(["schtasks","/Query","/TN","CIEAV Gateway"],capture_output=True).returncode==0
+    if system=="Windows":
+        registered=False
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,WINDOWS_RUN_KEY,0,winreg.KEY_READ) as key:
+                value,_=winreg.QueryValueEx(key,WINDOWS_RUN_VALUE)
+                registered=bool(str(value).strip())
+        except FileNotFoundError:
+            pass
+        legacy_task=any(subprocess.run(["schtasks","/Query","/TN",name],capture_output=True).returncode==0 for name in ("CIEAV Gateway","LATCH Gateway"))
+        return registered or legacy_task
     return False
 
 
@@ -68,6 +81,15 @@ def restore_windows_user_path(value:str|None)->None:
     if p.returncode!=0:raise RuntimeError("unable to restore Windows user PATH")
 
 
+def clean_local_base_url(value:str)->str:
+    try:u=urlsplit(value.strip())
+    except ValueError as exc:raise SystemExit("--base-url is invalid") from exc
+    if u.scheme!="https" or u.hostname!="localhost":raise SystemExit("local --base-url override must be HTTPS on localhost")
+    if u.username or u.password or u.query or u.fragment or u.path not in ("","/"):raise SystemExit("local --base-url override must be a clean localhost HTTPS origin")
+    netloc="localhost" if u.port in (None,443) else f"localhost:{u.port}"
+    return urlunsplit(("https",netloc,"","",""))
+
+
 def installer_command(installer:Path)->list[str]:
     if os.name=="nt":
         ps=shutil.which("pwsh") or shutil.which("powershell")
@@ -84,9 +106,14 @@ def main()->None:
     ap.add_argument("--installer",type=Path,default=default_installer(),help="Rendered installer; defaults to publish/install.ps1 or publish/install.sh")
     ap.add_argument("--scenario",required=True,choices=("success","rollback"))
     ap.add_argument("--mode",choices=("local","publish"),default="publish")
+    ap.add_argument("--base-url",help="Local-mode only: explicit trusted localhost HTTPS release origin")
     ap.add_argument("--confirm-install-mutation",action="store_true",help="Required: acknowledges mutation of the current user's CIEAV install paths")
     args=ap.parse_args()
     if not args.confirm_install_mutation:raise SystemExit("Refusing installer mutation without --confirm-install-mutation")
+    base_url=None
+    if args.base_url:
+        if args.mode!="local":raise SystemExit("--base-url override is forbidden outside local mode")
+        base_url=clean_local_base_url(args.base_url)
     installer=args.installer.resolve()
     if not installer.is_file():raise SystemExit(f"Installer not found: {installer}")
     if os.name=="nt" and installer.suffix.lower()!=".ps1":raise SystemExit("Windows live installer test requires rendered install.ps1")
@@ -99,11 +126,14 @@ def main()->None:
     for shim in shims:
         if shim.exists():raise SystemExit(f"Refusing to overwrite existing command shim: {shim}")
     commit=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip();package=json.loads((ROOT/"package.json").read_text("utf-8"));target=host_target();old_user_path=windows_user_path();marker=install_root/"ROLLBACK_SENTINEL"
-    checks={"cleanStart":True,"serviceIsolation":True};proc=None
+    checks={"cleanStart":True,"serviceIsolation":True,"localEndpointOverride":bool(base_url)};proc=None
     try:
         if args.scenario=="rollback":
             install_root.mkdir(parents=True);marker.write_text(MARKER_TEXT,"utf-8");checks["priorRuntimeSeeded"]=True
         env=dict(os.environ);env["CIEAV_NO_SERVICE"]="1";env["LATCH_NO_SERVICE"]="1"
+        if base_url:
+            env["CIEAV_DOWNLOAD_BASE_URL"]=base_url
+            env["LATCH_DOWNLOAD_BASE_URL"]=base_url
         proc=subprocess.run(installer_command(installer),cwd=ROOT,env=env,capture_output=True,text=True,timeout=180)
         combined=((proc.stdout or "")+"\n"+(proc.stderr or ""))[-MAX_CAPTURE:]
         if args.scenario=="success":
@@ -135,7 +165,7 @@ def main()->None:
         restore_windows_user_path(old_user_path)
     if install_root.exists() or backup_root.exists() or any(x.exists() for x in shims) or service_present():raise RuntimeError("live installer smoke cleanup failed")
     checks["cleanup"]=True
-    evidence={"schemaVersion":1,"product":"CIEAV","version":package["version"],"mode":args.mode,"scenario":args.scenario,"target":target,"commit":commit,"installer":{"filename":installer.name,"sha256":sha256_file(installer),"size":installer.stat().st_size},"verifiedAt":__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),"checks":checks}
+    evidence={"schemaVersion":2,"product":"CIEAV","version":package["version"],"mode":args.mode,"scenario":args.scenario,"target":target,"commit":commit,"installer":{"filename":installer.name,"sha256":sha256_file(installer),"size":installer.stat().st_size},"endpointOverride":{"used":bool(base_url),"scope":"localhost-https-only" if base_url else None},"verifiedAt":__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),"checks":checks}
     digest=hashlib.sha256(canonical(evidence).encode()).hexdigest();out={**evidence,"digestAlgorithm":"SHA-256","digest":digest};REPORTS.mkdir(parents=True,exist_ok=True);name=f"cieav-installer-{args.scenario}-{package['version']}-{args.mode}-{target}-{commit[:12]}.json";(REPORTS/name).write_text(json.dumps(out,indent=2)+"\n","utf-8");(REPORTS/f"latest-installer-{args.scenario}.json").write_text(json.dumps(out,indent=2)+"\n","utf-8")
     print(f"CIEAV live installer {args.scenario} qualification PASS · {target}")
     print(f"Evidence: {REPORTS/name}")
