@@ -53,6 +53,7 @@ def main() -> int:
         "numpySeeded": True,
         "torchSeed": 1729,
     }
+    deterministic_env = {"CUBLAS_WORKSPACE_CONFIG": ":4096:8"}
     with tempfile.TemporaryDirectory(prefix="cieav-ml-repro-") as temp:
         temp_path = Path(temp)
         constraints = temp_path / "qualified.txt"
@@ -65,12 +66,14 @@ def main() -> int:
             torch_info=torch_info,
             version_getter=getter,
             created_at="2026-08-21T00:00:00+00:00",
+            environment=deterministic_env,
         )
         assert manifest["qualification"] == "QUALIFIED"
         assert manifest["authority"] is False
         assert manifest["requireCuda"] is True
         assert manifest["torch"]["deterministicAlgorithms"] is True
         assert manifest["torch"]["cudnnBenchmark"] is False
+        assert manifest["torch"]["cublasWorkspaceConfig"] == ":4096:8"
         floating = temp_path / "floating.txt"
         floating.write_text("torch>=2\n", encoding="utf-8")
         expect_raises(lambda: envq.parse_exact_constraints(floating), "exact package==version pins")
@@ -78,8 +81,10 @@ def main() -> int:
         missing.write_text(f"torch=={versions['torch']}\n", encoding="utf-8")
         expect_raises(lambda: envq.build_manifest(constraints=missing, seed=1729, require_cuda=False, require_scale=False, torch_info=torch_info, version_getter=getter), "missing exact pin")
         no_cuda = dict(torch_info); no_cuda["cudaAvailable"] = False; no_cuda["devices"] = []
-        expect_raises(lambda: envq.build_manifest(constraints=constraints, seed=1729, require_cuda=True, require_scale=False, torch_info=no_cuda, version_getter=getter), "at least one enumerated GPU")
-    print("CIEAV ML reproducibility smoke PASS - conversational completion parsing + exact pins + deterministic settings + CUDA qualification fail-closed + authority=false")
+        expect_raises(lambda: envq.build_manifest(constraints=constraints, seed=1729, require_cuda=True, require_scale=False, torch_info=no_cuda, version_getter=getter, environment=deterministic_env), "at least one enumerated GPU")
+        expect_raises(lambda: envq.build_manifest(constraints=constraints, seed=1729, require_cuda=True, require_scale=False, torch_info=torch_info, version_getter=getter, environment={}), "CUBLAS_WORKSPACE_CONFIG")
+        expect_raises(lambda: envq.build_manifest(constraints=constraints, seed=1729, require_cuda=True, require_scale=False, torch_info=torch_info, version_getter=getter, environment={"CUBLAS_WORKSPACE_CONFIG": ":0:0"}), "CUBLAS_WORKSPACE_CONFIG")
+    print("CIEAV ML reproducibility smoke PASS - conversational completion parsing + exact pins + deterministic PyTorch/cuBLAS settings + CUDA qualification fail-closed + authority=false")
     return 0
 
 
