@@ -31,7 +31,7 @@ jobs:
       - name: Assert hosted CI cannot qualify measured boot
         shell: bash
         run: |
-          if grep -R -E 'measured.?boot.*verification[[:space:]]*:[[:space:]]*["'"']VERIFIED' apps/api/src scripts; then
+          if grep -R -E 'measured.?boot.*verification[[:space:]]*:[[:space:]]*"VERIFIED"' apps/api/src scripts; then
             echo 'Measured-boot foundation must not expose VERIFIED before physical quote/log qualification'
             exit 1
           fi
