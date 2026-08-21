@@ -8,32 +8,40 @@ The Linux TPM2 path is designed around TPM 2.0 attestation primitives:
 
 - `TPM2_Certify` / `Esys_Certify` binds a TPM object Name to an attestation-key signature and caller nonce.
 - `TPM2_Quote` / `Esys_Quote` binds selected PCR values to an attestation-key signature and caller nonce.
-- firmware measurement logs provide event evidence that can be replayed against quoted PCR state.
+- the PC Client crypto-agile firmware event log provides measurement evidence that can be replayed against quoted PCR state.
 
-The current increment implements bounded quote/certify parsing, trusted-AK RSASSA/ECDSA signature verification, exact TPM public-area Name recomputation, and a narrow subject-signing-key policy that extracts the public key for exact JWK binding. It still does **not** create a durable `VERIFIED` hardware attestation.
+The current increment implements bounded quote/certify parsing, trusted-AK RSASSA/ECDSA signature verification, exact TPM public-area Name recomputation, subject signing-key JWK extraction, and signed-quote/event-log replay binding. It still does **not** create a durable `VERIFIED` hardware attestation.
 
 ## Implemented foundation
 
 `apps/api/src/linux-tpm2-attestation.ts`:
 
-1. accepts either raw `TPMS_ATTEST` bytes or `TPM2B_ATTEST` framing;
+1. accepts raw `TPMS_ATTEST` or `TPM2B_ATTEST` framing;
 2. requires `TPM_GENERATED_VALUE` and supports quote/certify attestations only;
-3. parses bounded TPM2B fields, clock metadata, PCR selections, quote digest, certified Name and qualified Name;
-4. parses TPM-format RSASSA and ECDSA signatures and verifies them over the exact signed `TPMS_ATTEST` bytes using a supplied trusted AK public key;
-5. binds `extraData` to a verifier nonce with constant-time comparison;
-6. validates quote `pcrDigest` against the ordered selected PCR values;
-7. computes the object Name as `nameAlg || H(TPMT_PUBLIC)` from the exact serialized public-area bytes;
-8. binds `TPM2_Certify` evidence to that recomputed Name.
+3. verifies RSASSA/ECDSA AK signatures over the exact signed attestation bytes;
+4. binds `extraData` to a verifier nonce;
+5. validates quote `pcrDigest` against ordered selected PCR values;
+6. computes object Name as `nameAlg || H(TPMT_PUBLIC)` from the exact serialized public area;
+7. binds `TPM2_Certify` evidence to that recomputed Name.
 
-`apps/api/src/linux-tpm2-public.ts` adds the subject-key policy used for CIEAV signing keys:
+`apps/api/src/linux-tpm2-public.ts` enforces the subject signing-key profile:
 
-- accepts only RSA or ECC public areas;
+- RSA or ECC only;
 - requires `fixedTPM`, `fixedParent`, `sensitiveDataOrigin`, and `sign`;
-- rejects subject keys marked `decrypt` or `restricted`;
-- requires a NULL symmetric definition for the unrestricted signing-key profile;
-- for ECC, accepts only NIST P-256 and extracts exact X/Y coordinates into a P-256 JWK;
-- for RSA, accepts 2048–4096-bit moduli, validates the exponent, and extracts the exact RSA JWK;
-- rejects unsupported schemes, curves, malformed unique fields and trailing bytes.
+- rejects `decrypt` and `restricted` for the subject key;
+- requires NULL symmetric parameters;
+- ECC is restricted to NIST P-256 and extracted as an exact P-256 JWK;
+- RSA is restricted to 2048–4096 bits with validated exponent and exact modulus/JWK extraction.
+
+`apps/api/src/linux-tpm2-measured-boot.ts` binds firmware measurements to the signed quote:
+
+- authenticates the quote with the trusted AK public key;
+- parses the TCG crypto-agile `Spec ID Event03` event log using the existing bounded TCG2 parser;
+- replays only quote-selected SRTM PCRs/banks;
+- rejects selected PCRs outside the currently qualified 0–15 SRTM range;
+- requires replayed PCR values to reproduce the signed quote's `pcrDigest`.
+
+This proves consistency between the supplied firmware log and the AK-signed PCR state. It does **not** decide whether that state is secure or acceptable.
 
 `TPM_ALG_RSAPSS` attestation signatures remain deliberately rejected until CIEAV pins and tests salt-policy semantics across supported TPM stacks.
 
@@ -41,12 +49,11 @@ The current increment implements bounded quote/certify parsing, trusted-AK RSASS
 
 Before Linux TPM-backed keys may enter the durable CIEAV hardware registry as `VERIFIED`, a production verifier must additionally provide all of the following:
 
-- a trusted attestation-key identity rooted in an explicitly configured endorsement/manufacturer or deployment trust policy, rather than merely accepting a caller-supplied AK JWK;
-- verifier-owned fresh nonce generation, replay tracking and evidence lifetime policy;
-- collection of live PCR values plus firmware event-log replay for the selected banks;
-- a versioned boot-state policy defining acceptable Secure Boot, firmware and PCR state;
-- a physical Linux TPM collector/verifier with pinned binary/configuration provenance;
-- qualification on supported Linux distributions and TPM implementations;
-- a dedicated durable Linux TPM attestation kind and registry/API activation only after the above evidence is satisfied.
+- AK identity rooted in an explicitly configured EK/manufacturer or deployment trust policy, including credential activation or equivalent proof that the AK belongs to the endorsed TPM;
+- verifier-owned nonce issuance, replay tracking and evidence lifetime policy;
+- a versioned boot acceptance policy defining acceptable Secure Boot, firmware, PCR and reference-integrity state;
+- a physical Linux collector/verifier with pinned binary/configuration provenance;
+- qualification on supported distributions, firmware implementations and TPM vendors;
+- a dedicated durable Linux TPM attestation kind and registry/API activation only after those trust requirements are satisfied.
 
-Until those conditions are met, `/v1/agent-kernel/hardware-key-providers/linux/attest` remains fail-closed with `linux_hardware_attestation_verifier_required`, and PKCS#11 remains a signing adapter rather than trusted hardware evidence.
+Until then, `/v1/agent-kernel/hardware-key-providers/linux/attest` remains fail-closed with `linux_hardware_attestation_verifier_required`, and PKCS#11 remains a signing adapter rather than trusted hardware evidence.
