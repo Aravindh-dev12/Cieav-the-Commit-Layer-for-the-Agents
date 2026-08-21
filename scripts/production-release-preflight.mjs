@@ -37,13 +37,22 @@ for(const n of [
  "CIEAV_WINDOWS_TPM_CNG_BRIDGE_SHA256","CIEAV_WINDOWS_NATIVE_ATTESTATION_CONFIG_SHA256",
  "CIEAV_MACOS_SECURE_ENCLAVE_BRIDGE_SHA256","CIEAV_LINUX_TPM2_PHYSICAL_CONFIG_SHA256"
 ])requiredVar(n,{pattern:/^[a-f0-9]{64}$/});
-const report={schemaVersion:1,product:"CIEAV",kind:"PRODUCTION_RELEASE_CONFIGURATION_PREFLIGHT",authority:false,repository:repo,windowsSigningProvider:provider,checkedVariables:vars.size,checkedSecretNames:secrets.size,requiredRunnerLabels:[
+
+const requiredRunnerLabels=[
  ["self-hosted","windows","cieav-release-hardware","cieav-windows-tpm"],
  ["self-hosted","macOS","cieav-release-hardware","cieav-macos-secure-enclave"],
  ["self-hosted","linux","cieav-release-hardware","cieav-linux-tpm2"],
  ["self-hosted","linux","cieav-release-hardware","cieav-ml-gpu"],
- ["self-hosted","windows|macOS|linux","cieav-release-hardware","cieav-live-installer"]
-],optionalQualificationPaths:{linuxPkcs11:"explicit physical target=linux only; not part of production target=all aggregate"},reasons,verdict:reasons.length?"FAIL":"PASS"};
+ ["self-hosted","windows","cieav-release-hardware","cieav-live-installer"],
+ ["self-hosted","macOS","cieav-release-hardware","cieav-live-installer"],
+ ["self-hosted","linux","cieav-release-hardware","cieav-live-installer"]
+];
+let runners=[],runnerInventoryError=null;
+try{runners=json("gh",["api",`repos/${repo}/actions/runners?per_page=100`]).runners||[]}catch(err){runnerInventoryError=String(err?.message??err).slice(0,700);reasons.push("runner_inventory_unavailable:repository Actions runner administration permission is required")}
+const normalizedRunners=runners.map(r=>({id:r.id,name:String(r.name??""),status:String(r.status??"unknown"),busy:Boolean(r.busy),labels:(r.labels||[]).map(x=>String(x.name??x).toLowerCase())}));
+const runnerRequirements=requiredRunnerLabels.map(labels=>{const want=labels.map(x=>x.toLowerCase()),matching=normalizedRunners.filter(r=>want.every(label=>r.labels.includes(label))),online=matching.filter(r=>r.status.toLowerCase()==="online");if(!matching.length)reasons.push(`missing_runner:${labels.join("+")}`);else if(!online.length)reasons.push(`offline_runner:${labels.join("+")}`);return{labels,matching:matching.map(r=>({id:r.id,name:r.name,status:r.status,busy:r.busy})),qualified:online.length>0}});
+
+const report={schemaVersion:2,product:"CIEAV",kind:"PRODUCTION_RELEASE_CONFIGURATION_PREFLIGHT",authority:false,repository:repo,windowsSigningProvider:provider,checkedVariables:vars.size,checkedSecretNames:secrets.size,checkedRunners:normalizedRunners.length,runnerInventoryAccessible:runnerInventoryError===null,runnerInventoryError,requiredRunnerLabels,runnerRequirements,optionalQualificationPaths:{linuxPkcs11:"explicit physical target=linux only; not part of production target=all aggregate"},reasons,verdict:reasons.length?"FAIL":"PASS"};
 console.log(JSON.stringify(report,null,2));
 if(reasons.length){console.error(`CIEAV production release configuration preflight FAIL - ${reasons.join(",")}`);process.exit(2)}
-console.log(`CIEAV production release configuration preflight PASS - signing/notarization/CDN/physical configuration names present for ${repo}; secret values were not read; runner availability still requires GitHub self-hosted runner administration`);
+console.log(`CIEAV production release configuration preflight PASS - signing/notarization/CDN/physical configuration names present and required self-hosted runner classes online for ${repo}; secret values were not read`);
