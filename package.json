@@ -58,6 +58,7 @@
     "release:verify": "node scripts/release-gate.mjs",
     "release:verify:publish": "node scripts/release-gate.mjs --publish",
     "release:verify:plan": "node scripts/release-gate.mjs --plan",
+    "release:qualify:local-live:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-live-windows-qualification.ps1",
     "release:smoke:runtime": "python scripts/clean-runtime-smoke.py",
     "release:smoke:runtime:publish": "python scripts/clean-runtime-publish-smoke.py",
     "release:smoke:service": "python scripts/service-lifecycle-smoke.py --confirm-service-mutation",
