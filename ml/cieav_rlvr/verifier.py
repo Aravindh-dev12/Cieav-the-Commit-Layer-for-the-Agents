@@ -65,3 +65,16 @@ class CieavVerifierClient:
         if thresholds is not None:
             payload["thresholds"] = thresholds
         return self._request("/v1/promotion", payload)
+
+    def evaluate_verifier_bank(self, rows: list[dict[str, Any]], max_generalization_gap: float = 0.2) -> dict[str, Any]:
+        return self._request("/v1/verifier-bank", {"rows": rows, "maxGeneralizationGap": max_generalization_gap})
+
+    def evaluate_reward_gap(self, samples: list[dict[str, Any]], max_mean_gap: float = 0.15, max_single_gap: float = 0.4) -> dict[str, Any]:
+        return self._request("/v1/reward-gap", {"samples": samples, "maxMeanGap": max_mean_gap, "maxSingleGap": max_single_gap})
+
+    def prioritize_failures(self, rows: list[dict[str, Any]], limit: int = 100) -> list[dict[str, Any]]:
+        value = self._request("/v1/failures/prioritize", {"rows": rows, "limit": limit})
+        priorities = value.get("priorities")
+        if not isinstance(priorities, list):
+            raise VerifierError("CIEAV failure-priority response is invalid")
+        return priorities
