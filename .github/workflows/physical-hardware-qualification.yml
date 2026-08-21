@@ -200,3 +200,44 @@ jobs:
         run: |
           git reset --hard HEAD
           git clean -ffdx
+
+  physical-evidence-set:
+    if: ${{ inputs.target == 'all' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
+    needs: [windows-tpm-attestation, macos-secure-enclave, linux-tpm2]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Download physical platform evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: physical-qualification-*
+          path: release/reports/physical
+          merge-multiple: true
+      - name: Qualify exact-head physical evidence set
+        run: node scripts/qualify-physical-evidence.mjs
+      - name: Verify GitHub provenance for selected physical evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CIEAV_GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/verify-physical-provenance.mjs
+      - name: Attest aggregate physical qualification reports
+        uses: actions/attest@v4
+        with:
+          subject-path: 'release/reports/latest-physical-*.json'
+      - name: Upload verified physical qualification set
+        uses: actions/upload-artifact@v4
+        with:
+          name: physical-qualification-set
+          path: |
+            release/reports/physical/*.json
+            release/reports/latest-physical-qualification.json
+            release/reports/latest-physical-qualification.txt
+            release/reports/latest-physical-provenance.json
+          if-no-files-found: error
