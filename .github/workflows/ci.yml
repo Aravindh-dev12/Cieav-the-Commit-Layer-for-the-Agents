@@ -88,6 +88,7 @@ jobs:
           node --check scripts/physical-release-workflow-static.mjs
           node --check scripts/production-orchestration-static.mjs
           node --check scripts/production-release-preflight.mjs
+          node --check scripts/production-release-signing-bootstrap.mjs
           node --check scripts/openclaw-no-deps-static.mjs
           node --check scripts/windows-tpm-cng-release.mjs
           node --check scripts/windows-tpm-maa-collector-release.mjs
