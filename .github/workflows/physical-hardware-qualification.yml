@@ -140,7 +140,7 @@ jobs:
           git clean -ffdx
 
   linux-pkcs11:
-    if: ${{ (inputs.target == 'all' || inputs.target == 'linux') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
+    if: ${{ inputs.target == 'linux' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cieav-v')) }}
     runs-on: [self-hosted, linux, cieav-release-hardware, cieav-linux-hsm]
     timeout-minutes: 20
     steps:
