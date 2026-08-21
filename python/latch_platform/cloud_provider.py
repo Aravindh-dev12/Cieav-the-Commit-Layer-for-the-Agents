@@ -4,6 +4,7 @@ import json
 import os
 import platform
 import re
+import ssl
 import time
 import uuid
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 
 def _env(primary: str, legacy: str | None = None, default: str = "") -> str:
@@ -172,7 +173,16 @@ class _NoRedirect(HTTPRedirectHandler):
         raise HTTPError(req.full_url, code, "CIEAV Cloud redirects are not allowed", headers, fp)
 
 
-_NO_REDIRECT_OPENER = build_opener(_NoRedirect)
+def _verified_no_redirect_opener():
+    cafile = os.environ.get("SSL_CERT_FILE", "").strip()
+    if cafile:
+        ca_path = Path(cafile).expanduser().resolve()
+        if not ca_path.is_file():
+            raise RuntimeError(f"SSL_CERT_FILE does not name a readable CA file: {ca_path}")
+        context = ssl.create_default_context(cafile=str(ca_path))
+    else:
+        context = ssl.create_default_context()
+    return build_opener(_NoRedirect, HTTPSHandler(context=context))
 
 
 @dataclass(frozen=True)
@@ -204,6 +214,7 @@ class CloudSemanticProvider:
         self.last_latency_ms: int | None = None
         self.last_error: str | None = None
         self.last_model: str | None = None
+        self._opener = _verified_no_redirect_opener()
 
     @property
     def configured(self) -> bool:
@@ -231,7 +242,7 @@ class CloudSemanticProvider:
             headers["authorization"] = f"Bearer {token}"
         request = Request(f"{self.config.base_url}{path}", data=body, headers=headers, method="POST" if body is not None else "GET")
         try:
-            with _NO_REDIRECT_OPENER.open(request, timeout=timeout or self.config.timeout_seconds) as response:
+            with self._opener.open(request, timeout=timeout or self.config.timeout_seconds) as response:
                 raw = response.read(262_145)
                 if len(raw) > 262_144:
                     raise RuntimeError("CIEAV Cloud response exceeded size limit")
