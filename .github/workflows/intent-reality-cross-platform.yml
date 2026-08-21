@@ -66,6 +66,8 @@ jobs:
         run: python scripts/ml-curriculum-smoke.py
       - name: Verify invariant reroll feedback into active mining
         run: python scripts/ml-invariant-feedback-smoke.py
+      - name: Verify ML training round provenance and promotion binding
+        run: python scripts/ml-training-round-smoke.py
       - name: Verify private managed secret bootstrap
         run: node scripts/managed-secret-pipe-release.mjs
       - name: Verify Gateway credential and hardware lifecycle
