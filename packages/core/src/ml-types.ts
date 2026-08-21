@@ -2,7 +2,7 @@ import type {ActionOutcomeStatus,Reversibility,RiskLevel} from "@cieav/contracts
 
 export type MlDecisionDisposition="ALLOW"|"PREVIEW"|"REQUIRE_APPROVAL"|"BLOCK"|"ABSTAIN";
 export type MlPolicyCheckResult="PASS"|"FAIL"|"UNKNOWN";
-export type MlTrajectoryStepKind="OBSERVE"|"ANALYZE"|"PREVIEW"|"APPROVAL"|"TOOL"|"COMMIT"|"OUTCOME"|"UNDO";
+export type MlTrajectoryStepKind="OBSERVE"|"ANALYZE"|"PREVIEW"|"APPROVAL"|"PERMIT"|"TOOL"|"COMMIT"|"OUTCOME"|"UNDO";
 
 export interface MlCandidateDecision{
   actionType:string;
