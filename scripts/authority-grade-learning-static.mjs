@@ -64,6 +64,49 @@ const exporter=requireTokens("apps/api/src/authority-grade-learning-export.ts",[
   "authority:false",
   "productionAuthority:false"
 ]);
+const ingestor=requireTokens("apps/api/src/authority-grade-learning-ingestor.ts",[
+  "CIEAV_TRUSTED_EXPERIENCE_INGESTION_V1",
+  "executionTicketId:z.string().uuid()",
+  "exportAuthorityGradeTrajectory",
+  "intelligenceStore.ingestVerifiedExperience(exported.trajectory)",
+  "authority:false",
+  "productionAuthority:false",
+  "mayMintExecutionAuthority:false",
+  "TRUSTED_EXPERIENCE_INGESTOR_AUTHORITY=false",
+  "TRUSTED_EXPERIENCE_INGESTOR_MAY_MINT_EXECUTION_AUTHORITY=false"
+]);
+const intelligenceApi=requireTokens("apps/api/src/universal-intelligence-api.ts",[
+  "caller_asserted_verified_experience_forbidden",
+  "/v1/intelligence/experience/from-ticket",
+  "trusted_experience_ingestor_unavailable",
+  "trustedExperienceIngestor.ingestFromTicket",
+  "authority:false",
+  "mayMintExecutionAuthority:false"
+]);
+const proofBridge=requireTokens("apps/api/src/trusted-proof-provider-bridge.ts",[
+  "QUALIFIED_SETTLEMENT_PROVIDERS",
+  "cieav.http-proof.v1",
+  "cieav.filesystem-proof.v1",
+  "cieav.git-proof.v1",
+  "trusted_settlement_proof_requires_post_state_or_reconciliation",
+  "proof_provider_not_qualified_for_trusted_settlement",
+  "trusted_proof_provider_authority_invariant_violation",
+  "conclusive_proof_provider_requires_observation",
+  "TRUSTED_ADAPTER",
+  "TRUSTED_PROOF_PROVIDER_BRIDGE_AUTHORITY=false",
+  "TRUSTED_PROOF_PROVIDER_BRIDGE_MAY_MINT_EXECUTION_AUTHORITY=false"
+]);
+const server=requireTokens("apps/api/src/server.ts",[
+  "CieavLocalProofProviderRuntime",
+  "CieavTrustedProofProviderBridge",
+  "CieavAuthorityGradeLearningIngestor",
+  "gatewayProofProviderPath",
+  "gateway_authorization_required",
+  "/provider-observation$/i",
+  "trustedProofProviderBridge.observeAndAttach",
+  "trustedExperienceIngestor",
+  "new CieavUniversalIntelligenceApi(intelligenceStore,trustedExperienceIngestor??undefined)"
+]);
 const compatibility=requireTokens("apps/api/src/authority-grade-exporter.ts",[
   "Compatibility façade",
   "exportAuthorityGradeTrajectory",
@@ -84,13 +127,35 @@ const fabric=requireTokens("apps/api/src/execution-fabric.ts",[
   "Single-use execution ticket consumed",
   "verifyAuditChain"
 ]);
+requireTokens("apps/api/src/authority-grade-learning-export.test.ts",[
+  "complete authenticated authority and trusted-proof chain",
+  "does not let an agent self-report create authority-grade success",
+  "independent_trusted_proof_required",
+  "multiple_execution_attempts_for_ticket",
+  "worldAfterDigest).toBeUndefined()"
+]);
+requireTokens("apps/api/src/trusted-proof-provider-bridge.test.ts",[
+  "CIEAV-owned trusted provenance",
+  "TRUSTED_ADAPTER",
+  "does not allow pre-state observations to masquerade as settlement proof",
+  "does not auto-trust an arbitrary provider id",
+  "preserves non-conclusive provider results as neutral evidence"
+]);
+requireTokens("apps/api/src/universal-intelligence-api.test.ts",[
+  "rejects caller-asserted verified trajectories",
+  "caller_asserted_verified_experience_forbidden",
+  "delegates ticket-derived experience only to the trusted ingestor",
+  "fails closed when ticket-derived ingestion is not available"
+]);
 
-for(const source of [contracts,settlement,trajectory,exporter,compatibility,receipt])for(const forbidden of ["mintPermit(","mintExecutionTicket(","issueCredentialLease(","signCommit("]){
+for(const source of [contracts,settlement,trajectory,exporter,ingestor,intelligenceApi,proofBridge,compatibility,receipt])for(const forbidden of ["mintPermit(","mintExecutionTicket(","issueCredentialLease(","signCommit("]){
   if(source.includes(forbidden))throw new Error(`authority-grade learning code contains forbidden authority primitive: ${forbidden}`);
 }
 if(contracts.includes("sourceIntegrity"))throw new Error("public settlement bundle may not accept caller-asserted source integrity");
 if(settlement.includes("cryptographicallyVerified:true"))throw new Error("pure semantic verifier may not claim cryptographic source verification");
 if(receipt.includes("authorityGrade:true")||receipt.includes("realityBound:true"))throw new Error("finalized receipt exporter may not claim authority-grade or reality-bound truth");
 if(!settlement.includes("AGENT_REPORT")||!settlement.includes("UNVERIFIED"))throw new Error("settlement verifier no longer distinguishes untrusted proof provenance");
+if(intelligenceApi.includes("IntelligenceExperienceRequestSchema.parse"))throw new Error("Gateway intelligence API may not accept caller-asserted verified trajectory objects");
+if(proofBridge.includes("provenance:"))throw new Error("trusted proof bridge must not accept caller-selected provenance");
 
-console.log("CIEAV authority-grade learning static gate PASS - pure semantic verifier + trusted authenticated-store elevation + exact authority/reality binding + trusted proof + UNKNOWN preservation + receipt separation + zero authority");
+console.log("CIEAV authority-grade learning static gate PASS - qualified provider proof + CIEAV-owned provenance + pure semantic verifier + authenticated-store elevation + ticket-derived learning + UNKNOWN preservation + receipt separation + zero authority");
