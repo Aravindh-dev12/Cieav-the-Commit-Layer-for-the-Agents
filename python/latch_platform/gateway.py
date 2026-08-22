@@ -200,6 +200,18 @@ class Gateway:
         if not token: raise RuntimeError("Browser control capability is unavailable")
         return _request_json(f"http://127.0.0.1:{self.s.control_port}{path}",method=method,payload=payload,timeout=timeout,token=token)
 
+    def _wait_surface(self, child: subprocess.Popen, timeout: float = 20.0) -> bool:
+        deadline=time.time()+timeout
+        while time.time()<deadline and not self.stop_event.is_set():
+            if child.poll() is not None: return False
+            try:
+                health=self._browser_request("/api/status",timeout=.8)
+                if health.get("ok") and health.get("browserConnected") and int(health.get("protectedPages") or 0)>0:
+                    return True
+            except Exception: pass
+            time.sleep(.15)
+        return False
+
     def start_surface(self) -> None:
         with self._lock:
             if self.paused or self.stop_event.is_set() or (self.surface and self.surface.poll() is None): return
@@ -209,8 +221,17 @@ class Gateway:
         control_token=secrets.token_urlsafe(48)
         with self._lock:
             self.surface_control_token=control_token
-            self.surface=subprocess.Popen([self.node_executable(),str(self.browser_entry)],cwd=self.s.root,env=self._surface_env(control_token))
+            child=subprocess.Popen([self.node_executable(),str(self.browser_entry)],cwd=self.s.root,env=self._surface_env(control_token))
+            self.surface=child
             self.surface_started_at=time.time(); self._log(f"browser surface started pid={self.surface.pid}")
+        if not self._wait_surface(child):
+            with self._lock:
+                if self.surface is child: self.surface=None
+                self.surface_control_token=None
+            code=self._terminate(child,"browser surface")
+            if code is not None: self.surface_last_exit=code
+            self._write_runtime()
+            raise RuntimeError(f"Protected browser surface failed readiness; exit={code}")
         self._write_runtime()
 
     def stop_surface(self) -> None:
@@ -358,30 +379,36 @@ class ControlHandler(BaseHTTPRequestHandler):
         path=self.path.split("?",1)[0]
         if path.startswith("/v1/hf/"):
             if not self._semantic_authorized(): self._send(401,{"error":"unauthorized"}); return
-        elif not self._admin_authorized(): self._send(401,{"error":"unauthorized"}); return
+            try:
+                if path=="/v1/hf/route":
+                    payload=self._read_json(); result=self.gateway.hf.route(payload.get("context") or {})
+                elif path=="/v1/hf/probe": result=self.gateway.hf.probe()
+                else: self._send(404,{"error":"not_found"}); return
+                self._send(200,result); return
+            except Exception as exc: self._send(502,{"error":str(exc)}); return
+        if not self._admin_authorized(): self._send(401,{"error":"unauthorized"}); return
         try:
-            if path=="/v1/pause": self.gateway.pause(); self._send(200,self.gateway.status()); return
-            if path=="/v1/resume": self.gateway.resume(); self._send(200,self.gateway.status()); return
-            if path=="/v1/restart-surface": self.gateway.restart_surface(); self._send(200,self.gateway.status()); return
-            if path=="/v1/dashboard": self._send(200,{"ok":True,"url":self.gateway.dashboard_url()}); return
-            if path=="/v1/open-test-lab": self._send(200,self.gateway.open_test_lab()); return
-            if path=="/v1/hf/probe": self._send(200,self.gateway.hf.probe()); return
-            if path=="/v1/hf/analyze":
-                body=self._read_json(); context=body.get("context"); base=body.get("base")
-                if not isinstance(context,dict) or not isinstance(base,dict): self._send(400,{"ok":False,"error":"context_and_base_required"}); return
-                self._send(200,self.gateway.hf.analyze(context,base)); return
-        except (RuntimeError,ValueError) as exc: self._send(409,{"error":str(exc)}); return
+            if path=="/v1/pause": self.gateway.pause(); self._send(200,{"ok":True,"paused":True}); return
+            if path=="/v1/resume": self.gateway.resume(); self._send(200,{"ok":True,"paused":False}); return
+            if path=="/v1/restart-surface": self.gateway.restart_surface(); self._send(200,{"ok":True}); return
+            if path=="/v1/open":
+                payload=self._read_json(); self._send(200,self.gateway.open_surface_url(str(payload.get("url") or ""))); return
+        except Exception as exc: self._send(400,{"error":str(exc)}); return
         self._send(404,{"error":"not_found"})
 
 
-def run_gateway(settings: Settings | None = None) -> int:
-    s=settings or Settings.load(); s.ensure(); gateway=Gateway(s); ControlHandler.gateway=gateway
-    server=ThreadingHTTPServer(("127.0.0.1",s.gateway_port),ControlHandler); thread=threading.Thread(target=gateway.supervise,name="cieav-supervisor",daemon=True)
-    def stop(*_args): gateway.stop_event.set(); threading.Thread(target=server.shutdown,daemon=True).start()
-    for sig in (signal.SIGINT,signal.SIGTERM):
-        try: signal.signal(sig,stop)
-        except (ValueError,OSError): pass
-    gateway._log(f"listening on 127.0.0.1:{s.gateway_port} · semantic router configured={gateway.hf.configured}"); thread.start()
-    try: server.serve_forever(poll_interval=.5)
-    finally: server.server_close(); gateway.shutdown(); thread.join(timeout=8)
+def run_gateway(settings: Settings) -> int:
+    gateway=Gateway(settings); ControlHandler.gateway=gateway
+    server=ThreadingHTTPServer(("127.0.0.1",settings.gateway_port),ControlHandler)
+    thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
+    stop=False
+    def signal_stop(_signum,_frame):
+        nonlocal stop; stop=True
+    signal.signal(signal.SIGINT,signal_stop); signal.signal(signal.SIGTERM,signal_stop)
+    worker=threading.Thread(target=gateway.supervise,daemon=True); worker.start()
+    gateway._write_runtime(); gateway._log(f"gateway listening http://127.0.0.1:{settings.gateway_port}")
+    try:
+        while not stop and worker.is_alive(): time.sleep(.2)
+    finally:
+        gateway.shutdown(); server.shutdown(); server.server_close(); worker.join(timeout=5)
     return 0
