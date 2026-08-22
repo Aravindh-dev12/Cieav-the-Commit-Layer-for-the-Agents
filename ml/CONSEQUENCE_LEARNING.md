@@ -81,7 +81,33 @@ The builder deterministically partitions trajectory IDs into train, validation, 
 
 These datasets plug into the existing CIEAV `ml/train_trl.py`, verifier, curriculum, adversarial replay, environment qualification, GPU determinism, and checkpoint-promotion system.
 
-## Fast local test
+## Windows/local single-node learning
+
+For a local Windows/CPU qualification loop, use the intentionally smaller requirements set. It excludes vLLM, verl, Ray and SGLang so the basic learning environment does not depend on Linux/GPU-oriented scale engines.
+
+Check without modifying the machine:
+
+```powershell
+python scripts/ml-local-learning-bootstrap.py --check
+```
+
+Install missing single-node dependencies:
+
+```powershell
+python scripts/ml-local-learning-bootstrap.py
+```
+
+Then run a real offline training smoke:
+
+```powershell
+python scripts/ml-local-learning-smoke.py
+```
+
+The smoke performs actual training without downloading a model: it builds a local tokenizer, instantiates a tiny GPT-style causal LM from configuration, attaches PEFT LoRA adapters, trains through TRL `SFTTrainer` on a `datasets.Dataset`, and requires trainable parameter values to change. The emitted evidence remains `authority=false`, `productionAuthority=false`, and the resulting candidate is explicitly unqualified.
+
+This test is CPU-compatible and does not require River, Reticle, a GPU, Hugging Face model access, or any external API.
+
+## Fast boundary test
 
 No GPU, model download, River account, or Reticle account is required for the boundary smoke:
 
@@ -90,7 +116,7 @@ python scripts/ml-consequence-learning-smoke.py
 node scripts/ml-consequence-learning-static.mjs
 ```
 
-The smoke creates success/failure/unknown fixtures, proves secret redaction, verifies SHA-256 trajectory integrity, enumerates provider surfaces, and builds all four dataset formats.
+The smoke creates success/failure/unknown fixtures, proves secret redaction, verifies SHA-256 trajectory integrity, enumerates provider surfaces, and builds all four dataset formats. The static gate also syntax-checks the local learning bootstrap/training smoke and verifies that the Windows-safe local dependency set does not force scale engines.
 
 ## Production boundary
 
