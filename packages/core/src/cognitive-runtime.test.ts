@@ -76,6 +76,13 @@ describe("GlobalIntelligenceWorkspace",()=>{
     expect(workspace.snapshot()).toMatchObject({authority:false,mayMintExecutionAuthority:false});
   });
 
+  it("rejects out-of-order contributions so workspace time cannot move backward",()=>{
+    const workspace=new GlobalIntelligenceWorkspace({workspaceId:"workspace-12345678",objective:"repair repository",createdAt:at,privacy:"REMOTE_ALLOWED"});
+    workspace.add(contribution({id:"contrib-newer-123",createdAt:"2026-08-22T14:00:02.000Z"}));
+    expect(()=>workspace.add(contribution({id:"contrib-older-123",createdAt:"2026-08-22T14:00:01.000Z"}))).toThrow(/stale_workspace_contribution/);
+    expect(workspace.snapshot().updatedAt).toBe("2026-08-22T14:00:02.000Z");
+  });
+
   it("rejects mismatched workspace contributions and unavailable cells",()=>{
     const workspace=new GlobalIntelligenceWorkspace({workspaceId:"workspace-12345678",objective:"repair repository",createdAt:at,privacy:"REMOTE_ALLOWED"});
     expect(()=>workspace.add(contribution({workspaceId:"workspace-other"}))).toThrow(/workspace_id_mismatch/);
