@@ -24,6 +24,7 @@
     "./universal-runtime": {"types": "./dist/universal-runtime.d.ts", "import": "./dist/universal-runtime.js"},
     "./consequence-abi": {"types": "./dist/consequence-abi.d.ts", "import": "./dist/consequence-abi.js"},
     "./authority-grade-settlement": {"types": "./dist/authority-grade-settlement.d.ts", "import": "./dist/authority-grade-settlement.js"},
+    "./intelligence-metabolism": {"types": "./dist/intelligence-metabolism.d.ts", "import": "./dist/intelligence-metabolism.js"},
     "./verified-skill": {"types": "./dist/verified-skill.d.ts", "import": "./dist/verified-skill.js"},
     "./verified-skill-security": {"types": "./dist/verified-skill-security.d.ts", "import": "./dist/verified-skill-security.js"},
     "./verified-skill-registry": {"types": "./dist/verified-skill-registry.d.ts", "import": "./dist/verified-skill-registry.js"}
