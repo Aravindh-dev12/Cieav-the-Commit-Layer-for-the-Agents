@@ -1,28 +1,46 @@
 import type {IncomingMessage} from "node:http";
+import path from "node:path";
 import type {CieavAgentKernelStore} from "./agent-kernel.js";
 import {CieavCredentialAuthorityApi} from "./credential-authority-api.js";
 import {CieavMaaTpmAttestationVerifier} from "./maa-tpm-attestation.js";
 import {CieavSecureEnclaveAttestor} from "./secure-enclave-attestation.js";
 import {CieavWindowsTpmMaaCollector} from "./windows-tpm-maa-collector.js";
 import {CieavWindowsTpmNativeAttestor} from "./windows-tpm-native-attestation.js";
+import {CieavProofProviderApi} from "./proof-provider-api.js";
+import {CieavLocalProofProviderRuntime} from "./proof-provider-runtime.js";
 
 const MAX_BODY=256_000;
 async function parseBody(req:IncomingMessage){const chunks:Buffer[]=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>MAX_BODY)throw new Error("body_too_large");chunks.push(b)}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{} }
 const conflict=(err:unknown)=>({status:409,body:{error:String((err as any)?.message??err)}});
+const listEnv=(name:string,legacy:string)=>String(process.env[name]??process.env[legacy]??"").split(",").map(value=>value.trim()).filter(Boolean);
 
 /**
- * Privileged credential/hardware lifecycle surface. This class is deliberately
- * mounted only beneath /v1/agent-kernel by CieavAgentKernelApi, so server.ts's
- * Gateway authentication remains the single administrative trust boundary.
+ * Privileged credential/hardware/proof lifecycle surface. This class is
+ * deliberately mounted only beneath /v1/agent-kernel by CieavAgentKernelApi,
+ * so server.ts's Gateway authentication remains the single administrative
+ * trust boundary.
  *
  * Raw VERIFIED hardware attestations are intentionally not accepted here.
- * Platform evidence must be produced by a CIEAV verifier/attestor.
+ * Platform evidence must be produced by a CIEAV verifier/attestor. Proof
+ * providers are observation-only and remain authority=false.
  */
 export class CieavCredentialHardwareAdminApi{
   private readonly credentials:CieavCredentialAuthorityApi;
-  constructor(private readonly store:CieavAgentKernelStore){this.credentials=new CieavCredentialAuthorityApi(store.credentialAuthority)}
+  private readonly proofProviders:CieavProofProviderApi;
+  constructor(private readonly store:CieavAgentKernelStore){
+    this.credentials=new CieavCredentialAuthorityApi(store.credentialAuthority);
+    const filesystemRoots=listEnv("CIEAV_PROOF_FILESYSTEM_ROOTS","LATCH_PROOF_FILESYSTEM_ROOTS").map(root=>path.resolve(root));
+    const httpOrigins=listEnv("CIEAV_PROOF_HTTP_ORIGINS","LATCH_PROOF_HTTP_ORIGINS").map(value=>new URL(value).origin);
+    this.proofProviders=new CieavProofProviderApi(new CieavLocalProofProviderRuntime({filesystemRoots,httpOrigins}));
+  }
 
   async handle(req:IncomingMessage,pathname:string):Promise<{status:number;body:unknown}|null>{
+    const proofPrefix="/v1/agent-kernel/proof-providers";
+    if(pathname===proofPrefix||pathname.startsWith(`${proofPrefix}/`)){
+      const delegated=pathname.replace(proofPrefix,"/v1/proof-providers");
+      return await this.proofProviders.handleGateway(req,delegated);
+    }
+
     const credentialPrefix="/v1/agent-kernel/credential-authority";
     if(pathname===credentialPrefix||pathname.startsWith(`${credentialPrefix}/`)){
       const delegated=pathname.replace(credentialPrefix,"/v1/credential-authority");
