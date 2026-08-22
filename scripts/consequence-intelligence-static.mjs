@@ -40,6 +40,9 @@ const cognitive=requireTokens("packages/core/src/cognitive-runtime.ts",[
 const cortex=requireTokens("packages/core/src/cortex.ts",[
   "cognitiveCellToEngine","buildIntelligenceStateFromRegistry","buildCortexProgram","CORTEX_AUTHORITY=false","CORTEX_MAY_MINT_EXECUTION_AUTHORITY=false","cortex_rejects_authoritative_cell",
 ]);
+const universal=requireTokens("packages/core/src/universal-intelligence.ts",[
+  "UniversalIntelligenceRuntime","CognitiveCellRegistry","EpistemicState","ConsequenceGraph","ProofProviderRegistry","LearningProviderRegistry","ingestVerifiedExperience","CIEAV_UNIVERSAL_INTELLIGENCE_RUNTIME_V1","UNIVERSAL_INTELLIGENCE_AUTHORITY=false","UNIVERSAL_INTELLIGENCE_MAY_MINT_EXECUTION_AUTHORITY=false",
+]);
 requireTokens("packages/core/src/consequence-intelligence.test.ts",[
   "prefers a scoped, provable and reversible route","respects LOCAL_ONLY privacy","preserves UNKNOWN","outside execution authority",
 ]);
@@ -57,6 +60,9 @@ requireTokens("packages/core/src/cognitive-runtime.test.ts",[
 ]);
 requireTokens("packages/core/src/cortex.test.ts",[
   "zero-authority engines","respects LOCAL_ONLY","real deterministic cognitive program","stops when no admissible cognitive cell exists",
+]);
+requireTokens("packages/core/src/universal-intelligence.test.ts",[
+  "cells -> workspace -> cortex -> projected context without authority","keeps local-only evidence away from remote selected cells","preserves UNKNOWN","non-authoritative organism snapshot",
 ]);
 const injected=requireTokens("apps/browser/injected.js",[
   "NOTIFICATION_ONLY=!AUTO","if(NOTIFICATION_ONLY)return Promise.resolve({choice:\"cancel\",decisionMs:0})","status:\"CANCELLED\"",
@@ -77,11 +83,11 @@ requireTokens("apps/api/src/store/file.test.ts",[
   "beforeEach(()=>{process.env.CIEAV_RECEIPT_STORE=\"sqlite\"})","originalReceiptStore","delete process.env.CIEAV_RECEIPT_STORE",
 ]);
 
-for(const source of [core,graph,providers,epistemic,cognitive,cortex,cognitiveContracts])for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issueCredentialLease("]){
+for(const source of [core,graph,providers,epistemic,cognitive,cortex,universal,cognitiveContracts])for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issueCredentialLease("]){
   if(source.includes(forbidden))throw new Error(`intelligence code contains forbidden authority primitive: ${forbidden}`);
 }
 if(!contracts.includes("mayMintExecutionAuthority:z.literal(false)"))throw new Error("Intelligence State is not explicitly prohibited from minting execution authority");
 if(!providerContracts.includes("productionAuthority:z.literal(false)"))throw new Error("Learning provider result is not explicitly prohibited from production authority");
 if(!injected.includes("if(NOTIFICATION_ONLY)return;"))throw new Error("notification-only runtime may still render in-page toast UI");
 
-console.log("CIEAV universal intelligence static gate PASS - cognitive cells + self model + workspace + cortex + epistemic freshness + consequence graph + provider isolation + UNKNOWN preservation + authority=false + background fail-closed UX + hermetic SQLite tests + versioned Windows bridge deployment");
+console.log("CIEAV universal intelligence static gate PASS - universal runtime + cognitive cells + self model + workspace + cortex + epistemic freshness + consequence graph + provider isolation + UNKNOWN preservation + authority=false + background fail-closed UX + hermetic SQLite tests + versioned Windows bridge deployment");
