@@ -21,7 +21,14 @@ from cieav_learning import dump_jsonl, list_providers, load_jsonl, verify_trajec
 from cieav_learning.provenance import build_provenanced_trajectory, verify_provenance_boundary
 
 
+def require_file(path: Path, label: str) -> Path:
+    if not path.is_file():
+        raise SystemExit(f"{label} not found: {path}. Run the preceding consequence-learning step successfully first.")
+    return path
+
+
 def read_object(path: Path) -> dict:
+    require_file(path, "input JSON")
     value = json.loads(path.read_text("utf-8"))
     if not isinstance(value, dict):
         raise SystemExit("input JSON must be an object")
@@ -29,6 +36,7 @@ def read_object(path: Path) -> dict:
 
 
 def read_jsonl_objects(path: Path) -> list[dict]:
+    require_file(path, "input evidence JSONL")
     rows: list[dict] = []
     for line_no, line in enumerate(path.read_text("utf-8").splitlines(), 1):
         if not line.strip():
@@ -89,6 +97,7 @@ def main() -> None:
         print(json.dumps({"authority": False, "normalized": len(trajectories), "trainingScopes": counts, "output": str(args.output)}, indent=2))
         return
     if args.command == "verify":
+        require_file(args.input, "trajectory JSONL")
         rows = load_jsonl(str(args.input))
         for row in rows:
             verify_trajectory(row)
@@ -97,11 +106,15 @@ def main() -> None:
         print(json.dumps({"authority": False, "verified": len(rows), "input": str(args.input)}, indent=2))
         return
     if args.command == "dataset":
-        subprocess.run(
-            [sys.executable, str(ROOT / "ml" / "build_consequence_dataset.py"), "--input", str(args.input), "--output-dir", str(args.output_dir)],
-            cwd=ROOT,
-            check=True,
-        )
+        require_file(args.input, "trajectory JSONL")
+        try:
+            subprocess.run(
+                [sys.executable, str(ROOT / "ml" / "build_consequence_dataset.py"), "--input", str(args.input), "--output-dir", str(args.output_dir)],
+                cwd=ROOT,
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise SystemExit(f"consequence dataset build failed with exit code {exc.returncode}") from None
         return
 
 
