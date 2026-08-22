@@ -1,0 +1,12 @@
+import {describe,expect,it} from "vitest";
+import type {EpistemicClaim} from "@cieav/contracts";
+import {EpistemicState} from "./epistemic-state.js";
+
+const claim=(overrides:Partial<EpistemicClaim>={}):EpistemicClaim=>({claimId:"claim-prod-build",claim:"production is running build 841",scope:"production",status:"SUPPORTED",confidence:.99,observedAt:"2026-08-22T11:00:00.000Z",supportingEvidence:[{kind:"API",source:"deployment-api",observedAt:"2026-08-22T11:00:00.000Z",summary:"deployment reports build 841"}],contradictingEvidence:[],invalidationConditions:["deployment.changed"],...overrides});
+
+describe("EpistemicState",()=>{
+  it("rejects older observations so stale memory cannot replace newer reality",()=>{const state=new EpistemicState();state.upsert(claim());expect(()=>state.upsert(claim({observedAt:"2026-08-22T10:59:59.000Z",claim:"older claim"}))).toThrow(/stale_epistemic_update/)});
+  it("marks claims stale when an explicit invalidation condition occurs",()=>{const state=new EpistemicState();state.upsert(claim());const changed=state.invalidate("deployment.changed","2026-08-22T11:05:00.000Z");expect(changed[0].status).toBe("STALE");expect(changed[0].confidence).toBeLessThan(.5);expect(state.supported()).toHaveLength(0)});
+  it("records contradictory evidence instead of silently overwriting it",()=>{const state=new EpistemicState();state.upsert(claim());const next=state.addEvidence("claim-prod-build","CONTRADICT",{kind:"API",source:"runtime",observedAt:"2026-08-22T11:06:00.000Z",summary:"runtime reports build 842"});expect(next.status).toBe("CONTRADICTED");expect(next.supportingEvidence).toHaveLength(1);expect(next.contradictingEvidence).toHaveLength(1)});
+  it("remains non-authoritative",()=>{const state=new EpistemicState();state.upsert(claim());expect(state.snapshot()).toMatchObject({authority:false,mayMintExecutionAuthority:false})});
+});
