@@ -1,0 +1,20 @@
+import {afterEach,describe,expect,it} from "vitest";
+import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import {AuthorizedOutcomeTrajectorySchema} from "@cieav/contracts";
+import {CieavIntelligenceMetabolismStore} from "./intelligence-metabolism-store.js";
+
+const dirs:string[]=[];
+afterEach(async()=>{await Promise.all(dirs.splice(0).map(dir=>rm(dir,{recursive:true,force:true})))});
+const digest="a".repeat(64);
+function trajectory(overrides:Record<string,unknown>={}){return AuthorizedOutcomeTrajectorySchema.parse({version:"CIEAV_AUTHORIZED_OUTCOME_TRAJECTORY_V2",trajectoryId:"trajectory-metabolism-store-0001",objective:"Perform governed operation",operation:"message.send",exactArgumentsDigest:digest,executionEvents:["accepted"],evidence:[{kind:"API_READBACK",source:"trusted",observedAt:"2026-08-23T00:00:00.000Z",summary:"Observed",digest}],outcome:"SUCCESS",cryptographicallyVerified:true,authorityGrade:true,realityBound:true,eligibleAgenticRl:true,consentScope:"local-training",redactionProfile:"training-v1",authority:false,productionAuthority:false,...overrides})}
+async function make(){const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-metabolism-"));dirs.push(dir);const file=path.join(dir,"metabolism.json"),secret="m".repeat(64);return{dir,file,secret,store:new CieavIntelligenceMetabolismStore(file,secret)}}
+
+describe("CieavIntelligenceMetabolismStore",()=>{
+  it("records one decision and makes same-content replay idempotent",async()=>{const x=await make(),context={transitionObservations:3,transitionSuccesses:3};const first=await x.store.record(trajectory(),context,"2026-08-23T00:01:00.000Z"),again=await x.store.record(trajectory(),context,"2026-08-23T00:02:00.000Z");expect(first.idempotent).toBe(false);expect(again.idempotent).toBe(true);expect((await x.store.exportState()).records).toHaveLength(1);expect(first.record.decision.sinks).toContain("SKILL_CANDIDATE");await x.store.close()});
+  it("rejects changed content under an existing trajectory id",async()=>{const x=await make();await x.store.record(trajectory(),{transitionObservations:1,transitionSuccesses:1});await expect(x.store.record(trajectory({outcome:"FAILURE",eligibleAgenticRl:false}),{transitionObservations:2,transitionSuccesses:1,transitionFailures:1})).rejects.toThrow("intelligence_metabolism_trajectory_content_mismatch");await x.store.close()});
+  it("preserves idempotency after restart",async()=>{const x=await make(),context={transitionObservations:3,transitionSuccesses:3};await x.store.record(trajectory(),context,"2026-08-23T00:01:00.000Z");await x.store.close();const restarted=new CieavIntelligenceMetabolismStore(x.file,x.secret),again=await restarted.record(trajectory(),context,"2026-08-23T00:03:00.000Z");expect(again.idempotent).toBe(true);expect((await restarted.exportState()).records).toHaveLength(1);await restarted.close()});
+  it("fails closed on authenticated-state corruption",async()=>{const x=await make();await x.store.record(trajectory(),{transitionObservations:1,transitionSuccesses:1});await x.store.close();const raw=JSON.parse(await readFile(x.file,"utf8"));raw.payload.records[0].decision.sinks=["NONE"];await writeFile(x.file,JSON.stringify(raw));const restarted=new CieavIntelligenceMetabolismStore(x.file,x.secret);await expect(restarted.health()).rejects.toThrow(/unreadable\/corrupt\/unauthenticated|integrity_check_failed/)});
+  it("persists UNKNOWN reconciliation and calibration sinks across restart",async()=>{const x=await make(),unknown=trajectory({outcome:"UNKNOWN",eligibleAgenticRl:false});await x.store.record(unknown,{transitionObservations:1,transitionUnknown:1});await x.store.close();const restarted=new CieavIntelligenceMetabolismStore(x.file,x.secret),record=await restarted.get(unknown.trajectoryId);expect(record?.decision.sinks).toContain("RECONCILIATION_QUEUE");expect(record?.decision.sinks).toContain("CALIBRATION_DATASET");expect(record?.decision.sinks).not.toContain("SKILL_CANDIDATE");await restarted.close()});
+});

@@ -1,63 +1,47 @@
 import {z} from "zod";
-import {CognitiveProgramSchema} from "./consequence-intelligence.js";
+import {CognitiveProgramSchema,ConsequenceOutcomeSchema} from "./consequence-intelligence.js";
 
 const DigestSchema=z.string().regex(/^[0-9a-f]{64}$/);
 
+export const VerifiedSkillRoutingSchema=z.object({description:z.string().min(1).max(500),keywords:z.array(z.string().min(1).max(80)).min(1).max(50)}).strict();
+export type VerifiedSkillRouting=z.infer<typeof VerifiedSkillRoutingSchema>;
+
 export const VerifiedSkillCandidateSchema=z.object({
-  version:z.literal("CIEAV_VERIFIED_SKILL_CANDIDATE_V1"),
-  id:z.string().min(8).max(200),
-  name:z.string().min(1).max(200),
-  capability:z.string().min(1).max(160),
-  operation:z.string().min(1).max(300),
-  program:CognitiveProgramSchema,
-  argumentPolicy:z.discriminatedUnion("mode",[
-    z.object({mode:z.literal("EXACT_DIGEST"),exactArgumentsDigest:DigestSchema}).strict(),
-    z.object({mode:z.literal("SCHEMA_DIGEST"),argumentSchemaDigest:DigestSchema}).strict()
-  ]),
-  evidenceTrajectoryIds:z.array(z.string().min(8).max(200)).min(1).max(1000),
-  compiler:z.literal("CIEAV_VERIFIED_SKILL_COMPILER_V1"),
-  createdAt:z.string().datetime(),
-  authority:z.literal(false).default(false),
-  productionAuthority:z.literal(false).default(false),
-  mayMintExecutionAuthority:z.literal(false).default(false)
+  version:z.literal("CIEAV_VERIFIED_SKILL_CANDIDATE_V1"),id:z.string().min(8).max(200),name:z.string().min(1).max(200),capability:z.string().min(1).max(160),operation:z.string().min(1).max(300),program:CognitiveProgramSchema,routing:VerifiedSkillRoutingSchema.optional(),
+  argumentPolicy:z.discriminatedUnion("mode",[z.object({mode:z.literal("EXACT_DIGEST"),exactArgumentsDigest:DigestSchema}).strict(),z.object({mode:z.literal("SCHEMA_DIGEST"),argumentSchemaDigest:DigestSchema}).strict()]),
+  evidenceTrajectoryIds:z.array(z.string().min(8).max(200)).min(1).max(1000),compiler:z.literal("CIEAV_VERIFIED_SKILL_COMPILER_V1"),createdAt:z.string().datetime(),authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)
 }).strict();
 export type VerifiedSkillCandidate=z.infer<typeof VerifiedSkillCandidateSchema>;
 
-export const VerifiedSkillQualificationThresholdsSchema=z.object({
-  minSamples:z.number().int().min(3).max(1000).default(3),
-  minSuccessRate:z.number().min(0).max(1).default(1),
-  maxFailureRate:z.number().min(0).max(1).default(0),
-  maxUnknownRate:z.number().min(0).max(1).default(0),
-  minAuthorityGradeCoverage:z.number().min(0).max(1).default(1),
-  minRealityBoundCoverage:z.number().min(0).max(1).default(1),
-  minCryptographicCoverage:z.number().min(0).max(1).default(1),
-  minProofCoverage:z.number().min(0).max(1).default(1)
-}).strict();
+export const VerifiedSkillQualificationThresholdsSchema=z.object({minSamples:z.number().int().min(3).max(1000).default(3),minSuccessRate:z.number().min(0).max(1).default(1),maxFailureRate:z.number().min(0).max(1).default(0),maxUnknownRate:z.number().min(0).max(1).default(0),minAuthorityGradeCoverage:z.number().min(0).max(1).default(1),minRealityBoundCoverage:z.number().min(0).max(1).default(1),minCryptographicCoverage:z.number().min(0).max(1).default(1),minProofCoverage:z.number().min(0).max(1).default(1)}).strict();
 export type VerifiedSkillQualificationThresholds=z.infer<typeof VerifiedSkillQualificationThresholdsSchema>;
-
-export const VerifiedSkillQualificationSchema=z.object({
-  version:z.literal("CIEAV_VERIFIED_SKILL_QUALIFICATION_V1"),
-  candidateId:z.string().min(8).max(200),
-  evaluatedAt:z.string().datetime(),
-  thresholds:VerifiedSkillQualificationThresholdsSchema,
-  metrics:z.object({
-    samples:z.number().int().nonnegative(),successes:z.number().int().nonnegative(),failures:z.number().int().nonnegative(),unknown:z.number().int().nonnegative(),
-    successRate:z.number().min(0).max(1),failureRate:z.number().min(0).max(1),unknownRate:z.number().min(0).max(1),authorityGradeCoverage:z.number().min(0).max(1),realityBoundCoverage:z.number().min(0).max(1),cryptographicCoverage:z.number().min(0).max(1),proofCoverage:z.number().min(0).max(1)
-  }).strict(),
-  passed:z.boolean(),reasons:z.array(z.string().min(1).max(500)).max(100),evidenceDigest:DigestSchema,
-  authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)
-}).strict();
+export const VerifiedSkillQualificationSchema=z.object({version:z.literal("CIEAV_VERIFIED_SKILL_QUALIFICATION_V1"),candidateId:z.string().min(8).max(200),evaluatedAt:z.string().datetime(),thresholds:VerifiedSkillQualificationThresholdsSchema,metrics:z.object({samples:z.number().int().nonnegative(),successes:z.number().int().nonnegative(),failures:z.number().int().nonnegative(),unknown:z.number().int().nonnegative(),successRate:z.number().min(0).max(1),failureRate:z.number().min(0).max(1),unknownRate:z.number().min(0).max(1),authorityGradeCoverage:z.number().min(0).max(1),realityBoundCoverage:z.number().min(0).max(1),cryptographicCoverage:z.number().min(0).max(1),proofCoverage:z.number().min(0).max(1)}).strict(),passed:z.boolean(),reasons:z.array(z.string().min(1).max(500)).max(100),evidenceDigest:DigestSchema,authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)}).strict();
 export type VerifiedSkillQualification=z.infer<typeof VerifiedSkillQualificationSchema>;
 
-const VerifiedSkillArtifactObjectSchema=z.object({
-  version:z.literal("CIEAV_VERIFIED_SKILL_V1"),id:z.string().min(8).max(200),candidate:VerifiedSkillCandidateSchema,qualification:VerifiedSkillQualificationSchema,
-  state:z.enum(["QUALIFIED","ACTIVE","REVOKED"]),qualifiedAt:z.string().datetime(),activatedAt:z.string().datetime().optional(),activationApprovalRef:z.string().min(8).max(500).optional(),activatedBy:z.string().min(1).max(300).optional(),revokedAt:z.string().datetime().optional(),revocationReason:z.string().min(1).max(1000).optional(),
-  authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)
-}).strict();
-export const VerifiedSkillArtifactSchema=VerifiedSkillArtifactObjectSchema.superRefine((skill,ctx)=>{
-  if(!skill.qualification.passed)ctx.addIssue({code:z.ZodIssueCode.custom,path:["qualification","passed"],message:"verified_skill_requires_passed_qualification"});
-  if(skill.qualification.candidateId!==skill.candidate.id)ctx.addIssue({code:z.ZodIssueCode.custom,path:["qualification","candidateId"],message:"verified_skill_candidate_qualification_mismatch"});
-  if(skill.state==="ACTIVE"&&(!skill.activatedAt||!skill.activationApprovalRef||!skill.activatedBy))ctx.addIssue({code:z.ZodIssueCode.custom,path:["state"],message:"active_verified_skill_requires_explicit_activation_approval"});
-  if(skill.state==="REVOKED"&&(!skill.revokedAt||!skill.revocationReason))ctx.addIssue({code:z.ZodIssueCode.custom,path:["state"],message:"revoked_verified_skill_requires_reason"});
-});
+const VerifiedSkillArtifactObjectSchema=z.object({version:z.literal("CIEAV_VERIFIED_SKILL_V1"),id:z.string().min(8).max(200),candidate:VerifiedSkillCandidateSchema,qualification:VerifiedSkillQualificationSchema,state:z.enum(["QUALIFIED","ACTIVE","REVOKED"]),qualifiedAt:z.string().datetime(),activatedAt:z.string().datetime().optional(),activationApprovalRef:z.string().min(8).max(500).optional(),activatedBy:z.string().min(1).max(300).optional(),revokedAt:z.string().datetime().optional(),revocationReason:z.string().min(1).max(1000).optional(),authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)}).strict();
+export const VerifiedSkillArtifactSchema=VerifiedSkillArtifactObjectSchema.superRefine((skill,ctx)=>{if(!skill.qualification.passed)ctx.addIssue({code:z.ZodIssueCode.custom,path:["qualification","passed"],message:"verified_skill_requires_passed_qualification"});if(skill.qualification.candidateId!==skill.candidate.id)ctx.addIssue({code:z.ZodIssueCode.custom,path:["qualification","candidateId"],message:"verified_skill_candidate_qualification_mismatch"});if(skill.state==="ACTIVE"&&(!skill.activatedAt||!skill.activationApprovalRef||!skill.activatedBy))ctx.addIssue({code:z.ZodIssueCode.custom,path:["state"],message:"active_verified_skill_requires_explicit_activation_approval"});if(skill.state==="REVOKED"&&(!skill.revokedAt||!skill.revocationReason))ctx.addIssue({code:z.ZodIssueCode.custom,path:["state"],message:"revoked_verified_skill_requires_reason"})});
 export type VerifiedSkillArtifact=z.infer<typeof VerifiedSkillArtifactSchema>;
+
+export const VerifiedSkillValidationCaseSchema=z.object({
+  version:z.literal("CIEAV_VERIFIED_SKILL_VALIDATION_CASE_V1"),caseId:z.string().min(8).max(200),caseDigest:DigestSchema,environmentDigest:DigestSchema,candidateDigest:DigestSchema,baselineConfigurationDigest:DigestSchema,baselineOutcome:ConsequenceOutcomeSchema,skillOutcome:ConsequenceOutcomeSchema,
+  baselineSteps:z.number().int().nonnegative().max(1_000_000).optional(),skillSteps:z.number().int().nonnegative().max(1_000_000).optional(),baselineTokens:z.number().int().nonnegative().max(100_000_000).optional(),skillTokens:z.number().int().nonnegative().max(100_000_000).optional(),verifierRef:z.string().min(1).max(500),verifierDigest:DigestSchema,provenance:z.enum(["CIEAV_DETERMINISTIC_HARNESS","CIEAV_SANDBOX_HARNESS","EXTERNAL_SIGNED_HARNESS"]),heldOut:z.literal(true),derivedFromTrajectoryIds:z.array(z.string().min(8).max(200)).max(100).default([]),authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)
+}).strict();
+export type VerifiedSkillValidationCase=z.infer<typeof VerifiedSkillValidationCaseSchema>;
+
+/** Exact immutable evidence required to reconstruct the V2 held-out qualification. */
+export const VerifiedSkillValidationEvidenceBundleSchema=z.object({
+  version:z.literal("CIEAV_VERIFIED_SKILL_VALIDATION_EVIDENCE_V1"),candidateId:z.string().min(8).max(200),candidateDigest:DigestSchema,cases:z.array(VerifiedSkillValidationCaseSchema).min(3).max(10_000),validationDigest:DigestSchema,createdAt:z.string().datetime(),authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)
+}).strict();
+export type VerifiedSkillValidationEvidenceBundle=z.infer<typeof VerifiedSkillValidationEvidenceBundleSchema>;
+
+export const VerifiedSkillQualificationV2ThresholdsSchema=z.object({minValidationCases:z.number().int().min(3).max(10_000).default(3),minSkillSuccessRate:z.number().min(0).max(1).default(1),maxSkillFailureRate:z.number().min(0).max(1).default(0),maxSkillUnknownRate:z.number().min(0).max(1).default(0),maxRegressions:z.number().int().nonnegative().max(10_000).default(0),minOutcomeDelta:z.number().min(-1).max(1).default(0),requireRoutingMetadata:z.boolean().default(true)}).strict();
+export type VerifiedSkillQualificationV2Thresholds=z.infer<typeof VerifiedSkillQualificationV2ThresholdsSchema>;
+export const VerifiedSkillQualificationV2Schema=z.object({version:z.literal("CIEAV_VERIFIED_SKILL_QUALIFICATION_V2"),candidateId:z.string().min(8).max(200),candidateDigest:DigestSchema,evaluatedAt:z.string().datetime(),sourceQualification:VerifiedSkillQualificationSchema,thresholds:VerifiedSkillQualificationV2ThresholdsSchema,metrics:z.object({validationCases:z.number().int().nonnegative(),baselineSuccesses:z.number().int().nonnegative(),skillSuccesses:z.number().int().nonnegative(),skillFailures:z.number().int().nonnegative(),skillUnknown:z.number().int().nonnegative(),repairs:z.number().int().nonnegative(),regressions:z.number().int().nonnegative(),baselineSuccessRate:z.number().min(0).max(1),skillSuccessRate:z.number().min(0).max(1),skillFailureRate:z.number().min(0).max(1),skillUnknownRate:z.number().min(0).max(1),outcomeDelta:z.number().min(-1).max(1),meanStepReduction:z.number().min(-1_000_000).max(1_000_000).optional(),meanTokenReduction:z.number().min(-100_000_000).max(100_000_000).optional()}).strict(),passed:z.boolean(),reasons:z.array(z.string().min(1).max(500)).max(200),validationDigest:DigestSchema,authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)}).strict();
+export type VerifiedSkillQualificationV2=z.infer<typeof VerifiedSkillQualificationV2Schema>;
+
+const VerifiedSkillArtifactV2ObjectSchema=z.object({version:z.literal("CIEAV_VERIFIED_SKILL_V2"),id:z.string().min(8).max(200),candidate:VerifiedSkillCandidateSchema,qualification:VerifiedSkillQualificationV2Schema,state:z.enum(["QUALIFIED","ACTIVE","REVOKED"]),qualifiedAt:z.string().datetime(),activatedAt:z.string().datetime().optional(),activationApprovalRef:z.string().min(8).max(500).optional(),activatedBy:z.string().min(1).max(300).optional(),revokedAt:z.string().datetime().optional(),revocationReason:z.string().min(1).max(1000).optional(),authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)}).strict();
+export const VerifiedSkillArtifactV2Schema=VerifiedSkillArtifactV2ObjectSchema.superRefine((skill,ctx)=>{if(!skill.qualification.passed)ctx.addIssue({code:z.ZodIssueCode.custom,path:["qualification","passed"],message:"verified_skill_v2_requires_passed_qualification"});if(skill.qualification.candidateId!==skill.candidate.id)ctx.addIssue({code:z.ZodIssueCode.custom,path:["qualification","candidateId"],message:"verified_skill_v2_candidate_qualification_mismatch"});if(skill.state==="ACTIVE"&&(!skill.activatedAt||!skill.activationApprovalRef||!skill.activatedBy))ctx.addIssue({code:z.ZodIssueCode.custom,path:["state"],message:"active_verified_skill_v2_requires_explicit_activation_approval"});if(skill.state==="REVOKED"&&(!skill.revokedAt||!skill.revocationReason))ctx.addIssue({code:z.ZodIssueCode.custom,path:["state"],message:"revoked_verified_skill_v2_requires_reason"})});
+export type VerifiedSkillArtifactV2=z.infer<typeof VerifiedSkillArtifactV2Schema>;
+
+export const VerifiedSkillInUseSchema=z.object({version:z.literal("CIEAV_VERIFIED_SKILL_IN_USE_V1"),skillId:z.string().min(8).max(200),skillArtifactDigest:DigestSchema,candidateDigest:DigestSchema,objectiveDigest:DigestSchema,dependencyCellIds:z.array(z.string().min(1).max(200)).max(100),dependencySnapshotDigest:DigestSchema,local:z.boolean(),privacy:z.enum(["LOCAL_ONLY","REDACTED_REMOTE_ALLOWED","REMOTE_ALLOWED"]),generatedAt:z.string().datetime(),activationApprovalRef:z.string().min(8).max(500),authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)}).strict();
+export type VerifiedSkillInUse=z.infer<typeof VerifiedSkillInUseSchema>;
