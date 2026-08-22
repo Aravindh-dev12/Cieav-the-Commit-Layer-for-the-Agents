@@ -30,11 +30,11 @@ describe("ConsequenceGraph",()=>{
     expect(()=>trajectoryToGraphObservation(base({cryptographicallyVerified:false}))).toThrow(/cryptographically verified/i);
   });
 
-  it("preserves SUCCESS FAILURE and UNKNOWN independently",()=>{
+  it("groups different post-states under the same pre-execution decision context",()=>{
     const graph=new ConsequenceGraph();
-    graph.ingest(base({outcome:"SUCCESS"}));
-    graph.ingest(base({outcome:"FAILURE"}));
-    graph.ingest(base({outcome:"UNKNOWN"}));
+    graph.ingest(base({outcome:"SUCCESS",worldAfterDigest:"1".repeat(64)}));
+    graph.ingest(base({outcome:"FAILURE",worldAfterDigest:"2".repeat(64)}));
+    graph.ingest(base({outcome:"UNKNOWN",worldAfterDigest:"3".repeat(64)}));
     const edge=graph.edge(consequenceTransitionKey(base()))!;
     expect(edge.observations).toBe(3);
     expect(edge.success).toBe(1);
@@ -43,6 +43,7 @@ describe("ConsequenceGraph",()=>{
     expect(edge.successRate).toBeCloseTo(1/3);
     expect(edge.failureRate).toBeCloseTo(1/3);
     expect(edge.unknownRate).toBeCloseTo(1/3);
+    expect(edge.worldAfterDigests).toEqual(["1".repeat(64),"2".repeat(64),"3".repeat(64)]);
     expect(edge.authority).toBe(false);
     expect(edge.mayMintExecutionAuthority).toBe(false);
   });
@@ -58,11 +59,13 @@ describe("ConsequenceGraph",()=>{
     expect(graph.snapshot().authority).toBe(false);
   });
 
-  it("prefers well-proven successful transitions over uncertain alternatives",()=>{
+  it("distinguishes materially different exact operations/arguments",()=>{
     const graph=new ConsequenceGraph();
-    graph.ingest(base({worldAfterDigest:"1".repeat(64),outcome:"SUCCESS"}));
-    graph.ingest(base({worldAfterDigest:"1".repeat(64),outcome:"SUCCESS"}));
-    graph.ingest(base({worldAfterDigest:"2".repeat(64),outcome:"UNKNOWN",evidence:[],authorityGrade:false,realityBound:false,eligibleAgenticRl:false}));
-    expect(graph.bestObservedEdge("deploy.release")?.worldAfterDigests).toEqual(["1".repeat(64)]);
+    graph.ingest(base({exactArgumentsDigest:"1".repeat(64),outcome:"SUCCESS"}));
+    graph.ingest(base({exactArgumentsDigest:"1".repeat(64),outcome:"SUCCESS"}));
+    graph.ingest(base({exactArgumentsDigest:"2".repeat(64),outcome:"UNKNOWN",evidence:[],authorityGrade:false,realityBound:false,eligibleAgenticRl:false}));
+    const best=graph.bestObservedEdge("deploy.release")!;
+    expect(best.exactArgumentsDigest).toBe("1".repeat(64));
+    expect(best.successRate).toBe(1);
   });
 });
