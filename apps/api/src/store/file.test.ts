@@ -2,7 +2,7 @@ import {access,mkdtemp,rm,writeFile} from "node:fs/promises";
 import {createRequire} from "node:module";
 import os from "node:os";
 import path from "node:path";
-import {afterEach,describe,expect,it} from "vitest";
+import {afterEach,beforeEach,describe,expect,it} from "vitest";
 import {loadDeviceReceiptSigner} from "../device-signing.js";
 import {createReceipt,verifyReceiptPublic} from "../receipt.js";
 import {FileReceiptStore} from "./file.js";
@@ -10,8 +10,10 @@ import {FileReceiptStore} from "./file.js";
 const nodeRequire=createRequire(import.meta.url);
 const {DatabaseSync}=nodeRequire("node:sqlite") as {DatabaseSync:new(path:string)=>{prepare:(sql:string)=>{get:(...values:unknown[])=>unknown;run:(...values:unknown[])=>unknown};close:()=>void}};
 const dirs:string[]=[];
+const originalReceiptStore=process.env.CIEAV_RECEIPT_STORE;
 async function temp(){const d=await mkdtemp(path.join(os.tmpdir(),"cieav-receipts-"));dirs.push(d);return d}
-afterEach(async()=>{delete process.env.CIEAV_SQLITE_PATH;await Promise.all(dirs.splice(0).map(d=>rm(d,{recursive:true,force:true})))});
+beforeEach(()=>{process.env.CIEAV_RECEIPT_STORE="sqlite"});
+afterEach(async()=>{delete process.env.CIEAV_SQLITE_PATH;if(originalReceiptStore===undefined)delete process.env.CIEAV_RECEIPT_STORE;else process.env.CIEAV_RECEIPT_STORE=originalReceiptStore;await Promise.all(dirs.splice(0).map(d=>rm(d,{recursive:true,force:true})))});
 const manifest={requestId:"request-12345678",actionType:"access.grant",summary:"Grant access",actor:"You",target:"example.test",recipients:[],dataCategories:["NONE" as const],effects:["Access may be granted."],reversibility:"COMPENSABLE" as const,undo:{kind:"NONE" as const},risk:"MEDIUM" as const,confidence:.9,modelUsed:false,warnings:[],evidence:["test"],policyVersion:"test"};
 
 describe("SQLite-backed FileReceiptStore",()=>{

@@ -70,7 +70,8 @@ def _env(settings: Settings) -> dict[str, str]:
         "LATCH_AI_VERIFIER_MODEL", "LATCH_AI_TIMEOUT_MS",
         "CIEAV_RECEIPT_STORE", "CIEAV_PHP_BIN", "CIEAV_XAMPP_MYSQL_BRIDGE",
         "CIEAV_MYSQL_HOST", "CIEAV_MYSQL_PORT", "CIEAV_MYSQL_DATABASE",
-        "CIEAV_MYSQL_USER",
+        "CIEAV_MYSQL_USER", "CIEAV_CDP_WIN_BRIDGE", "CIEAV_UI_MODE",
+        "CIEAV_HEADLESS", "CIEAV_START_URL", "CIEAV_NOTIFICATIONS",
     ):
         value = os.environ.get(key)
         if value:
