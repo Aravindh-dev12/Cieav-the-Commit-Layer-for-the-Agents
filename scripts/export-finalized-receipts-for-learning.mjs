@@ -89,15 +89,17 @@ function normalize(receipt){
 let db;
 try{db=new DatabaseSync(dbFile,{readOnly:true})}catch(err){failDatabase(`Unable to open selected receipt database read-only: ${String(err?.message??err)}`)}
 try{
-  let rows;
+  let rows=null;
   try{rows=db.prepare("SELECT receipt_json FROM receipts ORDER BY created_at ASC LIMIT ?").all(limit)}catch(err){
     console.error(JSON.stringify({authority:false,error:"receipt_database_schema_invalid",dbFile,message:String(err?.message??err)},null,2));
-    process.exitCode=2;return;
+    process.exitCode=2;
   }
-  const records=[];let rejected=0;
-  for(const row of rows){let receipt;try{receipt=JSON.parse(row.receipt_json)}catch{rejected++;continue}const out=normalize(receipt);if(out)records.push(out);else rejected++}
-  await mkdir(path.dirname(output),{recursive:true});
-  await writeFile(output,records.map(x=>JSON.stringify(x)).join("\n")+(records.length?"\n":""),"utf8");
-  console.log(JSON.stringify({schemaVersion:1,kind:"CIEAV_FINALIZED_RECEIPT_LEARNING_EXPORT_V1",authority:false,productionAuthority:false,authorityGrade:false,realityBound:false,dbFile,output,scanned:rows.length,exported:records.length,rejected},null,2));
-  if(!records.length)process.exitCode=3;
+  if(rows){
+    const records=[];let rejected=0;
+    for(const row of rows){let receipt;try{receipt=JSON.parse(row.receipt_json)}catch{rejected++;continue}const out=normalize(receipt);if(out)records.push(out);else rejected++}
+    await mkdir(path.dirname(output),{recursive:true});
+    await writeFile(output,records.map(x=>JSON.stringify(x)).join("\n")+(records.length?"\n":""),"utf8");
+    console.log(JSON.stringify({schemaVersion:1,kind:"CIEAV_FINALIZED_RECEIPT_LEARNING_EXPORT_V1",authority:false,productionAuthority:false,authorityGrade:false,realityBound:false,dbFile,output,scanned:rows.length,exported:records.length,rejected},null,2));
+    if(!records.length)process.exitCode=3;
+  }
 }finally{db.close()}
