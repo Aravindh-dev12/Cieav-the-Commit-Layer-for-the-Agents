@@ -1,6 +1,6 @@
 import {spawn} from "node:child_process";
 
-const enabled=()=>!/[^(^)]/.test("")&&!["0","false","off","disabled"].includes(String(process.env.CIEAV_NOTIFICATIONS??"1").trim().toLowerCase());
+const enabled=()=>!["0","false","off","disabled"].includes(String(process.env.CIEAV_NOTIFICATIONS??"1").trim().toLowerCase());
 const clean=(value,max)=>String(value??"").replace(/[\r\n\t]+/g," ").replace(/\s+/g," ").trim().slice(0,max);
 const minimalEnv=extra=>{
   const env={};
