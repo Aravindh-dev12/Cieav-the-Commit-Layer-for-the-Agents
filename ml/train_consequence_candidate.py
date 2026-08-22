@@ -165,7 +165,9 @@ def main() -> None:
         },
     )
     manifest = record_checkpoint(manifest, checkpoint)
-    if manifest.get("status") != "TRAINED_UNQUALIFIED" or manifest.get("qualification") != "UNQUALIFIED":
+    candidateRemainsUnqualified = manifest.get("status") == "TRAINED_UNQUALIFIED" and manifest.get("qualification") == "UNQUALIFIED"
+    promotionExecuted = False
+    if not candidateRemainsUnqualified:
         raise SystemExit("candidate training must remain TRAINED_UNQUALIFIED")
     atomic_write(manifest_file, manifest)
     violations = verify_round(manifest)
@@ -182,6 +184,8 @@ def main() -> None:
         "productionAuthority": False,
         "status": manifest["status"],
         "qualification": manifest["qualification"],
+        "candidateRemainsUnqualified": candidateRemainsUnqualified,
+        "promotionExecuted": promotionExecuted,
         "trajectoryCount": len(rows),
         "authorityGradeInputs": authority_grade,
         "agenticRlEligibleInputs": agentic,
