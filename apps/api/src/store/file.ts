@@ -4,6 +4,7 @@ import {createRequire} from "node:module";
 import path from "node:path";
 import {ReceiptSchema,type Receipt} from "@cieav/contracts";
 import {signReceipt,verifyReceipt,type ReceiptSigner} from "../receipt.js";
+import {XamppMysqlReceiptStore} from "./xampp-mysql.js";
 import type {ReceiptStore} from "./types.js";
 
 type SqliteStatement={run:(...values:unknown[])=>unknown;get:(...values:unknown[])=>unknown;all:(...values:unknown[])=>unknown[]};
@@ -17,7 +18,12 @@ export class FileReceiptStore implements ReceiptStore {
   private db:SqliteDatabase|null=null;
   private loaded=false;
   private readonly dbFile:string;
-  constructor(private readonly legacyJsonFile:string,private readonly signer:ReceiptSigner){const configured=process.env.CIEAV_SQLITE_PATH?.trim();this.dbFile=configured?path.resolve(configured):legacyJsonFile.endsWith(".json")?`${legacyJsonFile.slice(0,-5)}.sqlite3`:legacyJsonFile}
+  private readonly xampp:XamppMysqlReceiptStore|null;
+  constructor(private readonly legacyJsonFile:string,private readonly signer:ReceiptSigner){
+    const configured=process.env.CIEAV_SQLITE_PATH?.trim();
+    this.dbFile=configured?path.resolve(configured):legacyJsonFile.endsWith(".json")?`${legacyJsonFile.slice(0,-5)}.sqlite3`:legacyJsonFile;
+    this.xampp=String(process.env.CIEAV_RECEIPT_STORE??"").trim().toLowerCase()==="xampp-mysql"?new XamppMysqlReceiptStore(signer):null;
+  }
 
   private decode(row:ReceiptRow|undefined):Receipt|null{
     if(!row)return null;
@@ -30,6 +36,7 @@ export class FileReceiptStore implements ReceiptStore {
 
   private async ensureLoaded(){
     if(this.loaded)return;
+    if(this.xampp){await this.xampp.init();this.loaded=true;return}
     await mkdir(path.dirname(this.dbFile),{recursive:true,mode:0o700});
     const db=new DatabaseSync(this.dbFile);this.db=db;
     db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;");
@@ -48,9 +55,29 @@ export class FileReceiptStore implements ReceiptStore {
     this.loaded=true;
   }
 
-  async save(receipt:Receipt){await this.ensureLoaded();if(!verifyReceipt(receipt,this.signer))throw new Error("refusing to persist receipt with invalid signature");this.db!.prepare("INSERT INTO receipts(id,device_id,created_at,receipt_json) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET device_id=excluded.device_id,created_at=excluded.created_at,receipt_json=excluded.receipt_json").run(receipt.id,receipt.deviceId,receipt.createdAt,JSON.stringify(receipt))}
-  async list(deviceId:string,limit:number){await this.ensureLoaded();const rows=this.db!.prepare("SELECT id,device_id,created_at,receipt_json FROM receipts WHERE device_id=? ORDER BY created_at DESC LIMIT ?").all(deviceId,limit) as ReceiptRow[];return rows.map(r=>this.decode(r)!)}
-  async get(deviceId:string,id:string){await this.ensureLoaded();return this.decode(this.db!.prepare("SELECT id,device_id,created_at,receipt_json FROM receipts WHERE device_id=? AND id=? LIMIT 1").get(deviceId,id) as ReceiptRow|undefined)}
-  async updateStatus(deviceId:string,id:string,status:Receipt["status"]){const current=await this.get(deviceId,id);if(!current)return null;const next=signReceipt({...current,status},this.signer);await this.save(next);return next}
-  async close(){this.db?.close();this.db=null;this.loaded=false}
+  async save(receipt:Receipt){
+    await this.ensureLoaded();
+    if(this.xampp)return this.xampp.save(receipt);
+    if(!verifyReceipt(receipt,this.signer))throw new Error("refusing to persist receipt with invalid signature");
+    this.db!.prepare("INSERT INTO receipts(id,device_id,created_at,receipt_json) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET device_id=excluded.device_id,created_at=excluded.created_at,receipt_json=excluded.receipt_json").run(receipt.id,receipt.deviceId,receipt.createdAt,JSON.stringify(receipt));
+  }
+  async list(deviceId:string,limit:number){
+    await this.ensureLoaded();
+    if(this.xampp)return this.xampp.list(deviceId,limit);
+    const rows=this.db!.prepare("SELECT id,device_id,created_at,receipt_json FROM receipts WHERE device_id=? ORDER BY created_at DESC LIMIT ?").all(deviceId,limit) as ReceiptRow[];return rows.map(r=>this.decode(r)!);
+  }
+  async get(deviceId:string,id:string){
+    await this.ensureLoaded();
+    if(this.xampp)return this.xampp.get(deviceId,id);
+    return this.decode(this.db!.prepare("SELECT id,device_id,created_at,receipt_json FROM receipts WHERE device_id=? AND id=? LIMIT 1").get(deviceId,id) as ReceiptRow|undefined);
+  }
+  async updateStatus(deviceId:string,id:string,status:Receipt["status"]){
+    await this.ensureLoaded();
+    if(this.xampp)return this.xampp.updateStatus(deviceId,id,status);
+    const current=await this.get(deviceId,id);if(!current)return null;const next=signReceipt({...current,status},this.signer);await this.save(next);return next;
+  }
+  async close(){
+    if(this.xampp)await this.xampp.close();
+    this.db?.close();this.db=null;this.loaded=false;
+  }
 }
