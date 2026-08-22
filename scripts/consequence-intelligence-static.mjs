@@ -7,87 +7,52 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const read=p=>readFileSync(path.join(ROOT,p),"utf8");
 const requireTokens=(p,tokens)=>{const s=read(p);for(const t of tokens)if(!s.includes(t))throw new Error(`${p} missing consequence-intelligence invariant: ${t}`);return s};
 
-requireTokens("ARCHITECTURE.md",[
-  "Consequence Intelligence Framework","Intelligence State","Cognitive Scheduler","Consequence Compiler","Consequence Graph","Verified Skills","Authorized Outcome Trajectory","MODEL AUTHORITY = 0","installed, not opened",
-]);
-requireTokens("PLAN.md",[
-  "Universal Intelligence Substrate","Cognitive Cell","Self Model","Global Intelligence Workspace","CIEAV Cortex","Universal Consequence ABI","Continuing Authority","CIEAV Edge","Definition of Done","MODEL AUTHORITY = 0",
-]);
-const contracts=requireTokens("packages/contracts/src/consequence-intelligence.ts",[
-  "CIEAV_INTELLIGENCE_STATE_V1","CIEAV_CONSEQUENCE_PROGRAM_V1","CIEAV_COGNITIVE_PROGRAM_V1","CIEAV_AUTHORIZED_OUTCOME_TRAJECTORY_V2","ProofProviderDescriptorSchema","LearningProviderDescriptorSchema","authority:z.literal(false)","productionAuthority:z.literal(false)","SUCCESS","FAILURE","UNKNOWN",
-]);
-const cognitiveContracts=requireTokens("packages/contracts/src/cognitive-runtime.ts",[
-  "CIEAV_COGNITIVE_CELL_V1","CIEAV_SELF_MODEL_V1","CIEAV_GLOBAL_WORKSPACE_V1","LOCAL_ONLY","REDACTED_REMOTE_ALLOWED","authority:z.literal(false)","mayMintExecutionAuthority:z.literal(false)",
-]);
-const providerContracts=requireTokens("packages/contracts/src/provider-runtime.ts",[
-  "ProofObservationRequestSchema","ProofProviderResultSchema","LearningJobRequestSchema","LearningJobResultSchema","candidateMustRemainUnqualified:z.literal(true)","candidateQualified:z.literal(false)","promotionExecuted:z.literal(false)","mayMintExecutionAuthority:z.literal(false)",
-]);
-const core=requireTokens("packages/core/src/consequence-intelligence.ts",[
-  "rankConsequencePaths","buildBaselineCognitiveProgram","evaluateTrajectoryEligibility","unknown_is_training_signal_not_success","CONSEQUENCE_INTELLIGENCE_AUTHORITY=false","CONSEQUENCE_INTELLIGENCE_MAY_MINT_EXECUTION_AUTHORITY=false",
-]);
-const graph=requireTokens("packages/core/src/consequence-graph.ts",[
-  "CIEAV_CONSEQUENCE_GRAPH_V1","consequence_graph_requires_cryptographically_verified_trajectory","exactArgumentsDigest","The observed post-state must never","unknownRate","proofability","authorityGradeCoverage","realityBoundCoverage","authority:false","mayMintExecutionAuthority:false",
-]);
-const providers=requireTokens("packages/core/src/provider-runtime.ts",[
-  "ProofProviderRegistry","LearningProviderRegistry","proof_provider_must_have_zero_authority","learning_provider_must_have_zero_authority","learning_request_authority_invariant_violation","learning_provider_result_authority_invariant_violation",
-]);
-const epistemic=requireTokens("packages/core/src/epistemic-state.ts",[
-  "CIEAV_EPISTEMIC_STATE_V1","stale_epistemic_update","Contradiction is sticky","CONTRADICTED","STALE","authority:false","mayMintExecutionAuthority:false",
-]);
-const cognitive=requireTokens("packages/core/src/cognitive-runtime.ts",[
-  "CognitiveCellRegistry","GlobalIntelligenceWorkspace","remote_cell_cannot_claim_local_only","LOCAL_ONLY","contributionVisibleToCell","stale_workspace_contribution","authority!==false","mayMintExecutionAuthority!==false",
-]);
-const cortex=requireTokens("packages/core/src/cortex.ts",[
-  "cognitiveCellToEngine","buildIntelligenceStateFromRegistry","buildCortexProgram","CORTEX_AUTHORITY=false","CORTEX_MAY_MINT_EXECUTION_AUTHORITY=false","cortex_rejects_authoritative_cell",
-]);
-const universal=requireTokens("packages/core/src/universal-intelligence.ts",[
-  "UniversalIntelligenceRuntime","CognitiveCellRegistry","EpistemicState","ConsequenceGraph","ProofProviderRegistry","LearningProviderRegistry","ingestVerifiedExperience","CIEAV_UNIVERSAL_INTELLIGENCE_RUNTIME_V1","UNIVERSAL_INTELLIGENCE_AUTHORITY=false","UNIVERSAL_INTELLIGENCE_MAY_MINT_EXECUTION_AUTHORITY=false",
-]);
-requireTokens("packages/core/src/consequence-intelligence.test.ts",[
-  "prefers a scoped, provable and reversible route","respects LOCAL_ONLY privacy","preserves UNKNOWN","outside execution authority",
-]);
-requireTokens("packages/core/src/consequence-graph.test.ts",[
-  "rejects unverified trajectories","groups different post-states under the same pre-execution decision context","authority-grade and reality-bound coverage","distinguishes materially different exact operations/arguments",
-]);
-requireTokens("packages/core/src/provider-runtime.test.ts",[
-  "zero-authority provider","fails closed on provider identity mismatch","keeps successful training artifacts unqualified","rejects unsupported learning methods",
-]);
-requireTokens("packages/core/src/epistemic-state.test.ts",[
-  "rejects older observations","marks claims stale","does not let later support erase unresolved contradictory evidence","explicit deterministic reconciliation","remains non-authoritative",
-]);
-requireTokens("packages/core/src/cognitive-runtime.test.ts",[
-  "builds a live non-authoritative self model","excludes remote cells for LOCAL_ONLY work","keeps LOCAL_ONLY contributions away from remote cells","rejects out-of-order contributions","workspace_cell_unavailable",
-]);
-requireTokens("packages/core/src/cortex.test.ts",[
-  "zero-authority engines","respects LOCAL_ONLY","real deterministic cognitive program","stops when no admissible cognitive cell exists",
-]);
-requireTokens("packages/core/src/universal-intelligence.test.ts",[
-  "cells -> workspace -> cortex -> projected context without authority","keeps local-only evidence away from remote selected cells","preserves UNKNOWN","non-authoritative organism snapshot",
-]);
-const injected=requireTokens("apps/browser/injected.js",[
-  "NOTIFICATION_ONLY=!AUTO","if(NOTIFICATION_ONLY)return Promise.resolve({choice:\"cancel\",decisionMs:0})","status:\"CANCELLED\"",
-]);
-requireTokens("apps/browser/main.mjs",[
-  "CIEAV_UI_MODE","notification-only","CIEAV_HEADLESS","about:blank","native-notify.mjs",
-]);
-requireTokens("apps/browser/native-notify.mjs",[
-  "CIEAV_NOTIFICATIONS","powershell.exe","NotifyIcon","WindowStyle","Hidden",
-]);
-requireTokens("scripts/configure-xampp-receipt-store.ps1",[
-  "Get-FileHash -Algorithm SHA256","cdp-win-bridge-$sourceHash.exe","Reusing versioned Windows private CDP bridge","CIEAV_CDP_WIN_BRIDGE",
-]);
-requireTokens("python/latch_platform/service.py",[
-  "CIEAV_CDP_WIN_BRIDGE","CIEAV_UI_MODE","CIEAV_HEADLESS","CIEAV_START_URL","CIEAV_NOTIFICATIONS",
-]);
-requireTokens("apps/api/src/store/file.test.ts",[
-  "beforeEach(()=>{process.env.CIEAV_RECEIPT_STORE=\"sqlite\"})","originalReceiptStore","delete process.env.CIEAV_RECEIPT_STORE",
-]);
+requireTokens("ARCHITECTURE.md",["Consequence Intelligence Framework","Intelligence State","Cognitive Scheduler","Consequence Compiler","Consequence Graph","Verified Skills","Authorized Outcome Trajectory","MODEL AUTHORITY = 0","installed, not opened"]);
+requireTokens("PLAN.md",["Universal Intelligence Substrate","Cognitive Cell","Self Model","Global Intelligence Workspace","CIEAV Cortex","Universal Consequence ABI","Continuing Authority","CIEAV Edge","Definition of Done","MODEL AUTHORITY = 0"]);
+const contracts=requireTokens("packages/contracts/src/consequence-intelligence.ts",["CIEAV_INTELLIGENCE_STATE_V1","CIEAV_CONSEQUENCE_PROGRAM_V1","CIEAV_COGNITIVE_PROGRAM_V1","CIEAV_AUTHORIZED_OUTCOME_TRAJECTORY_V2","\"MODEL\",\"AGENT\",\"SKILL\"","AGENT denotes delegated cognition only","ProofProviderDescriptorSchema","LearningProviderDescriptorSchema","authority:z.literal(false)","productionAuthority:z.literal(false)","SUCCESS","FAILURE","UNKNOWN"]);
+const abiContracts=requireTokens("packages/contracts/src/consequence-abi.ts",["CIEAV_CONSEQUENCE_ABI_V1","FrameworkConsequenceRequestSchema","normalizedArgumentsDigest","semanticEffect:SemanticEffectSchema","RECONCILE_BEFORE_RETRY","STOP_AND_RECONCILE","executionAuthorityIssued:z.literal(false)","authority:z.literal(false)","mayMintExecutionAuthority:z.literal(false)"]);
+const cognitiveContracts=requireTokens("packages/contracts/src/cognitive-runtime.ts",["CIEAV_COGNITIVE_CELL_V1","CIEAV_SELF_MODEL_V1","CIEAV_GLOBAL_WORKSPACE_V1","WorkspaceScopeSchema","sessionId","deviceId","LOCAL_ONLY","REDACTED_REMOTE_ALLOWED","authority:z.literal(false)","mayMintExecutionAuthority:z.literal(false)"]);
+const durableContracts=requireTokens("packages/contracts/src/universal-runtime.ts",["CIEAV_UNIVERSAL_INTELLIGENCE_STATE_V1","CIEAV_CONSEQUENCE_GRAPH_STATE_V1","outcome_counts_must_equal_observations","IntelligencePlanRequestSchema","IntelligenceExperienceRequestSchema","authority:z.literal(false)","mayMintExecutionAuthority:z.literal(false)"]);
+const providerContracts=requireTokens("packages/contracts/src/provider-runtime.ts",["ProofObservationRequestSchema","ProofProviderResultSchema","LearningJobRequestSchema","LearningJobResultSchema","candidateMustRemainUnqualified:z.literal(true)","candidateQualified:z.literal(false)","promotionExecuted:z.literal(false)","mayMintExecutionAuthority:z.literal(false)"]);
+const core=requireTokens("packages/core/src/consequence-intelligence.ts",["rankConsequencePaths","buildBaselineCognitiveProgram","engineByKind(state.availableEngines,\"AGENT\"","BOUNDED_AGENT_DELEGATION","Delegate bounded reasoning to an external agent Cognitive Cell without granting execution authority","evaluateTrajectoryEligibility","unknown_is_training_signal_not_success","CONSEQUENCE_INTELLIGENCE_AUTHORITY=false","CONSEQUENCE_INTELLIGENCE_MAY_MINT_EXECUTION_AUTHORITY=false"]);
+const abi=requireTokens("packages/core/src/consequence-abi.ts",["consequenceFromFrameworkCall","sameConsequenceDecisionContext","consequence_principal_agent_mismatch","semanticEffect:call.semanticEffect","executionAuthorityIssued:false","CONSEQUENCE_ABI_AUTHORITY=false","CONSEQUENCE_ABI_MAY_MINT_EXECUTION_AUTHORITY=false"]);
+const graph=requireTokens("packages/core/src/consequence-graph.ts",["CIEAV_CONSEQUENCE_GRAPH_V1","CIEAV_CONSEQUENCE_GRAPH_STATE_V1","consequence_graph_requires_cryptographically_verified_trajectory","persistedState()","restore(raw","ConsequenceGraphPersistedStateSchema.parse","unknownRate","proofability","authorityGradeCoverage","realityBoundCoverage","authority:false","mayMintExecutionAuthority:false"]);
+const providers=requireTokens("packages/core/src/provider-runtime.ts",["ProofProviderRegistry","LearningProviderRegistry","proof_provider_must_have_zero_authority","learning_provider_must_have_zero_authority","learning_request_authority_invariant_violation","learning_provider_result_authority_invariant_violation"]);
+const epistemic=requireTokens("packages/core/src/epistemic-state.ts",["CIEAV_EPISTEMIC_STATE_V1","stale_epistemic_update","Contradiction is sticky","CONTRADICTED","STALE","authority:false","mayMintExecutionAuthority:false"]);
+const cognitive=requireTokens("packages/core/src/cognitive-runtime.ts",["CognitiveCellRegistry","GlobalIntelligenceWorkspace","WorkspaceScope","remote_cell_cannot_claim_local_only","LOCAL_ONLY","contributionVisibleToCell","stale_workspace_contribution","authority!==false","mayMintExecutionAuthority!==false"]);
+const cortex=requireTokens("packages/core/src/cortex.ts",["\"MODEL\",\"AGENT\",\"SKILL\"","type EngineKind=\"MODEL\"|\"AGENT\"","cognitiveCellToEngine","buildIntelligenceStateFromRegistry","buildCortexProgram","CORTEX_AUTHORITY=false","CORTEX_MAY_MINT_EXECUTION_AUTHORITY=false","cortex_rejects_authoritative_cell"]);
+const universal=requireTokens("packages/core/src/universal-intelligence.ts",["UniversalIntelligenceRuntime","WorkspaceScope","exportPersistedState","restorePersistedState","UniversalIntelligencePersistedStateSchema.parse","universal_intelligence_restore_requires_empty_runtime","CIEAV_UNIVERSAL_INTELLIGENCE_RUNTIME_V1","UNIVERSAL_INTELLIGENCE_AUTHORITY=false","UNIVERSAL_INTELLIGENCE_MAY_MINT_EXECUTION_AUTHORITY=false"]);
+const durableStore=requireTokens("apps/api/src/universal-intelligence-store.ts",["CieavUniversalIntelligenceStore","durableReplace","timingSafeEqual","WorkspaceScope","backup(destination","restoreBackup(source","health()","integrity check failed","authority:false"]);
+const intelligenceApi=requireTokens("apps/api/src/universal-intelligence-api.ts",["CieavUniversalIntelligenceApi","/v1/intelligence/health","/v1/intelligence/snapshot","/v1/intelligence/cells","/v1/intelligence/workspaces","/v1/intelligence/claims","/v1/intelligence/experience","self:{now:input.now,privacy:input.privacy","maxLatencyMs:input.budget.maxLatencyMs","maxCostUsd:input.budget.maxCostUsd","maxModelCalls:input.budget.maxModelCalls"]);
+const agentIntelligenceApi=requireTokens("apps/api/src/agent-intelligence-api.ts",["CieavAgentIntelligenceApi","MAX_AGENT_WORKSPACES_PER_SESSION=16","MAX_AGENT_CONTRIBUTIONS_PER_WORKSPACE=500","capabilityClaims:\"SELF_ASSERTED\"","agent_intelligence_workspace_quota_exceeded","agent_intelligence_contribution_quota_exceeded","agent_intelligence_workspace_forbidden","scopeDeviceId","REDACTED_REMOTE_ALLOWED","/v1/agent/intelligence/register","/v1/agent/intelligence/workspaces","/v1/agent/intelligence/consequences/normalize","consequenceFromFrameworkCall","self:{now,privacy:item.workspace.privacy","maxLatencyMs:input.budget.maxLatencyMs","authority:false","mayMintExecutionAuthority:false"]);
+const apiServer=requireTokens("apps/api/src/server.ts",["cieav-universal-intelligence-state-v1","CieavAgentIntelligenceApi","gatewayIntelligencePath","gateway_authorization_required","/v1/agent/intelligence","agentIntelligenceApi.handle","intelligenceStore?.close()"]);
+const mcp=requireTokens("apps/mcp/src/index.ts",["register_intelligence_cell","create_intelligence_workspace","contribute_intelligence","plan_intelligence","normalize_consequence","framework:\"MCP\" as const","/v1/agent/intelligence/consequences/normalize","execution authority"]);
+const a2a=requireTokens("apps/a2a/src/index.mjs",["CIEAV Universal Intelligence + Reality Governance Agent","register_intelligence_cell","create_intelligence_workspace","contribute_intelligence","plan_intelligence","normalize_consequence","framework:\"A2A\"","/v1/agent/intelligence/consequences/normalize","loopback-only"]);
+requireTokens("apps/api/src/universal-intelligence-store.test.ts",["persists and restores cells claims workspaces and consequence graph","fails closed when persisted intelligence state is tampered","preserves local-only privacy and UNKNOWN after restart","creates authenticated backups and restores them atomically","reports non-authoritative operational health"]);
+requireTokens("apps/api/src/agent-intelligence-api.test.ts",["forces agent cell identity, remote privacy and self-asserted capability status","prevents another session from reading or contributing to a workspace","does not allow an agent session to declare LOCAL_ONLY workspace data","enforces the per-session durable workspace quota","enforces contribution quota before accepting more durable agent data","returns a sanitized cognitive program","normalizes framework consequences but cannot issue authority"]);
+requireTokens("packages/core/src/consequence-abi.test.ts",["normalizes MCP calls without issuing authority","normalizes A2A calls into the same decision context","rejects an agent principal","preserves duplicate, uncertainty, proof and recovery semantics"]);
+requireTokens("packages/core/src/consequence-intelligence.test.ts",["prefers a scoped, provable and reversible route","respects LOCAL_ONLY privacy","preserves UNKNOWN","outside execution authority"]);
+requireTokens("packages/core/src/consequence-graph.test.ts",["rejects unverified trajectories","groups different post-states under the same pre-execution decision context","authority-grade and reality-bound coverage","distinguishes materially different exact operations/arguments"]);
+requireTokens("packages/core/src/provider-runtime.test.ts",["zero-authority provider","fails closed on provider identity mismatch","keeps successful training artifacts unqualified","rejects unsupported learning methods"]);
+requireTokens("packages/core/src/epistemic-state.test.ts",["rejects older observations","marks claims stale","does not let later support erase unresolved contradictory evidence","explicit deterministic reconciliation","remains non-authoritative"]);
+requireTokens("packages/core/src/cognitive-runtime.test.ts",["builds a live non-authoritative self model","excludes remote cells for LOCAL_ONLY work","keeps LOCAL_ONLY contributions away from remote cells","rejects out-of-order contributions","workspace_cell_unavailable"]);
+requireTokens("packages/core/src/cortex.test.ts",["zero-authority engines","respects LOCAL_ONLY","real deterministic cognitive program","uses an external agent as bounded cognition","prefers a qualified model over an unverified external agent","stops when no admissible cognitive cell exists"]);
+requireTokens("packages/core/src/universal-intelligence.test.ts",["cells -> workspace -> cortex -> projected context without authority","keeps local-only evidence away from remote selected cells","preserves UNKNOWN","non-authoritative organism snapshot"]);
+const injected=requireTokens("apps/browser/injected.js",["NOTIFICATION_ONLY=!AUTO","if(NOTIFICATION_ONLY)return Promise.resolve({choice:\"cancel\",decisionMs:0})","status:\"CANCELLED\""]);
+requireTokens("apps/browser/main.mjs",["CIEAV_UI_MODE","notification-only","CIEAV_HEADLESS","about:blank","native-notify.mjs"]);
+requireTokens("apps/browser/native-notify.mjs",["CIEAV_NOTIFICATIONS","powershell.exe","NotifyIcon","WindowStyle","Hidden"]);
+requireTokens("scripts/configure-xampp-receipt-store.ps1",["Get-FileHash -Algorithm SHA256","cdp-win-bridge-$sourceHash.exe","Reusing versioned Windows private CDP bridge","CIEAV_CDP_WIN_BRIDGE"]);
+requireTokens("python/latch_platform/service.py",["CIEAV_CDP_WIN_BRIDGE","CIEAV_UI_MODE","CIEAV_HEADLESS","CIEAV_START_URL","CIEAV_NOTIFICATIONS"]);
+requireTokens("apps/api/src/store/file.test.ts",["beforeEach(()=>{process.env.CIEAV_RECEIPT_STORE=\"sqlite\"})","originalReceiptStore","delete process.env.CIEAV_RECEIPT_STORE"]);
 
-for(const source of [core,graph,providers,epistemic,cognitive,cortex,universal,cognitiveContracts])for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issueCredentialLease("]){
-  if(source.includes(forbidden))throw new Error(`intelligence code contains forbidden authority primitive: ${forbidden}`);
-}
+for(const source of [core,abi,graph,providers,epistemic,cognitive,cortex,universal,cognitiveContracts,durableContracts,abiContracts,durableStore,intelligenceApi,agentIntelligenceApi])for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issueCredentialLease("]){if(source.includes(forbidden))throw new Error(`intelligence code contains forbidden authority primitive: ${forbidden}`)}
 if(!contracts.includes("mayMintExecutionAuthority:z.literal(false)"))throw new Error("Intelligence State is not explicitly prohibited from minting execution authority");
 if(!providerContracts.includes("productionAuthority:z.literal(false)"))throw new Error("Learning provider result is not explicitly prohibited from production authority");
+if(!durableContracts.includes("productionAuthority:z.literal(false)"))throw new Error("Durable experience request is not explicitly prohibited from production authority");
+if(!abiContracts.includes("executionAuthorityIssued:z.literal(false)"))throw new Error("Consequence ABI may issue execution authority");
+if(!apiServer.includes("gateway_authorization_required"))throw new Error("Gateway intelligence management path is not fail-closed");
+if(!mcp.includes("CIEAV_AGENT_TOKEN"))throw new Error("MCP intelligence path is not bound to a scoped agent token");
+if(!a2a.includes("CIEAV_AGENT_TOKEN")||!a2a.includes("CIEAV_A2A_CLIENT_TOKEN"))throw new Error("A2A intelligence path is not capability-bound");
 if(!injected.includes("if(NOTIFICATION_ONLY)return;"))throw new Error("notification-only runtime may still render in-page toast UI");
 
-console.log("CIEAV universal intelligence static gate PASS - universal runtime + cognitive cells + self model + workspace + cortex + epistemic freshness + consequence graph + provider isolation + UNKNOWN preservation + authority=false + background fail-closed UX + hermetic SQLite tests + versioned Windows bridge deployment");
+console.log("CIEAV universal intelligence static gate PASS - bounded AGENT cognition + durable quotas + self-asserted capability labeling + Consequence ABI + scoped MCP/A2A + session isolation + backup/restore + UNKNOWN preservation + authority=false");

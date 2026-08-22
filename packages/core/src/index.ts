@@ -7,6 +7,7 @@ export * from "./control-plane.js";
 export * from "./framework-interop.js";
 export * from "./consequence-intelligence.js";
 export * from "./consequence-graph.js";
+export * from "./consequence-abi.js";
 export * from "./provider-runtime.js";
 export * from "./epistemic-state.js";
 export * from "./cognitive-runtime.js";

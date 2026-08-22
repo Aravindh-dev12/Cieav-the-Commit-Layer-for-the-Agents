@@ -20,7 +20,9 @@
     "./hardware-key-provider": {"types": "./dist/hardware-key-provider.d.ts", "import": "./dist/hardware-key-provider.js"},
     "./consequence-intelligence": {"types": "./dist/consequence-intelligence.d.ts", "import": "./dist/consequence-intelligence.js"},
     "./provider-runtime": {"types": "./dist/provider-runtime.d.ts", "import": "./dist/provider-runtime.js"},
-    "./cognitive-runtime": {"types": "./dist/cognitive-runtime.d.ts", "import": "./dist/cognitive-runtime.js"}
+    "./cognitive-runtime": {"types": "./dist/cognitive-runtime.d.ts", "import": "./dist/cognitive-runtime.js"},
+    "./universal-runtime": {"types": "./dist/universal-runtime.d.ts", "import": "./dist/universal-runtime.js"},
+    "./consequence-abi": {"types": "./dist/consequence-abi.d.ts", "import": "./dist/consequence-abi.js"}
   },
   "scripts": {"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit"},
   "dependencies": {"zod":"^3.24.0"},

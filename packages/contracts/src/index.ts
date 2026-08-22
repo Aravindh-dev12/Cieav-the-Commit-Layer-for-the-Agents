@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const RiskLevelSchema = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
 export type RiskLevel = z.infer<typeof RiskLevelSchema>;
-
 export const ReversibilitySchema = z.enum(["REVERSIBLE","DELAYABLE","COMPENSABLE","IRREVERSIBLE","UNKNOWN"]);
 export type Reversibility = z.infer<typeof ReversibilitySchema>;
 export const DataCategorySchema = z.enum(["NONE","ACCOUNT","CONTACT","LOCATION","IDENTITY","FINANCIAL","HEALTH","CREDENTIAL","BIOMETRIC","FILE","MESSAGE","WORK","OTHER"]);
@@ -36,3 +35,5 @@ export * from "./hardware-key-provider.js";
 export * from "./consequence-intelligence.js";
 export * from "./provider-runtime.js";
 export * from "./cognitive-runtime.js";
+export * from "./universal-runtime.js";
+export * from "./consequence-abi.js";
