@@ -1,14 +1,13 @@
 import {AuthorizedOutcomeTrajectorySchema,type AuthorizedOutcomeTrajectory} from "@cieav/contracts/consequence-intelligence";
-import {AuthorityGradeSettlementBundleSchema,type AuthorityGradeSettlementBundle} from "@cieav/contracts/authority-grade-settlement";
-import {assessAuthorityGradeSettlement} from "./authority-grade-settlement.js";
+import {AuthorityGradeSettlementAssessmentSchema,AuthorityGradeSettlementBundleSchema,type AuthorityGradeSettlementAssessment,type AuthorityGradeSettlementBundle} from "@cieav/contracts/authority-grade-settlement";
 import {digest} from "./execution-fabric.js";
 
 const trustedProof=new Set(["CIEAV_OBSERVER","TRUSTED_ADAPTER","EXTERNAL_SIGNED","HUMAN_ATTESTATION"]);
 const recoveryEventTypes=new Set(["EFFECT_QUARANTINED","QUARANTINE_RESOLVED","RETRY_SCHEDULED","RECOVERY_REQUIRED","OPEN_LOOP_DETECTED"]);
 
-export function buildAuthorizedOutcomeTrajectory(raw:AuthorityGradeSettlementBundle):AuthorizedOutcomeTrajectory{
+export function buildAuthorizedOutcomeTrajectory(raw:AuthorityGradeSettlementBundle,rawAssessment:AuthorityGradeSettlementAssessment):AuthorizedOutcomeTrajectory{
   const bundle=AuthorityGradeSettlementBundleSchema.parse(raw);
-  const assessment=assessAuthorityGradeSettlement(bundle);
+  const assessment=AuthorityGradeSettlementAssessmentSchema.parse(rawAssessment);
   const proofEvidence=bundle.proofCase.observations.map(observation=>({
     kind:observation.kind,
     source:observation.source??observation.provenance??"unknown",
