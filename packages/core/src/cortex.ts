@@ -8,8 +8,8 @@ import type {
 import {CognitiveCellRegistry,type SelfModelInput} from "./cognitive-runtime.js";
 import {buildBaselineCognitiveProgram} from "./consequence-intelligence.js";
 
-const engineKinds=new Set(["MODEL","SKILL","RETRIEVER","SIMULATOR","PROOF_PROVIDER","HUMAN"] as const);
-type EngineKind="MODEL"|"SKILL"|"RETRIEVER"|"SIMULATOR"|"PROOF_PROVIDER"|"HUMAN";
+const engineKinds=new Set(["MODEL","AGENT","SKILL","RETRIEVER","SIMULATOR","PROOF_PROVIDER","HUMAN"] as const);
+type EngineKind="MODEL"|"AGENT"|"SKILL"|"RETRIEVER"|"SIMULATOR"|"PROOF_PROVIDER"|"HUMAN";
 
 export function cognitiveCellToEngine(cell:CognitiveCellDescriptor):CognitiveEngine|null{
   if(!engineKinds.has(cell.type as EngineKind))return null;
