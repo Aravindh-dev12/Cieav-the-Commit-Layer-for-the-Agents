@@ -37,3 +37,4 @@ export * from "./provider-runtime.js";
 export * from "./cognitive-runtime.js";
 export * from "./universal-runtime.js";
 export * from "./consequence-abi.js";
+export * from "./authority-grade-settlement.js";
