@@ -21,7 +21,9 @@ export const VerifiedSkillProvenanceSchema=z.object({
   authority:z.literal(false).default(false),
   productionAuthority:z.literal(false).default(false),
   mayMintExecutionAuthority:z.literal(false).default(false)
-}).strict();
+}).strict().superRefine((value,ctx)=>{
+  if(Boolean(value.externalAttestationRef)!==Boolean(value.externalAttestationDigest))ctx.addIssue({code:z.ZodIssueCode.custom,path:["externalAttestationRef"],message:"external_attestation_reference_and_digest_must_be_paired"});
+});
 export type VerifiedSkillProvenance=z.infer<typeof VerifiedSkillProvenanceSchema>;
 
 export const VerifiedSkillDependencyLockEntrySchema=z.object({
@@ -35,6 +37,10 @@ export const VerifiedSkillDependencyLockEntrySchema=z.object({
 }).strict();
 export type VerifiedSkillDependencyLockEntry=z.infer<typeof VerifiedSkillDependencyLockEntrySchema>;
 
+/**
+ * The qualified artifact is immutable. Deployment lifecycle lives in the
+ * registry record so provenance always names the same content-addressed subject.
+ */
 const VerifiedSkillRegistryRecordObjectSchema=z.object({
   version:z.literal("CIEAV_VERIFIED_SKILL_REGISTRY_RECORD_V1"),
   skillId:z.string().min(8).max(200),
@@ -46,6 +52,9 @@ const VerifiedSkillRegistryRecordObjectSchema=z.object({
   generation:z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   createdAt:z.string().datetime(),
   updatedAt:z.string().datetime(),
+  activatedAt:z.string().datetime().optional(),
+  activationApprovalRef:z.string().min(8).max(500).optional(),
+  activatedBy:z.string().min(1).max(300).optional(),
   quarantineReason:z.string().min(1).max(1000).optional(),
   revokedAt:z.string().datetime().optional(),
   revocationReason:z.string().min(1).max(1000).optional(),
@@ -55,7 +64,8 @@ const VerifiedSkillRegistryRecordObjectSchema=z.object({
 }).strict();
 export const VerifiedSkillRegistryRecordSchema=VerifiedSkillRegistryRecordObjectSchema.superRefine((record,ctx)=>{
   if(record.skillId!==record.artifact.id)ctx.addIssue({code:z.ZodIssueCode.custom,path:["skillId"],message:"verified_skill_registry_skill_id_mismatch"});
-  if(record.registryState==="ACTIVE"&&record.artifact.state!=="ACTIVE")ctx.addIssue({code:z.ZodIssueCode.custom,path:["registryState"],message:"active_registry_record_requires_active_artifact"});
+  if(record.artifact.state!=="QUALIFIED")ctx.addIssue({code:z.ZodIssueCode.custom,path:["artifact","state"],message:"verified_skill_registry_artifact_must_remain_qualified_and_immutable"});
+  if(record.registryState==="ACTIVE"&&(!record.activatedAt||!record.activationApprovalRef||!record.activatedBy))ctx.addIssue({code:z.ZodIssueCode.custom,path:["registryState"],message:"active_registry_record_requires_explicit_activation"});
   if(record.registryState==="QUARANTINED"&&!record.quarantineReason)ctx.addIssue({code:z.ZodIssueCode.custom,path:["quarantineReason"],message:"quarantined_skill_requires_reason"});
   if(record.registryState==="REVOKED"&&(!record.revokedAt||!record.revocationReason))ctx.addIssue({code:z.ZodIssueCode.custom,path:["registryState"],message:"revoked_registry_record_requires_reason"});
 });
