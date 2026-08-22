@@ -6,7 +6,7 @@ import type {ProofProvider} from "@cieav/core/provider-runtime";
 
 const PROVIDER_ID="cieav.filesystem-proof.v1";
 const digest=(value:Buffer|string)=>crypto.createHash("sha256").update(value).digest("hex");
-const normalize=p=>process.platform==="win32"?p.toLowerCase():p;
+const normalize=(p:string)=>process.platform==="win32"?p.toLowerCase():p;
 const within=(root:string,target:string)=>{const rel=path.relative(root,target);return rel===""||(!rel.startsWith("..")&&!path.isAbsolute(rel))};
 
 export class FilesystemProofProvider implements ProofProvider{
