@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""Build SFT/DPO/KTO/GRPO records from verified CIEAV consequence trajectories."""
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-import sys
 from pathlib import Path
 from typing import Any
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "ml"))
 
 from cieav_learning import load_jsonl
 from cieav_learning.provenance import verify_provenance_boundary
@@ -18,56 +13,82 @@ from cieav_learning.provenance import verify_provenance_boundary
 SPLITS = ("train", "validation", "adversarial", "promotion")
 
 
-def stable_split(trajectory_id: str) -> str:
-    b = hashlib.sha256(trajectory_id.encode("utf-8")).digest()[0]
-    if b < 179:
+def stable_split(identifier: str) -> str:
+    value = int(hashlib.sha256(identifier.encode("utf-8")).hexdigest()[:8], 16) % 100
+    if value < 70:
         return "train"
-    if b < 217:
+    if value < 82:
         return "validation"
-    if b < 242:
+    if value < 92:
         return "adversarial"
     return "promotion"
 
 
 def prompt_for(row: dict[str, Any]) -> str:
-    value = {
-        "intentId": row["task"]["intentId"],
-        "action": row["action"],
-        "authorization": {
-            "decision": row["authorization"]["decision"],
-            "executionBindingDigest": row["authorization"].get("executionBindingDigest"),
+    task = row["task"]
+    action = row["action"]
+    auth = row["authorization"]
+    reality = row["reality"]
+    return json.dumps(
+        {
+            "intentId": task["intentId"],
+            "intentDigest": task["intentDigest"],
+            "action": {
+                "toolId": action["toolId"],
+                "protocol": action["protocol"],
+                "operation": action["operation"],
+                "risk": action["risk"],
+                "semanticEffect": action["semanticEffect"],
+                "argumentsDigest": action["argumentsDigest"],
+            },
+            "authorization": {
+                "decision": auth["decision"],
+                "executionBindingDigest": auth["executionBindingDigest"],
+            },
+            "reality": {
+                "preStateDigest": reality["preStateDigest"],
+                "expectedPostStateDigest": reality["expectedPostStateDigest"],
+                "proofObligationDigest": reality["proofObligationDigest"],
+            },
+            "proofRequired": True,
+            "authority": False,
         },
-        "reality": row["reality"],
-        "proofRequired": True,
-        "trainingScope": (row.get("learning") or {}).get("trainingScope", "OUTCOME_PROOF"),
-        "authorityGrade": (row.get("provenance") or {}).get("authorityGrade", False),
-    }
-    return json.dumps(value, separators=(",", ":"), sort_keys=True)
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
 
 
 def completion_for(row: dict[str, Any]) -> str:
     outcome = row["outcome"]
-    payload = {
-        "status": outcome["status"],
+    status = outcome["status"]
+    result = {
+        "status": status,
         "confidence": outcome["confidence"],
-        "claimSuccess": outcome["status"] == "SUCCESS",
-        "requiresRecovery": outcome["status"] == "FAILURE",
-        "requiresMoreEvidence": outcome["status"] == "UNKNOWN",
-        "trajectoryDigest": row["digest"],
-        "authorityClaim": False,
+        "claimSuccess": status == "SUCCESS",
+        "authority": False,
     }
-    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
-
-
-def rejected_for(row: dict[str, Any]) -> str:
-    status = row["outcome"]["status"]
-    if status == "SUCCESS":
-        wrong = {"status": "UNKNOWN", "claimSuccess": False, "reason": "ignored_verified_success"}
-    elif status == "FAILURE":
-        wrong = {"status": "SUCCESS", "claimSuccess": True, "reason": "claimed_failed_effect_success"}
+    if status == "FAILURE":
+        result["next"] = "recover_or_compensate_if_authorized"
+    elif status == "UNKNOWN":
+        result["next"] = "collect_more_independent_evidence"
     else:
-        wrong = {"status": "SUCCESS", "claimSuccess": True, "reason": "unknown_claimed_success"}
-    return json.dumps(wrong, separators=(",", ":"), sort_keys=True)
+        result["next"] = "settle_verified_success"
+    return json.dumps(result, separators=(",", ":"), ensure_ascii=False)
+
+
+def rejected_completion(row: dict[str, Any]) -> str:
+    status = row["outcome"]["status"]
+    wrong = "SUCCESS" if status in {"FAILURE", "UNKNOWN"} else "UNKNOWN"
+    return json.dumps(
+        {
+            "status": wrong,
+            "claimSuccess": wrong == "SUCCESS",
+            "authority": False,
+            "error": "ignores verified consequence evidence",
+        },
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
 
 
 def expectation_for(row: dict[str, Any]) -> dict[str, Any]:
@@ -80,30 +101,24 @@ def expectation_for(row: dict[str, Any]) -> dict[str, Any]:
         "risk": row["action"]["risk"],
         "trajectoryDigest": row["digest"],
         "authority": False,
-        "trainingScope": (row.get("learning") or {}).get("trainingScope", "OUTCOME_PROOF"),
-        "eligibleAgenticRl": (row.get("learning") or {}).get("eligibleAgenticRl", False),
     }
 
 
 def stage_records(row: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     prompt = prompt_for(row)
     chosen = completion_for(row)
-    rejected = rejected_for(row)
-    provenance = row.get("provenance") or {}
-    learning = row.get("learning") or {}
+    rejected = rejected_completion(row)
     base = {
-        "id": row["trajectoryId"],
-        "trajectory_digest": row["digest"],
+        "trajectoryId": row["trajectoryId"],
+        "trajectoryDigest": row["digest"],
         "authority": False,
-        "outcome_status": row["outcome"]["status"],
-        "evidence_class": provenance.get("evidenceClass", "UNSPECIFIED"),
-        "authority_grade": provenance.get("authorityGrade", False),
-        "reality_bound": provenance.get("realityBound", False),
-        "training_scope": learning.get("trainingScope", "OUTCOME_PROOF"),
-        "eligible_agentic_rl": learning.get("eligibleAgenticRl", False),
+        "outcomeStatus": row["outcome"]["status"],
+        "learningLabel": row["learning"]["label"],
+        "trainingScope": row.get("learning", {}).get("trainingScope", "OUTCOME_PROOF"),
+        "eligibleAgenticRl": bool(row.get("learning", {}).get("eligibleAgenticRl", False)),
     }
     return {
-        "sft": [{**base, "text": f"User:\n{prompt}\nAssistant:\n{chosen}"}],
+        "sft": [{**base, "prompt": prompt, "completion": chosen}],
         "dpo": [{**base, "prompt": prompt, "chosen": chosen, "rejected": rejected}],
         "kto": [
             {**base, "prompt": prompt, "completion": chosen, "label": True},
@@ -124,7 +139,12 @@ def main() -> None:
     parser.add_argument("--output-dir", default="ml/data/consequence")
     args = parser.parse_args()
 
+    input_path = Path(args.input)
+    if not input_path.exists():
+        raise SystemExit(f"trajectory JSONL not found: {input_path}. Run the preceding consequence-learning step successfully first.")
     rows = load_jsonl(args.input)
+    if not rows:
+        raise SystemExit("no verified consequence trajectories available for dataset generation")
     for row in rows:
         if "provenance" in row:
             verify_provenance_boundary(row)
