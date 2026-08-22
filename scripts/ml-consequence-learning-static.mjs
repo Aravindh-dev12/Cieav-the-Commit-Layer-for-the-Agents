@@ -19,10 +19,10 @@ expect("ml/cieav_learning/providers.py",[
   "cieav-browser-proof","reticle-mcp-proof","trl-peft","verl-ray","vllm-rollout","sglang-rollout","river-learning","provider registry violated authority=false invariant",
 ]);
 expect("ml/build_consequence_dataset.py",[
-  "CIEAV_VERIFIED_CONSEQUENCE_DATASET_V1","unknownMustRemainUnknown","verifiedFailureMustNotBecomeReward","requiresFreshModelRollout","authorityGradeRecords","agenticRlEligibleRecords","receiptEvidenceCannotClaimAuthorityGrade",
+  "CIEAV_VERIFIED_CONSEQUENCE_DATASET_V1","unknownMustRemainUnknown","verifiedFailureMustNotBecomeReward","requiresFreshModelRollout","authorityGradeRecords","agenticRlEligibleRecords","receiptEvidenceCannotClaimAuthorityGrade","no verified consequence trajectories available for dataset generation",
 ]);
 expect("ml/consequence_learning_cli.py",[
-  "authority-free","providers","normalize-jsonl","verify_provenance_boundary","dataset","Run the preceding consequence-learning step successfully first",
+  "authority-free","providers","normalize-jsonl","verify_provenance_boundary","dataset","Run the preceding consequence-learning step successfully first","no finalized consequence evidence available",
 ]);
 expect("apps/api/src/consequence-learning-export.ts",[
   "CIEAV_SIGNED_RECEIPT_V3","FINALIZED_RECEIPT","cryptographicallyVerified:true","authorityGrade:false","realityBound:false","verifyReceiptPublic",
@@ -38,6 +38,12 @@ expect("scripts/xampp-mysql-receipts.php",[
 ]);
 expect("scripts/xampp-mysql-bootstrap.mjs",[
   "CIEAV_PHP_BIN","CIEAV_MYSQL_DATABASE","CIEAV_MYSQL_USER","xampp-mysql-receipts.php","productionAuthority:false",
+]);
+expect("scripts/configure-xampp-receipt-store.ps1",[
+  "InstallGateway","RestartGateway","npm.cmd run build:api","gateway install","gateway restart","CIEAV XAMPP RECEIPT STORE: CONFIGURED",
+]);
+expect("python/latch_platform/service.py",[
+  "CIEAV_RECEIPT_STORE","CIEAV_PHP_BIN","CIEAV_MYSQL_HOST","CIEAV_MYSQL_PORT","CIEAV_MYSQL_DATABASE","CIEAV_MYSQL_USER","gateway-service.ps1",
 ]);
 expect("scripts/export-finalized-receipts-for-learning.mjs",[
   "node:sqlite","readOnly:true","Ed25519","authorityGrade:false","realityBound:false","finalized-receipt-evidence.jsonl","os.homedir()",".cieav","--discover","receipt_database_unavailable","xampp-mysql","CIEAV_MYSQL_DATABASE","callMysql(\"all\"",
@@ -65,7 +71,7 @@ expect("scripts/ml-local-learning-smoke.py",[
 
 const python=process.platform==="win32"?"python":"python3";
 for(const p of [
-  "ml/cieav_learning/trajectory.py","ml/cieav_learning/provenance.py","ml/cieav_learning/providers.py","ml/cieav_learning/__init__.py","ml/build_consequence_dataset.py","ml/consequence_learning_cli.py","ml/train_consequence_candidate.py","scripts/ml-consequence-learning-smoke.py","scripts/ml-local-learning-bootstrap.py","scripts/ml-local-learning-smoke.py",
+  "ml/cieav_learning/trajectory.py","ml/cieav_learning/provenance.py","ml/cieav_learning/providers.py","ml/cieav_learning/__init__.py","ml/build_consequence_dataset.py","ml/consequence_learning_cli.py","ml/train_consequence_candidate.py","scripts/ml-consequence-learning-smoke.py","scripts/ml-local-learning-bootstrap.py","scripts/ml-local-learning-smoke.py","python/latch_platform/service.py",
 ]){
   const r=spawnSync(python,["-m","py_compile",p],{cwd:ROOT,stdio:"inherit",shell:false});if(r.error)throw r.error;if(r.status!==0)fail(`Python syntax check failed: ${p}`)
 }
@@ -77,4 +83,4 @@ if(discover.error)throw discover.error;if(discover.status!==0)fail("receipt data
 try{const report=JSON.parse(discover.stdout);if(report.authority!==false||report.selectedStore!=="sqlite"||!Array.isArray(report.candidates)||!String(report.defaultStateDir||"").includes(".cieav"))fail("receipt database discovery contract mismatch")}catch{fail("receipt database discovery did not return JSON")}
 const smoke=spawnSync(python,["scripts/ml-consequence-learning-smoke.py"],{cwd:ROOT,stdio:"inherit",shell:false});if(smoke.error)throw smoke.error;if(smoke.status!==0)fail("consequence-learning smoke failed");
 const live=spawnSync(process.execPath,["scripts/ml-live-receipt-learning-smoke.mjs"],{cwd:ROOT,stdio:"inherit",shell:false,env:{...process.env,CIEAV_RECEIPT_STORE:"sqlite"}});if(live.error)throw live.error;if(live.status!==0)fail("live receipt learning smoke failed");
-console.log("CIEAV consequence-learning gate PASS - signed finalized receipt export + SQLite/XAMPP-MySQL local receipt backends + provenance-separated OUTCOME_PROOF data + authorized outcome trajectories + SFT/DPO/KTO/GRPO generation + TRAINED_UNQUALIFIED candidate contract + local TRL/PEFT contract + authority=false preserved");
+console.log("CIEAV consequence-learning gate PASS - signed finalized receipt export + SQLite/XAMPP-MySQL local receipt backends + persisted Gateway receipt-store configuration + provenance-separated OUTCOME_PROOF data + authorized outcome trajectories + SFT/DPO/KTO/GRPO generation + TRAINED_UNQUALIFIED candidate contract + local TRL/PEFT contract + authority=false preserved");
