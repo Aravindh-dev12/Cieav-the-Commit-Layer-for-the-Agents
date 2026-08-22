@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "ml"))
 
 from cieav_learning import load_jsonl
+from cieav_learning.provenance import verify_provenance_boundary
 
 SPLITS = ("train", "validation", "adversarial", "promotion")
 
@@ -124,6 +125,9 @@ def main() -> None:
     args = parser.parse_args()
 
     rows = load_jsonl(args.input)
+    for row in rows:
+        if "provenance" in row:
+            verify_provenance_boundary(row)
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
     handles: dict[tuple[str, str], Any] = {}
