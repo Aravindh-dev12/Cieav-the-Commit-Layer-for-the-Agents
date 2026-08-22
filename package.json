@@ -3,10 +3,7 @@
   "version": "0.8.0",
   "private": true,
   "description": "CIEAV — always-on commit infrastructure for consequential digital actions.",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": ["apps/*","packages/*"],
   "scripts": {
     "start": "npm run build:api && node scripts/start-production.mjs",
     "start:browser": "node apps/browser/main.mjs",
@@ -21,10 +18,11 @@
     "test:ml-training": "node scripts/ml-training-architecture-static.mjs",
     "test:consequence-intelligence": "node scripts/consequence-intelligence-static.mjs",
     "test:authority-grade-learning": "node scripts/authority-grade-learning-static.mjs",
+    "test:verified-skill": "node scripts/verified-skill-static.mjs",
     "test:native-approval": "node scripts/native-approval-static.mjs",
     "test:physical-evidence": "node scripts/physical-qualification-evidence-smoke.mjs",
     "test:production-orchestration": "node scripts/production-orchestration-static.mjs",
-    "test:boundaries": "node scripts/platform-boundary-static.mjs && node scripts/release-workflow-static.mjs && node scripts/production-qualification-static.mjs && npm run test:production-orchestration && npm run test:ml-training && npm run test:consequence-intelligence && npm run test:authority-grade-learning && npm run test:native-approval && npm run test:physical-evidence",
+    "test:boundaries": "node scripts/platform-boundary-static.mjs && node scripts/release-workflow-static.mjs && node scripts/production-qualification-static.mjs && npm run test:production-orchestration && npm run test:ml-training && npm run test:consequence-intelligence && npm run test:authority-grade-learning && npm run test:verified-skill && npm run test:native-approval && npm run test:physical-evidence",
     "test:namespace": "node scripts/package-namespace-smoke.mjs && python scripts/python-namespace-smoke.py",
     "test:dashboard-reality": "node scripts/dashboard-reality-smoke.mjs",
     "test:adapters": "node scripts/adapter-registry-e2e.mjs",
@@ -83,11 +81,7 @@
     "release:qualify:current:publish": "node scripts/qualify-current-publish.mjs",
     "release:build:publish-layout": "node scripts/build-publish-layout.mjs"
   },
-  "engines": {
-    "node": ">=22"
-  },
+  "engines": {"node": ">=22"},
   "license": "Apache-2.0",
-  "devDependencies": {
-    "esbuild": "0.28.2"
-  }
+  "devDependencies": {"esbuild": "0.28.2"}
 }
