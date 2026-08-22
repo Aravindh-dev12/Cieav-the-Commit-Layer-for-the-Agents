@@ -80,7 +80,11 @@ for(const p of ["scripts/export-finalized-receipts-for-learning.mjs","scripts/ml
 }
 const discover=spawnSync(process.execPath,["scripts/export-finalized-receipts-for-learning.mjs","--discover"],{cwd:ROOT,encoding:"utf8",shell:false,env:{...process.env,CIEAV_RECEIPT_STORE:"sqlite"}});
 if(discover.error)throw discover.error;if(discover.status!==0)fail("receipt database discovery mode failed");
-try{const report=JSON.parse(discover.stdout);if(report.authority!==false||report.selectedStore!=="sqlite"||!Array.isArray(report.candidates)||!String(report.defaultStateDir||"").includes(".cieav"))fail("receipt database discovery contract mismatch")}catch{fail("receipt database discovery did not return JSON")}
+try{
+  const report=JSON.parse(discover.stdout);
+  const stateBase=path.basename(String(report.defaultStateDir||"")).toLowerCase();
+  if(report.authority!==false||report.selectedStore!=="sqlite"||!Array.isArray(report.candidates)||![".cieav",".latch"].includes(stateBase))fail("receipt database discovery contract mismatch");
+}catch{fail("receipt database discovery did not return JSON")}
 const smoke=spawnSync(python,["scripts/ml-consequence-learning-smoke.py"],{cwd:ROOT,stdio:"inherit",shell:false});if(smoke.error)throw smoke.error;if(smoke.status!==0)fail("consequence-learning smoke failed");
 const live=spawnSync(process.execPath,["scripts/ml-live-receipt-learning-smoke.mjs"],{cwd:ROOT,stdio:"inherit",shell:false,env:{...process.env,CIEAV_RECEIPT_STORE:"sqlite"}});if(live.error)throw live.error;if(live.status!==0)fail("live receipt learning smoke failed");
 console.log("CIEAV consequence-learning gate PASS - signed finalized receipt export + SQLite/XAMPP-MySQL local receipt backends + persisted Gateway receipt-store configuration + provenance-separated OUTCOME_PROOF data + authorized outcome trajectories + SFT/DPO/KTO/GRPO generation + TRAINED_UNQUALIFIED candidate contract + local TRL/PEFT contract + authority=false preserved");
