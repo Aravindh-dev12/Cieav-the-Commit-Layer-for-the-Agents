@@ -3,7 +3,7 @@ import type {FrameworkConsequenceRequest,FrameworkToolCall} from "@cieav/contrac
 import {consequenceFromFrameworkCall,sameConsequenceDecisionContext} from "./consequence-abi.js";
 
 const digest="a".repeat(64),before="b".repeat(64),at="2026-08-22T17:00:00.000Z";
-const call=(framework:"MCP"|"A2A",id:string):FrameworkToolCall=>({id,version:1,framework,frameworkRunId:`run-${framework.toLowerCase()}`,agentId:"agent-coder",toolName:"git.apply_patch",operation:"git.apply_patch",target:"repo:cieav",normalizedArgumentsDigest:digest,semanticEffect:{kind:"MUTATE",resource:"repo:cieav",summary:"Apply patch"},retryOrdinal:0,occurredAt:at});
+const call=(framework:"MCP"|"A2A",id:string):FrameworkToolCall=>({id,version:1,framework,frameworkRunId:`run-${framework.toLowerCase()}`,agentId:"agent-coder",toolName:"git.apply_patch",operation:"git.apply_patch",target:"repo:cieav",normalizedArgumentsDigest:digest,semanticEffect:{kind:"UPDATE",target:"repo:cieav",attributes:{}},retryOrdinal:0,occurredAt:at});
 const req=(framework:"MCP"|"A2A",id:string):FrameworkConsequenceRequest=>({call:call(framework,id),adapterManifestId:`adapter-${framework.toLowerCase()}`,principal:{kind:"AGENT",id:"agent-coder"},objective:"repair repository",resource:"repo:cieav",expectedEffects:["repository files change"],authorityRequired:["repo.write"],safetyConstraints:["do not merge"],proofObligations:["git diff matches intended patch"],duplicateSemantics:"RECONCILE_BEFORE_RETRY",reversibility:"COMPENSABLE",uncertaintyPolicy:"STOP_AND_RECONCILE",continuationConditions:["branch remains unchanged"],recoveryContract:["revert patch if proof fails"],risk:"MEDIUM",worldBeforeDigest:before,authority:false});
 
 describe("Consequence ABI",()=>{
