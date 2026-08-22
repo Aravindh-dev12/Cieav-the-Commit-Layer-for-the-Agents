@@ -67,7 +67,6 @@ export function buildVerifiedSkillInUse(registry:CognitiveCellRegistry,raw:Verif
   if(skill.state!=="ACTIVE"||!skill.activationApprovalRef)throw new Error("verified_skill_v2_not_active");
   const {ids,cells}=dependencyCells(registry,skill),privacy=compositePrivacy(cells),local=cells.every(cell=>cell.local);
   if(input.privacy==="LOCAL_ONLY"&&!local)throw new Error("verified_skill_remote_dependency_forbidden_for_local_only");
-  if(input.privacy==="REDACTED_REMOTE_ALLOWED"&&privacy==="REMOTE_ALLOWED")throw new Error("verified_skill_dependency_privacy_too_broad");
   const dependencySnapshot=cells.map(cell=>({id:cell.id,identityRef:cell.identityRef??null,health:cell.health,lastHeartbeatAt:cell.lastHeartbeatAt,local:cell.local,privacyBoundary:cell.privacyBoundary,capabilities:[...cell.capabilities].sort()}));
   return VerifiedSkillInUseSchema.parse({
     version:"CIEAV_VERIFIED_SKILL_IN_USE_V1",
