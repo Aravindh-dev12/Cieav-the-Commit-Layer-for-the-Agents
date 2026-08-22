@@ -48,6 +48,8 @@ def read_jsonl_objects(path: Path) -> list[dict]:
         if not isinstance(value, dict):
             raise SystemExit(f"{path}:{line_no}: JSON object required")
         rows.append(value)
+    if not rows:
+        raise SystemExit(f"no finalized consequence evidence available in {path}; create at least one real finalized CIEAV receipt first")
     return rows
 
 
@@ -99,6 +101,8 @@ def main() -> None:
     if args.command == "verify":
         require_file(args.input, "trajectory JSONL")
         rows = load_jsonl(str(args.input))
+        if not rows:
+            raise SystemExit(f"no verified consequence trajectories available in {args.input}")
         for row in rows:
             verify_trajectory(row)
             if "provenance" in row:
