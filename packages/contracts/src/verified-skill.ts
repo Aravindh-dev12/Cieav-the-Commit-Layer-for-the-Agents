@@ -41,46 +41,23 @@ export const VerifiedSkillQualificationSchema=z.object({
   evaluatedAt:z.string().datetime(),
   thresholds:VerifiedSkillQualificationThresholdsSchema,
   metrics:z.object({
-    samples:z.number().int().nonnegative(),
-    successes:z.number().int().nonnegative(),
-    failures:z.number().int().nonnegative(),
-    unknown:z.number().int().nonnegative(),
-    successRate:z.number().min(0).max(1),
-    failureRate:z.number().min(0).max(1),
-    unknownRate:z.number().min(0).max(1),
-    authorityGradeCoverage:z.number().min(0).max(1),
-    realityBoundCoverage:z.number().min(0).max(1),
-    cryptographicCoverage:z.number().min(0).max(1),
-    proofCoverage:z.number().min(0).max(1)
+    samples:z.number().int().nonnegative(),successes:z.number().int().nonnegative(),failures:z.number().int().nonnegative(),unknown:z.number().int().nonnegative(),
+    successRate:z.number().min(0).max(1),failureRate:z.number().min(0).max(1),unknownRate:z.number().min(0).max(1),authorityGradeCoverage:z.number().min(0).max(1),realityBoundCoverage:z.number().min(0).max(1),cryptographicCoverage:z.number().min(0).max(1),proofCoverage:z.number().min(0).max(1)
   }).strict(),
-  passed:z.boolean(),
-  reasons:z.array(z.string().min(1).max(500)).max(100),
-  evidenceDigest:DigestSchema,
-  authority:z.literal(false).default(false),
-  productionAuthority:z.literal(false).default(false),
-  mayMintExecutionAuthority:z.literal(false).default(false)
+  passed:z.boolean(),reasons:z.array(z.string().min(1).max(500)).max(100),evidenceDigest:DigestSchema,
+  authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)
 }).strict();
 export type VerifiedSkillQualification=z.infer<typeof VerifiedSkillQualificationSchema>;
 
-export const VerifiedSkillArtifactSchema=z.object({
-  version:z.literal("CIEAV_VERIFIED_SKILL_V1"),
-  id:z.string().min(8).max(200),
-  candidate:VerifiedSkillCandidateSchema,
-  qualification:VerifiedSkillQualificationSchema,
-  state:z.enum(["QUALIFIED","ACTIVE","REVOKED"]),
-  qualifiedAt:z.string().datetime(),
-  activatedAt:z.string().datetime().optional(),
-  activationApprovalRef:z.string().min(8).max(500).optional(),
-  activatedBy:z.string().min(1).max(300).optional(),
-  revokedAt:z.string().datetime().optional(),
-  revocationReason:z.string().min(1).max(1000).optional(),
-  authority:z.literal(false).default(false),
-  productionAuthority:z.literal(false).default(false),
-  mayMintExecutionAuthority:z.literal(false).default(false)
-}).superRefine((skill,ctx)=>{
+const VerifiedSkillArtifactObjectSchema=z.object({
+  version:z.literal("CIEAV_VERIFIED_SKILL_V1"),id:z.string().min(8).max(200),candidate:VerifiedSkillCandidateSchema,qualification:VerifiedSkillQualificationSchema,
+  state:z.enum(["QUALIFIED","ACTIVE","REVOKED"]),qualifiedAt:z.string().datetime(),activatedAt:z.string().datetime().optional(),activationApprovalRef:z.string().min(8).max(500).optional(),activatedBy:z.string().min(1).max(300).optional(),revokedAt:z.string().datetime().optional(),revocationReason:z.string().min(1).max(1000).optional(),
+  authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false)
+}).strict();
+export const VerifiedSkillArtifactSchema=VerifiedSkillArtifactObjectSchema.superRefine((skill,ctx)=>{
   if(!skill.qualification.passed)ctx.addIssue({code:z.ZodIssueCode.custom,path:["qualification","passed"],message:"verified_skill_requires_passed_qualification"});
   if(skill.qualification.candidateId!==skill.candidate.id)ctx.addIssue({code:z.ZodIssueCode.custom,path:["qualification","candidateId"],message:"verified_skill_candidate_qualification_mismatch"});
   if(skill.state==="ACTIVE"&&(!skill.activatedAt||!skill.activationApprovalRef||!skill.activatedBy))ctx.addIssue({code:z.ZodIssueCode.custom,path:["state"],message:"active_verified_skill_requires_explicit_activation_approval"});
   if(skill.state==="REVOKED"&&(!skill.revokedAt||!skill.revocationReason))ctx.addIssue({code:z.ZodIssueCode.custom,path:["state"],message:"revoked_verified_skill_requires_reason"});
-}).strict();
+});
 export type VerifiedSkillArtifact=z.infer<typeof VerifiedSkillArtifactSchema>;
