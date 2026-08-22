@@ -27,8 +27,20 @@ expect("ml/consequence_learning_cli.py",[
 expect("apps/api/src/consequence-learning-export.ts",[
   "CIEAV_SIGNED_RECEIPT_V3","FINALIZED_RECEIPT","cryptographicallyVerified:true","authorityGrade:false","realityBound:false","verifyReceiptPublic",
 ]);
+expect("apps/api/src/store/xampp-mysql.ts",[
+  "C:\\\\xampp\\\\php\\\\php.exe","xampp-mysql-receipts.php","ReceiptSchema.parse","verifyReceipt(receipt,this.signer)","refusing to persist receipt with invalid signature","bootstrap",
+]);
+expect("apps/api/src/store/file.ts",[
+  "CIEAV_RECEIPT_STORE","xampp-mysql","XamppMysqlReceiptStore","this.xampp.init()","this.xampp.save(receipt)",
+]);
+expect("scripts/xampp-mysql-receipts.php",[
+  "pdo_mysql","127.0.0.1","xampp_mysql_must_be_loopback","CREATE DATABASE IF NOT EXISTS","CREATE TABLE IF NOT EXISTS receipts","ENGINE=InnoDB","PDO::ATTR_EMULATE_PREPARES => false",
+]);
+expect("scripts/xampp-mysql-bootstrap.mjs",[
+  "CIEAV_PHP_BIN","CIEAV_MYSQL_DATABASE","CIEAV_MYSQL_USER","xampp-mysql-receipts.php","productionAuthority:false",
+]);
 expect("scripts/export-finalized-receipts-for-learning.mjs",[
-  "node:sqlite","readOnly:true","Ed25519","authorityGrade:false","realityBound:false","finalized-receipt-evidence.jsonl","os.homedir()",".cieav","--discover","receipt_database_unavailable",
+  "node:sqlite","readOnly:true","Ed25519","authorityGrade:false","realityBound:false","finalized-receipt-evidence.jsonl","os.homedir()",".cieav","--discover","receipt_database_unavailable","xampp-mysql","CIEAV_MYSQL_DATABASE","callMysql(\"all\"",
 ]);
 expect("scripts/ml-live-receipt-learning-smoke.mjs",[
   "tampered after signing","OUTCOME_PROOF","eligibleAgenticRl","tampered receipt rejected",
@@ -57,12 +69,12 @@ for(const p of [
 ]){
   const r=spawnSync(python,["-m","py_compile",p],{cwd:ROOT,stdio:"inherit",shell:false});if(r.error)throw r.error;if(r.status!==0)fail(`Python syntax check failed: ${p}`)
 }
-for(const p of ["scripts/export-finalized-receipts-for-learning.mjs","scripts/ml-live-receipt-learning-smoke.mjs"]){
+for(const p of ["scripts/export-finalized-receipts-for-learning.mjs","scripts/ml-live-receipt-learning-smoke.mjs","scripts/xampp-mysql-bootstrap.mjs"]){
   const r=spawnSync(process.execPath,["--check",p],{cwd:ROOT,stdio:"inherit",shell:false});if(r.error)throw r.error;if(r.status!==0)fail(`Node syntax check failed: ${p}`)
 }
-const discover=spawnSync(process.execPath,["scripts/export-finalized-receipts-for-learning.mjs","--discover"],{cwd:ROOT,encoding:"utf8",shell:false});
+const discover=spawnSync(process.execPath,["scripts/export-finalized-receipts-for-learning.mjs","--discover"],{cwd:ROOT,encoding:"utf8",shell:false,env:{...process.env,CIEAV_RECEIPT_STORE:"sqlite"}});
 if(discover.error)throw discover.error;if(discover.status!==0)fail("receipt database discovery mode failed");
-try{const report=JSON.parse(discover.stdout);if(report.authority!==false||!Array.isArray(report.candidates)||!String(report.defaultStateDir||"").includes(".cieav"))fail("receipt database discovery contract mismatch")}catch{fail("receipt database discovery did not return JSON")}
+try{const report=JSON.parse(discover.stdout);if(report.authority!==false||report.selectedStore!=="sqlite"||!Array.isArray(report.candidates)||!String(report.defaultStateDir||"").includes(".cieav"))fail("receipt database discovery contract mismatch")}catch{fail("receipt database discovery did not return JSON")}
 const smoke=spawnSync(python,["scripts/ml-consequence-learning-smoke.py"],{cwd:ROOT,stdio:"inherit",shell:false});if(smoke.error)throw smoke.error;if(smoke.status!==0)fail("consequence-learning smoke failed");
-const live=spawnSync(process.execPath,["scripts/ml-live-receipt-learning-smoke.mjs"],{cwd:ROOT,stdio:"inherit",shell:false});if(live.error)throw live.error;if(live.status!==0)fail("live receipt learning smoke failed");
-console.log("CIEAV consequence-learning gate PASS - signed finalized receipt export + user-state receipt discovery + provenance-separated OUTCOME_PROOF data + authorized outcome trajectories + SFT/DPO/KTO/GRPO generation + TRAINED_UNQUALIFIED candidate contract + local TRL/PEFT contract + authority=false preserved");
+const live=spawnSync(process.execPath,["scripts/ml-live-receipt-learning-smoke.mjs"],{cwd:ROOT,stdio:"inherit",shell:false,env:{...process.env,CIEAV_RECEIPT_STORE:"sqlite"}});if(live.error)throw live.error;if(live.status!==0)fail("live receipt learning smoke failed");
+console.log("CIEAV consequence-learning gate PASS - signed finalized receipt export + SQLite/XAMPP-MySQL local receipt backends + provenance-separated OUTCOME_PROOF data + authorized outcome trajectories + SFT/DPO/KTO/GRPO generation + TRAINED_UNQUALIFIED candidate contract + local TRL/PEFT contract + authority=false preserved");
