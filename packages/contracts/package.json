@@ -17,7 +17,8 @@
     "./control-plane": {"types": "./dist/control-plane.d.ts", "import": "./dist/control-plane.js"},
     "./framework-interop": {"types": "./dist/framework-interop.d.ts", "import": "./dist/framework-interop.js"},
     "./credential-authority": {"types": "./dist/credential-authority.d.ts", "import": "./dist/credential-authority.js"},
-    "./hardware-key-provider": {"types": "./dist/hardware-key-provider.d.ts", "import": "./dist/hardware-key-provider.js"}
+    "./hardware-key-provider": {"types": "./dist/hardware-key-provider.d.ts", "import": "./dist/hardware-key-provider.js"},
+    "./consequence-intelligence": {"types": "./dist/consequence-intelligence.d.ts", "import": "./dist/consequence-intelligence.js"}
   },
   "scripts": {"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit"},
   "dependencies": {"zod":"^3.24.0"},
