@@ -18,7 +18,9 @@
     "./framework-interop": {"types": "./dist/framework-interop.d.ts", "import": "./dist/framework-interop.js"},
     "./credential-authority": {"types": "./dist/credential-authority.d.ts", "import": "./dist/credential-authority.js"},
     "./hardware-key-provider": {"types": "./dist/hardware-key-provider.d.ts", "import": "./dist/hardware-key-provider.js"},
-    "./consequence-intelligence": {"types": "./dist/consequence-intelligence.d.ts", "import": "./dist/consequence-intelligence.js"}
+    "./consequence-intelligence": {"types": "./dist/consequence-intelligence.d.ts", "import": "./dist/consequence-intelligence.js"},
+    "./provider-runtime": {"types": "./dist/provider-runtime.d.ts", "import": "./dist/provider-runtime.js"},
+    "./cognitive-runtime": {"types": "./dist/cognitive-runtime.d.ts", "import": "./dist/cognitive-runtime.js"}
   },
   "scripts": {"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit"},
   "dependencies": {"zod":"^3.24.0"},
