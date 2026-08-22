@@ -43,16 +43,22 @@ expect("scripts/build-windows-cdp-bridge.mjs",[
   "cdp-win-bridge.cpp","vswhere.exe","Microsoft.VisualStudio.Component.VC.Tools.x86.x64","/DYNAMICBASE","/NXCOMPAT","CIEAV_STATE_DIR",
 ]);
 expect("scripts/configure-xampp-receipt-store.ps1",[
-  "InstallGateway","RestartGateway","npm.cmd run build:api","build-windows-cdp-bridge.mjs","CIEAV_CDP_WIN_BRIDGE","gateway install","gateway restart","CIEAV XAMPP RECEIPT STORE: CONFIGURED",
+  "InstallGateway","RestartGateway","npm.cmd run build:api","build-windows-cdp-bridge.mjs","CIEAV_CDP_WIN_BRIDGE","gateway install","gateway restart","CIEAV_UI_MODE = 'notification-only'","CIEAV_HEADLESS = '1'","CIEAV_START_URL = 'about:blank'","CIEAV BACKGROUND COMMIT SERVICE: CONFIGURED",
 ]);
 expect("python/latch_platform/service.py",[
-  "CIEAV_RECEIPT_STORE","CIEAV_PHP_BIN","CIEAV_MYSQL_HOST","CIEAV_MYSQL_PORT","CIEAV_MYSQL_DATABASE","CIEAV_MYSQL_USER","CIEAV_CDP_WIN_BRIDGE","gateway-service.ps1",
+  "CIEAV_RECEIPT_STORE","CIEAV_PHP_BIN","CIEAV_MYSQL_HOST","CIEAV_MYSQL_PORT","CIEAV_MYSQL_DATABASE","CIEAV_MYSQL_USER","gateway-service.ps1",
 ]);
 expect("python/latch_platform/gateway.py",[
   "_wait_surface","browserConnected","protectedPages","Protected browser surface failed readiness","CIEAV_REQUIRE_PRODUCTION_API","CIEAV_TEST_AUTO_APPROVE",
 ]);
 expect("apps/browser/chromium-launch.mjs",[
   "CIEAV_CDP_WIN_BRIDGE","cdp-win-bridge.exe","private-windows-handle-pipe","--remote-debugging-pipe","SECRET_ENV_KEYS",
+]);
+expect("apps/browser/injected.js",[
+  "NOTIFICATION_ONLY=!AUTO","if(NOTIFICATION_ONLY)return Promise.resolve({choice:\"cancel\",decisionMs:0})","if(NOTIFICATION_ONLY)return;","status:\"CANCELLED\"",
+]);
+expect("apps/browser/main.mjs",[
+  "notification-only","CIEAV_HEADLESS","about:blank","native-notify.mjs","CIEAV Background Commit Service",
 ]);
 expect("native/windows/cdp-win-bridge.cpp",[
   "PROC_THREAD_ATTRIBUTE_HANDLE_LIST","--remote-debugging-io-pipes=","JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE","CREATE_SUSPENDED","CREATE_NO_WINDOW",
@@ -99,4 +105,4 @@ try{
 }catch{fail("receipt database discovery did not return JSON")}
 const smoke=spawnSync(python,["scripts/ml-consequence-learning-smoke.py"],{cwd:ROOT,stdio:"inherit",shell:false});if(smoke.error)throw smoke.error;if(smoke.status!==0)fail("consequence-learning smoke failed");
 const live=spawnSync(process.execPath,["scripts/ml-live-receipt-learning-smoke.mjs"],{cwd:ROOT,stdio:"inherit",shell:false,env:{...process.env,CIEAV_RECEIPT_STORE:"sqlite"}});if(live.error)throw live.error;if(live.status!==0)fail("live receipt learning smoke failed");
-console.log("CIEAV consequence-learning gate PASS - signed finalized receipt export + SQLite/XAMPP-MySQL local receipt backends + persisted Gateway receipt-store configuration + Windows private-CDP bridge build/readiness + provenance-separated OUTCOME_PROOF data + authorized outcome trajectories + SFT/DPO/KTO/GRPO generation + TRAINED_UNQUALIFIED candidate contract + local TRL/PEFT contract + authority=false preserved");
+console.log("CIEAV consequence-learning gate PASS - signed finalized receipt export + SQLite/XAMPP-MySQL local receipt backends + background notification-only runtime + Windows private-CDP bridge build/readiness + provenance-separated OUTCOME_PROOF data + authorized outcome trajectories + SFT/DPO/KTO/GRPO generation + TRAINED_UNQUALIFIED candidate contract + local TRL/PEFT contract + authority=false preserved");
