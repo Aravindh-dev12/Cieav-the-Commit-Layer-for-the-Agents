@@ -25,9 +25,22 @@ export const ConsequenceGraphPersistedEdgeSchema=z.object({
 });
 export type ConsequenceGraphPersistedEdge=z.infer<typeof ConsequenceGraphPersistedEdgeSchema>;
 
+export const ConsequenceGraphTrajectoryLedgerEntrySchema=z.object({
+  trajectoryId:z.string().min(8).max(200),
+  trajectoryDigest:z.string().regex(/^[0-9a-f]{64}$/),
+  transitionKey:z.string().min(1).max(4096),
+}).strict();
+export type ConsequenceGraphTrajectoryLedgerEntry=z.infer<typeof ConsequenceGraphTrajectoryLedgerEntrySchema>;
+
 export const ConsequenceGraphPersistedStateSchema=z.object({
   version:z.literal("CIEAV_CONSEQUENCE_GRAPH_STATE_V1"),
   edges:z.array(ConsequenceGraphPersistedEdgeSchema).max(100000),
+  /**
+   * Durable at-most-once ledger. Entries are never silently evicted: when the
+   * fixed-capacity JSON state is full, ingestion fails closed until an explicit
+   * storage migration/archival procedure is performed.
+   */
+  ingestedTrajectories:z.array(ConsequenceGraphTrajectoryLedgerEntrySchema).max(100000).default([]),
   authority:z.literal(false).default(false),
   mayMintExecutionAuthority:z.literal(false).default(false),
 });
@@ -70,6 +83,7 @@ export const IntelligencePlanRequestSchema=z.object({
 });
 export type IntelligencePlanRequest=z.infer<typeof IntelligencePlanRequestSchema>;
 
+/** @deprecated External callers must use ticket-derived trusted ingestion. */
 export const IntelligenceExperienceRequestSchema=z.object({
   trajectory:AuthorizedOutcomeTrajectorySchema,
   authority:z.literal(false).default(false),
