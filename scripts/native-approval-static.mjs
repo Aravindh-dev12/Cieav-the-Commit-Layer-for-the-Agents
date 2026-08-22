@@ -17,13 +17,13 @@ const reality=requireTokens("apps/api/src/reality-api.ts",[
   "activationConsumedAt","nativeCapabilities(deviceId","activateNative(raw","native_approval_activation_already_consumed","native_approval_activation_not_pending","/v1/reality/native-approval-activation","native_approval_device_scope_mismatch","/native-capabilities","claimApprovedProposal","issueCommitPermit"
 ]);
 const mediator=requireTokens("apps/browser/main.mjs",[
-  "loopbackPeer","req.headers.origin","/api/native-approval","allowNativeActivation","64_000","/v1/reality/native-approval-activation","pollApprovals","native-capabilities","notifyNativeApproval"
+  "loopbackPeer","req.headers.origin","/api/native-approval","allowNativeActivation","64_000","/v1/reality/native-approval-activation","pollApprovals","native-capabilities","notifyNativeApproval","CIEAV action blocked pending approval"
 ]);
 const transport=requireTokens("apps/browser/native-notify.mjs",[
-  "notifyNativeApproval","CIEAV_NATIVE_APPROVAL_HELPER","spawn(helper,[]","stdio:[\"pipe\",\"ignore\",\"ignore\"]","child.stdin?.end(JSON.stringify(payload))","invalid_native_approval_callback","Approval host unavailable; action remains blocked"
+  "notifyNativeApproval","CIEAV_NATIVE_APPROVAL_HELPER","spawn(helper,[]","stdio:[\"pipe\",\"ignore\",\"ignore\"]","child.stdin?.end(JSON.stringify(payload))","invalid_native_approval_callback","if(process.platform!==\"win32\")return false","if(!helper)return false"
 ]);
 const windows=requireTokens("native/windows/cieav-native-approval/Program.cs",[
-  "AppNotificationManager.Default","NotificationInvoked","manager.Register()","AppNotificationButton(\"Allow once\")","AppNotificationButton(\"Block\")","AddArgument(\"decision\", \"approve\")","AddArgument(\"decision\", \"deny\")","AddArgument(\"challenge\", challengeId)","notification.Expiration = expiresAt","notification.ExpiresOnReboot = true","AllowAutoRedirect = false","UseProxy = false","/api/native-approval","Task.Delay(remaining)"
+  "AppNotificationManager.IsSupported()","AppNotificationManager.Default","NotificationInvoked","manager.Register()","AppNotificationButton(\"Allow once\")","AppNotificationButton(\"Block\")","AddArgument(\"decision\", \"approve\")","AddArgument(\"decision\", \"deny\")","AddArgument(\"challenge\", challengeId)","notification.Expiration = expiresAt","notification.ExpiresOnReboot = true","AllowAutoRedirect = false","UseProxy = false","/api/native-approval","Task.Delay(remaining)"
 ]);
 requireTokens("native/windows/cieav-native-approval/Cieav.NativeApproval.csproj",[
   "net8.0-windows10.0.19041.0","WindowsPackageType>None","Microsoft.WindowsAppSDK","1.8.260710003"
@@ -52,4 +52,4 @@ if(!mediator.includes("if(!loopbackPeer(req)||req.headers.origin)"))throw new Er
 if(!reality.includes("capability.payload.deviceId!==deviceId"))throw new Error("native approval API is not bound to authenticated device scope");
 if(!contracts.includes("executionAuthorityIssued:z.literal(false)"))throw new Error("native approval activation may claim execution authority");
 
-console.log("CIEAV native approval static gate PASS - exact proposal/device/decision binding + one-use durable activation + loopback mediator + stdin-only capability transport + Windows actionable notification + separate permit issuance");
+console.log("CIEAV native approval static gate PASS - exact proposal/device/decision binding + one-use durable activation + loopback mediator + stdin-only capability transport + supported Windows actionable notification + separate permit issuance");
