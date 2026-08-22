@@ -1,20 +1,60 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import {DatabaseSync} from "node:sqlite";
+import {existsSync,statSync} from "node:fs";
 import {mkdir,writeFile} from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const args=process.argv.slice(2);
 const valueOf=(name,fallback="")=>String(args.find(x=>x.startsWith(`${name}=`))?.slice(name.length+1)||fallback).trim();
-const stateDir=path.resolve(valueOf("--state-dir",process.env.CIEAV_STATE_DIR||process.env.LATCH_STATE_DIR||path.join(ROOT,".cieav")));
-const dbFile=path.resolve(valueOf("--db",process.env.CIEAV_SQLITE_PATH||path.join(stateDir,"receipts.sqlite3")));
+const has=name=>args.includes(name);
+const home=path.resolve(os.homedir());
+const homeCieav=path.join(home,".cieav"),homeLatch=path.join(home,".latch");
+const defaultStateDir=existsSync(homeLatch)&&!existsSync(homeCieav)?homeLatch:homeCieav;
+const configuredState=valueOf("--state-dir",process.env.CIEAV_STATE_DIR||process.env.LATCH_STATE_DIR||"");
+const stateDir=path.resolve(configuredState||defaultStateDir);
+const configuredDb=valueOf("--db",process.env.CIEAV_SQLITE_PATH||"");
+const dbFile=path.resolve(configuredDb||path.join(stateDir,"receipts.sqlite3"));
 const output=path.resolve(valueOf("--output",path.join(ROOT,"ml","data","live","finalized-receipt-evidence.jsonl")));
 const limit=Math.max(1,Math.min(10000,Number(valueOf("--limit","1000"))||1000));
 const canonical=value=>Array.isArray(value)?`[${value.map(canonical).join(",")}]`:value&&typeof value==="object"?`{${Object.keys(value).sort().map(k=>`${JSON.stringify(k)}:${canonical(value[k])}`).join(",")}}`:JSON.stringify(value)??"undefined";
 const digest=value=>crypto.createHash("sha256").update(canonical(value)).digest("hex");
 const finalStatus=new Set(["COMMITTED","UNDONE","UNDO_FAILED"]);
+const candidatePaths=()=>[...new Set([
+  configuredDb&&path.resolve(configuredDb),
+  configuredState&&path.resolve(configuredState,"receipts.sqlite3"),
+  process.env.CIEAV_STATE_DIR&&path.resolve(process.env.CIEAV_STATE_DIR,"receipts.sqlite3"),
+  process.env.LATCH_STATE_DIR&&path.resolve(process.env.LATCH_STATE_DIR,"receipts.sqlite3"),
+  path.join(homeCieav,"receipts.sqlite3"),
+  path.join(homeLatch,"receipts.sqlite3"),
+  path.join(ROOT,".cieav","receipts.sqlite3")
+].filter(Boolean))].map(file=>({file,exists:existsSync(file)&&statSync(file).isFile()}));
+
+function failDatabase(message){
+  const candidates=candidatePaths();
+  console.error(JSON.stringify({
+    schemaVersion:1,
+    kind:"CIEAV_FINALIZED_RECEIPT_LEARNING_EXPORT_ERROR_V1",
+    authority:false,
+    error:"receipt_database_unavailable",
+    message,
+    requestedDb:dbFile,
+    stateDir,
+    candidates,
+    hint:"The installed runtime defaults to %USERPROFILE%\\.cieav (legacy %USERPROFILE%\\.latch). Pass --db=<existing receipts.sqlite3> or --state-dir=<existing CIEAV state directory>. Test databases under %TEMP% are not live training evidence."
+  },null,2));
+  process.exit(2);
+}
+
+if(has("--discover")){
+  console.log(JSON.stringify({authority:false,stateDir,defaultStateDir,selectedDb:dbFile,candidates:candidatePaths()},null,2));
+  process.exit(0);
+}
+if(!existsSync(dbFile))failDatabase("CIEAV receipt database does not exist. Refusing to ask SQLite to open a guessed path.");
+try{if(!statSync(dbFile).isFile())failDatabase("Selected receipt database path is not a regular file.")}catch(err){failDatabase(`Selected receipt database cannot be inspected: ${String(err?.message??err)}`)}
 
 function verifyReceiptPublic(receipt){
   if(receipt?.receiptVersion!=="3"||receipt?.signatureAlgorithm!=="Ed25519"||typeof receipt.signature!=="string"||!receipt.signingPublicKey||!receipt.signatureKeyId)return false;
@@ -46,9 +86,14 @@ function normalize(receipt){
   };
 }
 
-const db=new DatabaseSync(dbFile,{readOnly:true});
+let db;
+try{db=new DatabaseSync(dbFile,{readOnly:true})}catch(err){failDatabase(`Unable to open selected receipt database read-only: ${String(err?.message??err)}`)}
 try{
-  const rows=db.prepare("SELECT receipt_json FROM receipts ORDER BY created_at ASC LIMIT ?").all(limit);
+  let rows;
+  try{rows=db.prepare("SELECT receipt_json FROM receipts ORDER BY created_at ASC LIMIT ?").all(limit)}catch(err){
+    console.error(JSON.stringify({authority:false,error:"receipt_database_schema_invalid",dbFile,message:String(err?.message??err)},null,2));
+    process.exitCode=2;return;
+  }
   const records=[];let rejected=0;
   for(const row of rows){let receipt;try{receipt=JSON.parse(row.receipt_json)}catch{rejected++;continue}const out=normalize(receipt);if(out)records.push(out);else rejected++}
   await mkdir(path.dirname(output),{recursive:true});
