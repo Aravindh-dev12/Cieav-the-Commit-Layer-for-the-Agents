@@ -19,25 +19,40 @@ export const AuthorityGradeSettlementBundleSchema=z.object({
   proofCase:ProofCaseSchema,
   redactionProfile:z.string().min(1).max(300),
   consentScope:z.string().min(1).max(300).optional(),
-  sourceIntegrity:z.object({
-    agentKernelAuthenticated:z.literal(true),
-    intentRealityAuthenticated:z.literal(true),
-    executionFabricAuthenticated:z.literal(true),
-    proofStoreAuthenticated:z.literal(true),
-    executionAuditChainVerified:z.literal(true),
-    identityAttestationVerified:z.literal(true)
-  }).strict(),
   authority:z.literal(false).default(false),
   productionAuthority:z.literal(false).default(false)
 }).strict();
 export type AuthorityGradeSettlementBundle=z.infer<typeof AuthorityGradeSettlementBundleSchema>;
 
+/**
+ * Pure semantic assessment. This object never claims that source stores were
+ * cryptographically authenticated; only the trusted local exporter may make
+ * that assertion after reading the authenticated stores.
+ */
+export const AuthorityGradeSemanticAssessmentSchema=z.object({
+  version:z.literal("CIEAV_AUTHORITY_GRADE_SEMANTIC_ASSESSMENT_V1"),
+  authorityBindingsVerified:z.boolean(),
+  settlementBindingsVerified:z.boolean(),
+  realityBound:z.boolean(),
+  trustedOutcomeEvidence:z.boolean(),
+  outcome:z.enum(["SUCCESS","FAILURE","UNKNOWN"]),
+  authorityFailures:z.array(z.string().min(1).max(300)).max(100),
+  settlementFailures:z.array(z.string().min(1).max(300)).max(100),
+  warnings:z.array(z.string().min(1).max(500)).max(100),
+  evidenceRefs:z.array(z.string().min(1).max(500)).max(500),
+  authority:z.literal(false),
+  productionAuthority:z.literal(false)
+}).strict();
+export type AuthorityGradeSemanticAssessment=z.infer<typeof AuthorityGradeSemanticAssessmentSchema>;
+
+/** Full assessment emitted only by the trusted source-store exporter. */
 export const AuthorityGradeSettlementAssessmentSchema=z.object({
   version:z.literal("CIEAV_AUTHORITY_GRADE_SETTLEMENT_ASSESSMENT_V1"),
   eligible:z.boolean(),
   authorityGrade:z.boolean(),
   realityBound:z.boolean(),
   cryptographicallyVerified:z.boolean(),
+  trustedOutcomeEvidence:z.boolean(),
   outcome:z.enum(["SUCCESS","FAILURE","UNKNOWN"]),
   hardFailures:z.array(z.string().min(1).max(300)).max(100),
   warnings:z.array(z.string().min(1).max(500)).max(100),
