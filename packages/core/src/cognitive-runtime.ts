@@ -113,6 +113,7 @@ export class GlobalIntelligenceWorkspace{
     if(contribution.workspaceId!==this.state.workspaceId)throw new Error("workspace_id_mismatch");
     if(this.contributions.has(contribution.id))throw new Error(`duplicate_workspace_contribution:${contribution.id}`);
     if(parseTime(contribution.createdAt)<parseTime(this.state.createdAt))throw new Error("workspace_contribution_predates_workspace");
+    if(parseTime(contribution.createdAt)<parseTime(this.state.updatedAt))throw new Error("stale_workspace_contribution");
     this.contributions.set(contribution.id,structuredClone(contribution));
     this.state={...this.state,updatedAt:contribution.createdAt,contributionIds:[...this.state.contributionIds,contribution.id]};
     return structuredClone(contribution);
