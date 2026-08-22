@@ -8,6 +8,7 @@ export type LocalProofProviderConfig={
   filesystemRoots?:string[];
   httpOrigins?:string[];
   gitRepositories?:string[];
+  httpAllowPrivateNetworks?:boolean;
   maxFilesystemReadBytes?:number;
   maxHttpBodyBytes?:number;
   maxGitOutputBytes?:number;
@@ -17,7 +18,7 @@ export class CieavLocalProofProviderRuntime{
   readonly registry=new ProofProviderRegistry();
   constructor(config:LocalProofProviderConfig={}){
     if(config.filesystemRoots?.length)this.registry.register(new FilesystemProofProvider(config.filesystemRoots,config.maxFilesystemReadBytes));
-    if(config.httpOrigins?.length)this.registry.register(new HttpProofProvider(config.httpOrigins,config.maxHttpBodyBytes));
+    if(config.httpOrigins?.length)this.registry.register(new HttpProofProvider(config.httpOrigins,config.maxHttpBodyBytes,config.httpAllowPrivateNetworks===true));
     if(config.gitRepositories?.length)this.registry.register(new GitProofProvider(config.gitRepositories,"git",config.maxGitOutputBytes));
   }
   list(){return this.registry.list()}
