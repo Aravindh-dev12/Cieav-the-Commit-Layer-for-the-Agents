@@ -39,3 +39,4 @@ export * from "./universal-runtime.js";
 export * from "./consequence-abi.js";
 export * from "./authority-grade-settlement.js";
 export * from "./verified-skill.js";
+export * from "./verified-skill-registry.js";
