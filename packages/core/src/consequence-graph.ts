@@ -41,6 +41,12 @@ export class ConsequenceGraph{
       if(!this.aggregates.has(item.transitionKey))throw new Error("consequence_graph_ledger_edge_missing");
       this.ingestedTrajectories.set(item.trajectoryId,item);
     }
+    if(state.ingestedTrajectories.length){
+      const totalObservations=state.edges.reduce((sum,edge)=>sum+edge.observations,0);
+      if(state.ingestedTrajectories.length!==totalObservations)throw new Error("consequence_graph_trajectory_ledger_observation_count_mismatch");
+      const counts=new Map<string,number>();for(const item of state.ingestedTrajectories)counts.set(item.transitionKey,(counts.get(item.transitionKey)??0)+1);
+      for(const edge of state.edges)if((counts.get(edge.transitionKey)??0)!==edge.observations)throw new Error("consequence_graph_trajectory_ledger_edge_count_mismatch");
+    }
   }
   persistedState():ConsequenceGraphPersistedState{
     const edges:ConsequenceGraphPersistedEdge[]=[...this.aggregates.values()].sort((a,b)=>a.transitionKey.localeCompare(b.transitionKey)).map(row=>({transitionKey:row.transitionKey,operation:row.operation,exactArgumentsDigest:row.exactArgumentsDigest,observations:row.observations,success:row.success,failure:row.failure,unknown:row.unknown,proven:row.proven,authorityGrade:row.authorityGrade,realityBound:row.realityBound,worldBeforeDigests:[...row.worldBeforeDigests].sort(),worldAfterDigests:[...row.worldAfterDigests].sort(),authority:false,mayMintExecutionAuthority:false}));
