@@ -39,7 +39,7 @@ Remove-Item Env:CIEAV_MYSQL_PASSWORD -ErrorAction SilentlyContinue
 
 Write-Host 'CIEAV local settings persisted for the current Windows user.'
 Write-Host "Store: xampp-mysql - ${HostName}:$Port/$Database - user=$User - password=[BLANK]"
-Write-Host 'Interaction: notification-only - protected Chromium runs headlessly - no Control Center is opened automatically.'
+Write-Host 'Interaction: notification-only - protected Chromium runs headlessly - native request-bound approval is used when available.'
 
 & node scripts/xampp-mysql-bootstrap.mjs
 if ($LASTEXITCODE -ne 0) { throw "XAMPP MariaDB bootstrap failed with exit code $LASTEXITCODE" }
@@ -52,6 +52,7 @@ if ($InstallGateway -or $RestartGateway) {
   $stateDir = if ($env:CIEAV_STATE_DIR) { $env:CIEAV_STATE_DIR } else { Join-Path $env:USERPROFILE '.cieav' }
   $nativeDir = Join-Path $stateDir 'native'
   New-Item -ItemType Directory -Force -Path $nativeDir | Out-Null
+
   $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath 'native\windows\cdp-win-bridge.cpp').Hash.ToLowerInvariant().Substring(0,16)
   $bridge = Join-Path $nativeDir ("cdp-win-bridge-$sourceHash.exe")
   if (-not (Test-Path -LiteralPath $bridge)) {
@@ -65,6 +66,17 @@ if ($InstallGateway -or $RestartGateway) {
   [Environment]::SetEnvironmentVariable('CIEAV_CDP_WIN_BRIDGE', $bridge, 'User')
   $env:CIEAV_CDP_WIN_BRIDGE = $bridge
   Write-Host "Private CDP bridge: $bridge"
+
+  Write-Host 'Building or reusing the request-bound Windows native approval host...'
+  $approvalBuild = @(& node scripts/build-windows-native-approval.mjs "--native-dir=$nativeDir")
+  if ($LASTEXITCODE -ne 0 -or $approvalBuild.Count -lt 1) { throw 'Windows native approval host build failed.' }
+  foreach ($line in $approvalBuild) { Write-Host $line }
+  try { $approvalResult = $approvalBuild[-1] | ConvertFrom-Json } catch { throw 'Windows native approval host builder did not return a valid result.' }
+  if (-not $approvalResult.ok -or -not (Test-Path -LiteralPath $approvalResult.exe)) { throw 'Windows native approval host executable was not produced.' }
+  $approvalHelper = (Resolve-Path -LiteralPath $approvalResult.exe).Path
+  [Environment]::SetEnvironmentVariable('CIEAV_NATIVE_APPROVAL_HELPER', $approvalHelper, 'User')
+  $env:CIEAV_NATIVE_APPROVAL_HELPER = $approvalHelper
+  Write-Host "Native approval host: $approvalHelper"
 
   $python = (Get-Command python -ErrorAction Stop).Source
   if ($InstallGateway) {

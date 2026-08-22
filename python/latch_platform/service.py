@@ -72,6 +72,7 @@ def _env(settings: Settings) -> dict[str, str]:
         "CIEAV_MYSQL_HOST", "CIEAV_MYSQL_PORT", "CIEAV_MYSQL_DATABASE",
         "CIEAV_MYSQL_USER", "CIEAV_CDP_WIN_BRIDGE", "CIEAV_UI_MODE",
         "CIEAV_HEADLESS", "CIEAV_START_URL", "CIEAV_NOTIFICATIONS",
+        "CIEAV_NATIVE_APPROVAL_HELPER",
     ):
         value = os.environ.get(key)
         if value:
