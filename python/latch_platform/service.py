@@ -68,6 +68,9 @@ def _env(settings: Settings) -> dict[str, str]:
         "OPENAI_API_KEY", "OPENAI_BASE_URL", "LATCH_AI_PROFILE",
         "LATCH_AI_FAST_MODEL", "LATCH_AI_PRIMARY_MODEL",
         "LATCH_AI_VERIFIER_MODEL", "LATCH_AI_TIMEOUT_MS",
+        "CIEAV_RECEIPT_STORE", "CIEAV_PHP_BIN", "CIEAV_XAMPP_MYSQL_BRIDGE",
+        "CIEAV_MYSQL_HOST", "CIEAV_MYSQL_PORT", "CIEAV_MYSQL_DATABASE",
+        "CIEAV_MYSQL_USER",
     ):
         value = os.environ.get(key)
         if value:
@@ -159,7 +162,7 @@ def service_status(settings: Settings) -> dict:
 def _systemd_unit() -> Path: return Path.home()/".config"/"systemd"/"user"/f"{SERVICE_NAME}.service"
 def _legacy_systemd_unit() -> Path: return Path.home()/".config"/"systemd"/"user"/f"{LEGACY_SERVICE_NAME}.service"
 def _launchd_plist() -> Path: return Path.home()/"Library"/"LaunchAgents"/f"{LAUNCHD_LABEL}.plist"
-def _legacy_launchd_plist() -> Path: return Path.home()/"Library"/"LaunchAgents"/f"{LEGACY_LAUNCHD_LABEL}.plist"
+def _legacy_launchd_plist() -> Path: return Path.home()/"Library/LaunchAgents"/f"{LEGACY_LAUNCHD_LABEL}.plist"
 def _windows_launcher(settings: Settings) -> Path: return settings.state_dir/WINDOWS_LAUNCHER
 
 def _require_systemd_unit() -> None:
