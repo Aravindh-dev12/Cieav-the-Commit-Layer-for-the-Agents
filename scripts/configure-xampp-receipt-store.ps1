@@ -25,6 +25,10 @@ $settings = [ordered]@{
   CIEAV_MYSQL_PORT = [string]$Port
   CIEAV_MYSQL_DATABASE = $Database
   CIEAV_MYSQL_USER = $User
+  CIEAV_UI_MODE = 'notification-only'
+  CIEAV_HEADLESS = '1'
+  CIEAV_START_URL = 'about:blank'
+  CIEAV_NOTIFICATIONS = '1'
 }
 foreach ($entry in $settings.GetEnumerator()) {
   [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'User')
@@ -33,8 +37,9 @@ foreach ($entry in $settings.GetEnumerator()) {
 Remove-Item Env:CIEAV_MYSQL_PASSWORD -ErrorAction SilentlyContinue
 [Environment]::SetEnvironmentVariable('CIEAV_MYSQL_PASSWORD', $null, 'User')
 
-Write-Host 'CIEAV XAMPP receipt-store settings persisted for the current Windows user.'
+Write-Host 'CIEAV local settings persisted for the current Windows user.'
 Write-Host "Store: xampp-mysql - ${HostName}:$Port/$Database - user=$User - password=[BLANK]"
+Write-Host 'Interaction: notification-only - protected Chromium runs headlessly - no Control Center is opened automatically.'
 
 & node scripts/xampp-mysql-bootstrap.mjs
 if ($LASTEXITCODE -ne 0) { throw "XAMPP MariaDB bootstrap failed with exit code $LASTEXITCODE" }
@@ -58,12 +63,12 @@ if ($InstallGateway -or $RestartGateway) {
   if ($InstallGateway) {
     & $python -m cieav_platform gateway install
     if ($LASTEXITCODE -ne 0) { throw 'Unable to install the CIEAV Gateway.' }
-    Write-Host 'CIEAV Gateway installed and started with the XAMPP receipt-store environment.'
+    Write-Host 'CIEAV Gateway installed and started in notification-only mode.'
   } else {
     & $python -m cieav_platform gateway restart
     if ($LASTEXITCODE -ne 0) { throw 'Unable to restart the installed CIEAV Gateway. It may not be installed; rerun this helper with -InstallGateway.' }
-    Write-Host 'CIEAV Gateway restarted with the XAMPP receipt-store environment.'
+    Write-Host 'CIEAV Gateway restarted in notification-only mode.'
   }
 }
 
-Write-Host 'CIEAV XAMPP RECEIPT STORE: CONFIGURED'
+Write-Host 'CIEAV BACKGROUND COMMIT SERVICE: CONFIGURED'
