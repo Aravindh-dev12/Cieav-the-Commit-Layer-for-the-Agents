@@ -25,6 +25,7 @@
     "./consequence-abi": {"types": "./dist/consequence-abi.d.ts", "import": "./dist/consequence-abi.js"},
     "./authority-grade-settlement": {"types": "./dist/authority-grade-settlement.d.ts", "import": "./dist/authority-grade-settlement.js"},
     "./verified-skill": {"types": "./dist/verified-skill.d.ts", "import": "./dist/verified-skill.js"},
+    "./verified-skill-security": {"types": "./dist/verified-skill-security.d.ts", "import": "./dist/verified-skill-security.js"},
     "./verified-skill-registry": {"types": "./dist/verified-skill-registry.d.ts", "import": "./dist/verified-skill-registry.js"}
   },
   "scripts": {"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit"},
