@@ -10,6 +10,7 @@ export * from "./consequence-graph.js";
 export * from "./consequence-abi.js";
 export * from "./authority-grade-settlement.js";
 export * from "./authority-grade-trajectory.js";
+export * from "./verified-skill.js";
 export * from "./provider-runtime.js";
 export * from "./epistemic-state.js";
 export * from "./cognitive-runtime.js";
