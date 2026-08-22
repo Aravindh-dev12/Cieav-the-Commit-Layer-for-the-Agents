@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import {chmod,mkdir,open,readFile,rename,stat,writeFile} from "node:fs/promises";
 import path from "node:path";
-import {UniversalIntelligencePersistedStateSchema,type AuthorizedOutcomeTrajectory,type CognitiveCellDescriptor,type EpistemicClaim,type EpistemicEvidence,type UniversalIntelligencePersistedState,type WorkspaceContribution} from "@cieav/contracts";
+import {UniversalIntelligencePersistedStateSchema,type AuthorizedOutcomeTrajectory,type CognitiveCellDescriptor,type EpistemicClaim,type EpistemicEvidence,type UniversalIntelligencePersistedState,type WorkspaceContribution,type WorkspaceScope} from "@cieav/contracts";
 import {UniversalIntelligenceRuntime,type CortexInput} from "@cieav/core";
 
 type Envelope={payload:UniversalIntelligencePersistedState;mac:string};
@@ -24,7 +24,7 @@ export class CieavUniversalIntelligenceStore{
   upsertCell(cell:CognitiveCellDescriptor){return this.enqueue(async()=>{await this.load();const value=this.runtimeInstance.upsertCell(cell);await this.persist();return value})}
   revokeCell(id:string,at:string){return this.enqueue(async()=>{await this.load();const value=this.runtimeInstance.cells.revoke(id,at);await this.persist();return value})}
   heartbeatCell(id:string,health:CognitiveCellDescriptor["health"],at:string){return this.enqueue(async()=>{await this.load();const value=this.runtimeInstance.cells.heartbeat(id,health,at);await this.persist();return value})}
-  createWorkspace(input:{workspaceId:string;objective:string;createdAt:string;privacy:"LOCAL_ONLY"|"REDACTED_REMOTE_ALLOWED"|"REMOTE_ALLOWED"}){return this.enqueue(async()=>{await this.load();const value=this.runtimeInstance.createWorkspace(input);await this.persist();return value})}
+  createWorkspace(input:{workspaceId:string;objective:string;createdAt:string;privacy:"LOCAL_ONLY"|"REDACTED_REMOTE_ALLOWED"|"REMOTE_ALLOWED";scope?:WorkspaceScope}){return this.enqueue(async()=>{await this.load();const value=this.runtimeInstance.createWorkspace(input);await this.persist();return value})}
   contribute(input:WorkspaceContribution){return this.enqueue(async()=>{await this.load();const value=this.runtimeInstance.contribute(input);await this.persist();return value})}
   plan(workspaceId:string,input:Omit<CortexInput,"objective"|"epistemicState">){return this.enqueue(async()=>{await this.load();return this.runtimeInstance.plan(workspaceId,input)})}
   upsertClaim(claim:EpistemicClaim){return this.enqueue(async()=>{await this.load();const value=this.runtimeInstance.upsertClaim(claim);await this.persist();return value})}
