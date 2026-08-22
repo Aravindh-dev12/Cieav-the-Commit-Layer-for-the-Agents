@@ -12,8 +12,9 @@ const arg=name=>{const prefix=`--${name}=`;const found=process.argv.slice(2).fin
 
 if(process.platform!=="win32")throw new Error("CIEAV native approval host can only be built on Windows");
 const hash=crypto.createHash("sha256");for(const file of [PROJECT,PROGRAM])hash.update(await readFile(file));const sourceHash=hash.digest("hex").slice(0,16);
-const outputArg=arg("output-dir");
-const outputDir=path.resolve(outputArg||path.join(ROOT,".cieav","native",`cieav-native-approval-${sourceHash}`));
+const outputArg=arg("output-dir"),nativeDirArg=arg("native-dir");
+if(outputArg&&nativeDirArg)throw new Error("choose either --output-dir or --native-dir");
+const outputDir=path.resolve(outputArg||(nativeDirArg?path.join(nativeDirArg,`cieav-native-approval-${sourceHash}`):path.join(ROOT,".cieav","native",`cieav-native-approval-${sourceHash}`)));
 const exe=path.join(outputDir,"cieav-native-approval.exe");
 try{await access(exe);console.log(JSON.stringify({ok:true,reused:true,sourceHash,outputDir,exe}));process.exit(0)}catch{}
 
