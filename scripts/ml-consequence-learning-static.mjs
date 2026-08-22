@@ -10,93 +10,56 @@ const fail=m=>{console.error(`CIEAV consequence-learning gate FAIL: ${m}`);proce
 const expect=(p,tokens)=>{const s=read(p);for(const t of tokens)if(!s.includes(t))fail(`${p} missing invariant: ${t}`);return s};
 
 expect("ml/cieav_learning/trajectory.py",[
-  "CIEAV_AUTHORIZED_OUTCOME_TRAJECTORY_V1",
-  "authority",
-  "productionAuthority",
-  "mayMintPermit",
-  "mayCommitAction",
-  "mayAuthorizeUndo",
-  "unknown_is_training_signal_not_success",
-  "trajectory digest mismatch",
-  "REDACTED_BEARER",
+  "CIEAV_AUTHORIZED_OUTCOME_TRAJECTORY_V1","authority","productionAuthority","mayMintPermit","mayCommitAction","mayAuthorizeUndo","unknown_is_training_signal_not_success","trajectory digest mismatch","REDACTED_BEARER",
+]);
+expect("ml/cieav_learning/provenance.py",[
+  "authorityGrade","realityBound","cryptographicallyVerified","AUTHORITY_AND_OUTCOME","OUTCOME_PROOF","eligibleAgenticRl","authority-grade learning evidence missing",
 ]);
 expect("ml/cieav_learning/providers.py",[
-  "cieav-browser-proof",
-  "reticle-mcp-proof",
-  "trl-peft",
-  "verl-ray",
-  "vllm-rollout",
-  "sglang-rollout",
-  "river-learning",
-  "provider registry violated authority=false invariant",
+  "cieav-browser-proof","reticle-mcp-proof","trl-peft","verl-ray","vllm-rollout","sglang-rollout","river-learning","provider registry violated authority=false invariant",
 ]);
 expect("ml/build_consequence_dataset.py",[
-  "CIEAV_VERIFIED_CONSEQUENCE_DATASET_V1",
-  "unknownMustRemainUnknown",
-  "verifiedFailureMustNotBecomeReward",
-  "requiresFreshModelRollout",
-  "SFT",
-].filter(Boolean));
+  "CIEAV_VERIFIED_CONSEQUENCE_DATASET_V1","unknownMustRemainUnknown","verifiedFailureMustNotBecomeReward","requiresFreshModelRollout","authorityGradeRecords","agenticRlEligibleRecords","receiptEvidenceCannotClaimAuthorityGrade",
+]);
 expect("ml/consequence_learning_cli.py",[
-  "authority-free",
-  "providers",
-  "normalize",
-  "verify",
-  "dataset",
+  "authority-free","providers","normalize-jsonl","verify_provenance_boundary","dataset",
+]);
+expect("apps/api/src/consequence-learning-export.ts",[
+  "CIEAV_SIGNED_RECEIPT_V3","FINALIZED_RECEIPT","cryptographicallyVerified:true","authorityGrade:false","realityBound:false","verifyReceiptPublic",
+]);
+expect("scripts/export-finalized-receipts-for-learning.mjs",[
+  "node:sqlite","readOnly:true","Ed25519","authorityGrade:false","realityBound:false","finalized-receipt-evidence.jsonl",
+]);
+expect("scripts/ml-live-receipt-learning-smoke.mjs",[
+  "tampered after signing","OUTCOME_PROOF","eligibleAgenticRl","tampered receipt rejected",
+]);
+expect("ml/train_consequence_candidate.py",[
+  "TRAINED_UNQUALIFIED","verify_provenance_boundary","create_round","record_checkpoint","candidateRemainsUnqualified","promotionExecuted","SFTTrainer","LoraConfig",
 ]);
 expect("scripts/ml-consequence-learning-smoke.py",[
-  "SUCCESS",
-  "FAILURE",
-  "UNKNOWN",
-  "secret redaction failed",
-  "Reticle/River provider surfaces",
+  "SUCCESS","FAILURE","UNKNOWN","secret redaction failed","Reticle/River provider surfaces",
 ]);
 expect("ml/requirements-local.txt",[
-  "torch",
-  "transformers",
-  "datasets",
-  "trl",
-  "peft",
-  "accelerate",
-  "tokenizers",
+  "torch","transformers","datasets","trl","peft","accelerate","tokenizers",
 ]);
 const localReq=read("ml/requirements-local.txt");
-for(const forbidden of ["vllm","verl","ray","sglang"]){
-  if(new RegExp(`^${forbidden}$`,`mi`).test(localReq))fail(`local learning requirements must not force heavy scale engine: ${forbidden}`);
-}
+for(const forbidden of ["vllm","verl","ray","sglang"]){if(new RegExp(`^${forbidden}$`,`mi`).test(localReq))fail(`local learning requirements must not force heavy scale engine: ${forbidden}`)}
 expect("scripts/ml-local-learning-bootstrap.py",[
-  "CIEAV_LOCAL_LEARNING_ENVIRONMENT_V1",
-  "authority",
-  "heavyScaleEnginesRequired",
-  "requirements-local.txt",
+  "CIEAV_LOCAL_LEARNING_ENVIRONMENT_V1","authority","heavyScaleEnginesRequired","requirements-local.txt",
 ]);
 expect("scripts/ml-local-learning-smoke.py",[
-  "CIEAV_LOCAL_LEARNING_SMOKE_V1",
-  "GPT2Config",
-  "SFTTrainer",
-  "LoraConfig",
-  "noPermitMinting",
-  "noCommitAuthority",
-  "candidateRemainsUnqualified",
-  "trainable weights did not change",
+  "CIEAV_LOCAL_LEARNING_SMOKE_V1","GPT2Config","SFTTrainer","LoraConfig","noPermitMinting","noCommitAuthority","candidateRemainsUnqualified","trainable weights did not change",
 ]);
 
 const python=process.platform==="win32"?"python":"python3";
 for(const p of [
-  "ml/cieav_learning/trajectory.py",
-  "ml/cieav_learning/providers.py",
-  "ml/cieav_learning/__init__.py",
-  "ml/build_consequence_dataset.py",
-  "ml/consequence_learning_cli.py",
-  "scripts/ml-consequence-learning-smoke.py",
-  "scripts/ml-local-learning-bootstrap.py",
-  "scripts/ml-local-learning-smoke.py",
+  "ml/cieav_learning/trajectory.py","ml/cieav_learning/provenance.py","ml/cieav_learning/providers.py","ml/cieav_learning/__init__.py","ml/build_consequence_dataset.py","ml/consequence_learning_cli.py","ml/train_consequence_candidate.py","scripts/ml-consequence-learning-smoke.py","scripts/ml-local-learning-bootstrap.py","scripts/ml-local-learning-smoke.py",
 ]){
-  const r=spawnSync(python,["-m","py_compile",p],{cwd:ROOT,stdio:"inherit",shell:false});
-  if(r.error)throw r.error;
-  if(r.status!==0)fail(`Python syntax check failed: ${p}`);
+  const r=spawnSync(python,["-m","py_compile",p],{cwd:ROOT,stdio:"inherit",shell:false});if(r.error)throw r.error;if(r.status!==0)fail(`Python syntax check failed: ${p}`)
 }
-const smoke=spawnSync(python,["scripts/ml-consequence-learning-smoke.py"],{cwd:ROOT,stdio:"inherit",shell:false});
-if(smoke.error)throw smoke.error;
-if(smoke.status!==0)fail("consequence-learning smoke failed");
-console.log("CIEAV consequence-learning gate PASS - authorized outcome trajectories + secret redaction + proof/learning provider registry + SFT/DPO/KTO/GRPO dataset generation + local TRL/PEFT smoke contract + authority=false preserved");
+for(const p of ["scripts/export-finalized-receipts-for-learning.mjs","scripts/ml-live-receipt-learning-smoke.mjs"]){
+  const r=spawnSync(process.execPath,["--check",p],{cwd:ROOT,stdio:"inherit",shell:false});if(r.error)throw r.error;if(r.status!==0)fail(`Node syntax check failed: ${p}`)
+}
+const smoke=spawnSync(python,["scripts/ml-consequence-learning-smoke.py"],{cwd:ROOT,stdio:"inherit",shell:false});if(smoke.error)throw smoke.error;if(smoke.status!==0)fail("consequence-learning smoke failed");
+const live=spawnSync(process.execPath,["scripts/ml-live-receipt-learning-smoke.mjs"],{cwd:ROOT,stdio:"inherit",shell:false});if(live.error)throw live.error;if(live.status!==0)fail("live receipt learning smoke failed");
+console.log("CIEAV consequence-learning gate PASS - signed finalized receipt export + provenance-separated OUTCOME_PROOF data + authorized outcome trajectories + SFT/DPO/KTO/GRPO generation + TRAINED_UNQUALIFIED candidate contract + local TRL/PEFT contract + authority=false preserved");
