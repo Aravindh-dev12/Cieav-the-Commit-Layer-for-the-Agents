@@ -70,6 +70,7 @@ if (request.Approve.Payload.ChallengeId != request.Deny.Payload.ChallengeId ||
     request.Approve.Payload.DeviceId != request.Deny.Payload.DeviceId ||
     request.Approve.Payload.ProposalDigest != request.Deny.Payload.ProposalDigest ||
     request.Approve.Payload.Decision != "APPROVED" || request.Deny.Payload.Decision != "DENIED") return 5;
+if (!AppNotificationManager.IsSupported()) return 8;
 
 var challengeId = request.Approve.Payload.ChallengeId;
 var activation = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
