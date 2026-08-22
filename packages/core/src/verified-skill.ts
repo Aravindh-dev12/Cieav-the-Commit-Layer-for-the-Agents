@@ -23,6 +23,7 @@ import {
 
 export const canonicalVerifiedSkillValue=(value:unknown):string=>Array.isArray(value)?`[${value.map(canonicalVerifiedSkillValue).join(",")}]`:value&&typeof value==="object"?`{${Object.keys(value as Record<string,unknown>).sort().map(key=>`${JSON.stringify(key)}:${canonicalVerifiedSkillValue((value as Record<string,unknown>)[key])}`).join(",")}}`:JSON.stringify(value)??"undefined";
 export const verifiedSkillDigest=(value:unknown)=>crypto.createHash("sha256").update(canonicalVerifiedSkillValue(value)).digest("hex");
+export function verifiedSkillValidationCaseDigest(raw:VerifiedSkillValidationCase){const item=VerifiedSkillValidationCaseSchema.parse(raw),{caseDigest:_,...bound}=item;return verifiedSkillDigest(bound)}
 const ratio=(n:number,d:number)=>d?n/d:0;
 const outcomeScore=(outcome:"SUCCESS"|"FAILURE"|"UNKNOWN")=>outcome==="SUCCESS"?1:outcome==="FAILURE"?-1:0;
 const mean=(values:number[])=>values.length?values.reduce((sum,value)=>sum+value,0)/values.length:0;
@@ -95,8 +96,10 @@ export function qualifyVerifiedSkillV2(candidateRaw:VerifiedSkillCandidate,sourc
   if(sourceQualification.candidateId!==candidate.id)reasons.push("source_qualification_candidate_mismatch");
   if(thresholds.requireRoutingMetadata&&!candidate.routing)reasons.push("verified_skill_routing_metadata_required");
   if(new Set(cases.map(item=>item.caseId)).size!==cases.length)reasons.push("duplicate_validation_case_id");
+  if(new Set(cases.map(item=>item.caseDigest)).size!==cases.length)reasons.push("duplicate_validation_case_digest");
   const sourceIds=new Set(candidate.evidenceTrajectoryIds);
   for(const item of cases){
+    if(item.caseDigest!==verifiedSkillValidationCaseDigest(item))reasons.push(`validation_case_digest_mismatch:${item.caseId}`);
     if(item.candidateDigest!==candidateDigest)reasons.push(`validation_candidate_digest_mismatch:${item.caseId}`);
     if(item.derivedFromTrajectoryIds.some(id=>sourceIds.has(id)))reasons.push(`validation_case_not_held_out:${item.caseId}`);
   }
