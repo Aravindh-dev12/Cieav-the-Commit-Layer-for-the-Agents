@@ -14,7 +14,11 @@
     "./execution-fabric": {"types": "./dist/execution-fabric.d.ts", "import": "./dist/execution-fabric.js"},
     "./control-plane": {"types": "./dist/control-plane.d.ts", "import": "./dist/control-plane.js"},
     "./framework-interop": {"types": "./dist/framework-interop.d.ts", "import": "./dist/framework-interop.js"},
-    "./consequence-intelligence": {"types": "./dist/consequence-intelligence.d.ts", "import": "./dist/consequence-intelligence.js"}
+    "./consequence-intelligence": {"types": "./dist/consequence-intelligence.d.ts", "import": "./dist/consequence-intelligence.js"},
+    "./provider-runtime": {"types": "./dist/provider-runtime.d.ts", "import": "./dist/provider-runtime.js"},
+    "./consequence-graph": {"types": "./dist/consequence-graph.d.ts", "import": "./dist/consequence-graph.js"},
+    "./epistemic-state": {"types": "./dist/epistemic-state.d.ts", "import": "./dist/epistemic-state.js"},
+    "./cognitive-runtime": {"types": "./dist/cognitive-runtime.d.ts", "import": "./dist/cognitive-runtime.js"}
   },
   "scripts": {"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit","test":"vitest run"},
   "dependencies": {"@cieav/contracts":"*"},
