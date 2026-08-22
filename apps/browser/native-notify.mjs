@@ -43,3 +43,33 @@ export function notifyNative(title,message,{level="info"}={}){
     return detached(spawn("notify-send",["--app-name=CIEAV",title,message],{stdio:"ignore",detached:true,env:minimalEnv({})}));
   }catch{return false}
 }
+
+/**
+ * Sends an approval request to the native action host. The one-use activation
+ * capabilities are delivered over stdin, never argv or environment variables.
+ * If a qualified native action host is unavailable this fails closed and emits
+ * only a passive notification; no approval state is changed.
+ */
+export function notifyNativeApproval({title="CIEAV approval required",message,risk="HIGH",expiresAt,callbackUrl,approve,deny}={}){
+  if(!enabled())return false;
+  title=clean(title,80)||"CIEAV approval required";
+  message=clean(message,220)||"A consequential action requires approval.";
+  risk=clean(risk,16).toUpperCase();
+  try{
+    const callback=new URL(String(callbackUrl??""));
+    if(callback.protocol!=="http:"||callback.hostname!=="127.0.0.1"||callback.pathname!=="/api/native-approval")throw new Error("invalid_native_approval_callback");
+    if(!approve?.payload||!approve?.mac||!deny?.payload||!deny?.mac)throw new Error("invalid_native_approval_capability");
+    if(process.platform!=="win32"){
+      notifyNative(title,`${message} Open CIEAV on a supported device to approve; otherwise it will expire.`,{level:"warning"});
+      return false;
+    }
+    const helper=String(process.env.CIEAV_NATIVE_APPROVAL_HELPER??"").trim();
+    if(!helper){notifyNative(title,`${message} Approval host unavailable; action remains blocked.`,{level:"warning"});return false}
+    const child=spawn(helper,[],{stdio:["pipe","ignore","ignore"],windowsHide:true,detached:true,env:minimalEnv({})});
+    child.on("error",()=>{});
+    const payload={version:"CIEAV_NATIVE_APPROVAL_UI_V1",title,message,risk,expiresAt:String(expiresAt??""),callbackUrl:callback.toString(),approve,deny};
+    child.stdin?.end(JSON.stringify(payload));
+    child.unref?.();
+    return true;
+  }catch{return false}
+}
