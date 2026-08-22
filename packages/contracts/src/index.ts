@@ -35,3 +35,4 @@ export * from "./credential-authority.js";
 export * from "./hardware-key-provider.js";
 export * from "./consequence-intelligence.js";
 export * from "./provider-runtime.js";
+export * from "./cognitive-runtime.js";
