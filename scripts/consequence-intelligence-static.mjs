@@ -10,8 +10,14 @@ const requireTokens=(p,tokens)=>{const s=read(p);for(const t of tokens)if(!s.inc
 requireTokens("ARCHITECTURE.md",[
   "Consequence Intelligence Framework","Intelligence State","Cognitive Scheduler","Consequence Compiler","Consequence Graph","Verified Skills","Authorized Outcome Trajectory","MODEL AUTHORITY = 0","installed, not opened",
 ]);
+requireTokens("PLAN.md",[
+  "Universal Intelligence Substrate","Cognitive Cell","Self Model","Global Intelligence Workspace","CIEAV Cortex","Universal Consequence ABI","Continuing Authority","CIEAV Edge","Definition of Done","MODEL AUTHORITY = 0",
+]);
 const contracts=requireTokens("packages/contracts/src/consequence-intelligence.ts",[
   "CIEAV_INTELLIGENCE_STATE_V1","CIEAV_CONSEQUENCE_PROGRAM_V1","CIEAV_COGNITIVE_PROGRAM_V1","CIEAV_AUTHORIZED_OUTCOME_TRAJECTORY_V2","ProofProviderDescriptorSchema","LearningProviderDescriptorSchema","authority:z.literal(false)","productionAuthority:z.literal(false)","SUCCESS","FAILURE","UNKNOWN",
+]);
+const cognitiveContracts=requireTokens("packages/contracts/src/cognitive-runtime.ts",[
+  "CIEAV_COGNITIVE_CELL_V1","CIEAV_SELF_MODEL_V1","CIEAV_GLOBAL_WORKSPACE_V1","LOCAL_ONLY","REDACTED_REMOTE_ALLOWED","authority:z.literal(false)","mayMintExecutionAuthority:z.literal(false)",
 ]);
 const providerContracts=requireTokens("packages/contracts/src/provider-runtime.ts",[
   "ProofObservationRequestSchema","ProofProviderResultSchema","LearningJobRequestSchema","LearningJobResultSchema","candidateMustRemainUnqualified:z.literal(true)","candidateQualified:z.literal(false)","promotionExecuted:z.literal(false)","mayMintExecutionAuthority:z.literal(false)",
@@ -20,25 +26,37 @@ const core=requireTokens("packages/core/src/consequence-intelligence.ts",[
   "rankConsequencePaths","buildBaselineCognitiveProgram","evaluateTrajectoryEligibility","unknown_is_training_signal_not_success","CONSEQUENCE_INTELLIGENCE_AUTHORITY=false","CONSEQUENCE_INTELLIGENCE_MAY_MINT_EXECUTION_AUTHORITY=false",
 ]);
 const graph=requireTokens("packages/core/src/consequence-graph.ts",[
-  "CIEAV_CONSEQUENCE_GRAPH_V1","consequence_graph_requires_cryptographically_verified_trajectory","unknownRate","proofability","authorityGradeCoverage","realityBoundCoverage","authority:false","mayMintExecutionAuthority:false",
+  "CIEAV_CONSEQUENCE_GRAPH_V1","consequence_graph_requires_cryptographically_verified_trajectory","exactArgumentsDigest","The observed post-state must never","unknownRate","proofability","authorityGradeCoverage","realityBoundCoverage","authority:false","mayMintExecutionAuthority:false",
 ]);
 const providers=requireTokens("packages/core/src/provider-runtime.ts",[
   "ProofProviderRegistry","LearningProviderRegistry","proof_provider_must_have_zero_authority","learning_provider_must_have_zero_authority","learning_request_authority_invariant_violation","learning_provider_result_authority_invariant_violation",
 ]);
 const epistemic=requireTokens("packages/core/src/epistemic-state.ts",[
-  "CIEAV_EPISTEMIC_STATE_V1","stale_epistemic_update","CONTRADICTED","STALE","authority:false","mayMintExecutionAuthority:false",
+  "CIEAV_EPISTEMIC_STATE_V1","stale_epistemic_update","Contradiction is sticky","CONTRADICTED","STALE","authority:false","mayMintExecutionAuthority:false",
+]);
+const cognitive=requireTokens("packages/core/src/cognitive-runtime.ts",[
+  "CognitiveCellRegistry","GlobalIntelligenceWorkspace","remote_cell_cannot_claim_local_only","LOCAL_ONLY","contributionVisibleToCell","authority!==false","mayMintExecutionAuthority!==false",
+]);
+const cortex=requireTokens("packages/core/src/cortex.ts",[
+  "cognitiveCellToEngine","buildIntelligenceStateFromRegistry","buildCortexProgram","CORTEX_AUTHORITY=false","CORTEX_MAY_MINT_EXECUTION_AUTHORITY=false","cortex_rejects_authoritative_cell",
 ]);
 requireTokens("packages/core/src/consequence-intelligence.test.ts",[
   "prefers a scoped, provable and reversible route","respects LOCAL_ONLY privacy","preserves UNKNOWN","outside execution authority",
 ]);
 requireTokens("packages/core/src/consequence-graph.test.ts",[
-  "rejects unverified trajectories","preserves SUCCESS FAILURE and UNKNOWN independently","authority-grade and reality-bound coverage","prefers well-proven successful transitions",
+  "rejects unverified trajectories","groups different post-states under the same pre-execution decision context","authority-grade and reality-bound coverage","distinguishes materially different exact operations/arguments",
 ]);
 requireTokens("packages/core/src/provider-runtime.test.ts",[
   "zero-authority provider","fails closed on provider identity mismatch","keeps successful training artifacts unqualified","rejects unsupported learning methods",
 ]);
 requireTokens("packages/core/src/epistemic-state.test.ts",[
-  "rejects older observations","marks claims stale","contradictory evidence","remains non-authoritative",
+  "rejects older observations","marks claims stale","does not let later support erase unresolved contradictory evidence","explicit deterministic reconciliation","remains non-authoritative",
+]);
+requireTokens("packages/core/src/cognitive-runtime.test.ts",[
+  "builds a live non-authoritative self model","excludes remote cells for LOCAL_ONLY work","keeps LOCAL_ONLY contributions away from remote cells","workspace_cell_unavailable",
+]);
+requireTokens("packages/core/src/cortex.test.ts",[
+  "zero-authority engines","respects LOCAL_ONLY","real deterministic cognitive program","stops when no admissible cognitive cell exists",
 ]);
 const injected=requireTokens("apps/browser/injected.js",[
   "NOTIFICATION_ONLY=!AUTO","if(NOTIFICATION_ONLY)return Promise.resolve({choice:\"cancel\",decisionMs:0})","status:\"CANCELLED\"",
@@ -59,11 +77,11 @@ requireTokens("apps/api/src/store/file.test.ts",[
   "beforeEach(()=>{process.env.CIEAV_RECEIPT_STORE=\"sqlite\"})","originalReceiptStore","delete process.env.CIEAV_RECEIPT_STORE",
 ]);
 
-for(const source of [core,graph,providers,epistemic])for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issueCredentialLease("]){
+for(const source of [core,graph,providers,epistemic,cognitive,cortex,cognitiveContracts])for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issueCredentialLease("]){
   if(source.includes(forbidden))throw new Error(`intelligence code contains forbidden authority primitive: ${forbidden}`);
 }
 if(!contracts.includes("mayMintExecutionAuthority:z.literal(false)"))throw new Error("Intelligence State is not explicitly prohibited from minting execution authority");
 if(!providerContracts.includes("productionAuthority:z.literal(false)"))throw new Error("Learning provider result is not explicitly prohibited from production authority");
 if(!injected.includes("if(NOTIFICATION_ONLY)return;"))throw new Error("notification-only runtime may still render in-page toast UI");
 
-console.log("CIEAV consequence intelligence static gate PASS - contracts + deterministic routing + epistemic freshness + consequence graph + provider isolation + UNKNOWN preservation + authority=false + background fail-closed UX + hermetic SQLite tests + versioned Windows bridge deployment");
+console.log("CIEAV universal intelligence static gate PASS - cognitive cells + self model + workspace + cortex + epistemic freshness + consequence graph + provider isolation + UNKNOWN preservation + authority=false + background fail-closed UX + hermetic SQLite tests + versioned Windows bridge deployment");
