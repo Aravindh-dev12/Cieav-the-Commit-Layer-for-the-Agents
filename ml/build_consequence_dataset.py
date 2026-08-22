@@ -38,6 +38,8 @@ def prompt_for(row: dict[str, Any]) -> str:
         },
         "reality": row["reality"],
         "proofRequired": True,
+        "trainingScope": (row.get("learning") or {}).get("trainingScope", "OUTCOME_PROOF"),
+        "authorityGrade": (row.get("provenance") or {}).get("authorityGrade", False),
     }
     return json.dumps(value, separators=(",", ":"), sort_keys=True)
 
@@ -51,6 +53,7 @@ def completion_for(row: dict[str, Any]) -> str:
         "requiresRecovery": outcome["status"] == "FAILURE",
         "requiresMoreEvidence": outcome["status"] == "UNKNOWN",
         "trajectoryDigest": row["digest"],
+        "authorityClaim": False,
     }
     return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
@@ -76,6 +79,8 @@ def expectation_for(row: dict[str, Any]) -> dict[str, Any]:
         "risk": row["action"]["risk"],
         "trajectoryDigest": row["digest"],
         "authority": False,
+        "trainingScope": (row.get("learning") or {}).get("trainingScope", "OUTCOME_PROOF"),
+        "eligibleAgenticRl": (row.get("learning") or {}).get("eligibleAgenticRl", False),
     }
 
 
@@ -83,11 +88,18 @@ def stage_records(row: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     prompt = prompt_for(row)
     chosen = completion_for(row)
     rejected = rejected_for(row)
+    provenance = row.get("provenance") or {}
+    learning = row.get("learning") or {}
     base = {
         "id": row["trajectoryId"],
         "trajectory_digest": row["digest"],
         "authority": False,
         "outcome_status": row["outcome"]["status"],
+        "evidence_class": provenance.get("evidenceClass", "UNSPECIFIED"),
+        "authority_grade": provenance.get("authorityGrade", False),
+        "reality_bound": provenance.get("realityBound", False),
+        "training_scope": learning.get("trainingScope", "OUTCOME_PROOF"),
+        "eligible_agentic_rl": learning.get("eligibleAgenticRl", False),
     }
     return {
         "sft": [{**base, "text": f"User:\n{prompt}\nAssistant:\n{chosen}"}],
@@ -116,6 +128,8 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     handles: dict[tuple[str, str], Any] = {}
     counts = {split: {stage: 0 for stage in ("sft", "dpo", "kto", "grpo")} for split in SPLITS}
+    authority_grade_count = sum(1 for row in rows if (row.get("provenance") or {}).get("authorityGrade") is True)
+    agentic_eligible_count = sum(1 for row in rows if (row.get("learning") or {}).get("eligibleAgenticRl") is True)
     try:
         for split in SPLITS:
             split_dir = out / split
@@ -138,11 +152,21 @@ def main() -> None:
         "authority": False,
         "sourceTrajectoryKind": "CIEAV_AUTHORIZED_OUTCOME_TRAJECTORY_V1",
         "records": counts,
+        "provenance": {
+            "authorityGradeRecords": authority_grade_count,
+            "agenticRlEligibleRecords": agentic_eligible_count,
+            "nonAuthorityGradeRestrictedToOutcomeProof": all(
+                (row.get("provenance") or {}).get("authorityGrade") is True
+                or (row.get("learning") or {}).get("trainingScope", "OUTCOME_PROOF") == "OUTCOME_PROOF"
+                for row in rows
+            ),
+        },
         "invariants": {
             "unknownIsNeverPositiveSuccess": True,
             "learningCannotMintPermit": True,
             "learningCannotCommitAction": True,
             "candidateModelsRequireIndependentPromotion": True,
+            "receiptEvidenceCannotClaimAuthorityGrade": True,
         },
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
