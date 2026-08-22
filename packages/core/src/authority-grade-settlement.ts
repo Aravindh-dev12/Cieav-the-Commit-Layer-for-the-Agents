@@ -40,6 +40,7 @@ export function assessAuthorityGradeSettlement(raw:AuthorityGradeSettlementBundl
   if(commit.taskId!==proposal.taskId||commit.intentId!==proposal.intentId)authorityFailures.push("reality_bound_commit_scope_mismatch");
   if(task.commitmentId&&commit.commitmentId!==task.commitmentId)authorityFailures.push("reality_bound_commit_commitment_mismatch");
   if(commit.principal.id!==proposal.subjectId)authorityFailures.push("reality_bound_commit_principal_mismatch");
+  if(commit.proposalDigest!==digest(proposal))authorityFailures.push("reality_bound_commit_proposal_digest_mismatch");
   if(commit.preStateDigest!==proposal.realityWitness.digest||commit.expectedPostStateDigest!==proposal.expectedPostStateDigest||commit.proofObligationDigest!==proposal.proofObligationDigest)authorityFailures.push("reality_bound_commit_state_or_proof_mismatch");
   if(commit.effectKey!==effectKey(proposal.intentId,proposal.semanticEffect))authorityFailures.push("reality_bound_commit_effect_mismatch");
 
