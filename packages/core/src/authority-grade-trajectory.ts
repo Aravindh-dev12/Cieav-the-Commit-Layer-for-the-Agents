@@ -21,7 +21,7 @@ export function buildAuthorizedOutcomeTrajectory(raw:AuthorityGradeSettlementBun
     .map(event=>`${event.phase}:${event.outcome}:${event.id}:${event.eventHash}`);
   const recovery=bundle.taskEvents
     .filter(event=>recoveryEventTypes.has(event.type))
-    .map(event=>`${event.type}:${event.reason}`)
+    .map(event=>`${event.type}:${event.reason}`.slice(0,1500))
     .slice(-100);
   const trustedDirectionalProof=bundle.proofCase.observations.some(observation=>
     trustedProof.has(observation.provenance??"UNVERIFIED")&&(observation.signal==="SUPPORTS"||observation.signal==="CONTRADICTS")
@@ -32,7 +32,7 @@ export function buildAuthorizedOutcomeTrajectory(raw:AuthorityGradeSettlementBun
     version:"CIEAV_AUTHORIZED_OUTCOME_TRAJECTORY_V2",
     trajectoryId:`authority-grade:${bundle.executionTicket.id}`,
     objective:bundle.task.goal,
-    principalIdentityRef:`principal:${bundle.task.owner.kind}:${bundle.task.owner.id}`,
+    principalIdentityRef:`principal:${digest({kind:bundle.task.owner.kind,id:bundle.task.owner.id})}`,
     agentIdentityRef:`attestation:${bundle.identityAttestation.id}`,
     worldBeforeDigest:bundle.proposal.realityWitness.digest,
     credentialLeaseRef:`lease:${bundle.credentialLease.id}`,
