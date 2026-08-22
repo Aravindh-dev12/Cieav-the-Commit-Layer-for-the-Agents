@@ -19,7 +19,8 @@
     "./consequence-graph": {"types": "./dist/consequence-graph.d.ts", "import": "./dist/consequence-graph.js"},
     "./epistemic-state": {"types": "./dist/epistemic-state.d.ts", "import": "./dist/epistemic-state.js"},
     "./cognitive-runtime": {"types": "./dist/cognitive-runtime.d.ts", "import": "./dist/cognitive-runtime.js"},
-    "./cortex": {"types": "./dist/cortex.d.ts", "import": "./dist/cortex.js"}
+    "./cortex": {"types": "./dist/cortex.d.ts", "import": "./dist/cortex.js"},
+    "./universal-intelligence": {"types": "./dist/universal-intelligence.d.ts", "import": "./dist/universal-intelligence.js"}
   },
   "scripts": {"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit","test":"vitest run"},
   "dependencies": {"@cieav/contracts":"*"},
