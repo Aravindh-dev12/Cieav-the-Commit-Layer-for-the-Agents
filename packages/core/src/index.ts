@@ -9,6 +9,7 @@ export * from "./consequence-intelligence.js";
 export * from "./consequence-graph.js";
 export * from "./provider-runtime.js";
 export * from "./epistemic-state.js";
+export * from "./cognitive-runtime.js";
 export * from "./ml-types.js";
 export * from "./ml-reward.js";
 export * from "./ml-trajectory.js";
