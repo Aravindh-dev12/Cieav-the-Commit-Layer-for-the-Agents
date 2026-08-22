@@ -14,6 +14,8 @@ release-out/
 publish/
 build/
 .tmp/
+/ml/data/live/
+/ml/runs/
 *.spec
 *.tsbuildinfo
 __pycache__/

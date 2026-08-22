@@ -4,9 +4,17 @@ import http from "node:http";
 import {mkdir,readFile,writeFile} from "node:fs/promises";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
+import {notifyNative} from "./native-notify.mjs";
 
 const HERE=path.dirname(fileURLToPath(import.meta.url)),ROOT=path.resolve(HERE,"../..");
 const env=(primary,legacy,fallback)=>process.env[primary]??process.env[legacy]??fallback;
+const UI_MODE=String(env("CIEAV_UI_MODE","LATCH_UI_MODE","notification-only")).trim().toLowerCase();
+const NOTIFICATION_ONLY=UI_MODE==="notification-only";
+if(NOTIFICATION_ONLY){
+  process.env.CIEAV_HEADLESS="1";
+  process.env.CIEAV_START_URL="about:blank";
+  process.env.CIEAV_NOTIFICATIONS=process.env.CIEAV_NOTIFICATIONS??"1";
+}
 const STATE=path.resolve(env("CIEAV_STATE_DIR","LATCH_STATE_DIR",path.join(ROOT,".cieav")));
 const API_PORT=+env("CIEAV_API_PORT","LATCH_API_PORT",8787),CONTROL_PORT=+env("CIEAV_CONTROL_PORT","LATCH_CONTROL_PORT",8790),API=`http://127.0.0.1:${API_PORT}`;
 let CONTROL_TOKEN=env("CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN","");
@@ -40,7 +48,7 @@ const ownOrigin=req=>!req.headers.origin||[`http://127.0.0.1:${CONTROL_PORT}`,`h
 const send=(res,status,value)=>{res.writeHead(status,{"content-type":"application/json; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'","x-content-type-options":"nosniff","referrer-policy":"no-referrer"});res.end(JSON.stringify(value))};
 const readBody=async(req,max=256_000)=>{const chunks=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>max)throw new Error("body_too_large");chunks.push(b)}const value=chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{};if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("invalid_json_object");return value};
 let devicePromise;
-async function device(){if(devicePromise)return devicePromise;devicePromise=(async()=>{await mkdir(STATE,{recursive:true,mode:0o700});const file=path.join(STATE,"device.json");let installId;try{installId=JSON.parse(await readFile(file,"utf8")).installId}catch{}if(typeof installId!=="string"||installId.length<12){installId=`browser_${crypto.randomUUID()}_${crypto.randomUUID()}`;await writeFile(file,JSON.stringify({installId}),{mode:0o600})}const r=await fetch(`${API}/v1/devices/register`,{method:"POST",redirect:"error",headers:{"content-type":"application/json"},body:JSON.stringify({installId,deviceName:"CIEAV Control Center"}),signal:AbortSignal.timeout(5000)}),text=await r.text();const value=text?JSON.parse(text):{};if(!r.ok||typeof value.token!=="string")throw new Error(`device_registration_failed:${value.error??r.status}`);return value})();try{return await devicePromise}catch(err){devicePromise=undefined;throw err}}
+async function device(){if(devicePromise)return devicePromise;devicePromise=(async()=>{await mkdir(STATE,{recursive:true,mode:0o700});const file=path.join(STATE,"device.json");let installId;try{installId=JSON.parse(await readFile(file,"utf8")).installId}catch{}if(typeof installId!=="string"||installId.length<12){installId=`browser_${crypto.randomUUID()}_${crypto.randomUUID()}`;await writeFile(file,JSON.stringify({installId}),{mode:0o600})}const r=await fetch(`${API}/v1/devices/register`,{method:"POST",redirect:"error",headers:{"content-type":"application/json"},body:JSON.stringify({installId,deviceName:NOTIFICATION_ONLY?"CIEAV Background Commit Service":"CIEAV Control Center"}),signal:AbortSignal.timeout(5000)}),text=await r.text();const value=text?JSON.parse(text):{};if(!r.ok||typeof value.token!=="string")throw new Error(`device_registration_failed:${value.error??r.status}`);return value})();try{return await devicePromise}catch(err){devicePromise=undefined;throw err}}
 async function api(route,opt={}){const dev=await device(),r=await fetch(`${API}${route}`,{...opt,redirect:"error",signal:AbortSignal.timeout(7000),headers:{"content-type":"application/json",authorization:`Bearer ${dev.token}`,...(opt.headers??{})}}),text=await r.text();let value={};try{value=text?JSON.parse(text):{}}catch{value={error:"invalid_json"}}if(!r.ok)throw new Error(`${r.status}:${value.error??value.detail??"api_error"}`);return value}
 async function realitySnapshot(){const [intents,loops,approvals,proofs,business]=await Promise.all([api("/v1/intents"),api("/v1/open-loops"),api("/v1/reality/approvals"),api("/v1/proofs"),api("/v1/business/plans")]);return{intents:intents.intents??[],openLoops:loops.openLoops??[],approvals:approvals.approvals??[],proofs:proofs.proofs??[],businessPlans:business.plans??[],approvalMode:"read-only",generatedAt:new Date().toISOString()}}
 
@@ -52,3 +60,35 @@ http.createServer=function(...args){
 };
 
 await import("./main-core.mjs");
+
+if(NOTIFICATION_ONLY){
+  let primed=false;
+  const fingerprints=new Map();
+  const fingerprint=r=>`${String(r?.status??"")}|${String(r?.outcome?.status??"")}`;
+  const summary=r=>String(r?.manifest?.summary??r?.manifest?.actionType??"Consequential action").replace(/\s+/g," ").trim().slice(0,180);
+  const poll=async()=>{
+    const value=await api("/v1/receipts?limit=100");
+    const rows=Array.isArray(value.receipts)?value.receipts:[];
+    if(!primed){for(const r of rows)if(r?.id)fingerprints.set(r.id,fingerprint(r));primed=true;return}
+    for(const r of rows){
+      if(!r?.id)continue;
+      const next=fingerprint(r),prior=fingerprints.get(r.id);
+      if(prior===next)continue;
+      fingerprints.set(r.id,next);
+      if(prior===undefined){
+        if(r.status==="COMMITTED")notifyNative("CIEAV committed",summary(r),{level:"info"});
+        else if(r.status==="CANCELLED")notifyNative("CIEAV blocked",summary(r),{level:"warning"});
+        else notifyNative("CIEAV receipt",`${summary(r)} - ${String(r.status??"recorded")}`,{level:"info"});
+      }
+      const beforeOutcome=String(prior??"").split("|")[1]||"",afterOutcome=String(r?.outcome?.status??"");
+      if(afterOutcome&&afterOutcome!==beforeOutcome){
+        const level=afterOutcome==="OBSERVED_FAILURE"?"error":afterOutcome==="UNKNOWN"?"warning":"info";
+        const label=afterOutcome==="OBSERVED_SUCCESS"?"CIEAV verified success":afterOutcome==="OBSERVED_FAILURE"?"CIEAV verified failure":"CIEAV outcome unknown";
+        notifyNative(label,summary(r),{level});
+      }
+    }
+  };
+  void poll().catch(()=>{});
+  const timer=setInterval(()=>void poll().catch(()=>{}),1500);
+  timer.unref?.();
+}
