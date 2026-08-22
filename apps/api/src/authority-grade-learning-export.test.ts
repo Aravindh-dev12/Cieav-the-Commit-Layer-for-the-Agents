@@ -107,6 +107,7 @@ describe("authority-grade learning export",()=>{
     await settleWithProof(x,"AGENT_REPORT");
     const result=await exportAuthorityGradeTrajectory(x.kernel,x.proofStore,x.ticket.id,{redactionProfile:"training-redaction-v1"});
     expect(result.assessment.trustedOutcomeEvidence).toBe(false);
+    expect(result.assessment.hardFailures).toContain("independent_trusted_proof_required");
     expect(result.assessment.authorityGrade).toBe(false);
     expect(result.assessment.outcome).toBe("UNKNOWN");
     expect(result.trajectory.eligibleAgenticRl).toBe(false);
