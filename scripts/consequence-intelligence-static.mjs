@@ -35,7 +35,7 @@ const epistemic=requireTokens("packages/core/src/epistemic-state.ts",[
   "CIEAV_EPISTEMIC_STATE_V1","stale_epistemic_update","Contradiction is sticky","CONTRADICTED","STALE","authority:false","mayMintExecutionAuthority:false",
 ]);
 const cognitive=requireTokens("packages/core/src/cognitive-runtime.ts",[
-  "CognitiveCellRegistry","GlobalIntelligenceWorkspace","remote_cell_cannot_claim_local_only","LOCAL_ONLY","contributionVisibleToCell","authority!==false","mayMintExecutionAuthority!==false",
+  "CognitiveCellRegistry","GlobalIntelligenceWorkspace","remote_cell_cannot_claim_local_only","LOCAL_ONLY","contributionVisibleToCell","stale_workspace_contribution","authority!==false","mayMintExecutionAuthority!==false",
 ]);
 const cortex=requireTokens("packages/core/src/cortex.ts",[
   "cognitiveCellToEngine","buildIntelligenceStateFromRegistry","buildCortexProgram","CORTEX_AUTHORITY=false","CORTEX_MAY_MINT_EXECUTION_AUTHORITY=false","cortex_rejects_authoritative_cell",
@@ -56,7 +56,7 @@ requireTokens("packages/core/src/epistemic-state.test.ts",[
   "rejects older observations","marks claims stale","does not let later support erase unresolved contradictory evidence","explicit deterministic reconciliation","remains non-authoritative",
 ]);
 requireTokens("packages/core/src/cognitive-runtime.test.ts",[
-  "builds a live non-authoritative self model","excludes remote cells for LOCAL_ONLY work","keeps LOCAL_ONLY contributions away from remote cells","workspace_cell_unavailable",
+  "builds a live non-authoritative self model","excludes remote cells for LOCAL_ONLY work","keeps LOCAL_ONLY contributions away from remote cells","rejects out-of-order contributions","workspace_cell_unavailable",
 ]);
 requireTokens("packages/core/src/cortex.test.ts",[
   "zero-authority engines","respects LOCAL_ONLY","real deterministic cognitive program","stops when no admissible cognitive cell exists",
