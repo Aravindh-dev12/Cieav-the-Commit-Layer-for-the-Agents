@@ -51,7 +51,8 @@ export function createQualifiedVerifiedSkill(candidateRaw:VerifiedSkillCandidate
   const candidate=VerifiedSkillCandidateSchema.parse(candidateRaw),qualification=VerifiedSkillQualificationSchema.parse(qualificationRaw);
   if(!qualification.passed)throw new Error("verified_skill_qualification_did_not_pass");
   if(qualification.candidateId!==candidate.id)throw new Error("verified_skill_candidate_qualification_mismatch");
-  return VerifiedSkillArtifactSchema.parse({version:"CIEAV_VERIFIED_SKILL_V1",id:`skill:${candidate.id}`,candidate,qualification,state:"QUALIFIED",qualifiedAt,authority:false,productionAuthority:false,mayMintExecutionAuthority:false});
+  const id=`skill:${sha256({candidateId:candidate.id}).slice(0,40)}`;
+  return VerifiedSkillArtifactSchema.parse({version:"CIEAV_VERIFIED_SKILL_V1",id,candidate,qualification,state:"QUALIFIED",qualifiedAt,authority:false,productionAuthority:false,mayMintExecutionAuthority:false});
 }
 
 export function activateVerifiedSkill(skillRaw:VerifiedSkillArtifact,input:{approvalRef:string;activatedBy:string;activatedAt?:string}):VerifiedSkillArtifact{
