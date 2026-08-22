@@ -1,5 +1,6 @@
 import {AuthorityGradeSettlementBundleSchema,type AuthorityGradeSettlementBundle} from "@cieav/contracts/authority-grade-settlement";
-import {assessAuthorityGradeSettlement,buildAuthorizedOutcomeTrajectory} from "@cieav/core/authority-grade-settlement";
+import {assessAuthorityGradeSettlement} from "@cieav/core/authority-grade-settlement";
+import {buildAuthorizedOutcomeTrajectory} from "@cieav/core/authority-grade-trajectory";
 import type {CieavAgentKernelStore} from "./agent-kernel.js";
 import type {CieavProofStore} from "./proof-api.js";
 
