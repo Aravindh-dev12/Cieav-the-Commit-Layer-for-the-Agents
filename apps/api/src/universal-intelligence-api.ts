@@ -1,8 +1,10 @@
 import type * as http from "node:http";
 import {CognitiveCellDescriptorSchema,EpistemicClaimSchema,IntelligenceClaimEvidenceRequestSchema,IntelligenceInvalidateRequestSchema,IntelligencePlanRequestSchema,WorkspaceContributionSchema} from "@cieav/contracts";
+import {buildVerifiedSkillInUse,verifiedSkillV2ToCognitiveCell} from "@cieav/core/verified-skill-runtime";
 import {z} from "zod";
 import {CieavUniversalIntelligenceStore} from "./universal-intelligence-store.js";
 import type {CieavAuthorityGradeLearningIngestor} from "./authority-grade-learning-ingestor.js";
+import type {CieavVerifiedSkillStore} from "./verified-skill-store.js";
 
 const WorkspaceCreateSchema=z.object({workspaceId:z.string().min(8).max(160),objective:z.string().min(1).max(5000),createdAt:z.string().datetime(),privacy:z.enum(["LOCAL_ONLY","REDACTED_REMOTE_ALLOWED","REMOTE_ALLOWED"]),authority:z.literal(false).default(false)});
 const HeartbeatSchema=z.object({health:z.enum(["HEALTHY","DEGRADED","UNHEALTHY"]),at:z.string().datetime(),authority:z.literal(false).default(false)});
@@ -11,7 +13,7 @@ export type IntelligenceApiResult={status:number;body:unknown};
 async function readBody(req:http.IncomingMessage){const chunks:Buffer[]=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>256000)throw new Error("body_too_large");chunks.push(b)}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{} }
 
 export class CieavUniversalIntelligenceApi{
-  constructor(readonly store:CieavUniversalIntelligenceStore,private readonly trustedExperienceIngestor?:CieavAuthorityGradeLearningIngestor){}
+  constructor(readonly store:CieavUniversalIntelligenceStore,private readonly trustedExperienceIngestor?:CieavAuthorityGradeLearningIngestor,private readonly verifiedSkills?:CieavVerifiedSkillStore){}
   async handleGateway(req:http.IncomingMessage,pathname:string,url:URL):Promise<IntelligenceApiResult|null>{
     if(req.method==="GET"&&pathname==="/v1/intelligence/health")return{status:200,body:await this.store.health()};
     if(req.method==="GET"&&pathname==="/v1/intelligence/snapshot"){const privacy=z.enum(["LOCAL_ONLY","REDACTED_REMOTE_ALLOWED","REMOTE_ALLOWED"]).parse(url.searchParams.get("privacy")??"LOCAL_ONLY"),staleRaw=url.searchParams.get("staleAfterMs"),staleAfterMs=staleRaw?z.coerce.number().int().positive().max(86_400_000).parse(staleRaw):undefined;return{status:200,body:await this.store.snapshot({now:new Date().toISOString(),privacy,...(staleAfterMs?{staleAfterMs}:{})})}}
@@ -22,15 +24,18 @@ export class CieavUniversalIntelligenceApi{
     const revoke=pathname.match(/^\/v1\/intelligence\/cells\/([^/]+)\/revoke$/);if(req.method==="POST"&&revoke?.[1]){const input=RevokeSchema.parse(await readBody(req));return{status:200,body:{cell:await this.store.revokeCell(decodeURIComponent(revoke[1]),input.at),authority:false}}}
     if(req.method==="POST"&&pathname==="/v1/intelligence/workspaces"){const input=WorkspaceCreateSchema.parse(await readBody(req));return{status:201,body:{workspace:await this.store.createWorkspace(input),authority:false}}}
     const contribute=pathname.match(/^\/v1\/intelligence\/workspaces\/([^/]+)\/contributions$/);if(req.method==="POST"&&contribute?.[1]){const contribution=WorkspaceContributionSchema.parse(await readBody(req));if(contribution.workspaceId!==decodeURIComponent(contribute[1]))throw new Error("workspace_id_mismatch");return{status:201,body:{contribution:await this.store.contribute(contribution),authority:false}}}
-    const plan=pathname.match(/^\/v1\/intelligence\/workspaces\/([^/]+)\/plan$/);if(req.method==="POST"&&plan?.[1]){const input=IntelligencePlanRequestSchema.parse(await readBody(req)),result=await this.store.plan(decodeURIComponent(plan[1]),{self:{now:input.now,privacy:input.privacy,...(input.staleAfterMs!==undefined?{staleAfterMs:input.staleAfterMs}:{}),uncertainty:input.uncertainty},...(input.currentRealityDigest?{currentRealityDigest:input.currentRealityDigest}:{}),...(input.authorityEnvelopeRef?{authorityEnvelopeRef:input.authorityEnvelopeRef}:{}),uncertainty:input.uncertainty,proofObligations:input.proofObligations,recoveryRequirements:input.recoveryRequirements,...(input.budget.maxLatencyMs!==undefined?{maxLatencyMs:input.budget.maxLatencyMs}:{}),...(input.budget.maxCostUsd!==undefined?{maxCostUsd:input.budget.maxCostUsd}:{}),...(input.budget.maxModelCalls!==undefined?{maxModelCalls:input.budget.maxModelCalls}:{})});return{status:200,body:result}}
+    const plan=pathname.match(/^\/v1\/intelligence\/workspaces\/([^/]+)\/plan$/);if(req.method==="POST"&&plan?.[1]){
+      const input=IntelligencePlanRequestSchema.parse(await readBody(req)),workspaceId=decodeURIComponent(plan[1]),base={self:{now:input.now,privacy:input.privacy,...(input.staleAfterMs!==undefined?{staleAfterMs:input.staleAfterMs}:{}),uncertainty:input.uncertainty},...(input.currentRealityDigest?{currentRealityDigest:input.currentRealityDigest}:{}),...(input.authorityEnvelopeRef?{authorityEnvelopeRef:input.authorityEnvelopeRef}:{}),uncertainty:input.uncertainty,proofObligations:input.proofObligations,recoveryRequirements:input.recoveryRequirements,...(input.budget.maxLatencyMs!==undefined?{maxLatencyMs:input.budget.maxLatencyMs}:{}),...(input.budget.maxCostUsd!==undefined?{maxCostUsd:input.budget.maxCostUsd}:{}),...(input.budget.maxModelCalls!==undefined?{maxModelCalls:input.budget.maxModelCalls}:{})};
+      let active:Awaited<ReturnType<CieavVerifiedSkillStore["activeArtifacts"]>>=[];
+      if(this.verifiedSkills){await this.verifiedSkills.reconcileDependencies(this.store.runtime.cells,input.now);active=await this.verifiedSkills.activeArtifacts(this.store.runtime.cells)}
+      const overlays=active.map(item=>verifiedSkillV2ToCognitiveCell(this.store.runtime.cells,item.artifact,input.now)),result=await this.store.plan(workspaceId,base,overlays),selected=new Set(result.program.steps.map(step=>step.engineId).filter((id):id is string=>Boolean(id))),skillInUse=active.filter(item=>selected.has(`verified-skill:${item.artifact.id}`)).map(item=>buildVerifiedSkillInUse(this.store.runtime.cells,item.artifact,{objective:result.workspace.objective,privacy:input.privacy,generatedAt:input.now}));
+      return{status:200,body:{...result,skillInUse,authority:false,mayMintExecutionAuthority:false}};
+    }
     if(req.method==="POST"&&pathname==="/v1/intelligence/claims"){const claim=EpistemicClaimSchema.parse(await readBody(req));return{status:201,body:{claim:await this.store.upsertClaim(claim),authority:false}}}
     const evidence=pathname.match(/^\/v1\/intelligence\/claims\/([^/]+)\/evidence$/);if(req.method==="POST"&&evidence?.[1]){const input=IntelligenceClaimEvidenceRequestSchema.parse(await readBody(req));return{status:200,body:{claim:await this.store.addClaimEvidence(decodeURIComponent(evidence[1]),input.kind,input.evidence),authority:false}}}
     if(req.method==="POST"&&pathname==="/v1/intelligence/invalidate"){const input=IntelligenceInvalidateRequestSchema.parse(await readBody(req));return{status:200,body:{claims:await this.store.invalidateClaims(input.condition,input.observedAt),authority:false}}}
     if(req.method==="POST"&&pathname==="/v1/intelligence/experience")return{status:403,body:{error:"caller_asserted_verified_experience_forbidden",requiredPath:"/v1/intelligence/experience/from-ticket",authority:false,mayMintExecutionAuthority:false}};
-    if(req.method==="POST"&&pathname==="/v1/intelligence/experience/from-ticket"){
-      if(!this.trustedExperienceIngestor)return{status:503,body:{error:"trusted_experience_ingestor_unavailable",authority:false,mayMintExecutionAuthority:false}};
-      return{status:201,body:await this.trustedExperienceIngestor.ingestFromTicket(await readBody(req))};
-    }
+    if(req.method==="POST"&&pathname==="/v1/intelligence/experience/from-ticket"){if(!this.trustedExperienceIngestor)return{status:503,body:{error:"trusted_experience_ingestor_unavailable",authority:false,mayMintExecutionAuthority:false}};return{status:201,body:await this.trustedExperienceIngestor.ingestFromTicket(await readBody(req))}}
     return null;
   }
 }
