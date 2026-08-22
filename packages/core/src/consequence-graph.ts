@@ -3,6 +3,7 @@ import type {AuthorizedOutcomeTrajectory,ConsequenceOutcome} from "@cieav/contra
 export type ConsequenceGraphObservation={
   transitionKey:string;
   operation:string;
+  exactArgumentsDigest:string;
   worldBeforeDigest?:string;
   worldAfterDigest?:string;
   outcome:ConsequenceOutcome;
@@ -15,6 +16,7 @@ export type ConsequenceGraphObservation={
 export type ConsequenceGraphEdge={
   transitionKey:string;
   operation:string;
+  exactArgumentsDigest:string;
   observations:number;
   success:number;
   failure:number;
@@ -35,10 +37,15 @@ const finite=(value:number)=>Number.isFinite(value)?value:0;
 const ratio=(numerator:number,denominator:number)=>denominator>0?numerator/denominator:0;
 const bounded=(value:number)=>Math.max(0,Math.min(1,finite(value)));
 
-export function consequenceTransitionKey(input:Pick<AuthorizedOutcomeTrajectory,"operation"|"worldBeforeDigest"|"worldAfterDigest">):string{
+/**
+ * A graph edge is identified by the decision context known before execution:
+ * operation + exact arguments + pre-state. The observed post-state must never
+ * participate in the key, otherwise success/failure/unknown observations for
+ * the same attempted transition are fragmented into separate edges.
+ */
+export function consequenceTransitionKey(input:Pick<AuthorizedOutcomeTrajectory,"operation"|"exactArgumentsDigest"|"worldBeforeDigest">):string{
   const before=input.worldBeforeDigest??"unknown-before";
-  const after=input.worldAfterDigest??"unknown-after";
-  return `${input.operation}\n${before}\n${after}`;
+  return `${input.operation}\n${input.exactArgumentsDigest}\n${before}`;
 }
 
 export function trajectoryToGraphObservation(trajectory:AuthorizedOutcomeTrajectory):ConsequenceGraphObservation{
@@ -46,6 +53,7 @@ export function trajectoryToGraphObservation(trajectory:AuthorizedOutcomeTraject
   return{
     transitionKey:consequenceTransitionKey(trajectory),
     operation:trajectory.operation,
+    exactArgumentsDigest:trajectory.exactArgumentsDigest,
     ...(trajectory.worldBeforeDigest?{worldBeforeDigest:trajectory.worldBeforeDigest}:{}),
     ...(trajectory.worldAfterDigest?{worldAfterDigest:trajectory.worldAfterDigest}:{}),
     outcome:trajectory.outcome,
@@ -85,6 +93,7 @@ export class ConsequenceGraph{
     return{
       transitionKey,
       operation:rows[0].operation,
+      exactArgumentsDigest:rows[0].exactArgumentsDigest,
       observations,
       success,
       failure,
