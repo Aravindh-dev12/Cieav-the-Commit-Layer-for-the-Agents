@@ -11,21 +11,19 @@ const TrustedExperienceFromTicketSchema=z.object({
 }).strict();
 
 export class CieavAuthorityGradeLearningIngestor{
-  constructor(
-    private readonly kernel:CieavAgentKernelStore,
-    private readonly proofStore:CieavProofStore,
-    private readonly intelligenceStore:CieavUniversalIntelligenceStore
-  ){}
+  constructor(private readonly kernel:CieavAgentKernelStore,private readonly proofStore:CieavProofStore,private readonly intelligenceStore:CieavUniversalIntelligenceStore){}
 
   async ingestFromTicket(raw:unknown){
     const input=TrustedExperienceFromTicketSchema.parse(raw);
     const exported=await exportAuthorityGradeTrajectory(this.kernel,this.proofStore,input.executionTicketId,{redactionProfile:input.redactionProfile,...(input.consentScope?{consentScope:input.consentScope}:{})});
-    const learning=await this.intelligenceStore.ingestVerifiedExperience(exported.trajectory);
+    const learning=await this.intelligenceStore.ingestVerifiedExperience(exported.trajectory),edge=learning.edge;
+    const metabolism=await this.intelligenceStore.metabolism.record(exported.trajectory,{transitionObservations:edge.observations,transitionSuccesses:edge.success,transitionFailures:edge.failure,transitionUnknown:edge.unknown});
     return{
       version:"CIEAV_TRUSTED_EXPERIENCE_INGESTION_V1" as const,
       assessment:exported.assessment,
       trajectory:exported.trajectory,
       learning,
+      metabolism,
       authority:false as const,
       productionAuthority:false as const,
       mayMintExecutionAuthority:false as const
