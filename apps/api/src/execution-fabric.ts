@@ -186,6 +186,7 @@ export class CieavExecutionFabricStore{
     });
   }
   listPermissionGraphs(){return this.enqueue(async()=>{await this.load();return this.payload.graphs.slice().reverse()})}
+  getProposalRecord(proposalId:string){return this.enqueue(async()=>{await this.load();const record=this.payload.proposals.find(x=>x.proposal.id===proposalId);return record?{proposal:record.proposal,decision:record.decision}:null})}
 
   authorize(raw:unknown){
     return this.enqueue(async()=>{
@@ -226,12 +227,12 @@ export class CieavExecutionFabricStore{
       const graph=this.payload.graphs.find(x=>x.scopeDeviceId===proposal.scopeDeviceId&&x.rootIntentId===proposal.intentId);
       if(!graph||graph.digest!==record.decision.graphDigest||evaluateFormalAuthorization(graph,proposal).decision!=="ALLOW")throw new Error("formal_authorization_changed_before_execution");
       const commits=await this.kernel.intentReality.listRealityBoundCommits(),commit=commits.find(x=>x.id===realityBoundCommitId);
-      if(!commit||commit.status!=="CONSUMED"||commit.taskId!==proposal.taskId||commit.intentId!==proposal.intentId||commit.effectKey!==semanticEffectKey(proposal.intentId,proposal.semanticEffect)||commit.preStateDigest!==proposal.realityWitness.digest||commit.expectedPostStateDigest!==proposal.expectedPostStateDigest||commit.proofObligationDigest!==proposal.proofObligationDigest)throw new Error("execution_proposal_reality_commit_binding_mismatch");
+      if(!commit||commit.status!=="CONSUMED"||commit.taskId!==proposal.taskId||commit.intentId!==proposal.intentId||commit.proposalDigest!==digest(proposal)||commit.effectKey!==semanticEffectKey(proposal.intentId,proposal.semanticEffect)||commit.preStateDigest!==proposal.realityWitness.digest||commit.expectedPostStateDigest!==proposal.expectedPostStateDigest||commit.proofObligationDigest!==proposal.proofObligationDigest)throw new Error("execution_proposal_reality_commit_binding_mismatch");
       const ttl=Math.max(5,Math.min(60,Math.floor(ttlSeconds))),now=Date.now();
       const authorizationDigest=digest(record.decision),routeDigest=digest({toolId:proposal.toolId,protocol:proposal.protocol,operation:proposal.operation,target:proposal.target??null,normalizedArgumentsDigest:proposal.normalizedArgumentsDigest});
       const ticket=ExecutionTicketSchema.parse({id:crypto.randomUUID(),version:1,proposalId:proposal.id,intentId:proposal.intentId,taskId:proposal.taskId,toolId:proposal.toolId,authorizationDigest,realityBoundCommitId,credentialLeaseId:lease.id,routeDigest,issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+ttl*1000).toISOString(),status:"ISSUED"});
       this.payload.tickets.push(ticket);
-      this.appendAudit({scopeDeviceId:proposal.scopeDeviceId,intentId:proposal.intentId,taskId:proposal.taskId,proposalId:proposal.id,ticketId:ticket.id,phase:"COMMIT",outcome:"PASS",summary:"Execution ticket issued only after fresh formal authorization and consumed Reality-Bound Commit.",detailsDigest:digest(ticket)});
+      this.appendAudit({scopeDeviceId:proposal.scopeDeviceId,intentId:proposal.intentId,taskId:proposal.taskId,proposalId:proposal.id,ticketId:ticket.id,phase:"COMMIT",outcome:"PASS",summary:"Execution ticket issued only after fresh formal authorization and consumed Reality-Bound Commit with the exact committed proposal digest.",detailsDigest:digest(ticket)});
       await this.persist();
       return ticket;
     });
