@@ -7,7 +7,7 @@ import {FilesystemProofProvider} from "./filesystem.js";
 
 const dirs:string[]=[];
 afterEach(async()=>{await Promise.all(dirs.splice(0).map(dir=>rm(dir,{recursive:true,force:true})))});
-const sha=value=>crypto.createHash("sha256").update(value).digest("hex");
+const sha=(value:string|Buffer)=>crypto.createHash("sha256").update(value).digest("hex");
 
 describe("FilesystemProofProvider",()=>{
   it("proves file existence size and exact content digest without authority",async()=>{

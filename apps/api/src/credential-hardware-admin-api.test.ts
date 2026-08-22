@@ -9,6 +9,7 @@ import {CieavCredentialHardwareAdminApi} from "./credential-hardware-admin-api.j
 
 function request(method:string,body?:unknown):IncomingMessage{const input=body===undefined?[]:[Buffer.from(JSON.stringify(body))],req=Readable.from(input) as unknown as IncomingMessage;(req as any).method=method;return req}
 async function fixture(){const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-admin-")),store=new CieavAgentKernelStore(path.join(dir,"agent-kernel.json"),"a".repeat(64));return{store,api:new CieavCredentialHardwareAdminApi(store)}}
+const restoreEnv=(name:string,value:string|undefined)=>{if(value===undefined)delete process.env[name];else process.env[name]=value};
 
 describe("CieavCredentialHardwareAdminApi",()=>{
   it("mounts software credential lifecycle only beneath the Agent Kernel gateway namespace",async()=>{const {api}=await fixture();const created=await api.handle(request("POST",{alias:"gateway-dpop",purposes:["DPOP"]}),"/v1/agent-kernel/credential-authority/keys");expect(created?.status).toBe(201);expect((created?.body as any).key).toMatchObject({alias:"gateway-dpop",hardwareBacked:false,exportable:false});const listed=await api.handle(request("GET"),"/v1/agent-kernel/credential-authority/keys");expect((listed?.body as any).keys).toHaveLength(1);expect(await api.handle(request("GET"),"/v1/credential-authority/keys")).toBeNull()});
@@ -18,4 +19,14 @@ describe("CieavCredentialHardwareAdminApi",()=>{
   it("keeps Linux hardware assurance fail-closed until a deployment verifier exists",async()=>{const {api}=await fixture();const result=await api.handle(request("POST",{}),"/v1/agent-kernel/hardware-key-providers/linux/attest");expect(result).toMatchObject({status:501,body:{error:"linux_hardware_attestation_verifier_required"}})});
 
   it("does not allow registration without verifier-produced attestation evidence",async()=>{const {api}=await fixture();const result=await api.handle(request("POST",{id:"11111111-1111-4111-8111-111111111111",version:1,alias:"unattested",provider:"TPM",providerManifestId:"missing",attestationId:"22222222-2222-4222-8222-222222222222",providerKeyRef:"opaque",algorithm:"ES256",publicJwk:{kty:"EC",crv:"P-256",x:"x",y:"y"},publicKeyFingerprint:"a".repeat(64),purposes:["DPOP"],hardwareBacked:true,exportable:false,createdAt:new Date().toISOString()}),"/v1/agent-kernel/hardware-key-providers/keys");expect(result?.status).toBe(409);expect(String((result?.body as any).error)).toContain("hardware_provider_manifest_not_found")});
+
+  it("mounts configured proof providers only beneath the Agent Kernel Gateway namespace",async()=>{
+    const oldRoots=process.env.CIEAV_PROOF_FILESYSTEM_ROOTS,oldHttp=process.env.CIEAV_PROOF_HTTP_ORIGINS,root=await mkdtemp(path.join(os.tmpdir(),"cieav-proof-admin-"));process.env.CIEAV_PROOF_FILESYSTEM_ROOTS=root;delete process.env.CIEAV_PROOF_HTTP_ORIGINS;
+    try{const {api}=await fixture(),listed=await api.handle(request("GET"),"/v1/agent-kernel/proof-providers");expect(listed?.status).toBe(200);expect((listed?.body as any).authority).toBe(false);expect((listed?.body as any).mayMintExecutionAuthority).toBe(false);expect((listed?.body as any).providers.map((x:any)=>x.id)).toEqual(["cieav.filesystem-proof.v1"]);expect(await api.handle(request("GET"),"/v1/proof-providers")).toBeNull()}finally{restoreEnv("CIEAV_PROOF_FILESYSTEM_ROOTS",oldRoots);restoreEnv("CIEAV_PROOF_HTTP_ORIGINS",oldHttp)}
+  });
+
+  it("registers no proof provider when no proof allowlist is configured",async()=>{
+    const oldRoots=process.env.CIEAV_PROOF_FILESYSTEM_ROOTS,oldHttp=process.env.CIEAV_PROOF_HTTP_ORIGINS;delete process.env.CIEAV_PROOF_FILESYSTEM_ROOTS;delete process.env.CIEAV_PROOF_HTTP_ORIGINS;
+    try{const {api}=await fixture(),listed=await api.handle(request("GET"),"/v1/agent-kernel/proof-providers");expect((listed?.body as any).providers).toEqual([])}finally{restoreEnv("CIEAV_PROOF_FILESYSTEM_ROOTS",oldRoots);restoreEnv("CIEAV_PROOF_HTTP_ORIGINS",oldHttp)}
+  });
 });
