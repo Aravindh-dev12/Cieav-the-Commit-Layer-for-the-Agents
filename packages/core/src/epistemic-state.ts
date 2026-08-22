@@ -22,7 +22,7 @@ export class EpistemicState{
     if(existing&&timestamp(claim.observedAt)<timestamp(existing.observedAt))throw new Error(`stale_epistemic_update:${claim.claimId}`);
     const normalized={...claim,confidence:clamp(claim.confidence),supportingEvidence:[...claim.supportingEvidence],contradictingEvidence:[...claim.contradictingEvidence],invalidationConditions:[...claim.invalidationConditions]};
     this.claims.set(claim.claimId,normalized);
-    return normalized;
+    return structuredClone(normalized);
   }
 
   get(claimId:string){const claim=this.claims.get(claimId);return claim?structuredClone(claim):null}
@@ -39,7 +39,11 @@ export class EpistemicState{
     if(timestamp(evidence.observedAt)<timestamp(current.observedAt))throw new Error(`stale_epistemic_evidence:${claimId}`);
     const support=[...current.supportingEvidence],contradict=[...current.contradictingEvidence];
     if(kind==="SUPPORT")support.push(evidence);else contradict.push(evidence);
-    const status:EpistemicStatus=kind==="CONTRADICT"?"CONTRADICTED":"SUPPORTED";
+
+    // Contradiction is sticky until an explicit reconciliation/status decision.
+    // A later supporting observation must not silently erase unresolved
+    // contradictory evidence. This prevents last-evidence-wins belief flips.
+    const status:EpistemicStatus=contradict.length>0?"CONTRADICTED":"SUPPORTED";
     const next={...current,status,observedAt:evidence.observedAt,supportingEvidence:support.slice(-50),contradictingEvidence:contradict.slice(-50)};
     this.claims.set(claimId,next);return structuredClone(next);
   }
