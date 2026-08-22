@@ -44,6 +44,16 @@ if ($InstallGateway -or $RestartGateway) {
   & npm.cmd run build:api
   if ($LASTEXITCODE -ne 0) { throw "CIEAV API build failed with exit code $LASTEXITCODE" }
 
+  $stateDir = if ($env:CIEAV_STATE_DIR) { $env:CIEAV_STATE_DIR } else { Join-Path $env:USERPROFILE '.cieav' }
+  $bridge = Join-Path $stateDir 'native\cdp-win-bridge.exe'
+  Write-Host 'Building the Windows private CDP bridge used by the protected browser...'
+  & node scripts/build-windows-cdp-bridge.mjs "--output=$bridge"
+  if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $bridge)) { throw 'Windows private CDP bridge build failed.' }
+  $bridge = (Resolve-Path -LiteralPath $bridge).Path
+  [Environment]::SetEnvironmentVariable('CIEAV_CDP_WIN_BRIDGE', $bridge, 'User')
+  $env:CIEAV_CDP_WIN_BRIDGE = $bridge
+  Write-Host "Private CDP bridge: $bridge"
+
   $python = (Get-Command python -ErrorAction Stop).Source
   if ($InstallGateway) {
     & $python -m cieav_platform gateway install
