@@ -4,7 +4,7 @@ import http from "node:http";
 import {mkdir,readFile,writeFile} from "node:fs/promises";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
-import {notifyNative} from "./native-notify.mjs";
+import {notifyNative,notifyNativeApproval} from "./native-notify.mjs";
 
 const HERE=path.dirname(fileURLToPath(import.meta.url)),ROOT=path.resolve(HERE,"../..");
 const env=(primary,legacy,fallback)=>process.env[primary]??process.env[legacy]??fallback;
@@ -45,8 +45,11 @@ const safeEqual=(a,b)=>{const x=Buffer.from(String(a??"")),y=Buffer.from(String(
 const cookies=req=>Object.fromEntries(String(req.headers.cookie??"").split(";").map(x=>x.trim()).filter(Boolean).map(x=>{const i=x.indexOf("=");return i<0?[x,""]:[x.slice(0,i),x.slice(i+1)]}));
 const authorized=req=>{const h=String(req.headers.authorization??""),bearer=h.startsWith("Bearer ")?h.slice(7):"";return safeEqual(bearer,CONTROL_TOKEN)||safeEqual(cookies(req).cieav_control,CONTROL_TOKEN)};
 const ownOrigin=req=>!req.headers.origin||[`http://127.0.0.1:${CONTROL_PORT}`,`http://localhost:${CONTROL_PORT}`].includes(String(req.headers.origin));
+const loopbackPeer=req=>["127.0.0.1","::1","::ffff:127.0.0.1"].includes(String(req.socket.remoteAddress??""));
 const send=(res,status,value)=>{res.writeHead(status,{"content-type":"application/json; charset=utf-8","cache-control":"no-store","content-security-policy":"default-src 'none'","x-content-type-options":"nosniff","referrer-policy":"no-referrer"});res.end(JSON.stringify(value))};
 const readBody=async(req,max=256_000)=>{const chunks=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>max)throw new Error("body_too_large");chunks.push(b)}const value=chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{};if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("invalid_json_object");return value};
+const nativeActivationAttempts=[];
+const allowNativeActivation=()=>{const now=Date.now();while(nativeActivationAttempts.length&&nativeActivationAttempts[0]<now-60_000)nativeActivationAttempts.shift();if(nativeActivationAttempts.length>=30)return false;nativeActivationAttempts.push(now);return true};
 let devicePromise;
 async function device(){if(devicePromise)return devicePromise;devicePromise=(async()=>{await mkdir(STATE,{recursive:true,mode:0o700});const file=path.join(STATE,"device.json");let installId;try{installId=JSON.parse(await readFile(file,"utf8")).installId}catch{}if(typeof installId!=="string"||installId.length<12){installId=`browser_${crypto.randomUUID()}_${crypto.randomUUID()}`;await writeFile(file,JSON.stringify({installId}),{mode:0o600})}const r=await fetch(`${API}/v1/devices/register`,{method:"POST",redirect:"error",headers:{"content-type":"application/json"},body:JSON.stringify({installId,deviceName:NOTIFICATION_ONLY?"CIEAV Background Commit Service":"CIEAV Control Center"}),signal:AbortSignal.timeout(5000)}),text=await r.text();const value=text?JSON.parse(text):{};if(!r.ok||typeof value.token!=="string")throw new Error(`device_registration_failed:${value.error??r.status}`);return value})();try{return await devicePromise}catch(err){devicePromise=undefined;throw err}}
 async function api(route,opt={}){const dev=await device(),r=await fetch(`${API}${route}`,{...opt,redirect:"error",signal:AbortSignal.timeout(7000),headers:{"content-type":"application/json",authorization:`Bearer ${dev.token}`,...(opt.headers??{})}}),text=await r.text();let value={};try{value=text?JSON.parse(text):{}}catch{value={error:"invalid_json"}}if(!r.ok)throw new Error(`${r.status}:${value.error??value.detail??"api_error"}`);return value}
@@ -55,7 +58,7 @@ async function realitySnapshot(){const [intents,loops,approvals,proofs,business]
 http.createServer=function(...args){
   if(typeof args[0]!=="function"&&typeof args[1]!=="function")return originalCreateServer(...args);
   const listener=typeof args[0]==="function"?args[0]:args[1],options=typeof args[0]==="function"?undefined:args[0];
-  const wrapped=async(req,res)=>{let u;try{u=new URL(req.url??"/",`http://${req.headers.host??`127.0.0.1:${CONTROL_PORT}`}`)}catch{return listener(req,res)}const isReality=u.pathname==="/api/reality",isLab=u.pathname==="/api/lab/evaluate";if(!isReality&&!isLab)return listener(req,res);if(!authorized(req))return send(res,401,{error:"unauthorized"});if(isLab&&(!ownOrigin(req)||req.method!=="POST"))return send(res,req.method!=="POST"?405:403,{error:req.method!=="POST"?"method_not_allowed":"origin_not_allowed"});if(isReality&&req.method!=="GET")return send(res,405,{error:"method_not_allowed"});try{if(isReality)return send(res,200,await realitySnapshot());const payload=await readBody(req),result=await api("/v1/reality/lab/evaluate",{method:"POST",body:JSON.stringify(payload)});if(result.permit||result.approval||result.permitIssued!==false||result.approvalCreated!==false||result.sideEffects!==false||result.simulation!==true)throw new Error("action_lab_authority_invariant_violation");return send(res,200,result)}catch(err){const message=String(err?.message??err).slice(0,500);return send(res,message==="body_too_large"?413:400,{error:message})}};
+  const wrapped=async(req,res)=>{let u;try{u=new URL(req.url??"/",`http://${req.headers.host??`127.0.0.1:${CONTROL_PORT}`}`)}catch{return listener(req,res)}const isReality=u.pathname==="/api/reality",isLab=u.pathname==="/api/lab/evaluate",isNativeApproval=u.pathname==="/api/native-approval";if(!isReality&&!isLab&&!isNativeApproval)return listener(req,res);if(isNativeApproval){if(req.method!=="POST")return send(res,405,{error:"method_not_allowed"});if(!loopbackPeer(req)||req.headers.origin)return send(res,403,{error:"native_approval_callback_rejected"});if(!allowNativeActivation())return send(res,429,{error:"rate_limited"});try{const payload=await readBody(req,64_000);if(!payload.capability||typeof payload.capability!=="object"||Array.isArray(payload.capability))throw new Error("native_approval_capability_required");const result=await api("/v1/reality/native-approval-activation",{method:"POST",body:JSON.stringify({capability:payload.capability})});return send(res,200,result)}catch(err){const message=String(err?.message??err);return send(res,message==="body_too_large"?413:403,{error:message==="body_too_large"?message:"native_approval_callback_rejected"})}}if(!authorized(req))return send(res,401,{error:"unauthorized"});if(isLab&&(!ownOrigin(req)||req.method!=="POST"))return send(res,req.method!=="POST"?405:403,{error:req.method!=="POST"?"method_not_allowed":"origin_not_allowed"});if(isReality&&req.method!=="GET")return send(res,405,{error:"method_not_allowed"});try{if(isReality)return send(res,200,await realitySnapshot());const payload=await readBody(req),result=await api("/v1/reality/lab/evaluate",{method:"POST",body:JSON.stringify(payload)});if(result.permit||result.approval||result.permitIssued!==false||result.approvalCreated!==false||result.sideEffects!==false||result.simulation!==true)throw new Error("action_lab_authority_invariant_violation");return send(res,200,result)}catch(err){const message=String(err?.message??err).slice(0,500);return send(res,message==="body_too_large"?413:400,{error:message})}};
   return options===undefined?originalCreateServer(wrapped):originalCreateServer(options,wrapped);
 };
 
@@ -63,12 +66,11 @@ await import("./main-core.mjs");
 
 if(NOTIFICATION_ONLY){
   let primed=false;
-  const fingerprints=new Map();
+  const fingerprints=new Map(),approvalFingerprints=new Map();
   const fingerprint=r=>`${String(r?.status??"")}|${String(r?.outcome?.status??"")}`;
   const summary=r=>String(r?.manifest?.summary??r?.manifest?.actionType??"Consequential action").replace(/\s+/g," ").trim().slice(0,180);
-  const poll=async()=>{
-    const value=await api("/v1/receipts?limit=100");
-    const rows=Array.isArray(value.receipts)?value.receipts:[];
+  const pollReceipts=async()=>{
+    const value=await api("/v1/receipts?limit=100"),rows=Array.isArray(value.receipts)?value.receipts:[];
     if(!primed){for(const r of rows)if(r?.id)fingerprints.set(r.id,fingerprint(r));primed=true;return}
     for(const r of rows){
       if(!r?.id)continue;
@@ -88,6 +90,21 @@ if(NOTIFICATION_ONLY){
       }
     }
   };
+  const pollApprovals=async()=>{
+    const value=await api("/v1/reality/approvals"),rows=Array.isArray(value.approvals)?value.approvals:[],active=new Set();
+    for(const approval of rows){
+      if(!approval?.id||approval.status!=="PENDING"||Date.parse(approval.expiresAt)<=Date.now())continue;
+      active.add(approval.id);
+      const fp=`${approval.status}|${approval.expiresAt}|${approval.risk}|${approval.summary}`;
+      if(approvalFingerprints.get(approval.id)===fp)continue;
+      let caps;try{caps=await api(`/v1/reality/approvals/${encodeURIComponent(approval.id)}/native-capabilities`)}catch{continue}
+      const ok=notifyNativeApproval({title:"CIEAV approval required",message:`${String(approval.summary??"Consequential action").replace(/\s+/g," ").trim().slice(0,160)} · Risk ${String(approval.risk??"UNKNOWN")}`,risk:approval.risk,expiresAt:approval.expiresAt,callbackUrl:`http://127.0.0.1:${CONTROL_PORT}/api/native-approval`,approve:caps.approve,deny:caps.deny});
+      approvalFingerprints.set(approval.id,fp);
+      if(!ok)notifyNative("CIEAV action blocked pending approval",String(approval.summary??"Consequential action"),{level:"warning"});
+    }
+    for(const id of approvalFingerprints.keys())if(!active.has(id))approvalFingerprints.delete(id);
+  };
+  const poll=async()=>{await Promise.allSettled([pollReceipts(),pollApprovals()])};
   void poll().catch(()=>{});
   const timer=setInterval(()=>void poll().catch(()=>{}),1500);
   timer.unref?.();
