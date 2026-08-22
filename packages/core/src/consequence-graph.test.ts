@@ -3,9 +3,10 @@ import type {AuthorizedOutcomeTrajectory} from "@cieav/contracts";
 import {ConsequenceGraph,consequenceTransitionKey,trajectoryToGraphObservation} from "./consequence-graph.js";
 
 const evidence={kind:"API",source:"test",observedAt:"2026-08-22T11:00:00.000Z",summary:"Observed post-state",digest:"a".repeat(64)};
+let sequence=0;
 const base=(overrides:Partial<AuthorizedOutcomeTrajectory>={}):AuthorizedOutcomeTrajectory=>({
   version:"CIEAV_AUTHORIZED_OUTCOME_TRAJECTORY_V2",
-  trajectoryId:`trajectory-${Math.random().toString(16).slice(2)}`,
+  trajectoryId:`trajectory-${String(++sequence).padStart(8,"0")}`,
   objective:"deploy release",
   worldBeforeDigest:"b".repeat(64),
   worldAfterDigest:"c".repeat(64),
@@ -52,7 +53,7 @@ describe("ConsequenceGraph",()=>{
     const graph=new ConsequenceGraph();
     graph.ingest(base());
     graph.ingest(base({authorityGrade:false,realityBound:false,eligibleAgenticRl:false}));
-    const edge=graph.edges()[0];
+    const edge=graph.edges()[0]!;
     expect(edge.authorityGradeCoverage).toBe(.5);
     expect(edge.realityBoundCoverage).toBe(.5);
     expect(edge.proofability).toBe(1);
@@ -67,5 +68,43 @@ describe("ConsequenceGraph",()=>{
     const best=graph.bestObservedEdge("deploy.release")!;
     expect(best.exactArgumentsDigest).toBe("1".repeat(64));
     expect(best.successRate).toBe(1);
+  });
+
+  it("makes identical trajectory replay idempotent in the same process",()=>{
+    const graph=new ConsequenceGraph(),trajectory=base({trajectoryId:"trajectory-idempotent-0001"});
+    const first=graph.ingest(trajectory),second=graph.ingest(structuredClone(trajectory));
+    expect(first.observations).toBe(1);
+    expect(second.observations).toBe(1);
+    expect(graph.snapshot().observations).toBe(1);
+    expect(graph.snapshot().ingestedTrajectories).toBe(1);
+  });
+
+  it("rejects changed content under an already-ingested trajectory id",()=>{
+    const graph=new ConsequenceGraph(),trajectory=base({trajectoryId:"trajectory-tamper-0001"});
+    graph.ingest(trajectory);
+    expect(()=>graph.ingest({...trajectory,outcome:"FAILURE"})).toThrow("consequence_graph_trajectory_id_content_mismatch");
+    expect(graph.snapshot().observations).toBe(1);
+  });
+
+  it("persists the trajectory replay ledger across restart",()=>{
+    const graph=new ConsequenceGraph(),trajectory=base({trajectoryId:"trajectory-restart-0001"});
+    graph.ingest(trajectory);
+    const persisted=graph.persistedState();
+    expect(persisted.ingestedTrajectories).toHaveLength(1);
+    const restored=new ConsequenceGraph();restored.restore(persisted);
+    expect(restored.ingest(trajectory).observations).toBe(1);
+    expect(restored.snapshot().observations).toBe(1);
+    expect(()=>restored.ingest({...trajectory,objective:"changed objective"})).toThrow("consequence_graph_trajectory_id_content_mismatch");
+  });
+
+  it("restores legacy V1 graph state that predates the replay ledger",()=>{
+    const graph=new ConsequenceGraph(),trajectory=base({trajectoryId:"trajectory-legacy-source"});
+    graph.ingest(trajectory);
+    const persisted=graph.persistedState();
+    const legacy={version:persisted.version,edges:persisted.edges,authority:false as const,mayMintExecutionAuthority:false as const};
+    const restored=new ConsequenceGraph();
+    restored.restore(legacy);
+    expect(restored.snapshot().observations).toBe(1);
+    expect(restored.snapshot().ingestedTrajectories).toBe(0);
   });
 });
