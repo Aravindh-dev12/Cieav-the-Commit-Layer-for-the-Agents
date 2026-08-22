@@ -67,11 +67,11 @@ export function assessAuthorityGradeSettlement(raw:AuthorityGradeSettlementBundl
   if(task.proofCaseId!==proof.id||!task.settlement||!task.settledAt)settlementFailures.push("task_proof_settlement_binding_missing");
   if(proof.intentId!==proposal.intentId)settlementFailures.push("proof_intent_mismatch");
   const po=proofOutcome(b);
+  if(!po.trusted)settlementFailures.push("independent_trusted_proof_required");
   if(task.settlement==="PROVEN"&&po.outcome!=="SUCCESS")settlementFailures.push("task_success_not_supported_by_proof");
   if(task.settlement==="DISPROVEN"&&po.outcome!=="FAILURE")settlementFailures.push("task_failure_not_supported_by_proof");
   if(task.settlement==="UNKNOWN"&&po.outcome!=="UNKNOWN")warnings.push("task_preserves_unknown_despite_directional_proof");
   if(proof.assessment.missingRequired.length)settlementFailures.push("proof_required_evidence_missing");
-  if(!po.trusted&&po.outcome!=="UNKNOWN")settlementFailures.push("independent_trusted_proof_required");
 
   const authorityBindingsVerified=authorityFailures.length===0;
   const settlementBindingsVerified=settlementFailures.length===0;

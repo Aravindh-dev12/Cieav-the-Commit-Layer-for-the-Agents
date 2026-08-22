@@ -1,6 +1,8 @@
-import {AuthorityGradeSettlementBundleSchema,type AuthorityGradeSettlementBundle} from "@cieav/contracts/authority-grade-settlement";
+import {AuthorityGradeSettlementAssessmentSchema,AuthorityGradeSettlementBundleSchema,type AuthorityGradeSettlementAssessment,type AuthorityGradeSettlementBundle} from "@cieav/contracts/authority-grade-settlement";
 import {assessAuthorityGradeSettlement} from "@cieav/core/authority-grade-settlement";
 import {buildAuthorizedOutcomeTrajectory} from "@cieav/core/authority-grade-trajectory";
+import {digest} from "@cieav/core/execution-fabric";
+import type {AuthorizedOutcomeTrajectory} from "@cieav/contracts/consequence-intelligence";
 import type {CieavAgentKernelStore} from "./agent-kernel.js";
 import type {CieavProofStore} from "./proof-api.js";
 
@@ -12,17 +14,17 @@ export type AuthorityGradeExportOptions={
 export type AuthorityGradeLearningExport={
   version:"CIEAV_AUTHORITY_GRADE_LEARNING_EXPORT_V1";
   bundle:AuthorityGradeSettlementBundle;
-  assessment:ReturnType<typeof assessAuthorityGradeSettlement>;
-  trajectory:ReturnType<typeof buildAuthorizedOutcomeTrajectory>;
+  assessment:AuthorityGradeSettlementAssessment;
+  trajectory:AuthorizedOutcomeTrajectory;
   authority:false;
   productionAuthority:false;
 };
 
 /**
- * Joins durable records only after each underlying store has authenticated its
- * own persisted envelope. This is deliberately separate from receipt export:
- * signed receipts remain useful evidence but can never synthesize an
- * authority-grade trajectory by themselves.
+ * Trusted local export boundary. Caller-supplied bundle integrity flags do not
+ * exist: every artifact is loaded through the authenticated local stores. The
+ * pure core verifier checks semantic bindings only; this function is the sole
+ * layer that may assert cryptographicallyVerified=true after those reads.
  */
 export async function exportAuthorityGradeTrajectory(
   kernel:CieavAgentKernelStore,
@@ -30,12 +32,12 @@ export async function exportAuthorityGradeTrajectory(
   executionTicketId:string,
   options:AuthorityGradeExportOptions
 ):Promise<AuthorityGradeLearningExport>{
-  if(!options.redactionProfile.trim())throw new Error("authority_grade_redaction_profile_required");
+  const redactionProfile=options.redactionProfile.trim();
+  if(!redactionProfile)throw new Error("authority_grade_redaction_profile_required");
 
-  // Every call below forces the corresponding HMAC-authenticated store to load
-  // and verify itself before returning durable state.
   const ticket=(await kernel.executionFabric.listTickets()).find(x=>x.id===executionTicketId);
   if(!ticket)throw new Error("authority_grade_execution_ticket_not_found");
+  if(ticket.status!=="CONSUMED"||!ticket.consumedAt)throw new Error("authority_grade_consumed_ticket_required");
 
   const record=await kernel.executionFabric.getProposalRecord(ticket.proposalId);
   if(!record)throw new Error("authority_grade_execution_proposal_not_found");
@@ -54,7 +56,7 @@ export async function exportAuthorityGradeTrajectory(
     kernel.intentReality.listRealityBoundCommits()
   ]);
 
-  const permissionGraph=graphs.find(x=>x.digest===authorization.graphDigest);
+  const permissionGraph=graphs.find(x=>x.digest===authorization.graphDigest&&x.scopeDeviceId===proposal.scopeDeviceId&&x.rootIntentId===proposal.intentId);
   if(!permissionGraph)throw new Error("authority_grade_permission_graph_not_found");
   const identityAttestation=attestations.find(x=>x.id===proposal.identityAttestationId);
   if(!identityAttestation)throw new Error("authority_grade_identity_attestation_not_found");
@@ -66,41 +68,35 @@ export async function exportAuthorityGradeTrajectory(
   const proofCase=await proofStore.get(task.scopeDeviceId,task.proofCaseId);
   if(!proofCase)throw new Error("authority_grade_proof_case_not_found");
 
+  const executionAudit=audit.filter(x=>x.proposalId===proposal.id||x.ticketId===ticket.id);
   const bundle=AuthorityGradeSettlementBundleSchema.parse({
     version:"CIEAV_AUTHORITY_GRADE_SETTLEMENT_BUNDLE_V1",
-    task,
-    taskEvents,
-    proposal,
-    authorization,
-    permissionGraph,
-    identityAttestation,
-    credentialLease,
-    realityBoundCommit,
-    executionTicket:ticket,
-    executionAudit:audit,
-    proofCase,
-    redactionProfile:options.redactionProfile.trim(),
+    task,taskEvents,proposal,authorization,permissionGraph,identityAttestation,credentialLease,realityBoundCommit,executionTicket:ticket,
+    executionAudit,proofCase,redactionProfile,
     ...(options.consentScope?.trim()?{consentScope:options.consentScope.trim()}:{}),
-    sourceIntegrity:{
-      agentKernelAuthenticated:true,
-      intentRealityAuthenticated:true,
-      executionFabricAuthenticated:true,
-      proofStoreAuthenticated:true,
-      executionAuditChainVerified:true,
-      identityAttestationVerified:true
-    },
+    authority:false,productionAuthority:false
+  });
+
+  const semantic=assessAuthorityGradeSettlement(bundle);
+  const hardFailures=[...semantic.authorityFailures,...semantic.settlementFailures];
+  const cryptographicallyVerified=true;
+  const authorityGrade=cryptographicallyVerified&&semantic.authorityBindingsVerified&&semantic.settlementBindingsVerified&&semantic.realityBound&&semantic.trustedOutcomeEvidence&&hardFailures.length===0;
+  const eligible=authorityGrade&&semantic.outcome!=="UNKNOWN";
+  const assessment=AuthorityGradeSettlementAssessmentSchema.parse({
+    version:"CIEAV_AUTHORITY_GRADE_SETTLEMENT_ASSESSMENT_V1",
+    eligible,
+    authorityGrade,
+    realityBound:semantic.realityBound,
+    cryptographicallyVerified,
+    trustedOutcomeEvidence:semantic.trustedOutcomeEvidence,
+    outcome:authorityGrade?semantic.outcome:"UNKNOWN",
+    hardFailures,
+    warnings:semantic.warnings,
+    evidenceRefs:[...semantic.evidenceRefs,`bundle:${digest(bundle)}`].sort(),
     authority:false,
     productionAuthority:false
   });
 
-  const assessment=assessAuthorityGradeSettlement(bundle);
-  const trajectory=buildAuthorizedOutcomeTrajectory(bundle);
-  return{
-    version:"CIEAV_AUTHORITY_GRADE_LEARNING_EXPORT_V1",
-    bundle,
-    assessment,
-    trajectory,
-    authority:false,
-    productionAuthority:false
-  };
+  const trajectory=buildAuthorizedOutcomeTrajectory(bundle,assessment);
+  return{version:"CIEAV_AUTHORITY_GRADE_LEARNING_EXPORT_V1",bundle,assessment,trajectory,authority:false,productionAuthority:false};
 }

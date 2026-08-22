@@ -22,9 +22,7 @@ async function setup(){
   const kernel=new CieavAgentKernelStore(path.join(dir,"kernel.json"),"k".repeat(64));
   const created=await kernel.create({scopeDeviceId:deviceId,sessionId,intentId,owner,actor,goal:"Send governed update"}),taskId=created.task.id;
   await kernel.transition(taskId,"QUEUED");await kernel.transition(taskId,"PLANNING");await kernel.requireCommitment(taskId);await kernel.bindCommitmentTrusted(taskId,commitment);
-  const realityCommit=await kernel.intentReality.issueRealityBoundCommit({taskId,intentId,commitment,proposal:{action:"gmail.send",target:effect.target},effect,preState,expectedPostState:postState,ttlSeconds:60});
-  await kernel.bindRealityCommitTrusted(taskId,realityCommit.id,realityCommit.effectKey);
-  return{kernel,fabric:kernel.executionFabric,taskId,realityCommit};
+  return{kernel,fabric:kernel.executionFabric,taskId};
 }
 async function setupFabric(){
   const x=await setup(),now=Date.now();
@@ -34,7 +32,9 @@ async function setupFabric(){
   const lease=await x.fabric.issueLease({id:crypto.randomUUID(),...leaseBase,bindingDigest:digest(leaseBase),used:0});
   await x.fabric.putPermissionGraph({id:crypto.randomUUID(),version:1,scopeDeviceId:deviceId,rootIntentId:intentId,defaultDecision:"DENY",edges:[{id:crypto.randomUUID(),effect:"ALLOW",subjectIds:["agent-1"],intentIds:[intentId],toolIds:["gmail.send"],operations:["send"],targetPrefixes:["mailto:customer@"],maxRisk:"HIGH",evidenceRefs:["intent:root","policy:customer-contact"],reason:"Governed customer communication is within root Intent."}],createdAt:new Date(now).toISOString(),updatedAt:new Date(now).toISOString()});
   const proposal={id:crypto.randomUUID(),version:1 as const,taskId:x.taskId,intentId,scopeDeviceId:deviceId,subjectId:"agent-1",identityAttestationId:attestation.id,credentialLeaseId:lease.id,toolId:"gmail.send",protocol:"MCP" as const,operation:"send",target:"mailto:customer@example.com",risk:"HIGH" as const,normalizedArgumentsDigest:digest(normalizedArguments),semanticEffect:effect,realityWitness:preState,expectedPostStateDigest:postState.digest,proofObligationDigest:sha256(commitment.proofObligation),attenuationWitnessIds:[],createdAt:new Date(now).toISOString()};
-  return{...x,attestation,lease,proposal};
+  const realityCommit=await x.kernel.intentReality.issueRealityBoundCommit({taskId:x.taskId,intentId,commitment,proposal,effect,preState,expectedPostState:postState,ttlSeconds:60});
+  await x.kernel.bindRealityCommitTrusted(x.taskId,realityCommit.id,realityCommit.effectKey);
+  return{...x,attestation,lease,proposal,realityCommit};
 }
 
 async function consumeReality(x:Awaited<ReturnType<typeof setupFabric>>){await x.kernel.intentReality.consumeRealityBoundCommit(x.realityCommit.id,preState);await x.kernel.consumeRealityCommitTrusted(x.taskId,x.realityCommit.id)}
@@ -51,6 +51,8 @@ describe("CIEAV universal execution fabric",()=>{
   it("blocks credential lease tool and risk escape",async()=>{const x=await setupFabric();await expect(x.fabric.authorize({...x.proposal,toolId:"stripe.refund"})).rejects.toThrow("credential_lease_scope_violation");await expect(x.fabric.authorize({...x.proposal,risk:"CRITICAL" as const})).rejects.toThrow("credential_lease_scope_violation")});
 
   it("blocks a mismatched semantic effect even after the original reality commit was consumed",async()=>{const x=await setupFabric();const changed={...x.proposal,id:crypto.randomUUID(),semanticEffect:{...effect,target:"other@example.com"}};await x.fabric.authorize(changed);await consumeReality(x);await expect(x.fabric.issueTicket(changed.id,x.realityCommit.id)).rejects.toThrow("execution_proposal_reality_commit_binding_mismatch")});
+
+  it("rejects a proposal that differs from the exact proposal digest committed before execution",async()=>{const x=await setupFabric();const changed={...x.proposal,id:crypto.randomUUID(),target:"mailto:customer+changed@example.com"};await x.fabric.authorize(changed);await consumeReality(x);await expect(x.fabric.issueTicket(changed.id,x.realityCommit.id)).rejects.toThrow("execution_proposal_reality_commit_binding_mismatch")});
 
   it("revoked credential lease cannot authorize or route",async()=>{const x=await setupFabric();await x.fabric.revokeLease(x.lease.id);await expect(x.fabric.authorize(x.proposal)).rejects.toThrow("credential_lease_scope_violation")});
 

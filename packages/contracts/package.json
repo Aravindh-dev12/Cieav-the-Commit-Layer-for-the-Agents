@@ -23,7 +23,8 @@
     "./cognitive-runtime": {"types": "./dist/cognitive-runtime.d.ts", "import": "./dist/cognitive-runtime.js"},
     "./universal-runtime": {"types": "./dist/universal-runtime.d.ts", "import": "./dist/universal-runtime.js"},
     "./consequence-abi": {"types": "./dist/consequence-abi.d.ts", "import": "./dist/consequence-abi.js"},
-    "./authority-grade-settlement": {"types": "./dist/authority-grade-settlement.d.ts", "import": "./dist/authority-grade-settlement.js"}
+    "./authority-grade-settlement": {"types": "./dist/authority-grade-settlement.d.ts", "import": "./dist/authority-grade-settlement.js"},
+    "./verified-skill": {"types": "./dist/verified-skill.d.ts", "import": "./dist/verified-skill.js"}
   },
   "scripts": {"build":"tsc -p tsconfig.json","typecheck":"tsc -p tsconfig.json --noEmit"},
   "dependencies": {"zod":"^3.24.0"},
