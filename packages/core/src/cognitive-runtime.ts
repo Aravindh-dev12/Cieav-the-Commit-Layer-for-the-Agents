@@ -7,7 +7,22 @@ import type {
 } from "@cieav/contracts";
 
 const parseTime=(value:string)=>{const n=Date.parse(value);if(!Number.isFinite(n))throw new Error("invalid_cognitive_timestamp");return n};
-const privacyRank:Record<CognitiveCellPrivacy,number>={LOCAL_ONLY:0,REDACTED_REMOTE_ALLOWED:1,REMOTE_ALLOWED:2};
+
+function validateCellPrivacy(cell:CognitiveCellDescriptor){
+  if(cell.privacyBoundary==="LOCAL_ONLY"&&!cell.local)throw new Error(`remote_cell_cannot_claim_local_only:${cell.id}`);
+}
+
+function cellAllowedForPrivacy(cell:CognitiveCellDescriptor,privacy:CognitiveCellPrivacy){
+  if(privacy==="LOCAL_ONLY")return cell.local;
+  if(cell.local)return true;
+  return cell.privacyBoundary!=="LOCAL_ONLY";
+}
+
+function contributionVisibleToCell(item:WorkspaceContribution,cell:CognitiveCellDescriptor){
+  if(cell.local)return true;
+  if(item.privacy==="LOCAL_ONLY")return false;
+  return cell.privacyBoundary!=="LOCAL_ONLY";
+}
 
 export type SelfModelInput={
   now:string;
@@ -23,6 +38,7 @@ export class CognitiveCellRegistry{
 
   register(cell:CognitiveCellDescriptor){
     if(cell.authority!==false||cell.mayMintExecutionAuthority!==false)throw new Error("cognitive_cell_must_have_zero_authority");
+    validateCellPrivacy(cell);
     if(this.cells.has(cell.id))throw new Error(`duplicate_cognitive_cell:${cell.id}`);
     this.cells.set(cell.id,structuredClone(cell));
     return this.get(cell.id)!;
@@ -30,6 +46,7 @@ export class CognitiveCellRegistry{
 
   upsert(cell:CognitiveCellDescriptor){
     if(cell.authority!==false||cell.mayMintExecutionAuthority!==false)throw new Error("cognitive_cell_must_have_zero_authority");
+    validateCellPrivacy(cell);
     const current=this.cells.get(cell.id);
     if(current&&parseTime(cell.lastHeartbeatAt)<parseTime(current.lastHeartbeatAt))throw new Error(`stale_cognitive_cell_update:${cell.id}`);
     this.cells.set(cell.id,structuredClone(cell));
@@ -58,8 +75,7 @@ export class CognitiveCellRegistry{
     return this.list().filter(cell=>{
       if(cell.health!=="HEALTHY"&&cell.health!=="DEGRADED")return false;
       if(now-parseTime(cell.lastHeartbeatAt)>staleAfter)return false;
-      if(input.privacy==="LOCAL_ONLY"&&!cell.local)return false;
-      return privacyRank[cell.privacyBoundary]<=privacyRank[input.privacy];
+      return cellAllowedForPrivacy(cell,input.privacy);
     });
   }
 
@@ -96,7 +112,6 @@ export class GlobalIntelligenceWorkspace{
     if(contribution.authority!==false)throw new Error("workspace_contribution_must_have_zero_authority");
     if(contribution.workspaceId!==this.state.workspaceId)throw new Error("workspace_id_mismatch");
     if(this.contributions.has(contribution.id))throw new Error(`duplicate_workspace_contribution:${contribution.id}`);
-    if(privacyRank[contribution.privacy]>privacyRank[this.state.privacy])throw new Error("workspace_privacy_violation");
     if(parseTime(contribution.createdAt)<parseTime(this.state.createdAt))throw new Error("workspace_contribution_predates_workspace");
     this.contributions.set(contribution.id,structuredClone(contribution));
     this.state={...this.state,updatedAt:contribution.createdAt,contributionIds:[...this.state.contributionIds,contribution.id]};
@@ -107,8 +122,8 @@ export class GlobalIntelligenceWorkspace{
 
   projectForCell(cell:CognitiveCellDescriptor){
     if(cell.health==="REVOKED"||cell.health==="UNHEALTHY")throw new Error(`workspace_cell_unavailable:${cell.id}`);
-    const maxPrivacy: CognitiveCellPrivacy = cell.local?"REMOTE_ALLOWED":cell.privacyBoundary;
-    return this.list().filter(item=>privacyRank[item.privacy]<=privacyRank[maxPrivacy]);
+    validateCellPrivacy(cell);
+    return this.list().filter(item=>contributionVisibleToCell(item,cell));
   }
 
   snapshot(){return structuredClone(this.state)}
