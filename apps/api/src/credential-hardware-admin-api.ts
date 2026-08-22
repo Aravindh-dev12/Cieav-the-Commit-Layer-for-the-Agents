@@ -13,6 +13,7 @@ const MAX_BODY=256_000;
 async function parseBody(req:IncomingMessage){const chunks:Buffer[]=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>MAX_BODY)throw new Error("body_too_large");chunks.push(b)}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{} }
 const conflict=(err:unknown)=>({status:409,body:{error:String((err as any)?.message??err)}});
 const listEnv=(name:string,legacy:string)=>String(process.env[name]??process.env[legacy]??"").split(",").map(value=>value.trim()).filter(Boolean);
+const boolEnv=(name:string,legacy:string)=>process.env[name]==="1"||process.env[legacy]==="1";
 
 /**
  * Privileged credential/hardware/proof lifecycle surface. This class is
@@ -32,7 +33,8 @@ export class CieavCredentialHardwareAdminApi{
     const filesystemRoots=listEnv("CIEAV_PROOF_FILESYSTEM_ROOTS","LATCH_PROOF_FILESYSTEM_ROOTS").map(root=>path.resolve(root));
     const httpOrigins=listEnv("CIEAV_PROOF_HTTP_ORIGINS","LATCH_PROOF_HTTP_ORIGINS").map(value=>new URL(value).origin);
     const gitRepositories=listEnv("CIEAV_PROOF_GIT_REPOSITORIES","LATCH_PROOF_GIT_REPOSITORIES").map(repo=>path.resolve(repo));
-    this.proofProviders=new CieavProofProviderApi(new CieavLocalProofProviderRuntime({filesystemRoots,httpOrigins,gitRepositories}));
+    const httpAllowPrivateNetworks=boolEnv("CIEAV_PROOF_HTTP_ALLOW_PRIVATE","LATCH_PROOF_HTTP_ALLOW_PRIVATE");
+    this.proofProviders=new CieavProofProviderApi(new CieavLocalProofProviderRuntime({filesystemRoots,httpOrigins,gitRepositories,httpAllowPrivateNetworks}));
   }
 
   async handle(req:IncomingMessage,pathname:string):Promise<{status:number;body:unknown}|null>{
