@@ -1,6 +1,6 @@
 import {describe,expect,it} from "vitest";
 import type {AuthorizedOutcomeTrajectory,CognitiveProgram,VerifiedSkillValidationCase} from "@cieav/contracts";
-import {activateVerifiedSkill,activateVerifiedSkillV2,compileVerifiedSkillCandidate,createQualifiedVerifiedSkill,createQualifiedVerifiedSkillV2,qualifyVerifiedSkill,qualifyVerifiedSkillV2,revokeVerifiedSkill,verifiedSkillDigest} from "./verified-skill.js";
+import {activateVerifiedSkill,activateVerifiedSkillV2,compileVerifiedSkillCandidate,createQualifiedVerifiedSkill,createQualifiedVerifiedSkillV2,qualifyVerifiedSkill,qualifyVerifiedSkillV2,revokeVerifiedSkill,verifiedSkillDigest,verifiedSkillValidationCaseDigest} from "./verified-skill.js";
 
 const at="2026-08-22T19:00:00.000Z";
 const program:CognitiveProgram={version:"CIEAV_COGNITIVE_PROGRAM_V1",strategy:"verified deployment reasoning",steps:[{stepId:"retrieve",kind:"RETRIEVE",engineId:"deployment-history",purpose:"Load verified prior deployment state."},{stepId:"prove",kind:"PROVE",engineId:"deployment-proof",purpose:"Require independent deployment proof."}],authority:false};
@@ -10,7 +10,7 @@ const trajectory=(id:string,overrides:Partial<AuthorizedOutcomeTrajectory>={}):A
 const good=[trajectory("trajectory-skill-0001"),trajectory("trajectory-skill-0002"),trajectory("trajectory-skill-0003")];
 
 function candidate(trajectories=good){return compileVerifiedSkillCandidate({id:"candidate-deploy-release-v1",name:"Verified release reasoning",capability:"deployment.reasoning",routing:{description:"Use for governed software release planning and verification.",keywords:["deploy","release","rollout"]},program,trajectories,createdAt:at})}
-function validation(candidateDigest:string,id:string,overrides:Partial<VerifiedSkillValidationCase>={}):VerifiedSkillValidationCase{return{version:"CIEAV_VERIFIED_SKILL_VALIDATION_CASE_V1",caseId:id,caseDigest:verifiedSkillDigest({id,"case":1}),environmentDigest:"1".repeat(64),candidateDigest,baselineConfigurationDigest:"2".repeat(64),baselineOutcome:"FAILURE",skillOutcome:"SUCCESS",baselineSteps:8,skillSteps:5,baselineTokens:5000,skillTokens:3200,verifierRef:"deterministic:test-verifier-v1",verifierDigest:"3".repeat(64),provenance:"CIEAV_DETERMINISTIC_HARNESS",heldOut:true,derivedFromTrajectoryIds:[],authority:false,productionAuthority:false,mayMintExecutionAuthority:false,...overrides}}
+function validation(candidateDigest:string,id:string,overrides:Partial<VerifiedSkillValidationCase>={}):VerifiedSkillValidationCase{const draft:VerifiedSkillValidationCase={version:"CIEAV_VERIFIED_SKILL_VALIDATION_CASE_V1",caseId:id,caseDigest:"0".repeat(64),environmentDigest:"1".repeat(64),candidateDigest,baselineConfigurationDigest:"2".repeat(64),baselineOutcome:"FAILURE",skillOutcome:"SUCCESS",baselineSteps:8,skillSteps:5,baselineTokens:5000,skillTokens:3200,verifierRef:"deterministic:test-verifier-v1",verifierDigest:"3".repeat(64),provenance:"CIEAV_DETERMINISTIC_HARNESS",heldOut:true,derivedFromTrajectoryIds:[],authority:false,productionAuthority:false,mayMintExecutionAuthority:false,...overrides};return{...draft,caseDigest:verifiedSkillValidationCaseDigest(draft)}}
 
 describe("Verified Skills",()=>{
   it("qualifies V1 source evidence only after the minimum repeated authority-grade successful evidence",()=>{
@@ -64,6 +64,12 @@ describe("Verified Skills",()=>{
     expect(qualifyVerifiedSkillV2(c,source,contaminated,{},at).reasons).toContain("validation_case_not_held_out:validation-heldout-0001");
     const mismatch=[validation("f".repeat(64),"validation-mismatch-0001"),validation(digest,"validation-mismatch-0002"),validation(digest,"validation-mismatch-0003")];
     expect(qualifyVerifiedSkillV2(c,source,mismatch,{},at).reasons).toContain("validation_candidate_digest_mismatch:validation-mismatch-0001");
+  });
+
+  it("detects validation-result tampering and duplicate-case padding",()=>{
+    const c=candidate(),source=qualifyVerifiedSkill(c,good,{},at),digest=verifiedSkillDigest(c),first=validation(digest,"validation-integrity-0001"),tampered={...first,skillOutcome:"FAILURE" as const},second=validation(digest,"validation-integrity-0002"),duplicate={...second,caseId:"validation-integrity-0003"};
+    const tamperedResult=qualifyVerifiedSkillV2(c,source,[tampered,validation(digest,"validation-integrity-0004"),validation(digest,"validation-integrity-0005")],{},at);expect(tamperedResult.reasons).toContain("validation_case_digest_mismatch:validation-integrity-0001");
+    const padded=qualifyVerifiedSkillV2(c,source,[first,second,duplicate],{},at);expect(padded.reasons).toContain("duplicate_validation_case_digest");
   });
 
   it("requires explicit V2 activation approval and keeps activation non-authoritative",()=>{
