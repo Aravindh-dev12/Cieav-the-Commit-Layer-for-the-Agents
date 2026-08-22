@@ -31,7 +31,8 @@ export class CieavCredentialHardwareAdminApi{
     this.credentials=new CieavCredentialAuthorityApi(store.credentialAuthority);
     const filesystemRoots=listEnv("CIEAV_PROOF_FILESYSTEM_ROOTS","LATCH_PROOF_FILESYSTEM_ROOTS").map(root=>path.resolve(root));
     const httpOrigins=listEnv("CIEAV_PROOF_HTTP_ORIGINS","LATCH_PROOF_HTTP_ORIGINS").map(value=>new URL(value).origin);
-    this.proofProviders=new CieavProofProviderApi(new CieavLocalProofProviderRuntime({filesystemRoots,httpOrigins}));
+    const gitRepositories=listEnv("CIEAV_PROOF_GIT_REPOSITORIES","LATCH_PROOF_GIT_REPOSITORIES").map(repo=>path.resolve(repo));
+    this.proofProviders=new CieavProofProviderApi(new CieavLocalProofProviderRuntime({filesystemRoots,httpOrigins,gitRepositories}));
   }
 
   async handle(req:IncomingMessage,pathname:string):Promise<{status:number;body:unknown}|null>{
