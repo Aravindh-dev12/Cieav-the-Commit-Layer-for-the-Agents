@@ -68,6 +68,8 @@ def main() -> None:
     a = p.parse_args()
     if a.steps < 1 or a.steps > 1000:
         raise SystemExit("--steps must be between 1 and 1000")
+    if not a.trajectories.is_file():
+        raise SystemExit(f"trajectory JSONL not found: {a.trajectories}. Export and normalize finalized receipt evidence first.")
 
     rows = load_jsonl(str(a.trajectories))
     if not rows:
@@ -93,124 +95,101 @@ def main() -> None:
                 "trainingScope": row["learning"]["trainingScope"],
                 "authority": False,
                 "text": text,
-            }, separators=(",", ":"), ensure_ascii=False) + "\n")
+            }, separators=(",", ":")) + "\n")
 
-    tokenizer = build_tokenizer(texts + [
-        "UNKNOWN must never be converted into SUCCESS",
-        "TRAINED_UNQUALIFIED authority false",
-    ])
     torch.manual_seed(a.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(a.seed)
+    tokenizer = build_tokenizer(texts)
     config = GPT2Config(
         vocab_size=len(tokenizer),
-        n_positions=192,
-        n_ctx=192,
-        n_embd=48,
+        n_positions=256,
+        n_ctx=256,
+        n_embd=96,
         n_layer=2,
-        n_head=4,
+        n_head=2,
         bos_token_id=tokenizer.bos_token_id,
         eos_token_id=tokenizer.eos_token_id,
         pad_token_id=tokenizer.pad_token_id,
-        use_cache=False,
     )
     model = GPT2LMHeadModel(config)
-    peft = LoraConfig(
-        task_type="CAUSAL_LM",
-        r=4,
-        lora_alpha=8,
-        lora_dropout=0.0,
-        target_modules=["c_attn", "c_proj"],
-        bias="none",
-    )
+    before = {name: value.detach().cpu().clone() for name, value in model.named_parameters()}
     dataset = Dataset.from_dict({"text": texts})
-    hyperparameters = {
-        "learningRate": a.learning_rate,
-        "maxSteps": a.steps,
-        "batchSize": 1,
-        "seed": a.seed,
-        "offline": True,
-        "peft": "LoRA",
-        "trainingScopeCounts": {
-            scope: sum(1 for row in rows if row["learning"]["trainingScope"] == scope)
-            for scope in sorted({row["learning"]["trainingScope"] for row in rows})
-        },
-    }
-    manifest = create_round(
-        stage="sft-consequence",
-        model="cieav-offline-tiny-gpt2-lora",
-        dataset=dataset_file,
-        output_dir=checkpoint,
-        hyperparameters=hyperparameters,
-    )
-    manifest["sourceTrajectories"] = {
-        "path": str(a.trajectories.resolve()),
-        "count": len(rows),
-        "authority": False,
-        "allProvenanceVerified": True,
-        "agenticRlEligible": sum(1 for row in rows if row["learning"].get("eligibleAgenticRl") is True),
-    }
-    atomic_write(manifest_file, manifest)
-
-    args = SFTConfig(
-        output_dir=str(checkpoint),
-        dataset_text_field="text",
-        max_length=192,
-        per_device_train_batch_size=1,
-        gradient_accumulation_steps=1,
-        max_steps=a.steps,
-        learning_rate=a.learning_rate,
-        logging_strategy="no",
-        save_strategy="no",
-        report_to="none",
-        use_cpu=True,
-        dataloader_pin_memory=False,
-        gradient_checkpointing=False,
-        seed=a.seed,
-        data_seed=a.seed,
-    )
     trainer = SFTTrainer(
         model=model,
-        args=args,
         train_dataset=dataset,
+        peft_config=LoraConfig(r=4, lora_alpha=8, lora_dropout=0.0, bias="none", task_type="CAUSAL_LM", target_modules=["c_attn"]),
+        args=SFTConfig(
+            output_dir=str(output / "trainer"),
+            max_steps=a.steps,
+            learning_rate=a.learning_rate,
+            per_device_train_batch_size=1,
+            gradient_accumulation_steps=1,
+            logging_steps=1,
+            save_strategy="no",
+            report_to="none",
+            seed=a.seed,
+            data_seed=a.seed,
+            max_length=256,
+        ),
         processing_class=tokenizer,
-        peft_config=peft,
     )
-    result = trainer.train()
-    loss = float(result.training_loss)
-    if not math.isfinite(loss):
-        raise SystemExit(f"non-finite consequence candidate training loss: {loss}")
+    trainer.train()
+    model = trainer.model
+    changed = 0
+    for name, value in model.named_parameters():
+        prior = before.get(name)
+        if prior is not None and prior.shape == value.shape and not torch.equal(prior, value.detach().cpu()):
+            changed += 1
+    if changed == 0:
+        raise SystemExit("training completed but no trainable weights changed")
+
     checkpoint.mkdir(parents=True, exist_ok=True)
-    trainer.save_model(str(checkpoint))
-    tokenizer.save_pretrained(str(checkpoint))
-
-    trained = record_checkpoint(manifest, checkpoint)
-    trained["trainingResult"] = {
-        "loss": loss,
-        "authority": False,
-        "productionAuthority": False,
-        "candidateRemainsUnqualified": True,
-        "promotionExecuted": False,
-    }
-    atomic_write(manifest_file, trained)
-    violations = verify_round(trained)
+    model.save_pretrained(checkpoint)
+    tokenizer.save_pretrained(checkpoint)
+    authority_grade = sum(1 for row in rows if (row.get("provenance") or {}).get("authorityGrade") is True)
+    agentic = sum(1 for row in rows if (row.get("learning") or {}).get("eligibleAgenticRl") is True)
+    manifest = create_round(
+        stage="CONSEQUENCE_SFT",
+        model="cieav-local-tiny-candidate",
+        dataset=dataset_file,
+        output_dir=checkpoint,
+        hyperparameters={
+            "steps": a.steps,
+            "seed": a.seed,
+            "learningRate": a.learning_rate,
+            "trajectoryCount": len(rows),
+            "authorityGradeInputs": authority_grade,
+            "agenticRlEligibleInputs": agentic,
+            "authority": False,
+        },
+    )
+    manifest = record_checkpoint(manifest, checkpoint)
+    if manifest.get("status") != "TRAINED_UNQUALIFIED" or manifest.get("qualification") != "UNQUALIFIED":
+        raise SystemExit("candidate training must remain TRAINED_UNQUALIFIED")
+    atomic_write(manifest_file, manifest)
+    violations = verify_round(manifest)
     if violations:
-        raise SystemExit("training-round verification failed: " + ",".join(violations))
-    if trained.get("status") != "TRAINED_UNQUALIFIED" or trained.get("qualification") != "UNQUALIFIED":
-        raise SystemExit("candidate unexpectedly escaped UNQUALIFIED state")
+        raise SystemExit("training round verification failed: " + ",".join(violations))
 
+    finite_loss = math.isfinite(float(trainer.state.log_history[-1].get("train_loss", trainer.state.log_history[-1].get("loss", 0.0))))
+    if not finite_loss:
+        raise SystemExit("training loss is not finite")
     print(json.dumps({
         "schemaVersion": 1,
         "kind": "CIEAV_CONSEQUENCE_CANDIDATE_TRAINING_V1",
         "authority": False,
         "productionAuthority": False,
+        "status": manifest["status"],
+        "qualification": manifest["qualification"],
         "trajectoryCount": len(rows),
-        "trainingLoss": loss,
+        "authorityGradeInputs": authority_grade,
+        "agenticRlEligibleInputs": agentic,
         "checkpoint": str(checkpoint),
         "manifest": str(manifest_file),
-        "status": trained["status"],
-        "qualification": trained["qualification"],
-        "agenticRlEligibleInputs": trained["sourceTrajectories"]["agenticRlEligible"],
+        "changedParameters": changed,
     }, indent=2))
-    print("CIEAV consequence candidate PASS - verified consequence data -> real local training -> TRAINED_UNQUALIFIED")
+    print("CIEAV consequence candidate PASS")
 
 
 if __name__ == "__main__":
