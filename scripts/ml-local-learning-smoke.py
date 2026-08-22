@@ -6,6 +6,7 @@ No model download, external API, GPU, proof provider, or execution authority is 
 from __future__ import annotations
 
 import importlib
+from importlib import metadata
 import json
 import math
 import sys
@@ -156,11 +157,11 @@ def main() -> None:
         "trainableParameterDelta": delta,
         "frameworks": {
             "torch": torch.__version__,
-            "transformers": importlib.metadata.version("transformers"),
-            "datasets": importlib.metadata.version("datasets"),
-            "trl": importlib.metadata.version("trl"),
-            "peft": importlib.metadata.version("peft"),
-            "accelerate": importlib.metadata.version("accelerate"),
+            "transformers": metadata.version("transformers"),
+            "datasets": metadata.version("datasets"),
+            "trl": metadata.version("trl"),
+            "peft": metadata.version("peft"),
+            "accelerate": metadata.version("accelerate"),
         },
         "invariants": {
             "noModelDownload": True,
