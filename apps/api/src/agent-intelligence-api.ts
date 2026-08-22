@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type * as http from "node:http";
-import {FrameworkConsequenceRequestSchema,type AgentTokenPayload,type WorkspaceScope} from "./auth-compat.js";
+import {FrameworkConsequenceRequestSchema,type WorkspaceScope} from "@cieav/contracts";
+import type {AgentTokenPayload} from "./auth.js";
 import {z} from "zod";
 import {consequenceFromFrameworkCall} from "@cieav/core";
 import {CieavUniversalIntelligenceStore} from "./universal-intelligence-store.js";
