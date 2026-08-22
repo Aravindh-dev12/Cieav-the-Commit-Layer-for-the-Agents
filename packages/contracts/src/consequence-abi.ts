@@ -1,5 +1,6 @@
 import {z} from "zod";
 import {AgentFrameworkSchema,FrameworkToolCallSchema} from "./framework-interop.js";
+import {SemanticEffectSchema} from "./intent-reality.js";
 
 const DigestSchema=z.string().regex(/^[0-9a-f]{64}$/);
 const ConsequenceRiskSchema=z.enum(["LOW","MEDIUM","HIGH","CRITICAL"]);
@@ -11,9 +12,9 @@ export const ConsequenceDuplicateSemanticsSchema=z.enum(["RETRY_SAFE","IDEMPOTEN
 export const ConsequenceUncertaintyPolicySchema=z.enum(["ALLOW_UNKNOWN","STOP_AND_RECONCILE","ESCALATE"]);
 
 export const ConsequenceDescriptorSchema=z.object({
-  version:z.literal("CIEAV_CONSEQUENCE_ABI_V1"),descriptorId:z.string().min(8).max(300),
+  version:z.literal("CIEAV_CONSEQUENCE_ABI_V1"),descriptorId:z.string().min(8).max(1200),
   source:z.object({kind:ConsequenceSourceKindSchema,framework:AgentFrameworkSchema.optional(),runId:z.string().max(500).optional(),callId:z.string().max(500).optional(),adapterManifestId:z.string().max(240).optional()}).strict(),
-  principal:ConsequencePrincipalSchema,agentRef:z.string().max(300).optional(),modelRef:z.string().max(300).optional(),objective:z.string().min(1).max(5000),resource:z.string().min(1).max(2000),worldBeforeDigest:DigestSchema.optional(),operation:z.string().min(1).max(300),normalizedArgumentsDigest:DigestSchema,
+  principal:ConsequencePrincipalSchema,agentRef:z.string().max(300).optional(),modelRef:z.string().max(300).optional(),objective:z.string().min(1).max(5000),resource:z.string().min(1).max(2000),worldBeforeDigest:DigestSchema.optional(),operation:z.string().min(1).max(300),normalizedArgumentsDigest:DigestSchema,semanticEffect:SemanticEffectSchema,
   expectedEffects:z.array(z.string().min(1).max(1500)).max(100).default([]),authorityRequired:z.array(z.string().min(1).max(500)).max(100).default([]),safetyConstraints:z.array(z.string().min(1).max(1000)).max(100).default([]),proofObligations:z.array(z.string().min(1).max(1000)).max(100).default([]),duplicateSemantics:ConsequenceDuplicateSemanticsSchema,reversibility:ConsequenceReversibilitySchema,uncertaintyPolicy:ConsequenceUncertaintyPolicySchema,continuationConditions:z.array(z.string().min(1).max(1000)).max(100).default([]),recoveryContract:z.array(z.string().min(1).max(1000)).max(100).default([]),risk:ConsequenceRiskSchema,createdAt:z.string().datetime(),authority:z.literal(false).default(false),mayMintExecutionAuthority:z.literal(false).default(false),
 }).strict();
 export type ConsequenceDescriptor=z.infer<typeof ConsequenceDescriptorSchema>;
