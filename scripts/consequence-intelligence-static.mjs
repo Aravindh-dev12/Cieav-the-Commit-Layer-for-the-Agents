@@ -28,6 +28,12 @@ requireTokens("apps/browser/main.mjs",[
 requireTokens("apps/browser/native-notify.mjs",[
   "CIEAV_NOTIFICATIONS","powershell.exe","NotifyIcon","WindowStyle","Hidden",
 ]);
+requireTokens("scripts/configure-xampp-receipt-store.ps1",[
+  "Get-FileHash -Algorithm SHA256","cdp-win-bridge-$sourceHash.exe","Reusing versioned Windows private CDP bridge","CIEAV_CDP_WIN_BRIDGE",
+]);
+requireTokens("apps/api/src/store/file.test.ts",[
+  "beforeEach(()=>{process.env.CIEAV_RECEIPT_STORE=\"sqlite\"})","originalReceiptStore","delete process.env.CIEAV_RECEIPT_STORE",
+]);
 
 for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issueCredentialLease("]){
   if(core.includes(forbidden))throw new Error(`intelligence core contains forbidden authority primitive: ${forbidden}`);
@@ -35,4 +41,4 @@ for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issu
 if(!contracts.includes("mayMintExecutionAuthority:z.literal(false)"))throw new Error("Intelligence State is not explicitly prohibited from minting execution authority");
 if(!injected.includes("if(NOTIFICATION_ONLY)return;"))throw new Error("notification-only runtime may still render in-page toast UI");
 
-console.log("CIEAV consequence intelligence static gate PASS - contracts + deterministic baseline + UNKNOWN preservation + authority=false + background fail-closed UX");
+console.log("CIEAV consequence intelligence static gate PASS - contracts + deterministic baseline + UNKNOWN preservation + authority=false + background fail-closed UX + hermetic SQLite tests + versioned Windows bridge deployment");
