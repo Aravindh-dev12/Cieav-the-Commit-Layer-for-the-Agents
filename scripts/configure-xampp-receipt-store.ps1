@@ -5,11 +5,13 @@ param(
   [string]$Database = 'cieav',
   [string]$User = 'root',
   [string]$Password = '',
+  [switch]$InstallGateway,
   [switch]$RestartGateway
 )
 
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'XAMPP receipt-store configuration is Windows-only.' }
+if ($InstallGateway -and $RestartGateway) { throw 'Choose either -InstallGateway or -RestartGateway, not both.' }
 if (-not (Test-Path -LiteralPath $PhpBin)) { throw "XAMPP PHP executable not found: $PhpBin" }
 if ($HostName -notin @('127.0.0.1','localhost','::1')) { throw 'XAMPP receipt store must remain loopback-only.' }
 if ($Port -lt 1 -or $Port -gt 65535) { throw 'Invalid MySQL port.' }
@@ -32,19 +34,26 @@ Remove-Item Env:CIEAV_MYSQL_PASSWORD -ErrorAction SilentlyContinue
 [Environment]::SetEnvironmentVariable('CIEAV_MYSQL_PASSWORD', $null, 'User')
 
 Write-Host 'CIEAV XAMPP receipt-store settings persisted for the current Windows user.'
-Write-Host "Store: xampp-mysql · ${HostName}:$Port/$Database · user=$User · password=[BLANK]"
+Write-Host "Store: xampp-mysql - ${HostName}:$Port/$Database - user=$User - password=[BLANK]"
 
 & node scripts/xampp-mysql-bootstrap.mjs
 if ($LASTEXITCODE -ne 0) { throw "XAMPP MariaDB bootstrap failed with exit code $LASTEXITCODE" }
 
-if ($RestartGateway) {
+if ($InstallGateway -or $RestartGateway) {
+  Write-Host 'Building the CIEAV API before Gateway lifecycle mutation...'
+  & npm.cmd run build:api
+  if ($LASTEXITCODE -ne 0) { throw "CIEAV API build failed with exit code $LASTEXITCODE" }
+
   $python = (Get-Command python -ErrorAction Stop).Source
-  & $python -m cieav_platform gateway restart
-  if ($LASTEXITCODE -ne 0) {
-    & $python -m latch_platform.cli gateway restart
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to restart the installed CIEAV Gateway. Run the gateway from this configured PowerShell session or reinstall/restart it manually.' }
+  if ($InstallGateway) {
+    & $python -m cieav_platform gateway install
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to install the CIEAV Gateway.' }
+    Write-Host 'CIEAV Gateway installed and started with the XAMPP receipt-store environment.'
+  } else {
+    & $python -m cieav_platform gateway restart
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to restart the installed CIEAV Gateway. It may not be installed; rerun this helper with -InstallGateway.' }
+    Write-Host 'CIEAV Gateway restarted with the XAMPP receipt-store environment.'
   }
-  Write-Host 'CIEAV Gateway restarted with the XAMPP receipt-store environment.'
 }
 
 Write-Host 'CIEAV XAMPP RECEIPT STORE: CONFIGURED'
