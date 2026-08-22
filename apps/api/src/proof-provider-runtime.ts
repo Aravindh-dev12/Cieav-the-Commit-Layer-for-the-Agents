@@ -2,12 +2,15 @@ import {ProofObservationRequestSchema,type ProofObservationRequest,type ProofPro
 import {ProofProviderRegistry} from "@cieav/core/provider-runtime";
 import {FilesystemProofProvider} from "./proof-providers/filesystem.js";
 import {HttpProofProvider} from "./proof-providers/http.js";
+import {GitProofProvider} from "./proof-providers/git.js";
 
 export type LocalProofProviderConfig={
   filesystemRoots?:string[];
   httpOrigins?:string[];
+  gitRepositories?:string[];
   maxFilesystemReadBytes?:number;
   maxHttpBodyBytes?:number;
+  maxGitOutputBytes?:number;
 };
 
 export class CieavLocalProofProviderRuntime{
@@ -15,6 +18,7 @@ export class CieavLocalProofProviderRuntime{
   constructor(config:LocalProofProviderConfig={}){
     if(config.filesystemRoots?.length)this.registry.register(new FilesystemProofProvider(config.filesystemRoots,config.maxFilesystemReadBytes));
     if(config.httpOrigins?.length)this.registry.register(new HttpProofProvider(config.httpOrigins,config.maxHttpBodyBytes));
+    if(config.gitRepositories?.length)this.registry.register(new GitProofProvider(config.gitRepositories,"git",config.maxGitOutputBytes));
   }
   list(){return this.registry.list()}
   health():Promise<ProviderHealth[]>{return this.registry.health()}
