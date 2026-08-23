@@ -16,6 +16,8 @@ const browserTests=read("apps/api/src/proof-providers/browser.test.ts");
 const browserHost=read("apps/browser/main.mjs");
 const browserObservation=read("apps/browser/browser-observation.mjs");
 const cdpPipe=read("apps/browser/cdp-pipe.mjs");
+const chromiumLaunch=read("apps/browser/chromium-launch.mjs");
+const productionStart=read("scripts/start-production.mjs");
 
 need(runtime,[
   'import {Ros2ProofProvider} from "./proof-providers/ros2.js"',
@@ -64,6 +66,14 @@ need(browserObservation,[
   "mayMintExecutionAuthority:false"
 ],"browser DOM observation primitive");
 need(cdpPipe,["ACTIVE_SESSIONS","activeCdpSessions()","ACTIVE_SESSIONS.add(this)","ACTIVE_SESSIONS.delete(this)"],"CDP observation session registry");
+need(chromiumLaunch,["CIEAV_BROWSER_OBSERVATION_TOKEN","for(const key of SECRET_ENV_KEYS)delete clean[key]"],"Chromium observation capability isolation");
+need(productionStart,[
+  "strongCapability",
+  "env.CIEAV_BROWSER_CONTROL_TOKEN=strongCapability",
+  "env.CIEAV_BROWSER_OBSERVATION_TOKEN=strongCapability",
+  "env.CIEAV_BROWSER_CONTROL_TOKEN===env.CIEAV_BROWSER_OBSERVATION_TOKEN",
+  "spawn(command,args,{cwd:root,stdio:\"inherit\",env,shell:false})"
+],"production browser capability provisioning");
 need(browserProvider,[
   'const PROVIDER_ID="cieav.browser-proof.v1"',
   'evidenceKinds:["BROWSER_URL","BROWSER_DOCUMENT_SHA256","BROWSER_FRAME_TREE_SHA256"]',
@@ -89,4 +99,4 @@ if(observed.authority!==false||observed.mayMintExecutionAuthority!==false||obser
 if(commands.map(x=>x.method).join(",")!=="Page.getFrameTree,DOM.getDocument,DOM.getOuterHTML")throw new Error(`browser observation issued unexpected CDP commands: ${commands.map(x=>x.method).join(",")}`);
 let ambiguous=false;try{await observeBrowserPageFromSessions([session,session],{origin:"https://example.test",url:"https://example.test/order/1",maxDocumentBytes:4096})}catch(error){ambiguous=String(error?.message??error).includes("target_ambiguous")}if(!ambiguous)throw new Error("browser observation did not fail closed on ambiguous page selection");
 
-console.log("CIEAV proof-provider runtime static gate PASS - ROS2 proof is digest-pinned, browser proof uses a dedicated loopback capability and bounded DOM-only observation, both are authority=false, and unknown observer failures remain non-conclusive");
+console.log("CIEAV proof-provider runtime static gate PASS - ROS2 proof is digest-pinned, browser proof uses a production-parent-provisioned dedicated loopback capability and bounded DOM-only observation, Chromium never receives the proof capability, both providers are authority=false, and unknown observer failures remain non-conclusive");
