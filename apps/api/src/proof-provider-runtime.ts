@@ -5,6 +5,7 @@ import {FilesystemProofProvider} from "./proof-providers/filesystem.js";
 import {HttpProofProvider} from "./proof-providers/http.js";
 import {GitProofProvider} from "./proof-providers/git.js";
 import {GitRefProofProvider} from "./proof-providers/git-ref.js";
+import {GitRemoteRefProofProvider} from "./proof-providers/git-remote-ref.js";
 import {SqliteProofProvider} from "./proof-providers/sqlite.js";
 import {Ros2ProofProvider} from "./proof-providers/ros2.js";
 import {BrowserProofProvider} from "./proof-providers/browser.js";
@@ -14,6 +15,7 @@ export type LocalProofProviderConfig={
   httpOrigins?:string[];
   gitRepositories?:string[];
   gitRefCatalogFile?:string;
+  gitRemoteRefCatalogFile?:string;
   sqliteCatalogFile?:string;
   ros2CatalogFile?:string;
   browserCatalogFile?:string;
@@ -31,6 +33,8 @@ export class CieavLocalProofProviderRuntime{
     if(config.gitRepositories?.length)this.registry.register(new GitProofProvider(config.gitRepositories,"git",config.maxGitOutputBytes));
     const gitRefCatalog=String(config.gitRefCatalogFile??process.env.CIEAV_PROOF_GIT_REF_CATALOG??"").trim();
     if(gitRefCatalog){const provider=GitRefProofProvider.fromCatalogFile(path.resolve(gitRefCatalog));if(provider)this.registry.register(provider)}
+    const gitRemoteRefCatalog=String(config.gitRemoteRefCatalogFile??process.env.CIEAV_PROOF_GIT_REMOTE_REF_CATALOG??"").trim();
+    if(gitRemoteRefCatalog){const provider=GitRemoteRefProofProvider.fromCatalogFile(path.resolve(gitRemoteRefCatalog));if(provider)this.registry.register(provider)}
     const sqliteCatalog=String(config.sqliteCatalogFile??process.env.CIEAV_PROOF_SQLITE_CATALOG??"").trim();
     if(sqliteCatalog){const provider=SqliteProofProvider.fromCatalogFile(path.resolve(sqliteCatalog));if(provider)this.registry.register(provider)}
     const ros2Catalog=String(config.ros2CatalogFile??process.env.CIEAV_PROOF_ROS2_CATALOG??"").trim();
