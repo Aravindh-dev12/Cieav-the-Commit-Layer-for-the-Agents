@@ -11,6 +11,7 @@ import {loadTrustedOAuthHttpAdaptersSync} from "./trusted-oauth-http-adapter.js"
 import {loadTrustedMcpStdioAdaptersSync} from "./trusted-mcp-adapter.js";
 import {loadTrustedMcpHttpAdaptersSync} from "./trusted-mcp-http-adapter.js";
 import {loadTrustedA2aTaskAdaptersSync} from "./trusted-a2a-adapter.js";
+import {loadTrustedRos2CliAdaptersSync} from "./trusted-ros2-adapter.js";
 
 export type ToolProtocol=FederatedTool["protocol"];
 export type AdapterEvidenceSeed={kind:string;source:string;summary:string;externalRef?:string};
@@ -42,7 +43,7 @@ export class CieavExecutionRouter{
     private readonly reflexLayer?:CieavReflexLayer
   ){
     const stateDir=process.env.CIEAV_STATE_DIR?.trim()||process.env.LATCH_STATE_DIR?.trim();
-    const initial=adapters.length?adapters:(stateDir?[...loadTrustedHttpFamilyAdaptersSync(stateDir,process.env),...(credentialAuthority?loadTrustedOAuthHttpAdaptersSync(stateDir,credentialAuthority,process.env):[]),...loadTrustedMcpStdioAdaptersSync(stateDir,process.env),...loadTrustedMcpHttpAdaptersSync(stateDir,process.env),...loadTrustedA2aTaskAdaptersSync(stateDir,process.env)]:[]);
+    const initial=adapters.length?adapters:(stateDir?[...loadTrustedHttpFamilyAdaptersSync(stateDir,process.env),...(credentialAuthority?loadTrustedOAuthHttpAdaptersSync(stateDir,credentialAuthority,process.env):[]),...loadTrustedMcpStdioAdaptersSync(stateDir,process.env),...loadTrustedMcpHttpAdaptersSync(stateDir,process.env),...loadTrustedA2aTaskAdaptersSync(stateDir,process.env),...loadTrustedRos2CliAdaptersSync(stateDir,process.env)]:[]);
     for(const adapter of initial)this.register(adapter);
   }
   register(adapter:CieavExecutionAdapter){const list=this.adapters.get(adapter.protocol)??[];if(list.includes(adapter))throw new Error(`execution_adapter_already_registered:${adapter.protocol}`);list.push(adapter);this.adapters.set(adapter.protocol,list)}
@@ -63,24 +64,26 @@ export class CieavExecutionRouter{
     if(dispatch.tool.executionMode!=="CONTINUING")return dispatch;
     const requirement=dispatch.proposal.continuingAuthority;
     if(!requirement)throw new Error("continuing_authority_requirement_missing");
-    if(!this.continuingAuthority)throw new Error("continuing_authority_runtime_unavailable");
+    const continuingAuthority=this.continuingAuthority;
+    if(!continuingAuthority)throw new Error("continuing_authority_runtime_unavailable");
     if(adapter.supportsContinuingAuthority!==true||!adapter.collectInitialSafety)throw new Error(`execution_adapter_lacks_continuing_authority:${adapter.protocol}`);
     if(dispatch.tool.requiredReflexPolicyId&&requirement.reflexPolicyId!==dispatch.tool.requiredReflexPolicyId)throw new Error("required_reflex_policy_mismatch");
+    const reflexLayer=this.reflexLayer;
     if(requirement.reflexPolicyId){
-      if(!this.reflexLayer)throw new Error("reflex_layer_runtime_unavailable");
-      const policies=await this.reflexLayer.listPolicies();
+      if(!reflexLayer)throw new Error("reflex_layer_runtime_unavailable");
+      const policies=await reflexLayer.listPolicies();
       if(!policies.some(p=>p.id===requirement.reflexPolicyId&&p.enabled))throw new Error("required_reflex_policy_not_active");
     }
     const expiresAt=new Date(Date.now()+requirement.ttlSeconds*1000).toISOString();
-    const session=await this.continuingAuthority.create({subjectId:dispatch.proposal.subjectId,taskId:dispatch.proposal.taskId,proposalId:dispatch.proposal.id,realityBoundCommitId:dispatch.ticket.realityBoundCommitId,executionTicketId:dispatch.ticket.id,operation:dispatch.proposal.operation,normalizedArgumentsDigest:dispatch.proposal.normalizedArgumentsDigest,expiresAt,conditions:requirement.conditions,budgets:requirement.budgets});
+    const session=await continuingAuthority.create({subjectId:dispatch.proposal.subjectId,taskId:dispatch.proposal.taskId,proposalId:dispatch.proposal.id,realityBoundCommitId:dispatch.ticket.realityBoundCommitId,executionTicketId:dispatch.ticket.id,operation:dispatch.proposal.operation,normalizedArgumentsDigest:dispatch.proposal.normalizedArgumentsDigest,expiresAt,conditions:requirement.conditions,budgets:requirement.budgets});
     const checkpoint=async(input:SafetyCheckpointInput)=>{
-      for(const observation of input.observations??[])await this.continuingAuthority!.recordObservation(session.id,observation);
-      for(const item of input.budgetConsumption??[])await this.continuingAuthority!.consumeBudget(session.id,item.dimension,item.amount);
+      for(const observation of input.observations??[])await continuingAuthority.recordObservation(session.id,observation);
+      for(const item of input.budgetConsumption??[])await continuingAuthority.consumeBudget(session.id,item.dimension,item.amount);
       if(requirement.reflexPolicyId){
-        if(!this.reflexLayer)throw new Error("reflex_layer_runtime_unavailable");
-        const decision=await this.reflexLayer.evaluate(requirement.reflexPolicyId,input.reflexSignals??[],session.id);
+        if(!reflexLayer)throw new Error("reflex_layer_runtime_unavailable");
+        const decision=await reflexLayer.evaluate(requirement.reflexPolicyId,input.reflexSignals??[],session.id);
         if(decision.decision!=="CONTINUE")throw new Error(`reflex_${decision.decision.toLowerCase()}`);
-      }else await this.continuingAuthority!.assertMayContinue(session.id);
+      }else await continuingAuthority.assertMayContinue(session.id);
     };
     const continuingSafety:ContinuingSafetyContext={sessionId:session.id,...(requirement.reflexPolicyId?{reflexPolicyId:requirement.reflexPolicyId}:{}),checkpoint};
     const runtimeContext={...dispatch,continuingSafety};
@@ -89,7 +92,7 @@ export class CieavExecutionRouter{
       await checkpoint(initial);
       return runtimeContext;
     }catch(err:any){
-      try{await this.continuingAuthority.revoke(session.id,`initial safety gate blocked: ${String(err?.message??err).slice(0,800)}`)}catch{}
+      try{await continuingAuthority.revoke(session.id,`initial safety gate blocked: ${String(err?.message??err).slice(0,800)}`)}catch{}
       throw new Error(`continuing_authority_initial_gate_blocked:${String(err?.message??err)}`);
     }
   }
