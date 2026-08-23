@@ -1,0 +1,17 @@
+import {describe,expect,it} from "vitest";
+import {CieavOperationalObservability} from "./operational-observability.js";
+
+function fixture(overrides:{unknown?:boolean;recovery?:boolean;providerOk?:boolean}={}){
+  const task={id:"secret-task-id",state:overrides.recovery?"RECOVERY_REQUIRED":"COMPLETED",settlement:overrides.unknown?"UNKNOWN":"PROVEN",effectQuarantined:Boolean(overrides.unknown),goal:"private customer goal",metadata:{resource:"https://private.example/resource"}};
+  const kernel:any={list:async()=>[task],openLoops:async()=>overrides.recovery?[{taskId:"secret-task-id",state:"RECOVERY_REQUIRED",detectedAt:new Date().toISOString(),reasons:["RECOVERY_REQUIRED"]}]:[],executionFabric:{listTickets:async()=>[{status:"CONSUMED",id:"secret-ticket"}],listAudit:async()=>[{id:"secret-audit"}]},continuingAuthority:{list:async()=>[{state:overrides.recovery?"STOP_REQUIRED":"ACTIVE",id:"secret-session"}]},reflexLayer:{listPolicies:async()=>[{id:"secret-policy"}]},edgeDevices:{list:async()=>[{id:"secret-device",state:"ACTIVE",watchdogHealthy:true}]},edgeRuntime:{listEnvelopes:async()=>[{id:"secret-envelope"}],listJournal:async()=>[{id:"secret-journal"}]},executionRouter:{registeredProtocols:()=>["HTTP","BROWSER"]}};
+  const intelligence:any={listCells:async()=>[{id:"secret-cell",health:"HEALTHY"}],health:async()=>({cells:1,claims:2,workspaces:3,graphEdges:4}),modelQualifications:{list:async()=>[{candidateId:"secret-model",state:"ACTIVE"}],health:async()=>({ok:true,generation:1})},learningJobs:{list:async()=>[{jobId:"secret-learning",state:"SUCCEEDED_UNQUALIFIED"}],health:async()=>({ok:true,jobs:1})}};
+  const providers:any={health:async()=>[{providerId:"filesystem",ok:overrides.providerOk??true,checkedAt:new Date().toISOString(),authority:false}]};
+  return new CieavOperationalObservability(kernel,intelligence,providers);
+}
+
+describe("CieavOperationalObservability",()=>{
+  it("reports healthy aggregate state without exposing identifiers or resource content",async()=>{const snapshot=await fixture().snapshot("2026-08-23T00:00:00.000Z"),raw=JSON.stringify(snapshot);expect(snapshot.attentionRequired).toBe(false);expect(snapshot.tasks.settlements.PROVEN).toBe(1);expect(snapshot.execution.ticketStates.CONSUMED).toBe(1);expect(snapshot.intelligence.modelStates.ACTIVE).toBe(1);expect(snapshot.authority).toBe(false);for(const forbidden of ["secret-task-id","secret-ticket","secret-device","secret-model","private customer goal","private.example"])expect(raw).not.toContain(forbidden)});
+  it("raises attention for UNKNOWN settlement and quarantine",async()=>{const snapshot=await fixture({unknown:true}).snapshot();expect(snapshot.signals.unknownSettlements).toBe(1);expect(snapshot.signals.effectQuarantined).toBe(1);expect(snapshot.attentionRequired).toBe(true)});
+  it("raises attention for governed recovery and stopped continuation",async()=>{const snapshot=await fixture({recovery:true}).snapshot();expect(snapshot.signals.recoveryRequired).toBe(1);expect(snapshot.signals.openLoops).toBe(1);expect(snapshot.signals.continuationStops).toBe(1);expect(snapshot.tasks.openLoopReasons.RECOVERY_REQUIRED).toBe(1);expect(snapshot.attentionRequired).toBe(true)});
+  it("raises attention when an independent proof provider is unhealthy",async()=>{const snapshot=await fixture({providerOk:false}).snapshot();expect(snapshot.proof.providersHealthy).toBe(false);expect(snapshot.signals.unhealthyProviders).toBe(1);expect(snapshot.gateway.operational).toBe(false);expect(snapshot.attentionRequired).toBe(true)});
+});
