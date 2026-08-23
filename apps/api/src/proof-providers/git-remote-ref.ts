@@ -10,8 +10,8 @@ import {ProofObservationRequestSchema,ProofProviderResultSchema,ProviderHealthSc
 import type {ProofProvider} from "@cieav/core/provider-runtime";
 
 const runFile=promisify(execFile),PROVIDER_ID="cieav.git-remote-ref-proof.v1",Digest=z.string().regex(/^[a-f0-9]{64}$/),EnvName=z.string().regex(/^[A-Z][A-Z0-9_]{1,127}$/);
-const CredentialSchema=z.discriminatedUnion("kind",[z.object({kind:z.literal("NONE")}).strict(),z.object({kind:z.literal("BEARER_ENV"),env:EnvName}).strict(),z.object({kind:z.literal("BASIC_ENV"),username:z.string().min(1).max(240),env:EnvName}).strict()]);
-const TargetSchema=z.object({id:z.string().min(1).max(240),remoteUrl:z.string().url().max(2000),remoteRef:z.string().min(1).max(1024),gitBinary:z.string().min(1).max(2000),gitBinarySha256:Digest,credential:CredentialSchema.default({kind:"NONE"}),allowLoopback:z.boolean().default(false),timeoutMs:z.number().int().min(500).max(120_000).default(10_000),maxOutputBytes:z.number().int().min(4096).max(1024*1024).default(128*1024)}).strict();
+export const GitRemoteRefProofCredentialSchema=z.discriminatedUnion("kind",[z.object({kind:z.literal("NONE")}).strict(),z.object({kind:z.literal("BEARER_ENV"),env:EnvName}).strict(),z.object({kind:z.literal("BASIC_ENV"),username:z.string().min(1).max(240).regex(/^[^:\r\n\0]+$/,"invalid Basic username"),env:EnvName}).strict()]);
+const TargetSchema=z.object({id:z.string().min(1).max(240),remoteUrl:z.string().url().max(2000),remoteRef:z.string().min(1).max(1024),gitBinary:z.string().min(1).max(2000),gitBinarySha256:Digest,credential:GitRemoteRefProofCredentialSchema.default({kind:"NONE"}),allowLoopback:z.boolean().default(false),timeoutMs:z.number().int().min(500).max(120_000).default(10_000),maxOutputBytes:z.number().int().min(4096).max(1024*1024).default(128*1024)}).strict();
 const CatalogSchema=z.object({version:z.literal(1),gitRemoteRefProof:z.array(TargetSchema).max(1000).default([])}).strict();
 type Target=z.infer<typeof TargetSchema>;type Resolved={address:string;family:4|6};
 const sha256=(value:Buffer|string)=>crypto.createHash("sha256").update(value).digest("hex");
