@@ -2,6 +2,7 @@
 import {readFileSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
+import {observeBrowserPageFromSessions} from "../apps/browser/browser-observation.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const read=p=>readFileSync(path.join(ROOT,p),"utf8");
@@ -10,11 +11,19 @@ const need=(source,tokens,label)=>{for(const token of tokens)if(!source.includes
 const runtime=read("apps/api/src/proof-provider-runtime.ts");
 const ros2=read("apps/api/src/proof-providers/ros2.ts");
 const ros2Tests=read("apps/api/src/proof-providers/ros2.test.ts");
+const browserProvider=read("apps/api/src/proof-providers/browser.ts");
+const browserTests=read("apps/api/src/proof-providers/browser.test.ts");
+const browserHost=read("apps/browser/main.mjs");
+const browserObservation=read("apps/browser/browser-observation.mjs");
+const cdpPipe=read("apps/browser/cdp-pipe.mjs");
 
 need(runtime,[
   'import {Ros2ProofProvider} from "./proof-providers/ros2.js"',
   "CIEAV_PROOF_ROS2_CATALOG",
   "Ros2ProofProvider.fromCatalogFile",
+  'import {BrowserProofProvider} from "./proof-providers/browser.js"',
+  "CIEAV_PROOF_BROWSER_CATALOG",
+  "BrowserProofProvider.fromCatalogFile",
   "this.registry.register(provider)"
 ],"proof-provider runtime");
 
@@ -34,18 +43,50 @@ need(ros2,[
   "conclusive:Boolean(proposedOutcome)"
 ],"ROS2 proof provider");
 
-for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issueCredentialLease(","consumeTicket(","exec(","execSync(","shell:true"]){
-  if(ros2.includes(forbidden))throw new Error(`ROS2 proof provider contains forbidden authority/execution primitive: ${forbidden}`);
-}
+need(browserHost,[
+  "CIEAV_BROWSER_OBSERVATION_TOKEN",
+  "CONTROL_TOKEN===OBSERVATION_TOKEN",
+  'isObserve=u.pathname==="/api/observe"',
+  "loopbackPeer(req)",
+  "req.headers.origin",
+  "observationAuthorized(req)",
+  "activeCdpSessions()",
+  "observeBrowserPageFromSessions",
+  "browser_observation_unauthorized"
+],"browser observation host");
+need(browserObservation,[
+  'session.send("Page.getFrameTree")',
+  'match.session.send("DOM.getDocument"',
+  'match.session.send("DOM.getOuterHTML"',
+  "browser_observation_target_ambiguous",
+  "browser_observation_document_too_large",
+  "authority:false",
+  "mayMintExecutionAuthority:false"
+],"browser DOM observation primitive");
+need(cdpPipe,["ACTIVE_SESSIONS","activeCdpSessions()","ACTIVE_SESSIONS.add(this)","ACTIVE_SESSIONS.delete(this)"],"CDP observation session registry");
+need(browserProvider,[
+  'const PROVIDER_ID="cieav.browser-proof.v1"',
+  'evidenceKinds:["BROWSER_URL","BROWSER_DOCUMENT_SHA256","BROWSER_FRAME_TREE_SHA256"]',
+  "CIEAV_BROWSER_OBSERVATION_TOKEN",
+  "browser_proof_control_base_must_be_loopback_http",
+  'new URL("/api/observe",target.controlBase)',
+  "browser_proof_operation_not_read_only",
+  "authority:false as const",
+  "mayMintExecutionAuthority:false",
+  "conclusive:Boolean(proposedOutcome)"
+],"browser proof provider");
+need(browserTests,["settles exact bounded browser state without execution authority","keeps unknown predicates non-conclusive","rejects mutation-like proof operations","requires a strong dedicated observation capability at construction","keeps host rejection non-conclusive"],"browser proof regression tests");
 
-need(ros2Tests,[
-  "ros2_proof_unpinned_prefix_file",
-  "ros2_proof_prefix_file_digest_mismatch",
-  "fails closed if a pinned prefix file drifts after provider construction",
-  "mayMintExecutionAuthority"
-],"ROS2 proof regression tests");
+for(const [label,source] of [["ROS2 proof provider",ros2],["browser proof provider",browserProvider],["browser observation primitive",browserObservation]])for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issueCredentialLease(","consumeTicket(","exec(","execSync(","shell:true"]){if(source.includes(forbidden))throw new Error(`${label} contains forbidden authority/execution primitive: ${forbidden}`)}
+for(const source of [browserProvider,browserObservation])if(source.includes("Runtime.evaluate")||source.includes("javascript:")||source.includes("Input.dispatch"))throw new Error("browser proof path may not execute page script or input primitives");
 
-if(runtime.includes("BrowserProofProvider"))throw new Error("browser proof provider must not be registered until the browser host exposes a dedicated bounded read-only observation capability");
-if(ros2.includes("Runtime.evaluate")||ros2.includes("javascript:"))throw new Error("proof provider may not introduce arbitrary browser/script evaluation surfaces");
+need(ros2Tests,["ros2_proof_unpinned_prefix_file","ros2_proof_prefix_file_digest_mismatch","fails closed if a pinned prefix file drifts after provider construction","mayMintExecutionAuthority"],"ROS2 proof regression tests");
 
-console.log("CIEAV proof-provider runtime static gate PASS - ROS2 observation is digest-pinned, prefix-file drift fails closed, read-only operations only, authority=false, and browser proof remains disabled until a bounded observation host exists");
+const commands=[];
+const session={closed:false,pipe:{closed:false},send:async(method,params)=>{commands.push({method,params});if(method==="Page.getFrameTree")return{frameTree:{frame:{id:"f1",url:"https://example.test/order/1",securityOrigin:"https://example.test",mimeType:"text/html"}}};if(method==="DOM.getDocument")return{root:{nodeId:1,nodeName:"#document",children:[{nodeId:2,nodeName:"HTML"}]}};if(method==="DOM.getOuterHTML")return{outerHTML:"<html><body>done</body></html>"};throw new Error(`unexpected command ${method}`)}};
+const observed=await observeBrowserPageFromSessions([session],{origin:"https://example.test",url:"https://example.test/order/1",maxDocumentBytes:4096});
+if(observed.authority!==false||observed.mayMintExecutionAuthority!==false||observed.frameCount!==1||!/^[0-9a-f]{64}$/.test(observed.documentSha256))throw new Error("browser observation dynamic contract failed");
+if(commands.map(x=>x.method).join(",")!=="Page.getFrameTree,DOM.getDocument,DOM.getOuterHTML")throw new Error(`browser observation issued unexpected CDP commands: ${commands.map(x=>x.method).join(",")}`);
+let ambiguous=false;try{await observeBrowserPageFromSessions([session,session],{origin:"https://example.test",url:"https://example.test/order/1",maxDocumentBytes:4096})}catch(error){ambiguous=String(error?.message??error).includes("target_ambiguous")}if(!ambiguous)throw new Error("browser observation did not fail closed on ambiguous page selection");
+
+console.log("CIEAV proof-provider runtime static gate PASS - ROS2 proof is digest-pinned, browser proof uses a dedicated loopback capability and bounded DOM-only observation, both are authority=false, and unknown observer failures remain non-conclusive");
