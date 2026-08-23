@@ -95,7 +95,9 @@ func resolve(_ request: InvokeRequest) throws -> (NSRunningApplication, AXUIElem
     let running = try exactRunningApplication(bundleId: request.appId)
     let app = AXUIElementCreateApplication(running.processIdentifier)
     AXUIElementSetMessagingTimeout(app, 3.0)
-    return (running, try exactWindow(app, windowId: request.windowId), try exactControl(try exactWindow(app, windowId: request.windowId), controlId: request.controlId))
+    let window = try exactWindow(app, windowId: request.windowId)
+    let control = try exactControl(window, controlId: request.controlId)
+    return (running, window, control)
 }
 
 func stateDigest(request: InvokeRequest, running: NSRunningApplication, window: AXUIElement, control: AXUIElement) -> String {
@@ -137,8 +139,6 @@ do {
     guard before == request.expectedStateDigest else { emit(false, "REJECTED", "PRESTATE_MISMATCH"); exit(0) }
     guard boolAttr(resolved.2, kAXEnabledAttribute as CFString) else { emit(false, "REJECTED", "CONTROL_NOT_INVOKABLE_STATE"); exit(0) }
 
-    let actions = ((attr(resolved.2, kAXAllowedValuesAttribute as CFString) as? [String]) ?? [])
-    _ = actions
     let result = AXUIElementPerformAction(resolved.2, kAXPressAction as CFString)
     guard result == .success else { emit(true, "UNKNOWN", "AX_PRESS_FAILED"); exit(0) }
 
