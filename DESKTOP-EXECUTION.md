@@ -7,6 +7,7 @@ The first primitive is intentionally narrow:
 ```text
 protocol  = DESKTOP
 operation = DESKTOP_UI_INVOKE
+credentialMode = CIEAV_INJECTED
 fixed OS platform
 + fixed application identity
 + fixed window identity
@@ -15,6 +16,7 @@ fixed OS platform
 + digest-pinned read-only preflight helper
 + separately digest-pinned execution helper
 + exact expected pre-state digest
++ authenticated consumed-ticket commit envelope
 → one native accessibility invoke attempt
 → separate independent desktop-state proof
 ```
@@ -31,7 +33,7 @@ Normalized arguments contain only:
 }
 ```
 
-Agents cannot dynamically supply an application, window, control, helper path, action, command, script, accessibility selector language, payload, text value, coordinate, or key sequence.
+Agents cannot dynamically supply an application, window, control, helper path, action, command, script, accessibility selector language, payload, text value, coordinate, key sequence, or commit key.
 
 ## Concrete platform identity
 
@@ -78,9 +80,9 @@ native/linux/cieav-desktop-observe/main.c
 native/linux/cieav-desktop-invoke/main.c
 ```
 
-`appId` is the exact canonical `/proc/<pid>/exe` path. `windowId` and `controlId` are exact AT-SPI accessible IDs (`atspi_accessible_get_accessible_id`), which are intended as stable application-development identifiers. If a toolkit does not expose stable IDs, the target is unsupported rather than mapped to a coordinate/name fallback.
+`appId` is the exact canonical `/proc/<pid>/exe` path. `windowId` and `controlId` are exact AT-SPI accessible IDs (`atspi_accessible_get_accessible_id`). If a toolkit does not expose stable IDs, the target is unsupported rather than mapped to a coordinate/name fallback.
 
-Traversal is bounded to 10,000 accessibility objects and ambiguity fails closed. The state digest includes the default AT-SPI action name. The executor revalidates the exact state and invokes only AT-SPI action index 0, the default action by AT-SPI convention:
+Traversal is bounded to 10,000 accessibility objects and ambiguity fails closed. The state digest includes the default AT-SPI action name. The executor revalidates the exact state and invokes only AT-SPI action index 0:
 
 ```text
 atspi_action_do_action(action, 0, ...)
@@ -110,7 +112,8 @@ A Windows catalog entry is:
       "preflightHelper": {
         "path": "C:\\Program Files\\CIEAV\\cieav-desktop-observe.exe",
         "sha256": "<different 64 lowercase hex>"
-      }
+      },
+      "commitKeyEnv": "CIEAV_DESKTOP_SAVE_COMMIT_KEY"
     }
   ]
 }
@@ -119,6 +122,8 @@ A Windows catalog entry is:
 `platform` is exactly one of `win32`, `darwin`, or `linux` and must equal the running CIEAV host platform. Helper paths must be absolute regular files and must still match their SHA-256 pins at construction and invocation time.
 
 The execution and preflight helpers must resolve to different files **and** have different digests. This prevents a mutation-capable binary from silently serving as the pre-consumption observation path.
+
+`commitKeyEnv` is the name of a fixed environment binding containing exactly 32 random bytes encoded as 64 lowercase hex characters. The key value is never part of the tool target, normalized arguments, evidence, result metadata, or proof configuration. The observer never receives the key.
 
 ## Preflight observation
 
@@ -147,9 +152,32 @@ The observer must write exactly one JSON object to stdout:
 
 Any process failure, timeout, malformed output, multiple output lines, platform mismatch, helper digest mismatch, target ambiguity, or state mismatch fails closed before the downstream invoke helper is started.
 
-## Consumed-ticket execution envelope
+The preflight child environment does **not** contain `CIEAV_DESKTOP_COMMIT_KEY`.
 
-Only after CIEAV consumes the one-use ticket does it start the executor. The helper receives:
+## Authenticated consumed-ticket execution envelope
+
+Only after CIEAV consumes the one-use ticket does it start the executor. CIEAV constructs the exact commit material:
+
+```text
+CIEAV_DESKTOP_COMMIT_V1
+<ticketId>
+<proposalId>
+<normalizedArgumentsDigest>
+<platform>
+<appId>
+<windowId>
+<controlId>
+<action>
+<expectedStateDigest>
+```
+
+It computes:
+
+```text
+commitMac = HMAC-SHA-256(commitKey, UTF8(commit material))
+```
+
+and sends:
 
 ```json
 {
@@ -163,9 +191,12 @@ Only after CIEAV consumes the one-use ticket does it start the executor. The hel
   "windowId": "main-window",
   "controlId": "save-button",
   "action": "INVOKE",
-  "expectedStateDigest": "<64 lowercase hex>"
+  "expectedStateDigest": "<64 lowercase hex>",
+  "commitMac": "<64 lowercase hex>"
 }
 ```
+
+The executor receives the same 32-byte key only as fixed child environment variable `CIEAV_DESKTOP_COMMIT_KEY`. Windows verifies the MAC with `HMACSHA256` plus `CryptographicOperations.FixedTimeEquals`; macOS uses CryptoKit HMAC-SHA-256 with constant-time byte comparison; Linux uses GLib HMAC-SHA-256 with constant-time comparison. MAC verification occurs before target resolution or accessibility mutation. A direct invocation without a valid authenticated commit envelope exits before touching the UI target.
 
 There is no argv-controlled target or action. CIEAV launches the absolute pinned helper directly with `shell=false`, an intentionally minimal environment, and canonical JSON on stdin.
 
@@ -188,28 +219,7 @@ Platform helpers use platform-specific detail codes, but those codes are bounded
 
 Production settlement uses `cieav.desktop-ui-proof.v1`, configured separately through `CIEAV_PROOF_DESKTOP_UI_CATALOG`.
 
-A proof target contains the same platform/application/window/control identity but only a digest-pinned observation helper:
-
-```json
-{
-  "version": 1,
-  "desktopUiProof": [
-    {
-      "id": "desktop-save-proof",
-      "platform": "win32",
-      "appId": "C:\\Program Files\\Example\\Product.exe",
-      "windowId": "main-window",
-      "controlId": "save-button",
-      "observationHelper": {
-        "path": "C:\\Program Files\\CIEAV\\cieav-desktop-proof.exe",
-        "sha256": "<64 lowercase hex>"
-      }
-    }
-  ]
-}
-```
-
-The proof provider sends only `kind="OBSERVE"`, accepts only a `stateDigest`, exposes no executor, and always returns `authority=false` and `mayMintExecutionAuthority=false`.
+A proof target contains the same platform/application/window/control identity but only a digest-pinned observation helper. The proof provider sends only `kind="OBSERVE"`, accepts only a `stateDigest`, exposes no executor or commit key, and always returns `authority=false` and `mayMintExecutionAuthority=false`.
 
 Supported deterministic expectation syntax is:
 
@@ -221,9 +231,15 @@ Unknown expectation syntax or observer failures are non-conclusive.
 
 ## Repository-local qualification
 
-The API test suite contains constitutional/native source gates for Windows, macOS, and Linux. They assert that observer sources contain no mutation primitive, executors expose only the one platform invoke primitive, no shell/synthetic input fallback is present, targets are exact, ambiguity is rejected, and pre-state revalidation precedes mutation.
+The API test suite contains constitutional/native source gates for Windows, macOS, and Linux. They assert that observer sources contain no mutation primitive or commit key, executors verify the authenticated commit before accessibility access, executors expose only the one platform invoke primitive, no shell/synthetic input fallback is present, targets are exact, ambiguity is rejected, and pre-state revalidation precedes mutation.
 
 These tests qualify architecture/source boundaries only. They do not replace compiling and running each helper on its physical target OS.
+
+## Threat boundary and non-claims
+
+The authenticated commit envelope prevents an unauthenticated direct helper launch from being treated as CIEAV-authorized execution. It does **not** by itself establish isolation against a hostile same-user process that can read or tamper with CIEAV process memory/environment, debug the executor, replace privileged runtime components, or otherwise defeat operating-system process isolation. Production qualification must therefore validate installer ACLs, process ownership, secret storage/launch environment, anti-tamper controls where applicable, and platform signing/provenance.
+
+The MAC also does not mint authority: it authenticates an already-consumed CIEAV ticket binding. Models, agents, routers, observers, helpers, and proof providers still cannot create permits, tickets, RBCs, credential leases, or promotion authority.
 
 ## External qualification boundary
 
@@ -232,10 +248,11 @@ Repository-local implementation does **not** establish physical desktop producti
 - compile/publish the Windows x64 observer and executor and validate UI Automation across supported Windows releases and interactive-session boundaries;
 - compile/sign/notarize the macOS Swift helpers and validate Accessibility/TCC permission lifecycle;
 - compile the Linux helpers against supported libatspi2/GLib/json-glib versions and validate supported Wayland/X11 desktop-session accessibility buses;
-- installer ownership/ACL validation for pinned helper binaries;
+- installer ownership/ACL validation for pinned helper binaries and CIEAV secret-bearing processes;
+- secure commit-key generation, storage, rotation, launch-time injection and revocation qualification;
 - binary signing/provenance and update rollback/revocation behavior;
 - accessibility-tree identity stability across target application versions;
 - independent security review of each native helper;
 - physical failure/recovery tests demonstrating that post-start ambiguity remains `UNKNOWN`.
 
-No model, agent, router, memory system, helper, observer, or proof provider may mint authority. Native executors receive only already-consumed CIEAV execution authority and may attempt only the exact fixed UI transition encoded by that authority.
+No model, agent, router, memory system, helper, observer, or proof provider may mint authority. Native executors receive only authenticated evidence of already-consumed CIEAV execution authority and may attempt only the exact fixed UI transition encoded by that authority.
