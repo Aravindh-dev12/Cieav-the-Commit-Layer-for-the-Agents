@@ -6,6 +6,7 @@ import Darwin
 
 let maxInputBytes = 64 * 1024
 let identifierAttribute = "AXIdentifier" as CFString
+let invokeEnvelopeKeys: Set<String> = ["version","kind","ticketId","proposalId","normalizedArgumentsDigest","platform","appId","windowId","controlId","action","replayDirDigest","expectedStateDigest","commitMac"]
 
 struct InvokeRequest: Decodable {
     let version: Int
@@ -173,7 +174,9 @@ func emit(_ effectStarted: Bool, _ transport: String, _ detailCode: String, _ po
 }
 
 do {
-    let request = try JSONDecoder().decode(InvokeRequest.self, from: readInput())
+    let input = try readInput()
+    guard let raw = try JSONSerialization.jsonObject(with: input) as? [String: Any], Set(raw.keys) == invokeEnvelopeKeys else { throw DesktopError.invalidInput }
+    let request = try JSONDecoder().decode(InvokeRequest.self, from: input)
     guard request.version == 1, request.kind == "INVOKE", request.platform == "darwin", request.action == "INVOKE",
           UUID(uuidString: request.ticketId) != nil, UUID(uuidString: request.proposalId) != nil,
           lowerHex64(request.normalizedArgumentsDigest), lowerHex64(request.replayDirDigest), lowerHex64(request.expectedStateDigest), lowerHex64(request.commitMac),
