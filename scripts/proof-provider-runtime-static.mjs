@@ -7,96 +7,27 @@ import {observeBrowserPageFromSessions} from "../apps/browser/browser-observatio
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const read=p=>readFileSync(path.join(ROOT,p),"utf8");
 const need=(source,tokens,label)=>{for(const token of tokens)if(!source.includes(token))throw new Error(`${label} invariant missing: ${token}`)};
+const runtime=read("apps/api/src/proof-provider-runtime.ts"),ros2=read("apps/api/src/proof-providers/ros2.ts"),ros2Tests=read("apps/api/src/proof-providers/ros2.test.ts"),browserProvider=read("apps/api/src/proof-providers/browser.ts"),browserTests=read("apps/api/src/proof-providers/browser.test.ts"),browserHost=read("apps/browser/main.mjs"),browserObservation=read("apps/browser/browser-observation.mjs"),browserCommit=read("apps/browser/browser-commit.mjs"),browserAdapter=read("apps/api/src/trusted-browser-adapter.ts"),cdpPipe=read("apps/browser/cdp-pipe.mjs"),chromiumLaunch=read("apps/browser/chromium-launch.mjs"),productionStart=read("scripts/start-production.mjs"),platformConfig=read("python/latch_platform/config.py");
 
-const runtime=read("apps/api/src/proof-provider-runtime.ts");
-const ros2=read("apps/api/src/proof-providers/ros2.ts");
-const ros2Tests=read("apps/api/src/proof-providers/ros2.test.ts");
-const browserProvider=read("apps/api/src/proof-providers/browser.ts");
-const browserTests=read("apps/api/src/proof-providers/browser.test.ts");
-const browserHost=read("apps/browser/main.mjs");
-const browserObservation=read("apps/browser/browser-observation.mjs");
-const cdpPipe=read("apps/browser/cdp-pipe.mjs");
-const chromiumLaunch=read("apps/browser/chromium-launch.mjs");
-const productionStart=read("scripts/start-production.mjs");
-
-need(runtime,[
-  'import {Ros2ProofProvider} from "./proof-providers/ros2.js"',
-  "CIEAV_PROOF_ROS2_CATALOG",
-  "Ros2ProofProvider.fromCatalogFile",
-  'import {BrowserProofProvider} from "./proof-providers/browser.js"',
-  "CIEAV_PROOF_BROWSER_CATALOG",
-  "BrowserProofProvider.fromCatalogFile",
-  "this.registry.register(provider)"
-],"proof-provider runtime");
-
-need(ros2,[
-  'const PROVIDER_ID="cieav.ros2-proof.v1"',
-  'evidenceKinds:["ROS2_TOPIC_SAMPLE"]',
-  "authority:false as const",
-  "mayMintExecutionAuthority:false",
-  "shell:false",
-  '"topic","echo","--once"',
-  "verifyBinary(target)",
-  "verifyPrefixFiles(target)",
-  "ros2_proof_unpinned_prefix_file",
-  "ros2_proof_prefix_file_digest_mismatch",
-  "ros2_proof_operation_not_read_only",
-  "proposedOutcome",
-  "conclusive:Boolean(proposedOutcome)"
-],"ROS2 proof provider");
-
-need(browserHost,[
-  "CIEAV_BROWSER_OBSERVATION_TOKEN",
-  "CONTROL_TOKEN===OBSERVATION_TOKEN",
-  'isObserve=u.pathname==="/api/observe"',
-  "loopbackPeer(req)",
-  "req.headers.origin",
-  "observationAuthorized(req)",
-  "activeCdpSessions()",
-  "observeBrowserPageFromSessions",
-  "browser_observation_unauthorized"
-],"browser observation host");
-need(browserObservation,[
-  'session.send("Page.getFrameTree")',
-  'match.session.send("DOM.getDocument"',
-  'match.session.send("DOM.getOuterHTML"',
-  "browser_observation_target_ambiguous",
-  "browser_observation_document_too_large",
-  "authority:false",
-  "mayMintExecutionAuthority:false"
-],"browser DOM observation primitive");
-need(cdpPipe,["ACTIVE_SESSIONS","activeCdpSessions()","ACTIVE_SESSIONS.add(this)","ACTIVE_SESSIONS.delete(this)"],"CDP observation session registry");
-need(chromiumLaunch,["CIEAV_BROWSER_OBSERVATION_TOKEN","for(const key of SECRET_ENV_KEYS)delete clean[key]"],"Chromium observation capability isolation");
-need(productionStart,[
-  "strongCapability",
-  "env.CIEAV_BROWSER_CONTROL_TOKEN=strongCapability",
-  "env.CIEAV_BROWSER_OBSERVATION_TOKEN=strongCapability",
-  "env.CIEAV_BROWSER_CONTROL_TOKEN===env.CIEAV_BROWSER_OBSERVATION_TOKEN",
-  "spawn(command,args,{cwd:root,stdio:\"inherit\",env,shell:false})"
-],"production browser capability provisioning");
-need(browserProvider,[
-  'const PROVIDER_ID="cieav.browser-proof.v1"',
-  'evidenceKinds:["BROWSER_URL","BROWSER_DOCUMENT_SHA256","BROWSER_FRAME_TREE_SHA256"]',
-  "CIEAV_BROWSER_OBSERVATION_TOKEN",
-  "browser_proof_control_base_must_be_loopback_http",
-  'new URL("/api/observe",target.controlBase)',
-  "browser_proof_operation_not_read_only",
-  "authority:false as const",
-  "mayMintExecutionAuthority:false",
-  "conclusive:Boolean(proposedOutcome)"
-],"browser proof provider");
+need(runtime,['import {Ros2ProofProvider} from "./proof-providers/ros2.js"',"CIEAV_PROOF_ROS2_CATALOG","Ros2ProofProvider.fromCatalogFile",'import {BrowserProofProvider} from "./proof-providers/browser.js"',"CIEAV_PROOF_BROWSER_CATALOG","BrowserProofProvider.fromCatalogFile","this.registry.register(provider)"],"proof-provider runtime");
+need(ros2,['const PROVIDER_ID="cieav.ros2-proof.v1"','evidenceKinds:["ROS2_TOPIC_SAMPLE"]',"authority:false as const","mayMintExecutionAuthority:false","shell:false",'"topic","echo","--once"',"verifyBinary(target)","verifyPrefixFiles(target)","ros2_proof_unpinned_prefix_file","ros2_proof_prefix_file_digest_mismatch","ros2_proof_operation_not_read_only","proposedOutcome","conclusive:Boolean(proposedOutcome)"],"ROS2 proof provider");
+need(browserHost,["CIEAV_BROWSER_OBSERVATION_TOKEN","CIEAV_BROWSER_COMMIT_TOKEN","new Set([CONTROL_TOKEN,OBSERVATION_TOKEN,COMMIT_TOKEN]).size!==3",'isObserve=u.pathname==="/api/observe"','isCommit=u.pathname==="/api/commit"',"observationAuthorized(req)","commitAuthorized(req)","activeCdpSessions()","observeBrowserPageFromSessions","commitBrowserActionFromSessions","browser_observation_unauthorized","browser_commit_unauthorized","browser_commit_effect_unknown"],"browser host capability boundary");
+need(browserObservation,['session.send("Page.getFrameTree")','match.session.send("DOM.getDocument"','match.session.send("DOM.getOuterHTML"',"browser_observation_target_ambiguous","browser_observation_document_too_large","authority:false","mayMintExecutionAuthority:false"],"browser DOM observation primitive");
+need(browserCommit,['"CLICK","TYPE"','session.send("DOM.querySelector"','session.send("DOM.getBoxModel"','session.send("Input.dispatchMouseEvent"','session.send("DOM.focus"','session.send("Input.insertText"',"browser_commit_effect_unknown"],"browser typed commit primitive");
+need(browserAdapter,['z.enum(["NAVIGATE","CLICK","TYPE"])','default("CIEAV_BROWSER_COMMIT_TOKEN")','new URL("/api/commit",control)',"execution_browser_commit_capability_missing","BROWSER_CLICK_DISPATCH","BROWSER_TYPE_DISPATCH","argumentDigest"],"trusted browser execution adapter");
+need(cdpPipe,["ACTIVE_SESSIONS","activeCdpSessions()","ACTIVE_SESSIONS.add(this)","ACTIVE_SESSIONS.delete(this)"],"CDP session registry");
+need(chromiumLaunch,["CIEAV_BROWSER_OBSERVATION_TOKEN","CIEAV_BROWSER_COMMIT_TOKEN","for(const key of SECRET_ENV_KEYS)delete clean[key]"],"Chromium capability isolation");
+need(productionStart,["env.CIEAV_BROWSER_OBSERVATION_TOKEN=strongCapability","env.CIEAV_BROWSER_COMMIT_TOKEN=strongCapability","delete env.CIEAV_BROWSER_CONTROL_TOKEN","spawn(command,args,{cwd:root,stdio:\"inherit\",env,shell:false})"],"repository production capability bootstrap");
+need(platformConfig,["_ensure_browser_runtime_capabilities","CIEAV_BROWSER_OBSERVATION_TOKEN","CIEAV_BROWSER_COMMIT_TOKEN",'os.environ.pop("CIEAV_BROWSER_CONTROL_TOKEN",None)',"secrets.compare_digest(observation,commit)"],"canonical packaged/service capability bootstrap");
+need(browserProvider,['const PROVIDER_ID="cieav.browser-proof.v1"','evidenceKinds:["BROWSER_URL","BROWSER_DOCUMENT_SHA256","BROWSER_FRAME_TREE_SHA256"]',"CIEAV_BROWSER_OBSERVATION_TOKEN","browser_proof_control_base_must_be_loopback_http",'new URL("/api/observe",target.controlBase)',"browser_proof_operation_not_read_only","authority:false as const","mayMintExecutionAuthority:false","conclusive:Boolean(proposedOutcome)"],"browser proof provider");
 need(browserTests,["settles exact bounded browser state without execution authority","keeps unknown predicates non-conclusive","rejects mutation-like proof operations","requires a strong dedicated observation capability at construction","keeps host rejection non-conclusive"],"browser proof regression tests");
-
 for(const [label,source] of [["ROS2 proof provider",ros2],["browser proof provider",browserProvider],["browser observation primitive",browserObservation]])for(const forbidden of ["mintPermit(","mintExecutionTicket(","signCommit(","issueCredentialLease(","consumeTicket(","exec(","execSync(","shell:true"]){if(source.includes(forbidden))throw new Error(`${label} contains forbidden authority/execution primitive: ${forbidden}`)}
 for(const source of [browserProvider,browserObservation])if(source.includes("Runtime.evaluate")||source.includes("javascript:")||source.includes("Input.dispatch"))throw new Error("browser proof path may not execute page script or input primitives");
-
 need(ros2Tests,["ros2_proof_unpinned_prefix_file","ros2_proof_prefix_file_digest_mismatch","fails closed if a pinned prefix file drifts after provider construction","mayMintExecutionAuthority"],"ROS2 proof regression tests");
 
-const commands=[];
-const session={closed:false,pipe:{closed:false},send:async(method,params)=>{commands.push({method,params});if(method==="Page.getFrameTree")return{frameTree:{frame:{id:"f1",url:"https://example.test/order/1",securityOrigin:"https://example.test",mimeType:"text/html"}}};if(method==="DOM.getDocument")return{root:{nodeId:1,nodeName:"#document",children:[{nodeId:2,nodeName:"HTML"}]}};if(method==="DOM.getOuterHTML")return{outerHTML:"<html><body>done</body></html>"};throw new Error(`unexpected command ${method}`)}};
+const commands=[];const session={closed:false,pipe:{closed:false},send:async(method,params)=>{commands.push({method,params});if(method==="Page.getFrameTree")return{frameTree:{frame:{id:"f1",url:"https://example.test/order/1",securityOrigin:"https://example.test",mimeType:"text/html"}}};if(method==="DOM.getDocument")return{root:{nodeId:1,nodeName:"#document",children:[{nodeId:2,nodeName:"HTML"}]}};if(method==="DOM.getOuterHTML")return{outerHTML:"<html><body>done</body></html>"};throw new Error(`unexpected command ${method}`)}};
 const observed=await observeBrowserPageFromSessions([session],{origin:"https://example.test",url:"https://example.test/order/1",maxDocumentBytes:4096});
 if(observed.authority!==false||observed.mayMintExecutionAuthority!==false||observed.frameCount!==1||!/^[0-9a-f]{64}$/.test(observed.documentSha256))throw new Error("browser observation dynamic contract failed");
 if(commands.map(x=>x.method).join(",")!=="Page.getFrameTree,DOM.getDocument,DOM.getOuterHTML")throw new Error(`browser observation issued unexpected CDP commands: ${commands.map(x=>x.method).join(",")}`);
 let ambiguous=false;try{await observeBrowserPageFromSessions([session,session],{origin:"https://example.test",url:"https://example.test/order/1",maxDocumentBytes:4096})}catch(error){ambiguous=String(error?.message??error).includes("target_ambiguous")}if(!ambiguous)throw new Error("browser observation did not fail closed on ambiguous page selection");
-
-console.log("CIEAV proof-provider runtime static gate PASS - ROS2 proof is digest-pinned, browser proof uses a production-parent-provisioned dedicated loopback capability and bounded DOM-only observation, Chromium never receives the proof capability, both providers are authority=false, and unknown observer failures remain non-conclusive");
+console.log("CIEAV proof-provider/runtime gate PASS - proof remains DOM-only and authority=false; browser execution uses a distinct ticket-router commit capability; surface control remains Gateway-owned; scoped capabilities are stripped from Chromium; UNKNOWN is preserved after ambiguous effects");
