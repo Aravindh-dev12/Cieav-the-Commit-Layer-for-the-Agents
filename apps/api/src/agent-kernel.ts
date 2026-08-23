@@ -62,7 +62,7 @@ export class CieavAgentKernelStore{
     this.hardwareKeyProviders=new CieavHardwareKeyProviderRegistry(path.join(path.dirname(file),"hardware-key-providers.json"),hardwareProviderSecret);
     this.hardwareSigner=new CieavHardwareSigner(this.hardwareKeyProviders);
     this.credentialAuthority=new CieavCredentialAuthority(path.join(path.dirname(file),"credential-authority-state.json"),credentialAuthoritySecret,process.env,this.hardwareSigner);
-    this.executionRouter=new CieavExecutionRouter(this.executionFabric,[],this.controlPlane,this.credentialAuthority);
+    this.executionRouter=new CieavExecutionRouter(this.executionFabric,[],this.controlPlane,this.credentialAuthority,this.continuingAuthority,this.reflexLayer);
   }
   private mac(payload:Payload){return crypto.createHmac("sha256",this.stateSecret).update(canonical(payload)).digest("base64url")}
   private enqueue<T>(fn:()=>Promise<T>):Promise<T>{const task=this.chain.then(fn,fn);this.chain=task.then(()=>undefined,()=>undefined);return task}
