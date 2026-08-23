@@ -1,4 +1,7 @@
 const MAX_MESSAGE_BYTES=32*1024*1024;
+const ACTIVE_SESSIONS=new Set();
+
+export function activeCdpSessions(){return[...ACTIVE_SESSIONS].filter(session=>!session.closed&&!session.pipe?.closed)}
 
 export class CDPPipe{
   constructor(readable,writable,{timeoutMs=12_000,firstCommandTimeoutMs=30_000,firstCommandRetries=1}={}){
@@ -58,10 +61,10 @@ export class CDPPipe{
 }
 
 export class CDPSession{
-  constructor(pipe,sessionId){this.pipe=pipe;this.sessionId=sessionId;this.listeners=new Set();this.unsubscribe=pipe.on(msg=>{if(msg?.sessionId!==sessionId)return;for(const f of this.listeners){try{f(msg)}catch{}}})}
-  send(method,params={}){return this.pipe.send(method,params,this.sessionId)}
-  on(listener){this.listeners.add(listener);return()=>this.listeners.delete(listener)}
-  close(){this.listeners.clear();this.unsubscribe?.()}
+  constructor(pipe,sessionId){this.pipe=pipe;this.sessionId=sessionId;this.listeners=new Set();this.closed=false;this.unsubscribe=pipe.on(msg=>{if(msg?.sessionId!==sessionId)return;for(const f of this.listeners){try{f(msg)}catch{}}});ACTIVE_SESSIONS.add(this)}
+  send(method,params={}){if(this.closed)return Promise.reject(new Error("CDP session is closed"));return this.pipe.send(method,params,this.sessionId)}
+  on(listener){if(this.closed)throw new Error("CDP session is closed");this.listeners.add(listener);return()=>this.listeners.delete(listener)}
+  close(){if(this.closed)return;this.closed=true;this.listeners.clear();this.unsubscribe?.();ACTIVE_SESSIONS.delete(this)}
 }
 
 export const CDPPipeConstants={MAX_MESSAGE_BYTES};
