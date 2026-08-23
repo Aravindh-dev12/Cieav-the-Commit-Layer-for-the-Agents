@@ -261,6 +261,31 @@ export class CieavExecutionFabricStore{
     });
   }
 
+  verifyConsumedDispatch(id:string,binding:{protocol:string;operation:string;target:string|null;normalizedArgumentsDigest:string;downstreamRef:string}){
+    return this.enqueue(async()=>{
+      await this.load();
+      const ticket=this.payload.tickets.find(x=>x.id===id);
+      if(!ticket)throw new Error("execution_ticket_not_found");
+      if(ticket.status!=="CONSUMED"||!ticket.consumedAt)throw new Error("consumed_execution_ticket_required");
+      if(Date.parse(ticket.expiresAt)<=Date.now())throw new Error("execution_ticket_expired");
+      const record=this.payload.proposals.find(x=>x.proposal.id===ticket.proposalId);
+      if(!record)throw new Error("execution_proposal_not_found");
+      const proposal=record.proposal;
+      if(record.decision.decision!=="ALLOW"||digest(record.decision)!==ticket.authorizationDigest)throw new Error("execution_authorization_binding_invalid");
+      if(proposal.id!==ticket.proposalId||proposal.intentId!==ticket.intentId||proposal.taskId!==ticket.taskId||proposal.toolId!==ticket.toolId||proposal.credentialLeaseId!==ticket.credentialLeaseId)throw new Error("execution_ticket_proposal_binding_invalid");
+      if(binding.protocol!==proposal.protocol||binding.operation!==proposal.operation||(binding.target??null)!==(proposal.target??null)||binding.normalizedArgumentsDigest!==proposal.normalizedArgumentsDigest)throw new Error("execution_dispatch_proposal_binding_invalid");
+      const tool=this.activeTool(proposal.toolId);
+      if(!tool||tool.protocol!==proposal.protocol||tool.operation!==proposal.operation||tool.downstreamRef!==binding.downstreamRef)throw new Error("registered_tool_dispatch_binding_invalid");
+      if(tool.executionMode==="CONTINUING")throw new Error("continuing_dispatch_not_supported_by_oneshot_verifier");
+      const expectedRoute=digest({toolId:proposal.toolId,protocol:proposal.protocol,operation:proposal.operation,target:proposal.target??null,normalizedArgumentsDigest:proposal.normalizedArgumentsDigest});
+      if(expectedRoute!==ticket.routeDigest)throw new Error("execution_route_binding_invalid");
+      const routeEvents=this.payload.audit.filter(x=>x.ticketId===ticket.id&&x.phase==="ROUTE"&&x.outcome==="PASS");
+      if(routeEvents.length!==1)throw new Error("execution_route_audit_required");
+      if(this.payload.audit.some(x=>x.ticketId===ticket.id&&x.phase==="EXECUTE"))throw new Error("execution_attempt_already_recorded");
+      return{ticket,proposal,tool,authorizationDigest:ticket.authorizationDigest,routeDigest:ticket.routeDigest,verifiedAt:new Date().toISOString(),authority:false as const,executionAuthorityIssued:false as const};
+    });
+  }
+
   consumeTicket(id:string,normalizedArguments:unknown){
     return this.enqueue(async()=>{
       await this.load();
