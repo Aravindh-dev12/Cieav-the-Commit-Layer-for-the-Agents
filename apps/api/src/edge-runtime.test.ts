@@ -1,0 +1,21 @@
+import crypto from "node:crypto";
+import {mkdtemp,readFile,writeFile} from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import {afterEach,describe,expect,it} from "vitest";
+import {CieavEdgeRuntime} from "./edge-runtime.js";
+
+const stores:CieavEdgeRuntime[]=[];afterEach(async()=>{for(const s of stores.splice(0))await s.close()});
+const canonical=(value:unknown):string=>Array.isArray(value)?`[${value.map(canonical).join(",")}]`:value&&typeof value==="object"?`{${Object.keys(value as Record<string,unknown>).sort().map(k=>`${JSON.stringify(k)}:${canonical((value as Record<string,unknown>)[k])}`).join(",")}}`:JSON.stringify(value)??"undefined";
+const verifySecret="v".repeat(64);
+function signedEnvelope(overrides:Record<string,unknown>={}){const base={id:"11111111-1111-4111-8111-111111111111",version:1,protocol:"CIEAV_EDGE_PREDELEGATION_V1",authority:false,executionAuthorityIssued:false,deviceId:"edge-1",allowedTransports:["ROS2_ACTION"],allowedResources:["/arm_controller/follow_joint_trajectory"],allowedOperations:["send_goal"],allowedArgumentDigests:["a".repeat(64)],authorityBindingDigest:"b".repeat(64),issuerProofRef:"proof://gateway/1",issuedAt:new Date(Date.now()-1_000).toISOString(),expiresAt:new Date(Date.now()+60_000).toISOString(),maxOfflineAgeMs:10_000,maxUses:2,...overrides};const signature=crypto.createHmac("sha256",verifySecret).update(`cieav-edge-predelegation-v1\n${canonical(base)}`).digest("base64url");return{...base,signature}}
+async function make(){const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-edge-")),file=path.join(dir,"state.json");const store=new CieavEdgeRuntime(file,"s".repeat(64),verifySecret);stores.push(store);return{store,file}}
+const request=(overrides:Record<string,unknown>={})=>({id:crypto.randomUUID(),deviceId:"edge-1",envelopeId:"11111111-1111-4111-8111-111111111111",transport:"ROS2_ACTION",resource:"/arm_controller/follow_joint_trajectory",operation:"send_goal",normalizedArgumentsDigest:"a".repeat(64),idempotencyKey:crypto.randomUUID(),requestedAt:new Date().toISOString(),...overrides});
+
+describe("CieavEdgeRuntime",()=>{
+  it("accepts only signed exact predelegated ROS operations",async()=>{const{store}=await make();await store.installEnvelope(signedEnvelope());await expect(store.authorize(request())).resolves.toMatchObject({authorized:true,authorityBindingDigest:"b".repeat(64)});await expect(store.authorize(request({normalizedArgumentsDigest:"c".repeat(64)}))).resolves.toMatchObject({authorized:false,entry:{outcome:"BLOCKED",reason:"edge arguments not predelegated"}})});
+  it("blocks duplicate idempotency keys and envelope overuse",async()=>{const{store}=await make();await store.installEnvelope(signedEnvelope({maxUses:1}));const key=crypto.randomUUID();await expect(store.authorize(request({idempotencyKey:key}))).resolves.toMatchObject({authorized:true});await expect(store.authorize(request({idempotencyKey:key}))).resolves.toMatchObject({authorized:false});await expect(store.authorize(request())).resolves.toMatchObject({authorized:false,entry:{reason:"edge predelegation exhausted"}})});
+  it("fails closed when offline freshness exceeds the signed envelope",async()=>{const{store}=await make();await store.installEnvelope(signedEnvelope({maxOfflineAgeMs:1000}));await expect(store.authorize(request({offlineSince:new Date(Date.now()-5000).toISOString()}))).resolves.toMatchObject({authorized:false,entry:{reason:"offline authority freshness exceeded"}})});
+  it("rejects forged envelopes",async()=>{const{store}=await make();const forged={...signedEnvelope(),allowedOperations:["dangerous_override"]};await expect(store.installEnvelope(forged)).rejects.toThrow("invalid_edge_predelegation_signature")});
+  it("detects tampering in the signed consequence journal",async()=>{const{store,file}=await make();await store.installEnvelope(signedEnvelope());await store.authorize(request());await store.close();stores.splice(stores.indexOf(store),1);const env=JSON.parse(await readFile(file,"utf8"));env.payload.journal[0].outcome="UNKNOWN";await writeFile(file,JSON.stringify(env));const reopened=new CieavEdgeRuntime(file,"s".repeat(64),verifySecret);stores.push(reopened);await expect(reopened.listJournal()).rejects.toThrow("integrity check failed")});
+});

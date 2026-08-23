@@ -3,6 +3,7 @@ import {SemanticEffectSchema,RealityWitnessSchema} from "./intent-reality.js";
 
 const DigestSchema=z.string().regex(/^[0-9a-f]{64}$/);
 const RiskSchema=z.enum(["LOW","MEDIUM","HIGH","CRITICAL"]);
+const RuntimeScalarSchema=z.union([z.number().finite(),z.string().max(4096),z.boolean()]);
 
 export const AgentAttestationMethodSchema=z.enum(["LOCAL_KEY","OIDC","MTLS","TPM","SECURE_ENCLAVE","EXTERNAL_SIGNED"]);
 export const AgentIdentityAttestationSchema=z.object({
@@ -12,12 +13,14 @@ export const AgentIdentityAttestationSchema=z.object({
 }).strict();
 export type AgentIdentityAttestation=z.infer<typeof AgentIdentityAttestationSchema>;
 
-export const ToolProtocolSchema=z.enum(["MCP","A2A","HTTP","BROWSER","CLI","FILESYSTEM","DATABASE","CLOUD_API"]);
+export const ToolProtocolSchema=z.enum(["MCP","A2A","HTTP","BROWSER","CLI","FILESYSTEM","DATABASE","CLOUD_API","ROS2","MQTT"]);
+export const ToolExecutionModeSchema=z.enum(["ONESHOT","CONTINUING"]);
 export const CredentialModeSchema=z.enum(["NONE","CIEAV_INJECTED","DOWNSTREAM_OAUTH","MTLS","SIGNED_REQUEST"]);
 export const FederatedToolSchema=z.object({
   id:z.string().min(1).max(240),displayName:z.string().min(1).max(240),protocol:ToolProtocolSchema,operation:z.string().min(1).max(240),
   downstreamRef:z.string().min(1).max(2000),credentialMode:CredentialModeSchema,risk:RiskSchema,
-  consequenceCapable:z.boolean().default(true),proofSources:z.array(z.string().min(1).max(240)).max(30).default([]),enabled:z.boolean().default(true)
+  consequenceCapable:z.boolean().default(true),proofSources:z.array(z.string().min(1).max(240)).max(30).default([]),enabled:z.boolean().default(true),
+  executionMode:ToolExecutionModeSchema.optional(),requiredReflexPolicyId:z.string().min(1).max(240).optional()
 }).strict();
 export type FederatedTool=z.infer<typeof FederatedToolSchema>;
 
@@ -48,11 +51,27 @@ export const FormalAuthorizationDecisionSchema=z.object({
 }).strict();
 export type FormalAuthorizationDecision=z.infer<typeof FormalAuthorizationDecisionSchema>;
 
+export const ContinuingAuthorityConditionSchema=z.object({
+  id:z.string().min(1).max(200),metric:z.string().min(1).max(200),operator:z.enum(["EQ","LTE","GTE","BETWEEN","TRUE","FRESH"]),expected:RuntimeScalarSchema.optional(),min:z.number().finite().optional(),max:z.number().finite().optional(),maxAgeMs:z.number().int().positive().max(86_400_000)
+}).strict().superRefine((value,ctx)=>{
+  if(value.operator==="EQ"&&value.expected===undefined)ctx.addIssue({code:z.ZodIssueCode.custom,message:"EQ requires expected"});
+  if(value.operator==="BETWEEN"&&(value.min===undefined||value.max===undefined||value.min>value.max))ctx.addIssue({code:z.ZodIssueCode.custom,message:"BETWEEN requires ordered min/max"});
+  if((value.operator==="LTE"||value.operator==="GTE")&&typeof value.expected!=="number")ctx.addIssue({code:z.ZodIssueCode.custom,message:`${value.operator} requires numeric expected`});
+});
+export const AutonomyBudgetRequirementSchema=z.object({dimension:z.string().min(1).max(100),limit:z.number().positive().finite()}).strict();
+export const ContinuingAuthorityRequirementSchema=z.object({
+  ttlSeconds:z.number().int().positive().max(86_400),conditions:z.array(ContinuingAuthorityConditionSchema).max(100),budgets:z.array(AutonomyBudgetRequirementSchema).max(100),reflexPolicyId:z.string().min(1).max(240).optional()
+}).strict().superRefine((value,ctx)=>{
+  if(new Set(value.conditions.map(x=>x.id)).size!==value.conditions.length)ctx.addIssue({code:z.ZodIssueCode.custom,message:"duplicate continuing-authority condition id"});
+  if(new Set(value.budgets.map(x=>x.dimension)).size!==value.budgets.length)ctx.addIssue({code:z.ZodIssueCode.custom,message:"duplicate autonomy-budget dimension"});
+});
+export type ContinuingAuthorityRequirement=z.infer<typeof ContinuingAuthorityRequirementSchema>;
+
 export const ExecutionProposalSchema=z.object({
   id:z.string().uuid(),version:z.literal(1),taskId:z.string().uuid(),intentId:z.string().uuid(),scopeDeviceId:z.string().min(8).max(200),subjectId:z.string().min(1).max(240),
   identityAttestationId:z.string().uuid(),credentialLeaseId:z.string().uuid(),toolId:z.string().min(1).max(240),protocol:ToolProtocolSchema,operation:z.string().min(1).max(240),target:z.string().max(1000).optional(),risk:RiskSchema,
   normalizedArgumentsDigest:DigestSchema,semanticEffect:SemanticEffectSchema,realityWitness:RealityWitnessSchema,expectedPostStateDigest:DigestSchema,proofObligationDigest:DigestSchema,
-  attenuationWitnessIds:z.array(z.string().uuid()).max(32).default([]),createdAt:z.string().datetime()
+  attenuationWitnessIds:z.array(z.string().uuid()).max(32).default([]),continuingAuthority:ContinuingAuthorityRequirementSchema.optional(),createdAt:z.string().datetime()
 }).strict();
 export type ExecutionProposal=z.infer<typeof ExecutionProposalSchema>;
 
