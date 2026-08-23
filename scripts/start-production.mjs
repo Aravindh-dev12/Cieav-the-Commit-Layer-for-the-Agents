@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import {spawn,spawnSync} from "node:child_process";
 import {access} from "node:fs/promises";
 import path from "node:path";
@@ -9,7 +10,11 @@ const apiBuild=path.join(root,"apps/api/dist/server.js");
 try{await access(apiBuild)}catch{throw new Error("Production API is not built. Run npm run build:api first.")}
 
 function usable(cmd){const r=spawnSync(cmd,["--version"],{stdio:"ignore",shell:false});return !r.error&&r.status===0}
+function strongCapability(value){return typeof value==="string"&&value.length>=43?value:crypto.randomBytes(48).toString("base64url")}
 const env={...process.env,CIEAV_HOME:process.env.CIEAV_HOME||root,PYTHONPATH:[path.join(root,"python"),process.env.PYTHONPATH].filter(Boolean).join(path.delimiter)};
+env.CIEAV_BROWSER_CONTROL_TOKEN=strongCapability(env.CIEAV_BROWSER_CONTROL_TOKEN);
+env.CIEAV_BROWSER_OBSERVATION_TOKEN=strongCapability(env.CIEAV_BROWSER_OBSERVATION_TOKEN);
+if(env.CIEAV_BROWSER_CONTROL_TOKEN===env.CIEAV_BROWSER_OBSERVATION_TOKEN)env.CIEAV_BROWSER_OBSERVATION_TOKEN=crypto.randomBytes(48).toString("base64url");
 let command,args;
 if(process.env.CIEAV_EXECUTABLE){command=process.env.CIEAV_EXECUTABLE;args=["gateway","run"]}
 else{
