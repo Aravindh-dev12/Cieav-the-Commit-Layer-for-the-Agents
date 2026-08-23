@@ -6,6 +6,7 @@ import type {CieavRealityApi,RealityRouteResult} from "./reality-api.js";
 import {CieavAgentKernelStore} from "./agent-kernel.js";
 import {createAttenuationWitness} from "./intent-reality-engine.js";
 import {CieavCredentialHardwareAdminApi} from "./credential-hardware-admin-api.js";
+import {CieavSafetyEdgeAdminApi} from "./safety-edge-admin-api.js";
 
 const MAX_BODY=256_000;
 async function parseBody(req:IncomingMessage){const chunks:Buffer[]=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>MAX_BODY)throw new Error("body_too_large");chunks.push(b)}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{} }
@@ -15,7 +16,8 @@ const conflict=(err:unknown):RealityRouteResult=>({status:409,body:{error:String
 
 export class CieavAgentKernelApi{
   private readonly credentialHardwareAdmin:CieavCredentialHardwareAdminApi;
-  constructor(readonly store:CieavAgentKernelStore,private readonly reality:CieavRealityApi,private readonly proof:CieavProofApi){this.credentialHardwareAdmin=new CieavCredentialHardwareAdminApi(store)}
+  private readonly safetyEdgeAdmin:CieavSafetyEdgeAdminApi;
+  constructor(readonly store:CieavAgentKernelStore,private readonly reality:CieavRealityApi,private readonly proof:CieavProofApi){this.credentialHardwareAdmin=new CieavCredentialHardwareAdminApi(store);this.safetyEdgeAdmin=new CieavSafetyEdgeAdminApi(store)}
   async recoverOnStartup(){return this.store.recoverOnStartup()}
 
   async handleAgent(req:IncomingMessage,pathname:string,identity:AgentTokenPayload):Promise<RealityRouteResult|null>{
@@ -36,9 +38,10 @@ export class CieavAgentKernelApi{
   }
 
   async handleGateway(req:IncomingMessage,pathname:string):Promise<RealityRouteResult|null>{
+    const safety=await this.safetyEdgeAdmin.handle(req,pathname);if(safety)return safety;
     const admin=await this.credentialHardwareAdmin.handle(req,pathname);if(admin)return admin as RealityRouteResult;
     if(req.method==="GET"&&pathname==="/v1/agent-kernel/tasks")return{status:200,body:{tasks:await this.store.list(),openLoops:await this.store.openLoops()}};
-    if(req.method==="GET"&&pathname==="/v1/agent-kernel/runtime")return{status:200,body:{version:"intent-reality-v4",invariants:{realityBoundCommit:true,semanticEffectQuarantine:true,intentAttenuationWitness:true,consequenceDrift:true,verifiedAutonomyRatchet:true,proofGatedSettlement:true,reversibilityEscrow:true,verifiedAgentIdentity:true,scopedCredentialLeases:true,formalPermissionGraph:true,denyByDefaultAuthorization:true,federatedToolRegistry:true,mandatoryExecutionTicket:true,tamperEvidentExecutionAudit:true,argumentBindingAtRoute:true,operationMandate:true,interpositionPosture:true,mandatoryBypassDeclarationCheck:true,credentialIsolation:true,executionAttemptReceipt:true,frameworkInteropRegistry:true,frameworkCallBinding:true,frameworkCompletionNotProof:true,replaySafeFrameworkBindings:true,mandatoryFrameworkProxyEligibility:true,mandatoryDispatchUsesTrustedRouter:true},stats:{intentReality:await this.store.intentReality.stats(),controlPlane:await this.store.controlPlane.stats(),frameworkInterop:await this.store.frameworkInterop.stats()}}};
+    if(req.method==="GET"&&pathname==="/v1/agent-kernel/runtime")return{status:200,body:{version:"intent-reality-v5",invariants:{realityBoundCommit:true,semanticEffectQuarantine:true,intentAttenuationWitness:true,consequenceDrift:true,verifiedAutonomyRatchet:true,proofGatedSettlement:true,reversibilityEscrow:true,verifiedAgentIdentity:true,scopedCredentialLeases:true,formalPermissionGraph:true,denyByDefaultAuthorization:true,federatedToolRegistry:true,mandatoryExecutionTicket:true,tamperEvidentExecutionAudit:true,argumentBindingAtRoute:true,operationMandate:true,interpositionPosture:true,mandatoryBypassDeclarationCheck:true,credentialIsolation:true,executionAttemptReceipt:true,frameworkInteropRegistry:true,frameworkCallBinding:true,frameworkCompletionNotProof:true,replaySafeFrameworkBindings:true,mandatoryFrameworkProxyEligibility:true,mandatoryDispatchUsesTrustedRouter:true,continuingAuthority:true,autonomyBudgets:true,deterministicReflexLayer:true,edgePredelegation:true,edgeDeviceRevocation:true,edgeWatchdogSafeState:true,ros2Execution:true,mqttQos1Execution:true},stats:{intentReality:await this.store.intentReality.stats(),controlPlane:await this.store.controlPlane.stats(),frameworkInterop:await this.store.frameworkInterop.stats(),continuingAuthoritySessions:(await this.store.continuingAuthority.list()).length,edgeDevices:(await this.store.edgeDevices.list()).length,edgeEnvelopes:(await this.store.edgeRuntime.listEnvelopes()).length,edgeJournalEntries:(await this.store.edgeRuntime.listJournal()).length}}};
     if(req.method==="GET"&&pathname==="/v1/agent-kernel/quarantines")return{status:200,body:{quarantines:await this.store.intentReality.listQuarantines()}};
     if(req.method==="GET"&&pathname==="/v1/agent-kernel/autonomy-candidates")return{status:200,body:{candidates:await this.store.intentReality.listAutonomy()}};
     if(req.method==="GET"&&pathname==="/v1/agent-kernel/reversibility-escrows")return{status:200,body:{escrows:await this.store.intentReality.listReversibilityEscrows()}};

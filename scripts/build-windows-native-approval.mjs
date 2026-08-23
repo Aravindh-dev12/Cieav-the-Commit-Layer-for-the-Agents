@@ -16,7 +16,8 @@ const outputArg=arg("output-dir"),nativeDirArg=arg("native-dir");
 if(outputArg&&nativeDirArg)throw new Error("choose either --output-dir or --native-dir");
 const outputDir=path.resolve(outputArg||(nativeDirArg?path.join(nativeDirArg,`cieav-native-approval-${sourceHash}`):path.join(ROOT,".cieav","native",`cieav-native-approval-${sourceHash}`)));
 const exe=path.join(outputDir,"cieav-native-approval.exe");
-try{await access(exe);console.log(JSON.stringify({ok:true,reused:true,sourceHash,outputDir,exe}));process.exit(0)}catch{}
+const binaryDigest=async()=>crypto.createHash("sha256").update(await readFile(exe)).digest("hex");
+try{await access(exe);console.log(JSON.stringify({ok:true,reused:true,sourceHash,outputDir,exe,sha256:await binaryDigest()}));process.exit(0)}catch{}
 
 const version=spawnSync("dotnet",["--version"],{encoding:"utf8",windowsHide:true});
 if(version.status!==0)throw new Error("dotnet SDK is required to build CIEAV native approval host");
@@ -26,4 +27,4 @@ await rm(outputDir,{recursive:true,force:true});await mkdir(outputDir,{recursive
 const built=spawnSync("dotnet",["publish",PROJECT,"--configuration","Release","--runtime","win-x64","--no-self-contained","--output",outputDir,"-p:ContinuousIntegrationBuild=true"],{cwd:ROOT,stdio:"inherit",windowsHide:true});
 if(built.status!==0)throw new Error(`CIEAV native approval host build failed with exit code ${built.status??"unknown"}`);
 await access(exe);
-console.log(JSON.stringify({ok:true,reused:false,sourceHash,outputDir,exe}));
+console.log(JSON.stringify({ok:true,reused:false,sourceHash,outputDir,exe,sha256:await binaryDigest()}));
