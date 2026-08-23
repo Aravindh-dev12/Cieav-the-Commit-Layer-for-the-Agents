@@ -1,180 +1,217 @@
 # CIEAV Trusted Execution Adapters
 
-CIEAV's authorization plane is intentionally separate from downstream execution. An ALLOW decision, Reality-Bound Commit, Operation Mandate, or Execution Ticket does not itself create an external effect. The final effect must cross the in-process `CieavExecutionRouter` into a registered trusted adapter.
+CIEAV's authorization plane is intentionally separate from downstream execution. An ALLOW decision, Reality-Bound Commit, Operation Mandate, or Execution Ticket does not itself create an external effect. Every consequence must cross the in-process `CieavExecutionRouter` into an explicitly configured trusted adapter, and transport completion is not final proof of success.
 
-## Current built-ins
-
-The current runtime contains:
-
-- hardened `HTTP`, `A2A`, and `CLOUD_API` exact-origin transports;
-- a dedicated downstream **MCP stdio** client adapter;
-- a dedicated downstream **MCP Streamable HTTP** client adapter with CIEAV-owned pinned networking;
-- a **Protocol-aware A2A task execution** adapter for A2A 1.0 `SendMessage` / `GetTask` semantics.
-
-Adapters are configured from `<CIEAV_STATE_DIR>/execution-adapters.json`, or from an explicitly configured `CIEAV_EXECUTION_ADAPTERS_FILE` path. If the normal file is absent, no external adapters are registered. If an explicit file is configured and cannot be read or parsed, adapter construction fails closed.
-
-## Preflight-before-authority invariant
-
-Every adapter performs tool-specific preflight before CIEAV consumes one-use execution authority:
+## Authority-to-execution invariant
 
 ```text
 inspect Execution Ticket
         ↓
 select exact trusted adapter
         ↓
-adapter preflight
+adapter preflight (side-effect free)
         ↓
-ONLY THEN
-consume Operation Mandate
+consume Operation Mandate when required
         ↓
-consume Execution Ticket
+consume one-use Execution Ticket
         ↓
-downstream transport attempt
-```
-
-A missing adapter, missing credential, executable mismatch, endpoint mismatch, invalid argument envelope, blocked destination or other deterministic configuration problem therefore does not spend the one-use authority.
-
-Once the consequential downstream request has been sent, uncertainty is handled differently: a timeout, connection loss, protocol error, failed remote task, or ambiguous result is `UNKNOWN` whenever a partial real-world consequence cannot be excluded.
-
-## Hardened HTTP / Cloud API transport
-
-The HTTP family accepts only trusted normalized data:
-
-```json
-{"body": {}, "query": {}}
-```
-
-Agents cannot provide request origins, methods, credentials, proxy configuration, raw headers, redirect targets or arbitrary downstream URLs. Those properties come from the local adapter catalog and must match the `FederatedTool.downstreamRef` exactly.
-
-Internet execution requires HTTPS. Cleartext HTTP is allowed only for explicit loopback adapters. The adapter rejects URL userinfo, private/link-local/multicast destinations, follows no redirects, pins the validated DNS address to the actual connection, caps response bytes and uses bounded timeouts.
-
-Provider credentials are injected inside CIEAV through `BEARER_ENV` or `HEADER_ENV` mappings when the tool declares `CIEAV_INJECTED`. Raw response bodies are not retained: CIEAV keeps bounded status metadata and a SHA-256 body digest.
-
-## Trusted downstream MCP stdio
-
-For local MCP servers, the catalog binds a CIEAV `toolId` to one exact trusted server/tool pair:
-
-```text
-CIEAV tool ID
-    ↓
-serverId
-    ↓
-absolute executable
-    ↓
-expected executable SHA-256
-    ↓
-static trusted argv
-    ↓
-exact downstream MCP tool name
-```
-
-The Execution Fabric's downstream reference must match:
-
-```text
-mcp+stdio:<serverId>#<toolName>
-```
-
-The agent cannot supply an executable, argv, working directory, downstream MCP tool name, or child environment. The stdio adapter requires an absolute executable and verifies its SHA-256 before authority is consumed and again before process launch.
-
-It performs the MCP handshake and `tools/list` before `tools/call`. A successful MCP result is transport acceptance only. `isError`, timeout, disconnect, or ambiguity after `tools/call` becomes `UNKNOWN`.
-
-## Trusted downstream MCP Streamable HTTP
-
-Remote MCP uses the official `StreamableHTTPClientTransport`, but CIEAV supplies its own network primitive instead of allowing the SDK to use the runtime's default fetch.
-
-The Execution Fabric reference is:
-
-```text
-mcp+streamable-http:<serverId>@<endpointDigest>#<toolName>
-```
-
-The CIEAV fetch enforces exact endpoint equality, HTTPS outside loopback, DNS resolution and connection pinning, private-address rejection, no redirects, CIEAV-only credential injection, bounded requests/responses and timeouts, and no automatic SSE reconnection retries inside a trusted consequence attempt.
-
-The remote adapter performs the MCP handshake and `tools/list` before the consequential `tools/call`. `isError` or ambiguity after dispatch becomes `UNKNOWN`.
-
-## Protocol-aware A2A task execution
-
-For A2A 1.0, CIEAV no longer has to treat agent delegation as an opaque HTTP body. A protocol-aware tool uses:
-
-```text
-a2a+jsonrpc:<agentId>@<endpointDigest>
-```
-
-CIEAV constructs the A2A request itself. It forces:
-
-```text
-method = SendMessage
-message.role = ROLE_USER
-message.messageId = Execution Ticket id
-configuration.returnImmediately = true
-```
-
-The ticket-bound caller supplies only bounded message parts, optional context/metadata, accepted output modes, and history length. It cannot switch the consequential RPC method to cancellation, streaming, task administration, or another operation.
-
-If `SendMessage` returns a direct `Message`, CIEAV records transport `ACCEPTED`. If it returns a `Task`, CIEAV observes that task with `GetTask` within a bounded polling budget. `GetTask` is observation and consumes no new consequence authority.
-
-A2A state is not reality proof:
-
-```text
-TASK_STATE_COMPLETED
-        ≠
-real-world consequence PROVEN
-```
-
-`TASK_STATE_COMPLETED` is transport `ACCEPTED` and still requires independent Proof Mesh settlement. Failed, canceled, rejected, input-required, auth-required, still-working, unspecified, timeout, redirect, transport failure, or protocol-error outcomes after `SendMessage` are conservatively `UNKNOWN` because partial consequences cannot be excluded.
-
-See `A2A-EXECUTION.md` for the detailed task-state matrix and network boundary.
-
-## Multiple adapters for one protocol
-
-The execution router stores multiple adapters per protocol and performs deterministic selection before preflight. Transport-specific adapters may declare `supports(context)`; if more than one explicitly claims the same action, dispatch fails with `execution_adapter_ambiguous` instead of selecting by registration order.
-
-This allows:
-
-- MCP stdio + MCP Streamable HTTP under `MCP`;
-- generic hardened A2A HTTP + protocol-aware `a2a+jsonrpc:` execution under `A2A`.
-
-## Credential isolation
-
-Current transport credentials:
-
-- HTTP/Cloud: `NONE` or `CIEAV_INJECTED` via trusted environment mapping;
-- generic A2A HTTP: `NONE` or `CIEAV_INJECTED` via trusted environment mapping;
-- protocol-aware A2A: `NONE` or `CIEAV_INJECTED` via CIEAV-owned A2A headers;
-- MCP stdio: `NONE` or `CIEAV_INJECTED` via child environment bindings;
-- MCP Streamable HTTP: `NONE` or `CIEAV_INJECTED` via CIEAV-owned HTTP header injection.
-
-Secrets are resolved only inside trusted adapters. They are not returned to agents, included in attempt metadata, or copied into Proof Mesh observations.
-
-`DOWNSTREAM_OAUTH`, `MTLS`, and `SIGNED_REQUEST` remain fail closed until dedicated implementations are added.
-
-## Response and proof boundary
-
-Adapters persist only bounded transport metadata and digests. A provider response, MCP result, HTTP 2xx, A2A task state, or process exit is not independently sufficient to complete a CIEAV Agent Task.
-
-```text
-transport accepted
-      ↓
+trusted downstream effect attempt
+        ↓
 Execution Attempt Receipt
-      ↓
-Proof Mesh
-      ↓
+        ↓
+independent Proof Mesh
+        ↓
 PROVEN / DISPROVEN / UNKNOWN
 ```
 
+A deterministic configuration or pre-state failure is rejected before one-use authority is consumed wherever possible. After an effect boundary is crossed, ambiguous outcomes remain `UNKNOWN` unless the adapter can independently reconcile the exact downstream state to a deterministic old/new result.
+
+## Adapter catalog
+
+Adapters are configured from `<CIEAV_STATE_DIR>/execution-adapters.json`, or from the exact path in `CIEAV_EXECUTION_ADAPTERS_FILE`. If the default catalog is absent, no catalog-backed adapter is implied. If an explicit catalog is configured and is missing or invalid, construction fails closed.
+
+The catalog is local authority configuration. Agents cannot alter repository paths, executable paths, network origins, credentials, fixed targets, SQL templates, browser origins, ROS/MQTT endpoints, or other adapter policy at dispatch time.
+
+## Native Git ref consequence adapter
+
+Git is a first-class `GIT` execution protocol. It is not routed through the generic `CLI` adapter.
+
+The current operation is deliberately narrow:
+
+```text
+operation = GIT_ADVANCE_REF
+fixed work tree
++ fixed git directory
++ fixed refs/heads/* ref
++ digest-pinned Git executable
++ exact authorized old object id
++ exact pre-existing candidate commit id
+→ compare-and-swap ref transition
+```
+
+A production catalog entry has this shape:
+
+```json
+{
+  "version": 1,
+  "gitRef": [
+    {
+      "toolId": "release-main-advance",
+      "repository": "/absolute/work/tree",
+      "gitDir": "/absolute/work/tree/.git",
+      "ref": "refs/heads/main",
+      "gitBinary": "/absolute/path/to/git",
+      "gitBinarySha256": "<64 lowercase hex>",
+      "requireFastForward": true,
+      "timeoutMs": 10000,
+      "maxStdoutBytes": 65536,
+      "maxStderrBytes": 65536
+    }
+  ]
+}
+```
+
+The normalized ticket arguments contain only:
+
+```json
+{
+  "expectedOldOid": "<40-or-64-hex object id>",
+  "newCommitOid": "<40-or-64-hex commit id>"
+}
+```
+
+The adapter verifies before the effect boundary:
+
+- the configured Git executable is absolute, a regular file, and still matches its SHA-256 pin;
+- work-tree and Git-directory paths resolve to the exact configured directories;
+- Git itself reports the same work tree and absolute Git directory;
+- the ref is a full `refs/heads/*` reference and passes Git ref-format validation;
+- the repository object format is explicitly `sha1` or `sha256`, and both OIDs have the matching length;
+- the branch currently equals `expectedOldOid` using exact `show-ref --verify` lookup;
+- `newCommitOid` exists in the pinned object database and is a `commit` object;
+- when `requireFastForward=true`, the old commit is an ancestor of the candidate commit.
+
+The sole mutation primitive is equivalent to:
+
+```text
+git update-ref --no-deref <fixed-ref> <newCommitOid> <expectedOldOid>
+```
+
+The old OID is therefore Git's compare-and-swap guard, not an application-side check alone.
+
+### Git process isolation
+
+Repository-controlled Git hooks are not allowed to expand a ref transition into arbitrary code execution. Every execution invocation overrides `core.hooksPath` to a high-entropy nonexistent path. The adapter also disables system/global Git config, terminal prompting, replace-object interpretation, and optional lock behavior, runs without a shell, and performs no fetch/push/network operation.
+
+Both the work-tree and Git-directory realpaths participate in the authority target. Work-tree, Git-directory, executable identity, ref, binary digest, and fast-forward policy participate in the downstream reference. A different repository metadata store is therefore a different authorized consequence target.
+
+### Git ambiguity and reconciliation
+
+A clean zero exit from the compare-and-swap update is transport `ACCEPTED`, still requiring proof.
+
+If the Git process starts but terminates abnormally, CIEAV re-reads the exact branch ref after the child is gone:
+
+- exact `newCommitOid` → transport `ACCEPTED` by reconciliation, still requiring independent proof;
+- exact `expectedOldOid` → deterministic `REJECTED`;
+- any other/unreadable state → `UNKNOWN` and normal semantic-effect quarantine.
+
+This is intentionally stronger than generic CLI semantics because the affected world state is a single exact ref that can be deterministically re-observed.
+
+## Independent exact Git ref proof
+
+Git execution settlement can use `cieav.git-ref-proof.v1`, configured separately through `CIEAV_PROOF_GIT_REF_CATALOG`. The provider has no execution authority and does not import the Git mutation adapter.
+
+Example proof catalog:
+
+```json
+{
+  "version": 1,
+  "gitRefProof": [
+    {
+      "id": "release-main-proof",
+      "repository": "/absolute/work/tree",
+      "gitDir": "/absolute/work/tree/.git",
+      "ref": "refs/heads/main",
+      "gitBinary": "/absolute/path/to/git",
+      "gitBinarySha256": "<64 lowercase hex>",
+      "timeoutMs": 5000,
+      "maxOutputBytes": 65536
+    }
+  ]
+}
+```
+
+Supported deterministic expectations are:
+
+```text
+ref-oid:<exact object id>
+ancestor:<exact object id>
+```
+
+Unknown expectation syntax is non-conclusive. Observation/configuration/transport errors are non-conclusive. The provider returns `authority=false` and `mayMintExecutionAuthority=false` in every path.
+
+The execution target and proof target use the same canonical identity form:
+
+```text
+git-ref:<sha256(canonical-work-tree + canonical-git-dir)>:<encoded-full-ref>
+```
+
+Sharing target identity does not make execution and proof the same authority path: their configurations, classes, runtime registration, and permitted primitives remain separate.
+
+## Other implemented execution surfaces
+
+### HTTP and cloud APIs
+
+HTTP-family adapters bind an exact trusted origin/method/tool policy. Agents cannot provide arbitrary origins, credentials, proxy configuration, raw headers, redirect targets, or downstream URLs. HTTPS is required outside explicit loopback use. CIEAV owns DNS/address policy, credential injection, request/response limits, redirect behavior, and transport ambiguity handling.
+
+### MCP
+
+CIEAV has dedicated MCP stdio and MCP Streamable HTTP adapters. Executable/server identity, tool name, endpoint, credentials, request bounds, and transport behavior come from trusted local configuration. MCP completion is transport evidence, not world-state proof.
+
+### A2A
+
+The protocol-aware A2A adapter constructs bounded A2A task requests and treats remote task completion as transport state only. Real-world success still requires Proof Mesh settlement.
+
+### Browser
+
+The browser adapter supports typed `NAVIGATE`, `CLICK`, and insert-text `TYPE` through the common one-use execution router. The browser host independently verifies consumed-ticket bindings and durable replay state before effects. Browser perception/proof uses a separate read-only capability and does not use arbitrary JavaScript evaluation.
+
+### CLI
+
+The generic CLI adapter executes a digest-pinned absolute executable without a shell. Static argv is trusted configuration; dynamic bounded arguments are delivered as canonical JSON on stdin. Ambiguity after process start is `UNKNOWN`.
+
+### Filesystem
+
+The filesystem adapter supports fixed-target replace/delete with root confinement, symlink rejection, exact pre-state digests, staged fsync/atomic replacement, and `UNKNOWN` after ambiguous post-effect failures.
+
+### Database
+
+The SQLite adapter uses fixed trusted mutation SQL, prepared normalized arguments, transaction/change budgets, rollback semantics, and independent read-only SQLite proof. Agents do not supply SQL text.
+
+### ROS2 and MQTT
+
+ROS2 one-shot/continuing-action and MQTT QoS1 execution paths are implemented with explicit endpoint/executable/runtime bindings. Continuing robotics paths cross Continuing Authority and Reflex checkpoints; transport acknowledgements are not physical-world proof.
+
+## Credential isolation
+
+Adapter credentials are resolved inside CIEAV and are not returned to agents or copied into proof observations. Each adapter accepts only credential modes it explicitly implements. Unsupported modes fail closed.
+
+The Git ref adapter accepts only `credentialMode=NONE` because this local consequence primitive performs no remote network operation.
+
 ## Protocol status
 
-| Protocol | Current adapter status |
-|---|---|
-| HTTP | hardened exact-origin transport implemented |
-| A2A generic | hardened exact-origin transport implemented |
-| A2A 1.0 task execution | protocol-aware `SendMessage` / `GetTask` adapter implemented; cross-platform qualification required before production claim |
-| CLOUD_API | hardened HTTP transport implemented; provider-specific auth modes pending |
-| MCP stdio | dedicated trusted client adapter implemented |
-| MCP Streamable HTTP | dedicated pinned-network client adapter cross-platform green |
-| BROWSER | existing browser control path; Universal Execution Fabric qualification pending |
-| CLI | pending allowlisted process adapter |
-| FILESYSTEM | pending root-bound/symlink-safe filesystem adapter |
-| DATABASE | pending transaction/template-bound database adapter |
+| Protocol | In-repository implementation status | Remaining qualification boundary |
+|---|---|---|
+| HTTP | exact-origin hardened transport | live external endpoint qualification where used |
+| CLOUD_API | hardened HTTP-family transport | provider-specific production credentials/endpoints |
+| MCP | stdio + Streamable HTTP | external server/runtime qualification |
+| A2A | protocol-aware task execution | external agent/runtime qualification |
+| BROWSER | NAVIGATE/CLICK/TYPE with ticket/replay binding | physical Chromium + independent external witness qualification |
+| CLI | digest-pinned no-shell adapter | per-tool executable/environment qualification |
+| **GIT** | fixed-ref CAS advance + exact-ref independent proof | physical cross-platform Git/runtime/repository qualification |
+| FILESYSTEM | fixed-target replace/delete | platform filesystem/atomicity qualification |
+| DATABASE | fixed SQLite mutation + proof | production database/storage qualification |
+| ROS2 | one-shot + continuing action | real ROS2/robot/hardware qualification |
+| MQTT | QoS1 publish | real broker/device consequence qualification |
 
-The remaining rows are intentionally not represented as production-qualified until their concrete execution, proof and recovery semantics are implemented and tested.
+"Implemented" means the deterministic source path, negative tests, and repository-local qualification contract exist. It does **not** mean external production acceptance gates such as signed installers, physical hardware, real remote infrastructure, disaster recovery, or independent security review have passed.

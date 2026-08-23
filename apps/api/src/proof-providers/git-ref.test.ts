@@ -1,0 +1,27 @@
+import {afterEach,describe,expect,it} from "vitest";
+import crypto from "node:crypto";
+import {execFile,execFileSync} from "node:child_process";
+import {realpathSync} from "node:fs";
+import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import {promisify} from "node:util";
+import {GitRefProofProvider} from "./git-ref.js";
+
+const run=promisify(execFile),dirs:string[]=[],normalize=(value:string)=>process.platform==="win32"?value.toLowerCase():value;
+afterEach(async()=>{await Promise.all(dirs.splice(0).map(dir=>rm(dir,{recursive:true,force:true})))});
+function gitBinary(){const raw=process.env.GIT_TEST_BINARY?.trim()||String(process.platform==="win32"?execFileSync("where.exe",["git.exe"],{encoding:"utf8"}).split(/\r?\n/)[0]:execFileSync("which",["git"],{encoding:"utf8"})).trim();return realpathSync(raw)}
+async function digest(file:string){return crypto.createHash("sha256").update(await readFile(file)).digest("hex")}
+const sha256=(value:string)=>crypto.createHash("sha256").update(value).digest("hex");
+async function fixture(){const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-git-ref-proof-"));dirs.push(dir);await run("git",["-C",dir,"init","-q"]);await run("git",["-C",dir,"config","user.email","cieav-test@example.invalid"]);await run("git",["-C",dir,"config","user.name","CIEAV Test"]);await writeFile(path.join(dir,"state.txt"),"one\n");await run("git",["-C",dir,"add","state.txt"]);await run("git",["-C",dir,"commit","-q","-m","one"]);const first=(await run("git",["-C",dir,"rev-parse","HEAD"],{encoding:"utf8"})).stdout.trim();await writeFile(path.join(dir,"state.txt"),"two\n");await run("git",["-C",dir,"add","state.txt"]);await run("git",["-C",dir,"commit","-q","-m","two"]);const head=(await run("git",["-C",dir,"rev-parse","HEAD"],{encoding:"utf8"})).stdout.trim(),ref=(await run("git",["-C",dir,"symbolic-ref","HEAD"],{encoding:"utf8"})).stdout.trim(),gitDir=realpathSync((await run("git",["-C",dir,"rev-parse","--absolute-git-dir"],{encoding:"utf8"})).stdout.trim()),bin=gitBinary(),target={id:"proof-target",repository:dir,gitDir,ref,gitBinary:bin,gitBinarySha256:await digest(bin),timeoutMs:5000,maxOutputBytes:65536},targetRef=`git-ref:${sha256(`${normalize(realpathSync(dir))}\n${normalize(gitDir)}`)}:${encodeURIComponent(ref)}`;return{dir,gitDir,first,head,ref,target,targetRef}}
+function request(provider:GitRefProofProvider,targetRef:string,expectedState:string[]){return{requestId:crypto.randomUUID(),providerId:provider.descriptor.id,operation:"GIT_REF",phase:"POST_STATE",targetRef,expectedState,correlationRefs:[],timeoutMs:5000,authority:false} as const}
+
+describe("GitRefProofProvider",()=>{
+  it("proves the exact configured branch ref without execution authority",async()=>{const f=await fixture(),provider=new GitRefProofProvider([f.target]),result=await provider.observe(request(provider,f.targetRef,[`ref-oid:${f.head}`]));expect(result.proposedOutcome).toBe("SUCCESS");expect(result.conclusive).toBe(true);expect(result.authority).toBe(false);expect(result.mayMintExecutionAuthority).toBe(false);expect(result.observations.some(x=>x.kind==="GIT_REF_OID")).toBe(true)});
+  it("returns deterministic failure when the ref contradicts the expected oid",async()=>{const f=await fixture(),provider=new GitRefProofProvider([f.target]),result=await provider.observe(request(provider,f.targetRef,[`ref-oid:${f.first}`]));expect(result.proposedOutcome).toBe("FAILURE");expect(result.conclusive).toBe(true)});
+  it("proves commit ancestry independently of the execution adapter",async()=>{const f=await fixture(),provider=new GitRefProofProvider([f.target]),result=await provider.observe(request(provider,f.targetRef,[`ancestor:${f.first}`,`ref-oid:${f.head}`]));expect(result.proposedOutcome).toBe("SUCCESS");expect(result.observations.some(x=>x.kind==="GIT_REF_ANCESTRY")).toBe(true)});
+  it("keeps unknown expectation syntax non-conclusive",async()=>{const f=await fixture(),provider=new GitRefProofProvider([f.target]),result=await provider.observe(request(provider,f.targetRef,["semantic:approved"]));expect(result.conclusive).toBe(false);expect(result.proposedOutcome).toBeUndefined()});
+  it("fails closed for an unconfigured target ref",async()=>{const f=await fixture(),provider=new GitRefProofProvider([f.target]),result=await provider.observe(request(provider,"git-ref:untrusted:refs%2Fheads%2Fmain",[`ref-oid:${f.head}`]));expect(result.conclusive).toBe(false);expect(result.error).toContain("target_not_allowed")});
+  it("fails closed if the proof target is rebound to a different git directory",async()=>{const f=await fixture(),other=await mkdtemp(path.join(os.tmpdir(),"cieav-git-ref-proof-other-"));dirs.push(other);await run("git",["-C",other,"init","-q"]);const otherGitDir=realpathSync((await run("git",["-C",other,"rev-parse","--absolute-git-dir"],{encoding:"utf8"})).stdout.trim());const provider=new GitRefProofProvider([{...f.target,gitDir:otherGitDir}]),otherTargetRef=`git-ref:${sha256(`${normalize(realpathSync(f.dir))}\n${normalize(otherGitDir)}`)}:${encodeURIComponent(f.ref)}`,result=await provider.observe(request(provider,otherTargetRef,[`ref-oid:${f.head}`]));expect(result.conclusive).toBe(false);expect(result.error).toBeTruthy()});
+  it("requires a digest-pinned Git executable",async()=>{const f=await fixture();expect(()=>new GitRefProofProvider([{...f.target,gitBinarySha256:"0".repeat(64)}])).toThrow("binary_digest_mismatch")});
+});
