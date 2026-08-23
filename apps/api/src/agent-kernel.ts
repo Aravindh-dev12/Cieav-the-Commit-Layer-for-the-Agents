@@ -15,6 +15,7 @@ import {CieavContinuingAuthorityStore} from "./continuing-authority.js";
 import {CieavReflexLayer} from "./reflex-layer.js";
 import {CieavEdgeRuntime} from "./edge-runtime.js";
 import {CieavEdgeAuthorityIssuer} from "./edge-authority-issuer.js";
+import {CieavEdgeDeviceRegistry} from "./edge-device-registry.js";
 
 type Payload={version:1;tasks:AgentTask[];events:AgentTaskEvent[]};
 type Envelope={payload:Payload;mac:string};
@@ -34,6 +35,7 @@ export class CieavAgentKernelStore{
   readonly executionFabric:CieavExecutionFabricStore;
   readonly continuingAuthority:CieavContinuingAuthorityStore;
   readonly reflexLayer:CieavReflexLayer;
+  readonly edgeDevices:CieavEdgeDeviceRegistry;
   readonly edgeRuntime:CieavEdgeRuntime;
   readonly edgeAuthorityIssuer:CieavEdgeAuthorityIssuer;
   readonly controlPlane:CieavControlPlaneStore;
@@ -48,6 +50,7 @@ export class CieavAgentKernelStore{
     const executionFabricSecret=crypto.createHmac("sha256",stateSecret).update("cieav-execution-fabric-state-v1").digest("base64url");
     const continuingAuthoritySecret=crypto.createHmac("sha256",stateSecret).update("cieav-continuing-authority-state-v1").digest("base64url");
     const reflexLayerSecret=crypto.createHmac("sha256",stateSecret).update("cieav-reflex-layer-state-v1").digest("base64url");
+    const edgeDeviceSecret=crypto.createHmac("sha256",stateSecret).update("cieav-edge-device-registry-v1").digest("base64url");
     const edgeStateSecret=crypto.createHmac("sha256",stateSecret).update("cieav-edge-state-v1").digest("base64url");
     const edgeEnvelopeVerificationSecret=crypto.createHmac("sha256",stateSecret).update("cieav-edge-envelope-verification-v1").digest("base64url");
     const controlPlaneSecret=crypto.createHmac("sha256",stateSecret).update("cieav-control-plane-state-v1").digest("base64url");
@@ -58,7 +61,8 @@ export class CieavAgentKernelStore{
     this.executionFabric=new CieavExecutionFabricStore(path.join(path.dirname(file),"execution-fabric-state.json"),executionFabricSecret,this);
     this.continuingAuthority=new CieavContinuingAuthorityStore(path.join(path.dirname(file),"continuing-authority-state.json"),continuingAuthoritySecret,this.executionFabric);
     this.reflexLayer=new CieavReflexLayer(path.join(path.dirname(file),"reflex-layer-state.json"),reflexLayerSecret,this.continuingAuthority);
-    this.edgeRuntime=new CieavEdgeRuntime(path.join(path.dirname(file),"edge-runtime-state.json"),edgeStateSecret,edgeEnvelopeVerificationSecret);
+    this.edgeDevices=new CieavEdgeDeviceRegistry(path.join(path.dirname(file),"edge-device-registry-state.json"),edgeDeviceSecret);
+    this.edgeRuntime=new CieavEdgeRuntime(path.join(path.dirname(file),"edge-runtime-state.json"),edgeStateSecret,edgeEnvelopeVerificationSecret,this.edgeDevices);
     this.edgeAuthorityIssuer=new CieavEdgeAuthorityIssuer(edgeEnvelopeVerificationSecret,this.executionFabric);
     this.controlPlane=new CieavControlPlaneStore(path.join(path.dirname(file),"control-plane-state.json"),controlPlaneSecret,this,this.executionFabric);
     this.frameworkInterop=new CieavFrameworkInteropStore(path.join(path.dirname(file),"framework-interop-state.json"),frameworkInteropSecret,this);
@@ -102,5 +106,5 @@ export class CieavAgentKernelStore{
   retry(id:string,nextRunAt:string,reason?:string){return this.enqueue(async()=>{await this.load();const current=this.tasks.get(id);if(!current)throw new Error("agent_task_not_found");if(current.effectKey)await this.intentReality.assertRetryAllowed(current.effectKey);const changed=scheduleRetry(current,nextRunAt,new Date().toISOString(),reason),task=this.put(changed.task),event=this.append(changed.event);await this.persist();return{task,event}})}
   recoverOnStartup(){return this.enqueue(async()=>{await this.load();const recovered:AgentTask[]=[];for(const current of [...this.tasks.values()]){const changed=recoverInterruptedTask(current);if(!changed)continue;const task=this.put(changed.task);this.append(changed.event);recovered.push(task)}if(recovered.length)await this.persist();return recovered})}
   openLoops(now=new Date()):Promise<AgentOpenLoop[]>{return this.enqueue(async()=>{await this.load();return[...this.tasks.values()].map(t=>detectAgentOpenLoop(t,now)).filter((x):x is AgentOpenLoop=>Boolean(x))})}
-  async close(){await this.chain;await this.edgeRuntime.close();await this.reflexLayer.close();await this.continuingAuthority.close();await this.intentReality.close();await this.executionFabric.close();await this.controlPlane.close();await this.frameworkInterop.close();await this.credentialAuthority.close();await this.hardwareKeyProviders.close()}
+  async close(){await this.chain;await this.edgeRuntime.close();await this.edgeDevices.close();await this.reflexLayer.close();await this.continuingAuthority.close();await this.intentReality.close();await this.executionFabric.close();await this.controlPlane.close();await this.frameworkInterop.close();await this.credentialAuthority.close();await this.hardwareKeyProviders.close()}
 }
