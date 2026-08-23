@@ -31,6 +31,7 @@ def _ensure_browser_runtime_capabilities() -> None:
         os.environ["CIEAV_BROWSER_COMMIT_TOKEN"]=secrets.token_urlsafe(48)
     os.environ.pop("CIEAV_BROWSER_CONTROL_TOKEN",None)
     os.environ.pop("LATCH_BROWSER_CONTROL_TOKEN",None)
+    os.environ.pop("CIEAV_BROWSER_REPLAY_KEY",None)
 
 
 def _repo_root() -> Path:
@@ -149,6 +150,9 @@ class Settings:
 
     def read_audit_integrity_secret(self) -> str | None:
         return self._read_secret("audit-integrity-key",self.state_dir/"audit-integrity-key")
+
+    def browser_replay_secret(self) -> str:
+        return self._get_or_create_secret("browser-commit-replay-key",self.state_dir/"browser-commit-replay-key")
 
     def token(self) -> str:
         value=self._get_or_create_secret("gateway-token",self.token_file,bytes_count=32)
