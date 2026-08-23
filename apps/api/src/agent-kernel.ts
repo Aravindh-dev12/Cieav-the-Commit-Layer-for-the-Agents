@@ -18,6 +18,7 @@ import {CieavEdgeAuthorityIssuer} from "./edge-authority-issuer.js";
 import {CieavEdgeDeviceRegistry} from "./edge-device-registry.js";
 import {CieavEdgeSafeStateController,loadEdgeSafeStateControllerSync} from "./edge-safe-state.js";
 import {loadTrustedMqttAdaptersSync} from "./trusted-mqtt-adapter.js";
+import {loadTrustedRos2ActionAdaptersSync} from "./trusted-ros2-action-adapter.js";
 
 type Payload={version:1;tasks:AgentTask[];events:AgentTaskEvent[]};
 type Envelope={payload:Payload;mac:string};
@@ -76,6 +77,7 @@ export class CieavAgentKernelStore{
     this.credentialAuthority=new CieavCredentialAuthority(path.join(path.dirname(file),"credential-authority-state.json"),credentialAuthoritySecret,process.env,this.hardwareSigner);
     this.executionRouter=new CieavExecutionRouter(this.executionFabric,[],this.controlPlane,this.credentialAuthority,this.continuingAuthority,this.reflexLayer);
     for(const adapter of loadTrustedMqttAdaptersSync(stateDir,process.env))this.executionRouter.register(adapter);
+    for(const adapter of loadTrustedRos2ActionAdaptersSync(stateDir,process.env))this.executionRouter.register(adapter);
   }
   private mac(payload:Payload){return crypto.createHmac("sha256",this.stateSecret).update(canonical(payload)).digest("base64url")}
   private enqueue<T>(fn:()=>Promise<T>):Promise<T>{const task=this.chain.then(fn,fn);this.chain=task.then(()=>undefined,()=>undefined);return task}
