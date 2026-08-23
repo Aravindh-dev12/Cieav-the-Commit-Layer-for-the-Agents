@@ -1,0 +1,18 @@
+import crypto from "node:crypto";
+import {mkdtemp,readFile,symlink,writeFile} from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import {describe,expect,it} from "vitest";
+import {TrustedFilesystemAdapter,filesystemDownstreamRef,type TrustedFilesystemToolConfig} from "./trusted-filesystem-adapter.js";
+const sha=(v:Buffer|string)=>crypto.createHash("sha256").update(v).digest("hex");
+async function fixture(){const root=await mkdtemp(path.join(os.tmpdir(),"cieav-fs-")),target=path.join(root,"item.txt");await writeFile(target,"before","utf8");return{root,target}}
+function config(root:string,target:string,mode:"WRITE_REPLACE"|"DELETE_FILE"="WRITE_REPLACE"):TrustedFilesystemToolConfig{return{toolId:`fs.${mode.toLowerCase()}`,mode,root,target,maxContentBytes:4096,fileMode:0o600}}
+function context(cfg:TrustedFilesystemToolConfig,args:unknown){return{ticket:{id:"11111111-1111-4111-8111-111111111111"},proposal:{normalizedArgumentsDigest:"a".repeat(64)},tool:{id:cfg.toolId,protocol:"FILESYSTEM",downstreamRef:filesystemDownstreamRef(cfg),credentialMode:"NONE",executionMode:"ONESHOT"},normalizedArguments:args} as any}
+describe("TrustedFilesystemAdapter",()=>{
+  it("atomically replaces only the fixed target after digest revalidation",async()=>{const{root,target}=await fixture(),cfg=config(root,target),adapter=new TrustedFilesystemAdapter([cfg]),result=await adapter.execute(context(cfg,{expectedCurrentSha256:sha("before"),contentBase64:Buffer.from("after").toString("base64")}));expect(result.transport).toBe("ACCEPTED");expect(await readFile(target,"utf8")).toBe("after")});
+  it("rejects stale pre-state without mutating the file",async()=>{const{root,target}=await fixture(),cfg=config(root,target),adapter=new TrustedFilesystemAdapter([cfg]),result=await adapter.execute(context(cfg,{expectedCurrentSha256:sha("different"),contentBase64:Buffer.from("after").toString("base64")}));expect(result.transport).toBe("REJECTED");expect(await readFile(target,"utf8")).toBe("before")});
+  it("supports explicit ABSENT pre-state for fixed-target creation",async()=>{const root=await mkdtemp(path.join(os.tmpdir(),"cieav-fs-")),target=path.join(root,"new.txt"),cfg=config(root,target),adapter=new TrustedFilesystemAdapter([cfg]),result=await adapter.execute(context(cfg,{expectedCurrentSha256:"ABSENT",contentBase64:Buffer.from("created").toString("base64")}));expect(result.transport).toBe("ACCEPTED");expect(await readFile(target,"utf8")).toBe("created")});
+  it("deletes only the fixed target with exact current digest",async()=>{const{root,target}=await fixture(),cfg=config(root,target,"DELETE_FILE"),adapter=new TrustedFilesystemAdapter([cfg]),result=await adapter.execute(context(cfg,{expectedCurrentSha256:sha("before")}));expect(result.transport).toBe("ACCEPTED");await expect(readFile(target)).rejects.toMatchObject({code:"ENOENT"})});
+  it("rejects symlink targets at trusted configuration load",async()=>{const{root,target}=await fixture(),link=path.join(root,"link.txt");await symlink(target,link);expect(()=>new TrustedFilesystemAdapter([config(root,link)])).toThrow("execution_filesystem_symlink_target_forbidden")});
+  it("refuses continuing filesystem operations without checkpoint/cancellation semantics",async()=>{const{root,target}=await fixture(),cfg=config(root,target),adapter=new TrustedFilesystemAdapter([cfg]),ctx=context(cfg,{expectedCurrentSha256:sha("before"),contentBase64:""});ctx.tool.executionMode="CONTINUING";expect(()=>adapter.preflight(ctx)).toThrow("execution_filesystem_continuing_not_supported")});
+});
