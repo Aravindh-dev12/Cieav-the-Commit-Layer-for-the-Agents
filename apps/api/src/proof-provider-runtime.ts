@@ -6,6 +6,7 @@ import {HttpProofProvider} from "./proof-providers/http.js";
 import {GitProofProvider} from "./proof-providers/git.js";
 import {GitRefProofProvider} from "./proof-providers/git-ref.js";
 import {GitRemoteRefProofProvider} from "./proof-providers/git-remote-ref.js";
+import {KubernetesDeploymentProofProvider} from "./proof-providers/kubernetes-deployment.js";
 import {SqliteProofProvider} from "./proof-providers/sqlite.js";
 import {Ros2ProofProvider} from "./proof-providers/ros2.js";
 import {BrowserProofProvider} from "./proof-providers/browser.js";
@@ -16,6 +17,7 @@ export type LocalProofProviderConfig={
   gitRepositories?:string[];
   gitRefCatalogFile?:string;
   gitRemoteRefCatalogFile?:string;
+  kubernetesDeploymentCatalogFile?:string;
   sqliteCatalogFile?:string;
   ros2CatalogFile?:string;
   browserCatalogFile?:string;
@@ -35,6 +37,8 @@ export class CieavLocalProofProviderRuntime{
     if(gitRefCatalog){const provider=GitRefProofProvider.fromCatalogFile(path.resolve(gitRefCatalog));if(provider)this.registry.register(provider)}
     const gitRemoteRefCatalog=String(config.gitRemoteRefCatalogFile??process.env.CIEAV_PROOF_GIT_REMOTE_REF_CATALOG??"").trim();
     if(gitRemoteRefCatalog){const provider=GitRemoteRefProofProvider.fromCatalogFile(path.resolve(gitRemoteRefCatalog));if(provider)this.registry.register(provider)}
+    const kubernetesDeploymentCatalog=String(config.kubernetesDeploymentCatalogFile??process.env.CIEAV_PROOF_KUBERNETES_DEPLOYMENT_CATALOG??"").trim();
+    if(kubernetesDeploymentCatalog){const provider=KubernetesDeploymentProofProvider.fromCatalogFile(path.resolve(kubernetesDeploymentCatalog));if(provider)this.registry.register(provider)}
     const sqliteCatalog=String(config.sqliteCatalogFile??process.env.CIEAV_PROOF_SQLITE_CATALOG??"").trim();
     if(sqliteCatalog){const provider=SqliteProofProvider.fromCatalogFile(path.resolve(sqliteCatalog));if(provider)this.registry.register(provider)}
     const ros2Catalog=String(config.ros2CatalogFile??process.env.CIEAV_PROOF_ROS2_CATALOG??"").trim();
