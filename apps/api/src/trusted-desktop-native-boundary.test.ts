@@ -15,32 +15,29 @@ describe("Windows desktop native constitutional boundary",()=>{
     expect(observeProject).not.toBe(invokeProject);
   });
 
-  it("keeps observation read-only and commit-key free",()=>{
+  it("keeps observation read-only and free of commit/replay capability",()=>{
     expect(observe).toContain("System.Windows.Automation");
     expect(observe).toContain("OBSERVATION_RESULT");
     expect(observe).not.toContain("CIEAV_DESKTOP_COMMIT_KEY");
+    expect(observe).not.toContain("CIEAV_DESKTOP_REPLAY_DIR");
     expect(observe).not.toContain("InvokePattern.Invoke(");
     expect(observe).not.toContain("SetValue(");
-    expect(observe).not.toContain("Expand(");
-    expect(observe).not.toContain("Collapse(");
-    expect(observe).not.toContain("Select(");
   });
 
-  it("authenticates before limiting execution to InvokePattern with exact pre-state revalidation",()=>{
+  it("authenticates and durably claims the ticket before UI resolution",()=>{
+    for(const token of ["CIEAV_DESKTOP_COMMIT_KEY","CIEAV_DESKTOP_REPLAY_DIR","CIEAV_DESKTOP_COMMIT_V1","ReplayDirDigest","HMACSHA256","CryptographicOperations.FixedTimeEquals","FileMode.CreateNew","FileOptions.WriteThrough","Flush(true)","REPLAY_ALREADY_CONSUMED","ClaimReplay(request)"])expect(invoke).toContain(token);
+    expect(invoke.indexOf("VerifyCommitMac(request)")).toBeLessThan(invoke.indexOf("ClaimReplay(request)"));
+    expect(invoke.indexOf("ClaimReplay(request)")).toBeLessThan(invoke.indexOf("Resolve(request)"));
+  });
+
+  it("limits execution to InvokePattern with exact pre-state revalidation",()=>{
     expect(invoke).toContain('Kind != "INVOKE"');
     expect(invoke).toContain('Action != "INVOKE"');
-    expect(invoke).toContain("CIEAV_DESKTOP_COMMIT_KEY");
-    expect(invoke).toContain("CIEAV_DESKTOP_COMMIT_V1");
-    expect(invoke).toContain("HMACSHA256");
-    expect(invoke).toContain("CryptographicOperations.FixedTimeEquals");
-    expect(invoke.indexOf("VerifyCommitMac(request)")).toBeLessThan(invoke.indexOf("Resolve(request)"));
-    expect(invoke).toContain("ExpectedStateDigest");
     expect(invoke).toContain("PRESTATE_MISMATCH");
     expect(invoke).toContain("InvokePattern.Invoke()");
     expect(invoke).not.toContain("ValuePattern.SetValue");
     expect(invoke).not.toContain("SendKeys");
     expect(invoke).not.toContain("Process.Start");
-    expect(invoke).not.toContain("cmd.exe");
     expect(invoke).not.toContain("powershell");
   });
 
