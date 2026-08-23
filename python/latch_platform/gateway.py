@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
@@ -57,6 +58,7 @@ def _canonical(value) -> str:
 
 def _digest(value) -> str: return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
 def _sha_text(value: str) -> str: return hashlib.sha256(value.encode("utf-8")).hexdigest()
+def _hmac_b64url(key: str, value: str) -> str: return base64.urlsafe_b64encode(hmac.new(key.encode("utf-8"),value.encode("utf-8"),hashlib.sha256).digest()).decode("ascii").rstrip("=")
 def _exact_keys(value: dict, expected: set[str], label: str) -> None:
     if not isinstance(value,dict) or set(value)!=expected: raise ValueError(f"{label}_fields_invalid")
 def _iso_timestamp(value) -> float:
@@ -106,6 +108,9 @@ class Gateway:
         self.browser_commit_token=os.environ.get("CIEAV_BROWSER_COMMIT_TOKEN","").strip()
         if len(self.browser_commit_token)<43 or secrets.compare_digest(self.browser_commit_token,self.token) or secrets.compare_digest(self.browser_commit_token,self.semantic_router_token):
             raise RuntimeError("Failed to establish a distinct browser commit capability")
+        receipt_root=settings.receipt_signing_secret()
+        kernel_verifier=_hmac_b64url(receipt_root,"cieav-agent-kernel-state-v1")
+        self.execution_fabric_verification_secret=_hmac_b64url(kernel_verifier,"cieav-execution-fabric-state-v1")
         hf_cfg = HFConfig.load()
         if not hf_cfg.token:
             hf_cfg = HFConfig(token=settings.read_hf_token(), model=hf_cfg.model, provider=hf_cfg.provider, endpoint_url=hf_cfg.endpoint_url, timeout_seconds=hf_cfg.timeout_seconds)
@@ -261,12 +266,17 @@ class Gateway:
         route_digest=_digest({"toolId":str(envelope.get("toolId")),"protocol":"BROWSER","operation":operation,"target":target,"normalizedArgumentsDigest":arguments_digest})
         if not secrets.compare_digest(str(envelope.get("routeDigest") or ""),route_digest): raise ValueError("browser_commit_route_digest_mismatch")
         if _iso_timestamp(envelope.get("ticketExpiresAt"))<=time.time(): raise ValueError("browser_commit_ticket_expired")
+        state_file=self.s.state_dir/"execution-fabric-state.json"
         try:
-            tickets_payload=_request_json(f"http://127.0.0.1:{self.s.api_port}/v1/agent-kernel/execution-fabric/tickets",timeout=2.0,token=self.token)
-            audit_payload=_request_json(f"http://127.0.0.1:{self.s.api_port}/v1/agent-kernel/execution-fabric/audit",timeout=2.0,token=self.token)
+            state=json.loads(state_file.read_text("utf-8"))
+            payload=state.get("payload") if isinstance(state,dict) else None;mac=state.get("mac") if isinstance(state,dict) else None
+            if not isinstance(payload,dict) or payload.get("version")!=1 or not isinstance(mac,str): raise RuntimeError("browser_commit_verifier_state_invalid")
+            expected_state_mac=_hmac_b64url(self.execution_fabric_verification_secret,_canonical(payload))
+            if not secrets.compare_digest(mac,expected_state_mac): raise RuntimeError("browser_commit_verifier_state_integrity_failed")
+            tickets=payload.get("tickets") if isinstance(payload.get("tickets"),list) else []
+            audit=payload.get("audit") if isinstance(payload.get("audit"),list) else []
+        except RuntimeError: raise
         except Exception as exc: raise RuntimeError("browser_commit_verifier_unavailable") from exc
-        tickets=tickets_payload.get("tickets") if isinstance(tickets_payload.get("tickets"),list) else []
-        audit=audit_payload.get("audit") if isinstance(audit_payload.get("audit"),list) else []
         ticket=next((row for row in tickets if isinstance(row,dict) and row.get("id")==envelope.get("ticketId")),None)
         if not ticket: raise ValueError("browser_commit_authority_ticket_not_found")
         if ticket.get("status")!="CONSUMED" or not ticket.get("consumedAt"): raise ValueError("browser_commit_authority_ticket_not_consumed")
