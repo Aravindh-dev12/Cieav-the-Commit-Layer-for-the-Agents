@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
 import {observeBrowserPageFromSessions} from "../apps/browser/browser-observation.mjs";
+import {commitBrowserActionFromSessions} from "../apps/browser/browser-commit.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const read=p=>readFileSync(path.join(ROOT,p),"utf8");
@@ -30,4 +31,13 @@ const observed=await observeBrowserPageFromSessions([session],{origin:"https://e
 if(observed.authority!==false||observed.mayMintExecutionAuthority!==false||observed.frameCount!==1||!/^[0-9a-f]{64}$/.test(observed.documentSha256))throw new Error("browser observation dynamic contract failed");
 if(commands.map(x=>x.method).join(",")!=="Page.getFrameTree,DOM.getDocument,DOM.getOuterHTML")throw new Error(`browser observation issued unexpected CDP commands: ${commands.map(x=>x.method).join(",")}`);
 let ambiguous=false;try{await observeBrowserPageFromSessions([session,session],{origin:"https://example.test",url:"https://example.test/order/1",maxDocumentBytes:4096})}catch(error){ambiguous=String(error?.message??error).includes("target_ambiguous")}if(!ambiguous)throw new Error("browser observation did not fail closed on ambiguous page selection");
-console.log("CIEAV proof-provider/runtime gate PASS - proof remains DOM-only and authority=false; browser execution uses a distinct ticket-router commit capability; surface control remains Gateway-owned; scoped capabilities are stripped from Chromium; UNKNOWN is preserved after ambiguous effects");
+
+function commitSession({failAt}={}){const calls=[];return{calls,session:{closed:false,pipe:{closed:false},send:async(method,params)=>{calls.push({method,params});if(method===failAt)throw new Error("simulated_transport_failure");if(method==="Page.getFrameTree")return{frameTree:{frame:{id:"f1",url:"https://example.test/order/1"}}};if(method==="DOM.getDocument")return{root:{nodeId:1,nodeName:"#document"}};if(method==="DOM.querySelector")return{nodeId:9};if(method==="DOM.getBoxModel")return{model:{content:[0,0,20,0,20,10,0,10]}};return{}}}}}
+const clickFixture=commitSession(),click=await commitBrowserActionFromSessions([clickFixture.session],{operation:"CLICK",pageUrl:"https://example.test/order/1",selector:"#submit"});
+if(click.authority!==false||click.operation!=="CLICK"||clickFixture.calls.map(x=>x.method).join(",")!=="Page.getFrameTree,DOM.getDocument,DOM.querySelector,DOM.getBoxModel,Input.dispatchMouseEvent,Input.dispatchMouseEvent")throw new Error("browser CLICK command sequence contract failed");
+const typeFixture=commitSession(),typed=await commitBrowserActionFromSessions([typeFixture.session],{operation:"TYPE",pageUrl:"https://example.test/order/1",selector:"#email",text:"secret-value"});
+if(typed.authority!==false||typed.operation!=="TYPE"||typed.textBytes!==12||JSON.stringify(typed).includes("secret-value")||typeFixture.calls.map(x=>x.method).join(",")!=="Page.getFrameTree,DOM.getDocument,DOM.querySelector,DOM.focus,Input.insertText")throw new Error("browser TYPE command sequence/non-disclosure contract failed");
+let postEffectUnknown=false;const failureFixture=commitSession({failAt:"Input.dispatchMouseEvent"});try{await commitBrowserActionFromSessions([failureFixture.session],{operation:"CLICK",pageUrl:"https://example.test/order/1",selector:"#submit"})}catch(error){postEffectUnknown=String(error?.message??error).startsWith("browser_commit_effect_unknown:")}if(!postEffectUnknown)throw new Error("browser CLICK post-effect transport failure did not preserve UNKNOWN boundary");
+let preEffectRejected=false;const preFailure=commitSession({failAt:"DOM.querySelector"});try{await commitBrowserActionFromSessions([preFailure.session],{operation:"CLICK",pageUrl:"https://example.test/order/1",selector:"#submit"})}catch(error){preEffectRejected=!String(error?.message??error).includes("effect_unknown")}if(!preEffectRejected)throw new Error("browser pre-effect lookup failure was incorrectly marked post-effect UNKNOWN");
+
+console.log("CIEAV proof-provider/runtime gate PASS - proof remains DOM-only and authority=false; NAVIGATE/CLICK/TYPE use a distinct ticket-router commit capability; typed text is not returned in evidence metadata; surface control remains Gateway-owned; scoped capabilities are stripped from Chromium; UNKNOWN is preserved only after ambiguous effects");
