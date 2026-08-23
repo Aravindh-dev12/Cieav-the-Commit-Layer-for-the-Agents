@@ -15,9 +15,10 @@ describe("Windows desktop native constitutional boundary",()=>{
     expect(observeProject).not.toBe(invokeProject);
   });
 
-  it("keeps observation read-only",()=>{
+  it("keeps observation read-only and commit-key free",()=>{
     expect(observe).toContain("System.Windows.Automation");
     expect(observe).toContain("OBSERVATION_RESULT");
+    expect(observe).not.toContain("CIEAV_DESKTOP_COMMIT_KEY");
     expect(observe).not.toContain("InvokePattern.Invoke(");
     expect(observe).not.toContain("SetValue(");
     expect(observe).not.toContain("Expand(");
@@ -25,9 +26,14 @@ describe("Windows desktop native constitutional boundary",()=>{
     expect(observe).not.toContain("Select(");
   });
 
-  it("limits execution to InvokePattern with exact pre-state revalidation",()=>{
+  it("authenticates before limiting execution to InvokePattern with exact pre-state revalidation",()=>{
     expect(invoke).toContain('Kind != "INVOKE"');
     expect(invoke).toContain('Action != "INVOKE"');
+    expect(invoke).toContain("CIEAV_DESKTOP_COMMIT_KEY");
+    expect(invoke).toContain("CIEAV_DESKTOP_COMMIT_V1");
+    expect(invoke).toContain("HMACSHA256");
+    expect(invoke).toContain("CryptographicOperations.FixedTimeEquals");
+    expect(invoke.indexOf("VerifyCommitMac(request)")).toBeLessThan(invoke.indexOf("Resolve(request)"));
     expect(invoke).toContain("ExpectedStateDigest");
     expect(invoke).toContain("PRESTATE_MISMATCH");
     expect(invoke).toContain("InvokePattern.Invoke()");
