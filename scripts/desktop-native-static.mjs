@@ -37,7 +37,7 @@ for(const s of surfaces){
 }
 
 const macInvoke=await read("native/macos/cieav-desktop-invoke/main.swift");must(macInvoke,"Set(raw.keys) == invokeEnvelopeKeys","macOS exact envelope");
-const linuxBuild=await read("scripts/build-linux-desktop-helpers.mjs");for(const token of ["atspi-2","json-glib-1.0","-fstack-protector-strong","-Wl,-z,relro,-z,now"])must(linuxBuild,token,"linux build hardening");
+const linuxBuild=await read("scripts/build-linux-desktop-helpers.mjs");for(const token of ["atspi-2","json-glib-1.0","-D_GNU_SOURCE","-fstack-protector-strong","-Wl,-z,relro,-z,now"])must(linuxBuild,token,"linux build hardening");
 const windowsBuild=await read("scripts/build-windows-desktop-helpers.mjs");for(const token of ["dotnet","publish","--runtime","win-x64","-p:ContinuousIntegrationBuild=true"])must(windowsBuild,token,"windows build reproducibility");
 const macBuild=await read("scripts/build-macos-desktop-helpers.mjs");for(const token of ["xcrun","swiftc","-whole-module-optimization","ApplicationServices","CryptoKit"])must(macBuild,token,"macOS build reproducibility");
 console.log(JSON.stringify({ok:true,gate:"desktop-native-static",platforms:surfaces.map(s=>s.name),durableReplay:true,pinDriftDetection:true,strictEnvelopes:true}));
