@@ -11,6 +11,7 @@ import {CieavCredentialAuthority} from "./credential-authority.js";
 import {CieavHardwareKeyProviderRegistry} from "./hardware-key-provider.js";
 import {CieavHardwareSigner} from "./hardware-signer.js";
 import {CieavExecutionRouter} from "./execution-router.js";
+import {CieavContinuingAuthorityStore} from "./continuing-authority.js";
 
 type Payload={version:1;tasks:AgentTask[];events:AgentTaskEvent[]};
 type Envelope={payload:Payload;mac:string};
@@ -28,6 +29,7 @@ export class CieavAgentKernelStore{
   private loaded=false;private tasks=new Map<string,AgentTask>();private events:AgentTaskEvent[]=[];private chain:Promise<void>=Promise.resolve();
   readonly intentReality:CieavIntentRealityEngine;
   readonly executionFabric:CieavExecutionFabricStore;
+  readonly continuingAuthority:CieavContinuingAuthorityStore;
   readonly controlPlane:CieavControlPlaneStore;
   readonly frameworkInterop:CieavFrameworkInteropStore;
   readonly credentialAuthority:CieavCredentialAuthority;
@@ -38,12 +40,14 @@ export class CieavAgentKernelStore{
     if(stateSecret.length<32)throw new Error("CIEAV agent-kernel state secret is too weak");
     const intentRealitySecret=crypto.createHmac("sha256",stateSecret).update("cieav-intent-reality-state-v1").digest("base64url");
     const executionFabricSecret=crypto.createHmac("sha256",stateSecret).update("cieav-execution-fabric-state-v1").digest("base64url");
+    const continuingAuthoritySecret=crypto.createHmac("sha256",stateSecret).update("cieav-continuing-authority-state-v1").digest("base64url");
     const controlPlaneSecret=crypto.createHmac("sha256",stateSecret).update("cieav-control-plane-state-v1").digest("base64url");
     const frameworkInteropSecret=crypto.createHmac("sha256",stateSecret).update("cieav-framework-interop-state-v1").digest("base64url");
     const credentialAuthoritySecret=crypto.createHmac("sha256",stateSecret).update("cieav-credential-authority-state-v1").digest("base64url");
     const hardwareProviderSecret=crypto.createHmac("sha256",stateSecret).update("cieav-hardware-key-provider-state-v1").digest("base64url");
     this.intentReality=new CieavIntentRealityEngine(path.join(path.dirname(file),"intent-reality-state.json"),intentRealitySecret);
     this.executionFabric=new CieavExecutionFabricStore(path.join(path.dirname(file),"execution-fabric-state.json"),executionFabricSecret,this);
+    this.continuingAuthority=new CieavContinuingAuthorityStore(path.join(path.dirname(file),"continuing-authority-state.json"),continuingAuthoritySecret,this.executionFabric);
     this.controlPlane=new CieavControlPlaneStore(path.join(path.dirname(file),"control-plane-state.json"),controlPlaneSecret,this,this.executionFabric);
     this.frameworkInterop=new CieavFrameworkInteropStore(path.join(path.dirname(file),"framework-interop-state.json"),frameworkInteropSecret,this);
     this.hardwareKeyProviders=new CieavHardwareKeyProviderRegistry(path.join(path.dirname(file),"hardware-key-providers.json"),hardwareProviderSecret);
@@ -86,5 +90,5 @@ export class CieavAgentKernelStore{
   retry(id:string,nextRunAt:string,reason?:string){return this.enqueue(async()=>{await this.load();const current=this.tasks.get(id);if(!current)throw new Error("agent_task_not_found");if(current.effectKey)await this.intentReality.assertRetryAllowed(current.effectKey);const changed=scheduleRetry(current,nextRunAt,new Date().toISOString(),reason),task=this.put(changed.task),event=this.append(changed.event);await this.persist();return{task,event}})}
   recoverOnStartup(){return this.enqueue(async()=>{await this.load();const recovered:AgentTask[]=[];for(const current of [...this.tasks.values()]){const changed=recoverInterruptedTask(current);if(!changed)continue;const task=this.put(changed.task);this.append(changed.event);recovered.push(task)}if(recovered.length)await this.persist();return recovered})}
   openLoops(now=new Date()):Promise<AgentOpenLoop[]>{return this.enqueue(async()=>{await this.load();return[...this.tasks.values()].map(t=>detectAgentOpenLoop(t,now)).filter((x):x is AgentOpenLoop=>Boolean(x))})}
-  async close(){await this.chain;await this.intentReality.close();await this.executionFabric.close();await this.controlPlane.close();await this.frameworkInterop.close();await this.credentialAuthority.close();await this.hardwareKeyProviders.close()}
+  async close(){await this.chain;await this.continuingAuthority.close();await this.intentReality.close();await this.executionFabric.close();await this.controlPlane.close();await this.frameworkInterop.close();await this.credentialAuthority.close();await this.hardwareKeyProviders.close()}
 }
