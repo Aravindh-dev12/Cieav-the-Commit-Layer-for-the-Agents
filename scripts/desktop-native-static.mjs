@@ -9,7 +9,7 @@ const must=(source,token,label)=>{if(!source.includes(token))throw new Error(`${
 const mustNot=(source,token,label)=>{if(source.includes(token))throw new Error(`${label}: forbidden ${token}`)};
 
 const adapter=await read("apps/api/src/trusted-desktop-adapter.ts");
-for(const token of ["CIEAV_DESKTOP_COMMIT_V1","CIEAV_DESKTOP_COMMIT_KEY","CIEAV_DESKTOP_REPLAY_DIR","createHmac(\"sha256\"","commitKeyEnv:EnvName","replayDir:z.string","replayDirDigest:sha256(h.replayDir)","runHelper(h.observe,observeEnvelope(c),c)","runHelper(h.exec,envelope,c,key,h.replayDir)"])must(adapter,token,"desktop adapter");
+for(const token of ["CIEAV_DESKTOP_COMMIT_V1","CIEAV_DESKTOP_COMMIT_KEY","CIEAV_DESKTOP_REPLAY_DIR","createHmac(\"sha256\"","commitKeyEnv:EnvName","replayDir:z.string","replayDirDigest:sha256(h.replayDir)","pinStillMatches(file,expectedDigest)","if(run.pinDrift)return","runHelper(h.observe,c.preflightHelper.sha256,observeEnvelope(c),c)","runHelper(h.exec,c.executionHelper.sha256,envelope,c,key,h.replayDir)"])must(adapter,token,"desktop adapter");
 mustNot(adapter,"shell:true","desktop adapter");
 
 const surfaces=[
@@ -36,7 +36,8 @@ for(const s of surfaces){
   must(build,"sha256",`${s.name} build recipe`);
 }
 
+const macInvoke=await read("native/macos/cieav-desktop-invoke/main.swift");must(macInvoke,"Set(raw.keys) == invokeEnvelopeKeys","macOS exact envelope");
 const linuxBuild=await read("scripts/build-linux-desktop-helpers.mjs");for(const token of ["atspi-2","json-glib-1.0","-fstack-protector-strong","-Wl,-z,relro,-z,now"])must(linuxBuild,token,"linux build hardening");
 const windowsBuild=await read("scripts/build-windows-desktop-helpers.mjs");for(const token of ["dotnet","publish","--runtime","win-x64","-p:ContinuousIntegrationBuild=true"])must(windowsBuild,token,"windows build reproducibility");
 const macBuild=await read("scripts/build-macos-desktop-helpers.mjs");for(const token of ["xcrun","swiftc","-whole-module-optimization","ApplicationServices","CryptoKit"])must(macBuild,token,"macOS build reproducibility");
-console.log(JSON.stringify({ok:true,gate:"desktop-native-static",platforms:surfaces.map(s=>s.name),durableReplay:true}));
+console.log(JSON.stringify({ok:true,gate:"desktop-native-static",platforms:surfaces.map(s=>s.name),durableReplay:true,pinDriftDetection:true,strictEnvelopes:true}));
