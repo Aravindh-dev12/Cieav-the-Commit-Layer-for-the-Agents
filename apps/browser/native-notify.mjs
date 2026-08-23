@@ -14,8 +14,14 @@ const minimalEnv=extra=>{
 };
 const detached=child=>{child.on("error",()=>{});child.unref?.();return true};
 const sha256=value=>crypto.createHash("sha256").update(value).digest("hex");
-function verifiedApprovalHelper(){
+function helperConfig(){
   const configured=String(process.env.CIEAV_NATIVE_APPROVAL_HELPER??"").trim(),expected=String(process.env.CIEAV_NATIVE_APPROVAL_HELPER_SHA256??"").trim().toLowerCase();
+  if(configured||expected)return{helper:configured,sha256:expected,platform:process.platform};
+  const stateDir=String(process.env.CIEAV_STATE_DIR??process.env.LATCH_STATE_DIR??"").trim();if(!stateDir)return null;
+  try{const file=path.join(stateDir,"native","native-approval.json"),value=JSON.parse(readFileSync(file,"utf8"));if(value?.version!=="CIEAV_NATIVE_APPROVAL_HELPER_CONFIG_V1"||value?.platform!==process.platform)return null;return{helper:String(value.helper??""),sha256:String(value.sha256??"").toLowerCase(),platform:value.platform}}catch{return null}
+}
+function verifiedApprovalHelper(){
+  const config=helperConfig();if(!config)return null;const configured=config.helper,expected=config.sha256;
   if(!configured||!/^[a-f0-9]{64}$/.test(expected)||!path.isAbsolute(configured))return null;
   try{const helper=realpathSync(configured),stat=statSync(helper);if(!stat.isFile())return null;const actual=sha256(readFileSync(helper));return actual===expected?helper:null}catch{return null}
 }
