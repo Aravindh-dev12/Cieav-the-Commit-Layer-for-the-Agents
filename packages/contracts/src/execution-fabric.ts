@@ -20,7 +20,7 @@ export const FederatedToolSchema=z.object({
   id:z.string().min(1).max(240),displayName:z.string().min(1).max(240),protocol:ToolProtocolSchema,operation:z.string().min(1).max(240),
   downstreamRef:z.string().min(1).max(2000),credentialMode:CredentialModeSchema,risk:RiskSchema,
   consequenceCapable:z.boolean().default(true),proofSources:z.array(z.string().min(1).max(240)).max(30).default([]),enabled:z.boolean().default(true),
-  executionMode:ToolExecutionModeSchema.default("ONESHOT"),requiredReflexPolicyId:z.string().min(1).max(240).optional()
+  executionMode:ToolExecutionModeSchema.optional(),requiredReflexPolicyId:z.string().min(1).max(240).optional()
 }).strict();
 export type FederatedTool=z.infer<typeof FederatedToolSchema>;
 
