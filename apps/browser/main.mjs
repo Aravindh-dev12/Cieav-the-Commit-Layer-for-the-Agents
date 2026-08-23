@@ -23,7 +23,7 @@ let CONTROL_TOKEN=env("CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN
 if(CONTROL_TOKEN.length<43){CONTROL_TOKEN=crypto.randomBytes(48).toString("base64url");process.env.CIEAV_BROWSER_CONTROL_TOKEN=CONTROL_TOKEN}
 let OBSERVATION_TOKEN=String(process.env.CIEAV_BROWSER_OBSERVATION_TOKEN??"");
 if(OBSERVATION_TOKEN.length<43){OBSERVATION_TOKEN=crypto.randomBytes(48).toString("base64url");process.env.CIEAV_BROWSER_OBSERVATION_TOKEN=OBSERVATION_TOKEN}
-if(safeTokenCollision(CONTROL_TOKEN,OBSERVATION_TOKEN))throw new Error("Browser observation capability must be distinct from control capability");
+if(CONTROL_TOKEN===OBSERVATION_TOKEN)throw new Error("Browser observation capability must be distinct from control capability");
 
 // Startup verifies release/security markers in the modules that now own each responsibility.
 const CORE_INVARIANTS=[
