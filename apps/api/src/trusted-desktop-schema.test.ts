@@ -12,21 +12,28 @@ describe("desktop UI execution schemas",()=>{
       {expectedStateDigest:digest,controlId:"other"},
       {expectedStateDigest:digest,action:"INVOKE"},
       {expectedStateDigest:digest,helper:"/tmp/evil"},
+      {expectedStateDigest:digest,replayDir:"/tmp/evil"},
       {expectedStateDigest:digest,payload:{arbitrary:true}}
     ])expect(()=>DesktopUiInvokeArgsSchema.parse(extra)).toThrow();
     expect(()=>DesktopUiInvokeArgsSchema.parse({expectedStateDigest:"A".repeat(64)})).toThrow();
   });
   it("binds platform, app, window, control, and action into target identity",()=>{
-    const base={platform:"linux" as const,appId:"org.example.App",windowId:"main",controlId:"save",action:"INVOKE" as const};
+    const base={platform:"linux" as const,appId:"/usr/bin/example",windowId:"main",controlId:"save",action:"INVOKE" as const};
     const target=desktopUiTarget(base);
-    expect(desktopUiTarget({...base,appId:"org.example.Other"})).not.toBe(target);
+    expect(desktopUiTarget({...base,appId:"/usr/bin/other"})).not.toBe(target);
     expect(desktopUiTarget({...base,windowId:"secondary"})).not.toBe(target);
     expect(desktopUiTarget({...base,controlId:"cancel"})).not.toBe(target);
     expect(desktopUiTarget({...base,platform:"win32"})).not.toBe(target);
   });
-  it("requires strict pinned helper configuration",()=>{
+  it("requires strict pinned helper, commit-key and replay configuration",()=>{
     const helper={path:"/absolute/helper",sha256:digest};
-    expect(TrustedDesktopToolConfigSchema.parse({toolId:"desktop-save",platform:"linux",appId:"org.example.App",windowId:"main",controlId:"save",action:"INVOKE",executionHelper:helper,preflightHelper:{...helper,path:"/absolute/observer",sha256:"b".repeat(64)}}).action).toBe("INVOKE");
-    expect(()=>TrustedDesktopToolConfigSchema.parse({toolId:"desktop-save",platform:"linux",appId:"org.example.App",windowId:"main",controlId:"save",action:"TYPE",executionHelper:helper,preflightHelper:helper})).toThrow();
+    const config={toolId:"desktop-save",platform:"linux" as const,appId:"/usr/bin/example",windowId:"main",controlId:"save",action:"INVOKE" as const,executionHelper:helper,preflightHelper:{...helper,path:"/absolute/observer",sha256:"b".repeat(64)},commitKeyEnv:"CIEAV_DESKTOP_SAVE_COMMIT_KEY",replayDir:"/var/lib/cieav/desktop-replay"};
+    const parsed=TrustedDesktopToolConfigSchema.parse(config);
+    expect(parsed.commitKeyEnv).toBe("CIEAV_DESKTOP_SAVE_COMMIT_KEY");
+    expect(parsed.replayDir).toBe("/var/lib/cieav/desktop-replay");
+    expect(()=>TrustedDesktopToolConfigSchema.parse({...config,commitKeyEnv:"bad-key"})).toThrow();
+    expect(()=>TrustedDesktopToolConfigSchema.parse({...config,action:"TYPE"})).toThrow();
+    expect(()=>TrustedDesktopToolConfigSchema.parse({...config,commitKeyEnv:undefined})).toThrow();
+    expect(()=>TrustedDesktopToolConfigSchema.parse({...config,replayDir:undefined})).toThrow();
   });
 });

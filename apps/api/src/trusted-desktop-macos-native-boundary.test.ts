@@ -7,12 +7,20 @@ const observe=readFileSync(path.join(root,"native/macos/cieav-desktop-observe/ma
 const invoke=readFileSync(path.join(root,"native/macos/cieav-desktop-invoke/main.swift"),"utf8");
 
 describe("macOS desktop native constitutional boundary",()=>{
-  it("keeps the observer read-only",()=>{
+  it("keeps the observer read-only and free of commit/replay capability",()=>{
     expect(observe).toContain("AXUIElementCopyAttributeValue");
     expect(observe).toContain("AXIsProcessTrusted()");
+    expect(observe).not.toContain("CIEAV_DESKTOP_COMMIT_KEY");
+    expect(observe).not.toContain("CIEAV_DESKTOP_REPLAY_DIR");
     expect(observe).not.toContain("AXUIElementPerformAction");
     expect(observe).not.toContain("AXUIElementSetAttributeValue");
     expect(observe).not.toContain("AXUIElementPostKeyboardEvent");
+  });
+
+  it("requires an exact authenticated envelope and durable replay claim before Accessibility access",()=>{
+    for(const token of ["invokeEnvelopeKeys: Set<String>","Set(raw.keys) == invokeEnvelopeKeys","CIEAV_DESKTOP_COMMIT_KEY","CIEAV_DESKTOP_REPLAY_DIR","CIEAV_DESKTOP_COMMIT_V1","replayDirDigest","HMAC<SHA256>.authenticationCode","openat(dirfd","O_EXCL","O_NOFOLLOW","fsync(dirfd)","REPLAY_ALREADY_CONSUMED","claimReplay(request)"])expect(invoke).toContain(token);
+    expect(invoke.indexOf("try verifyCommitMac(request)")).toBeLessThan(invoke.indexOf("claimReplay(request)"));
+    expect(invoke.indexOf("claimReplay(request)")).toBeLessThan(invoke.indexOf("AXIsProcessTrusted()"));
   });
 
   it("limits execution to exact AXPress after pre-state validation",()=>{

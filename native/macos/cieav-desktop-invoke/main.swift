@@ -2,9 +2,11 @@ import Foundation
 import AppKit
 import ApplicationServices
 import CryptoKit
+import Darwin
 
 let maxInputBytes = 64 * 1024
 let identifierAttribute = "AXIdentifier" as CFString
+let invokeEnvelopeKeys: Set<String> = ["version","kind","ticketId","proposalId","normalizedArgumentsDigest","platform","appId","windowId","controlId","action","replayDirDigest","expectedStateDigest","commitMac"]
 
 struct InvokeRequest: Decodable {
     let version: Int
@@ -17,7 +19,9 @@ struct InvokeRequest: Decodable {
     let windowId: String
     let controlId: String
     let action: String
+    let replayDirDigest: String
     let expectedStateDigest: String
+    let commitMac: String
 }
 
 struct ExecutionResponse: Encodable {
@@ -45,6 +49,51 @@ func lowerHex64(_ value: String) -> Bool {
     value.utf8.count == 64 && value.allSatisfy { ($0 >= "0" && $0 <= "9") || ($0 >= "a" && $0 <= "f") }
 }
 
+func hexData(_ value: String) throws -> Data {
+    guard lowerHex64(value) else { throw DesktopError.invalidInput }
+    var out = Data(); out.reserveCapacity(32)
+    var index = value.startIndex
+    for _ in 0..<32 {
+        let next = value.index(index, offsetBy: 2)
+        guard let byte = UInt8(value[index..<next], radix: 16) else { throw DesktopError.invalidInput }
+        out.append(byte); index = next
+    }
+    return out
+}
+
+func sha256(_ value: String) -> String { SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined() }
+
+func commitMaterial(_ request: InvokeRequest) -> String {
+    ["CIEAV_DESKTOP_COMMIT_V1", request.ticketId, request.proposalId, request.normalizedArgumentsDigest, request.platform, request.appId, request.windowId, request.controlId, request.action, request.replayDirDigest, request.expectedStateDigest].joined(separator: "\n")
+}
+
+func verifyCommitMac(_ request: InvokeRequest) throws {
+    guard let rawKey = ProcessInfo.processInfo.environment["CIEAV_DESKTOP_COMMIT_KEY"] else { throw DesktopError.invalidInput }
+    let keyData = try hexData(rawKey), supplied = try hexData(request.commitMac)
+    let code = HMAC<SHA256>.authenticationCode(for: Data(commitMaterial(request).utf8), using: SymmetricKey(data: keyData))
+    let expected = Data(code)
+    guard expected.count == supplied.count else { throw DesktopError.invalidInput }
+    var difference: UInt8 = 0
+    for i in 0..<expected.count { difference |= expected[i] ^ supplied[i] }
+    guard difference == 0 else { throw DesktopError.invalidInput }
+}
+
+func claimReplay(_ request: InvokeRequest) -> String? {
+    guard let replayDir = ProcessInfo.processInfo.environment["CIEAV_DESKTOP_REPLAY_DIR"], !replayDir.isEmpty, replayDir.first == "/", sha256(replayDir) == request.replayDirDigest else { return "REPLAY_DIR_MISMATCH" }
+    let dirfd = open(replayDir, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW)
+    guard dirfd >= 0 else { return "REPLAY_CLAIM_FAILED" }
+    defer { close(dirfd) }
+    let name = request.ticketId + ".used"
+    let fd = openat(dirfd, name, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+    if fd < 0 { return errno == EEXIST ? "REPLAY_ALREADY_CONSUMED" : "REPLAY_CLAIM_FAILED" }
+    let bytes = Array((request.commitMac + "\n").utf8)
+    let wrote = bytes.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
+    let synced = wrote == bytes.count && fsync(fd) == 0
+    close(fd)
+    guard synced, fsync(dirfd) == 0 else { return "REPLAY_CLAIM_FAILED" }
+    return nil
+}
+
 func attr(_ element: AXUIElement, _ name: CFString) -> CFTypeRef? {
     var value: CFTypeRef?
     return AXUIElementCopyAttributeValue(element, name, &value) == .success ? value : nil
@@ -54,7 +103,6 @@ func stringAttr(_ element: AXUIElement, _ name: CFString) -> String { (attr(elem
 func boolAttr(_ element: AXUIElement, _ name: CFString) -> Bool { (attr(element, name) as? Bool) ?? false }
 func elementsAttr(_ element: AXUIElement, _ name: CFString) -> [AXUIElement] { (attr(element, name) as? [AXUIElement]) ?? [] }
 func clean(_ value: String) -> String { value.replacingOccurrences(of: "\r", with: " ").replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\0", with: " ").trimmingCharacters(in: .whitespacesAndNewlines) }
-func sha256(_ value: String) -> String { SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined() }
 
 func exactRunningApplication(bundleId: String) throws -> NSRunningApplication {
     let apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).filter { !$0.isTerminated }
@@ -126,12 +174,16 @@ func emit(_ effectStarted: Bool, _ transport: String, _ detailCode: String, _ po
 }
 
 do {
-    guard AXIsProcessTrusted() else { emit(false, "REJECTED", "ACCESSIBILITY_NOT_TRUSTED"); exit(0) }
-    let request = try JSONDecoder().decode(InvokeRequest.self, from: readInput())
+    let input = try readInput()
+    guard let raw = try JSONSerialization.jsonObject(with: input) as? [String: Any], Set(raw.keys) == invokeEnvelopeKeys else { throw DesktopError.invalidInput }
+    let request = try JSONDecoder().decode(InvokeRequest.self, from: input)
     guard request.version == 1, request.kind == "INVOKE", request.platform == "darwin", request.action == "INVOKE",
           UUID(uuidString: request.ticketId) != nil, UUID(uuidString: request.proposalId) != nil,
-          lowerHex64(request.normalizedArgumentsDigest), lowerHex64(request.expectedStateDigest),
+          lowerHex64(request.normalizedArgumentsDigest), lowerHex64(request.replayDirDigest), lowerHex64(request.expectedStateDigest), lowerHex64(request.commitMac),
           validIdentity(request.appId), validIdentity(request.windowId), validIdentity(request.controlId) else { throw DesktopError.invalidInput }
+    try verifyCommitMac(request)
+    if let replayError = claimReplay(request) { emit(false, "REJECTED", replayError); exit(0) }
+    guard AXIsProcessTrusted() else { emit(false, "REJECTED", "ACCESSIBILITY_NOT_TRUSTED"); exit(0) }
 
     let resolved: (NSRunningApplication, AXUIElement, AXUIElement)
     do { resolved = try resolve(request) } catch { emit(false, "REJECTED", "TARGET_NOT_EXACT"); exit(0) }
