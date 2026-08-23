@@ -13,6 +13,8 @@ function usable(cmd){const r=spawnSync(cmd,["--version"],{stdio:"ignore",shell:f
 function strongCapability(value){return typeof value==="string"&&value.length>=43?value:crypto.randomBytes(48).toString("base64url")}
 const env={...process.env,CIEAV_HOME:process.env.CIEAV_HOME||root,PYTHONPATH:[path.join(root,"python"),process.env.PYTHONPATH].filter(Boolean).join(path.delimiter)};
 env.CIEAV_BROWSER_OBSERVATION_TOKEN=strongCapability(env.CIEAV_BROWSER_OBSERVATION_TOKEN);
+env.CIEAV_BROWSER_COMMIT_TOKEN=strongCapability(env.CIEAV_BROWSER_COMMIT_TOKEN);
+if(env.CIEAV_BROWSER_OBSERVATION_TOKEN===env.CIEAV_BROWSER_COMMIT_TOKEN)env.CIEAV_BROWSER_COMMIT_TOKEN=crypto.randomBytes(48).toString("base64url");
 delete env.CIEAV_BROWSER_CONTROL_TOKEN;delete env.LATCH_BROWSER_CONTROL_TOKEN;
 let command,args;
 if(process.env.CIEAV_EXECUTABLE){command=process.env.CIEAV_EXECUTABLE;args=["gateway","run"]}
