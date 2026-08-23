@@ -16,8 +16,8 @@ export const AgenticRlCaseSchema=z.object({
   reversibilityPreserved:z.boolean(),recoveryRequired:z.boolean(),recoverySucceeded:z.boolean(),
   normalizedCost:z.number().min(0).max(1),normalizedLatency:z.number().min(0).max(1),
   automaticRetryAttempted:z.boolean().default(false),duplicateEffectObserved:z.boolean().default(false),stoppedOnStaleReality:z.boolean().default(false),
-  authority:false as any,productionAuthority:false as any
-}).strict().transform(value=>({...value,authority:false as const,productionAuthority:false as const}));
+  authority:z.literal(false).default(false),productionAuthority:z.literal(false).default(false)
+}).strict();
 export type AgenticRlCase=z.infer<typeof AgenticRlCaseSchema>;
 
 export const AgenticRlSuiteSchema=z.object({
