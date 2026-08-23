@@ -1,0 +1,16 @@
+import {mkdtemp,readFile,writeFile} from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import {afterEach,describe,expect,it,vi} from "vitest";
+import {CieavReflexLayer} from "./reflex-layer.js";
+
+const stores:CieavReflexLayer[]=[];afterEach(async()=>{for(const s of stores.splice(0))await s.close()});
+async function make(){const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-reflex-")),file=path.join(dir,"state.json");const ca={assertMayContinue:vi.fn(async()=>({mayContinue:true})),revoke:vi.fn(async()=>({state:"REVOKED"}))} as any;const store=new CieavReflexLayer(file,"r".repeat(64),ca);stores.push(store);return{store,file,ca}}
+const policy=()=>({id:"robot-safety",enabled:true,scope:"robot:arm-1",rules:[{id:"human-too-close",metric:"human.distance.m",operator:"LT" as const,threshold:1.5,maxAgeMs:500,action:"SAFE_STATE" as const,reason:"human proximity below safe minimum"},{id:"watchdog-fault",metric:"watchdog.ok",operator:"FALSE" as const,maxAgeMs:500,action:"STOP" as const,reason:"watchdog fault"}]});
+
+describe("CieavReflexLayer",()=>{
+  it("continues only with fresh non-triggering signals and checks continuing authority",async()=>{const{store,ca}=await make();await store.putPolicy(policy());const decision=await store.evaluate("robot-safety",[{metric:"human.distance.m",value:3,observedAt:new Date().toISOString(),evidenceRef:"lidar://1"},{metric:"watchdog.ok",value:true,observedAt:new Date().toISOString(),evidenceRef:"watchdog://1"}],"11111111-1111-4111-8111-111111111111");expect(decision.decision).toBe("CONTINUE");expect(ca.assertMayContinue).toHaveBeenCalledOnce();expect(ca.revoke).not.toHaveBeenCalled()});
+  it("forces safe state and revokes continuing authority on a critical reflex",async()=>{const{store,ca}=await make();await store.putPolicy(policy());const decision=await store.evaluate("robot-safety",[{metric:"human.distance.m",value:0.4,observedAt:new Date().toISOString(),evidenceRef:"lidar://critical"},{metric:"watchdog.ok",value:true,observedAt:new Date().toISOString(),evidenceRef:"watchdog://1"}],"11111111-1111-4111-8111-111111111111");expect(decision).toMatchObject({decision:"SAFE_STATE_REQUIRED",authority:false,executionAuthorityIssued:false});expect(ca.revoke).toHaveBeenCalledOnce()});
+  it("fails safe on missing or stale required telemetry",async()=>{const{store,ca}=await make();await store.putPolicy(policy());const decision=await store.evaluate("robot-safety",[{metric:"human.distance.m",value:3,observedAt:new Date(Date.now()-5_000).toISOString(),evidenceRef:"lidar://stale"}],"11111111-1111-4111-8111-111111111111");expect(decision.decision).toBe("STOP_REQUIRED");expect(decision.reasons.some(x=>x.includes("stale")||x.includes("missing"))).toBe(true);expect(ca.revoke).toHaveBeenCalledOnce()});
+  it("detects policy or decision journal tampering after restart",async()=>{const{store,file}=await make();await store.putPolicy(policy());await store.close();stores.splice(stores.indexOf(store),1);const env=JSON.parse(await readFile(file,"utf8"));env.payload.policies[0].scope="tampered";await writeFile(file,JSON.stringify(env));const reopened=new CieavReflexLayer(file,"r".repeat(64),{assertMayContinue:async()=>({}),revoke:async()=>({})} as any);stores.push(reopened);await expect(reopened.listPolicies()).rejects.toThrow("integrity check failed")});
+});
