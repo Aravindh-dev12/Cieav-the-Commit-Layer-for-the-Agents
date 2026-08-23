@@ -14,6 +14,7 @@ import {CieavExecutionRouter} from "./execution-router.js";
 import {CieavContinuingAuthorityStore} from "./continuing-authority.js";
 import {CieavReflexLayer} from "./reflex-layer.js";
 import {CieavEdgeRuntime} from "./edge-runtime.js";
+import {CieavEdgeAuthorityIssuer} from "./edge-authority-issuer.js";
 
 type Payload={version:1;tasks:AgentTask[];events:AgentTaskEvent[]};
 type Envelope={payload:Payload;mac:string};
@@ -34,6 +35,7 @@ export class CieavAgentKernelStore{
   readonly continuingAuthority:CieavContinuingAuthorityStore;
   readonly reflexLayer:CieavReflexLayer;
   readonly edgeRuntime:CieavEdgeRuntime;
+  readonly edgeAuthorityIssuer:CieavEdgeAuthorityIssuer;
   readonly controlPlane:CieavControlPlaneStore;
   readonly frameworkInterop:CieavFrameworkInteropStore;
   readonly credentialAuthority:CieavCredentialAuthority;
@@ -57,6 +59,7 @@ export class CieavAgentKernelStore{
     this.continuingAuthority=new CieavContinuingAuthorityStore(path.join(path.dirname(file),"continuing-authority-state.json"),continuingAuthoritySecret,this.executionFabric);
     this.reflexLayer=new CieavReflexLayer(path.join(path.dirname(file),"reflex-layer-state.json"),reflexLayerSecret,this.continuingAuthority);
     this.edgeRuntime=new CieavEdgeRuntime(path.join(path.dirname(file),"edge-runtime-state.json"),edgeStateSecret,edgeEnvelopeVerificationSecret);
+    this.edgeAuthorityIssuer=new CieavEdgeAuthorityIssuer(edgeEnvelopeVerificationSecret,this.executionFabric);
     this.controlPlane=new CieavControlPlaneStore(path.join(path.dirname(file),"control-plane-state.json"),controlPlaneSecret,this,this.executionFabric);
     this.frameworkInterop=new CieavFrameworkInteropStore(path.join(path.dirname(file),"framework-interop-state.json"),frameworkInteropSecret,this);
     this.hardwareKeyProviders=new CieavHardwareKeyProviderRegistry(path.join(path.dirname(file),"hardware-key-providers.json"),hardwareProviderSecret);
