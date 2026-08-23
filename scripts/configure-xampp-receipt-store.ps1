@@ -72,11 +72,17 @@ if ($InstallGateway -or $RestartGateway) {
   if ($LASTEXITCODE -ne 0 -or $approvalBuild.Count -lt 1) { throw 'Windows native approval host build failed.' }
   foreach ($line in $approvalBuild) { Write-Host $line }
   try { $approvalResult = $approvalBuild[-1] | ConvertFrom-Json } catch { throw 'Windows native approval host builder did not return a valid result.' }
-  if (-not $approvalResult.ok -or -not (Test-Path -LiteralPath $approvalResult.exe)) { throw 'Windows native approval host executable was not produced.' }
+  if (-not $approvalResult.ok -or -not (Test-Path -LiteralPath $approvalResult.exe) -or $approvalResult.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'Windows native approval host executable or digest was not produced.' }
   $approvalHelper = (Resolve-Path -LiteralPath $approvalResult.exe).Path
+  $approvalSha256 = [string]$approvalResult.sha256
+  $actualApprovalSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $approvalHelper).Hash.ToLowerInvariant()
+  if ($actualApprovalSha256 -ne $approvalSha256) { throw 'Windows native approval host digest changed after build.' }
   [Environment]::SetEnvironmentVariable('CIEAV_NATIVE_APPROVAL_HELPER', $approvalHelper, 'User')
+  [Environment]::SetEnvironmentVariable('CIEAV_NATIVE_APPROVAL_HELPER_SHA256', $approvalSha256, 'User')
   $env:CIEAV_NATIVE_APPROVAL_HELPER = $approvalHelper
+  $env:CIEAV_NATIVE_APPROVAL_HELPER_SHA256 = $approvalSha256
   Write-Host "Native approval host: $approvalHelper"
+  Write-Host "Native approval SHA-256: $approvalSha256"
 
   $python = (Get-Command python -ErrorAction Stop).Source
   if ($InstallGateway) {
