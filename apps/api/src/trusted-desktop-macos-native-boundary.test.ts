@@ -7,16 +7,21 @@ const observe=readFileSync(path.join(root,"native/macos/cieav-desktop-observe/ma
 const invoke=readFileSync(path.join(root,"native/macos/cieav-desktop-invoke/main.swift"),"utf8");
 
 describe("macOS desktop native constitutional boundary",()=>{
-  it("keeps the observer read-only",()=>{
+  it("keeps the observer read-only and commit-key free",()=>{
     expect(observe).toContain("AXUIElementCopyAttributeValue");
     expect(observe).toContain("AXIsProcessTrusted()");
+    expect(observe).not.toContain("CIEAV_DESKTOP_COMMIT_KEY");
     expect(observe).not.toContain("AXUIElementPerformAction");
     expect(observe).not.toContain("AXUIElementSetAttributeValue");
     expect(observe).not.toContain("AXUIElementPostKeyboardEvent");
   });
 
-  it("limits execution to exact AXPress after pre-state validation",()=>{
+  it("authenticates before exact AXPress and pre-state validation",()=>{
     expect(invoke).toContain('request.action == "INVOKE"');
+    expect(invoke).toContain("CIEAV_DESKTOP_COMMIT_KEY");
+    expect(invoke).toContain("CIEAV_DESKTOP_COMMIT_V1");
+    expect(invoke).toContain("HMAC<SHA256>.authenticationCode");
+    expect(invoke.indexOf("try verifyCommitMac(request)")).toBeLessThan(invoke.indexOf("AXIsProcessTrusted()"));
     expect(invoke).toContain("request.expectedStateDigest");
     expect(invoke).toContain("PRESTATE_MISMATCH");
     expect(invoke).toContain("AXUIElementPerformAction(resolved.2, kAXPressAction");
