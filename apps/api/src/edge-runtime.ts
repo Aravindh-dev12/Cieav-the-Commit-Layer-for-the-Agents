@@ -1,0 +1,55 @@
+import crypto from "node:crypto";
+import {chmod,mkdir,open,readFile,rename,writeFile} from "node:fs/promises";
+import path from "node:path";
+import {z} from "zod";
+
+const Hex64=z.string().regex(/^[a-f0-9]{64}$/);
+const EdgeEnvelopeBaseSchema=z.object({
+  id:z.string().uuid(),version:z.literal(1),protocol:z.literal("CIEAV_EDGE_PREDELEGATION_V1"),authority:false,executionAuthorityIssued:false,
+  deviceId:z.string().min(1).max(500),allowedTransports:z.array(z.enum(["ROS2_ACTION","ROS2_SERVICE","ROS2_TOPIC","MQTT_PUBLISH"])).min(1).max(16),
+  allowedResources:z.array(z.string().min(1).max(1000)).min(1).max(500),allowedOperations:z.array(z.string().min(1).max(300)).min(1).max(500),
+  allowedArgumentDigests:z.array(Hex64).min(1).max(2000),authorityBindingDigest:Hex64,issuerProofRef:z.string().min(1).max(1000),
+  issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),maxOfflineAgeMs:z.number().int().positive().max(7*24*60*60*1000),maxUses:z.number().int().positive().max(1_000_000)
+});
+const EdgeEnvelopeSchema=EdgeEnvelopeBaseSchema.extend({signature:z.string().min(32).max(256),used:z.number().int().nonnegative().default(0),revokedAt:z.string().datetime().optional()});
+const EdgeRequestSchema=z.object({
+  id:z.string().uuid(),deviceId:z.string().min(1).max(500),envelopeId:z.string().uuid(),transport:z.enum(["ROS2_ACTION","ROS2_SERVICE","ROS2_TOPIC","MQTT_PUBLISH"]),
+  resource:z.string().min(1).max(1000),operation:z.string().min(1).max(300),normalizedArgumentsDigest:Hex64,idempotencyKey:z.string().min(16).max(500),requestedAt:z.string().datetime(),offlineSince:z.string().datetime().optional()
+});
+const JournalSchema=z.object({
+  id:z.string().uuid(),version:z.literal(1),sequence:z.number().int().positive(),previousHash:Hex64.optional(),entryHash:Hex64,requestId:z.string().uuid(),envelopeId:z.string().uuid(),deviceId:z.string(),transport:z.string(),resource:z.string(),operation:z.string(),idempotencyKey:z.string(),outcome:z.enum(["AUTHORIZED","BLOCKED","UNKNOWN"]),reason:z.string().min(1).max(1200),createdAt:z.string().datetime()
+});
+export type EdgePredelegationEnvelope=z.infer<typeof EdgeEnvelopeSchema>;
+export type EdgeExecutionRequest=z.infer<typeof EdgeRequestSchema>;
+export type EdgeJournalEntry=z.infer<typeof JournalSchema>;
+type Payload={version:1;envelopes:EdgePredelegationEnvelope[];journal:EdgeJournalEntry[]};
+type EnvelopeFile={payload:Payload;mac:string};
+
+const canonical=(value:unknown):string=>Array.isArray(value)?`[${value.map(canonical).join(",")}]`:value&&typeof value==="object"?`{${Object.keys(value as Record<string,unknown>).sort().map(k=>`${JSON.stringify(k)}:${canonical((value as Record<string,unknown>)[k])}`).join(",")}}`:JSON.stringify(value)??"undefined";
+const digest=(value:unknown)=>crypto.createHash("sha256").update(canonical(value)).digest("hex");
+async function durableReplace(file:string,contents:string){const dir=path.dirname(file),tmp=`${file}.${process.pid}.${crypto.randomUUID()}.tmp`;await writeFile(tmp,contents,{encoding:"utf8",mode:0o600,flag:"wx"});const fh=await open(tmp,"r+");try{await fh.sync()}finally{await fh.close()}await rename(tmp,file);try{await chmod(file,0o600)}catch{}if(process.platform!=="win32")try{const dh=await open(dir,"r");try{await dh.sync()}finally{await dh.close()}}catch{}}
+
+export class CieavEdgeRuntime{
+  private loaded=false;private payload:Payload={version:1,envelopes:[],journal:[]};private chain:Promise<void>=Promise.resolve();
+  constructor(private readonly file:string,private readonly stateSecret:string,private readonly envelopeVerificationSecret:string){if(stateSecret.length<32||envelopeVerificationSecret.length<32)throw new Error("CIEAV edge secrets are too weak")}
+  private stateMac(payload:Payload){return crypto.createHmac("sha256",this.stateSecret).update(`cieav-edge-state-v1\n${canonical(payload)}`).digest("base64url")}
+  private envelopeMac(base:z.infer<typeof EdgeEnvelopeBaseSchema>){return crypto.createHmac("sha256",this.envelopeVerificationSecret).update(`cieav-edge-predelegation-v1\n${canonical(base)}`).digest("base64url")}
+  private verifyEnvelope(envelope:EdgePredelegationEnvelope){const{signature,used:_,revokedAt:__,...base}=envelope,expected=this.envelopeMac(EdgeEnvelopeBaseSchema.parse(base));return signature.length===expected.length&&crypto.timingSafeEqual(Buffer.from(signature),Buffer.from(expected))}
+  private enqueue<T>(fn:()=>Promise<T>):Promise<T>{const task=this.chain.then(fn,fn);this.chain=task.then(()=>undefined,()=>undefined);return task}
+  private verifyJournal(entries:EdgeJournalEntry[]){let previous:string|undefined;for(const entry of entries){if(entry.previousHash!==previous)throw new Error("edge journal previous-hash mismatch");const{id:_,entryHash,...base}=entry;if(entryHash!==digest(base))throw new Error("edge journal hash mismatch");previous=entryHash}}
+  private async load(){if(this.loaded)return;await mkdir(path.dirname(this.file),{recursive:true,mode:0o700});try{const env=JSON.parse(await readFile(this.file,"utf8")) as EnvelopeFile;if(env?.payload?.version!==1||!Array.isArray(env.payload.envelopes)||!Array.isArray(env.payload.journal)||typeof env.mac!=="string")throw new Error("invalid envelope");const expected=this.stateMac(env.payload);if(expected.length!==env.mac.length||!crypto.timingSafeEqual(Buffer.from(expected),Buffer.from(env.mac)))throw new Error("integrity check failed");this.payload={version:1,envelopes:env.payload.envelopes.map(x=>EdgeEnvelopeSchema.parse(x)),journal:env.payload.journal.map(x=>JournalSchema.parse(x))};if(this.payload.envelopes.some(x=>!this.verifyEnvelope(x)))throw new Error("edge predelegation signature verification failed");this.verifyJournal(this.payload.journal)}catch(err:any){if(err?.code!=="ENOENT")throw new Error(`CIEAV edge runtime is unreadable, corrupt, or unauthenticated: ${String(err?.message??err)}`)}this.loaded=true}
+  private async persist(){this.payload={version:1,envelopes:this.payload.envelopes.slice(-10_000),journal:this.payload.journal.slice(-250_000)};this.verifyJournal(this.payload.journal);await durableReplace(this.file,JSON.stringify({payload:this.payload,mac:this.stateMac(this.payload)},null,2)+"\n")}
+  private append(request:EdgeExecutionRequest,outcome:"AUTHORIZED"|"BLOCKED"|"UNKNOWN",reason:string){const previous=this.payload.journal.at(-1)?.entryHash,base={version:1 as const,sequence:(this.payload.journal.at(-1)?.sequence??0)+1,...(previous?{previousHash:previous}:{}),requestId:request.id,envelopeId:request.envelopeId,deviceId:request.deviceId,transport:request.transport,resource:request.resource,operation:request.operation,idempotencyKey:request.idempotencyKey,outcome,reason:reason.slice(0,1200),createdAt:new Date().toISOString()};const entry=JournalSchema.parse({...base,id:crypto.randomUUID(),entryHash:digest(base)});this.payload.journal.push(entry);return entry}
+  installEnvelope(raw:unknown){return this.enqueue(async()=>{await this.load();const envelope=EdgeEnvelopeSchema.parse({...raw,used:(raw as any)?.used??0});if(!this.verifyEnvelope(envelope))throw new Error("invalid_edge_predelegation_signature");if(Date.parse(envelope.expiresAt)<=Date.now()||Date.parse(envelope.issuedAt)>Date.now()+60_000)throw new Error("edge_predelegation_time_window_invalid");if(new Set(envelope.allowedArgumentDigests).size!==envelope.allowedArgumentDigests.length)throw new Error("duplicate_edge_argument_digest");this.payload.envelopes=this.payload.envelopes.filter(x=>x.id!==envelope.id);this.payload.envelopes.push(envelope);await this.persist();return envelope})}
+  revokeEnvelope(id:string){return this.enqueue(async()=>{await this.load();const i=this.payload.envelopes.findIndex(x=>x.id===id);if(i<0)throw new Error("edge_predelegation_not_found");const next=EdgeEnvelopeSchema.parse({...this.payload.envelopes[i],revokedAt:this.payload.envelopes[i]!.revokedAt??new Date().toISOString()});this.payload.envelopes[i]=next;await this.persist();return next})}
+  authorize(raw:unknown){return this.enqueue(async()=>{await this.load();const request=EdgeRequestSchema.parse(raw);if(this.payload.journal.some(x=>x.idempotencyKey===request.idempotencyKey&&x.outcome==="AUTHORIZED")){const entry=this.append(request,"BLOCKED","duplicate edge execution idempotency key");await this.persist();return{authorized:false as const,entry}}
+    const index=this.payload.envelopes.findIndex(x=>x.id===request.envelopeId),envelope=index>=0?this.payload.envelopes[index]:undefined;let reason:string|undefined;
+    if(!envelope)reason="edge predelegation not found";else if(!this.verifyEnvelope(envelope))reason="edge predelegation signature invalid";else if(envelope.revokedAt)reason="edge predelegation revoked";else if(envelope.deviceId!==request.deviceId)reason="edge device binding mismatch";else if(Date.parse(envelope.expiresAt)<=Date.now())reason="edge predelegation expired";else if(envelope.used>=envelope.maxUses)reason="edge predelegation exhausted";else if(!envelope.allowedTransports.includes(request.transport))reason="edge transport not allowed";else if(!envelope.allowedResources.includes(request.resource))reason="edge resource not allowed";else if(!envelope.allowedOperations.includes(request.operation))reason="edge operation not allowed";else if(!envelope.allowedArgumentDigests.includes(request.normalizedArgumentsDigest))reason="edge arguments not predelegated";else if(request.offlineSince&&Date.now()-Date.parse(request.offlineSince)>envelope.maxOfflineAgeMs)reason="offline authority freshness exceeded";
+    if(reason){const entry=this.append(request,"BLOCKED",reason);await this.persist();return{authorized:false as const,entry}}
+    this.payload.envelopes[index]=EdgeEnvelopeSchema.parse({...envelope,used:envelope.used+1});const entry=this.append(request,"AUTHORIZED","signed predelegated edge envelope accepted for exact operation and argument digest");await this.persist();return{authorized:true as const,envelope:this.payload.envelopes[index],entry,authorityBindingDigest:envelope.authorityBindingDigest};
+  })}
+  recordUnknown(requestRaw:unknown,reason:string){return this.enqueue(async()=>{await this.load();const request=EdgeRequestSchema.parse(requestRaw),entry=this.append(request,"UNKNOWN",reason);await this.persist();return entry})}
+  listEnvelopes(){return this.enqueue(async()=>{await this.load();return this.payload.envelopes.slice().reverse()})}
+  listJournal(){return this.enqueue(async()=>{await this.load();return this.payload.journal.slice().reverse()})}
+  async close(){await this.chain}
+}
