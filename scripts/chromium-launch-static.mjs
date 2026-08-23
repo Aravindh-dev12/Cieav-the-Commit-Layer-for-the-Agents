@@ -12,9 +12,9 @@ assert(!prod.includes("--no-sandbox"),"production launch must not disable Chromi
 const test=chromiumArgs({profile:"C:/private-profile",headless:true,testMode:true});
 assert(test.includes("--no-sandbox"),"explicit automated test mode may opt out of sandboxing");
 
-const clean=chromiumEnvironment({PATH:"ok",CIEAV_BROWSER_CONTROL_TOKEN:"secret",CIEAV_AUDIT_INTEGRITY_KEY:"audit-secret",JWT_SECRET:"secret",RECEIPT_SIGNING_SECRET:"secret",HF_TOKEN:"secret",OPENAI_API_KEY:"secret"});
+const clean=chromiumEnvironment({PATH:"ok",CIEAV_BROWSER_CONTROL_TOKEN:"secret",CIEAV_BROWSER_OBSERVATION_TOKEN:"observation-secret",CIEAV_AUDIT_INTEGRITY_KEY:"audit-secret",JWT_SECRET:"secret",RECEIPT_SIGNING_SECRET:"secret",HF_TOKEN:"secret",OPENAI_API_KEY:"secret"});
 assert.equal(clean.PATH,"ok");
-for(const key of ["CIEAV_BROWSER_CONTROL_TOKEN","CIEAV_AUDIT_INTEGRITY_KEY","JWT_SECRET","RECEIPT_SIGNING_SECRET","HF_TOKEN","OPENAI_API_KEY"])assert(!(key in clean),`${key} leaked into Chromium environment`);
+for(const key of ["CIEAV_BROWSER_CONTROL_TOKEN","CIEAV_BROWSER_OBSERVATION_TOKEN","CIEAV_AUDIT_INTEGRITY_KEY","JWT_SECRET","RECEIPT_SIGNING_SECRET","HF_TOKEN","OPENAI_API_KEY"])assert(!(key in clean),`${key} leaked into Chromium environment`);
 
 const native=await readFile(path.join(ROOT,"native/windows/cdp-win-bridge.cpp"),"utf8");
 for(const marker of ["--remote-debugging-io-pipes=","PROC_THREAD_ATTRIBUTE_HANDLE_LIST","JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE","CREATE_SUSPENDED"])assert(native.includes(marker),`Windows bridge missing ${marker}`);
@@ -23,6 +23,8 @@ assert(!native.includes("--remote-debugging-port"),"Windows bridge must not expo
 const main=await readFile(path.join(ROOT,"apps/browser/main.mjs"),"utf8");
 const core=await readFile(path.join(ROOT,"apps/browser/main-core.mjs"),"utf8");
 assert(main.includes('await import("./main-core.mjs")'),"Control Center wrapper must delegate to hardened browser core");
+assert(main.includes("CIEAV_BROWSER_OBSERVATION_TOKEN"),"browser wrapper must own a dedicated observation capability");
+assert(main.includes("CONTROL_TOKEN===OBSERVATION_TOKEN"),"control and observation capabilities must remain distinct");
 assert(core.includes('from "./chromium-launch.mjs"')&&core.includes("launchChromiumPrivate"),"hardened browser core must use cross-platform private launcher");
 const browserSource=`${main}\n${core}`;
 assert(!browserSource.includes("const extraPipe=process.platform"),"legacy Windows fd emulation must be removed");
