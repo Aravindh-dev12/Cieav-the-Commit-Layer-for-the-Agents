@@ -17,8 +17,8 @@ describe("macOS desktop native constitutional boundary",()=>{
     expect(observe).not.toContain("AXUIElementPostKeyboardEvent");
   });
 
-  it("authenticates and durably claims the ticket before Accessibility access",()=>{
-    for(const token of ["CIEAV_DESKTOP_COMMIT_KEY","CIEAV_DESKTOP_REPLAY_DIR","CIEAV_DESKTOP_COMMIT_V1","replayDirDigest","HMAC<SHA256>.authenticationCode","openat(dirfd","O_EXCL","O_NOFOLLOW","fsync(dirfd)","REPLAY_ALREADY_CONSUMED","claimReplay(request)"])expect(invoke).toContain(token);
+  it("requires an exact authenticated envelope and durable replay claim before Accessibility access",()=>{
+    for(const token of ["invokeEnvelopeKeys: Set<String>","Set(raw.keys) == invokeEnvelopeKeys","CIEAV_DESKTOP_COMMIT_KEY","CIEAV_DESKTOP_REPLAY_DIR","CIEAV_DESKTOP_COMMIT_V1","replayDirDigest","HMAC<SHA256>.authenticationCode","openat(dirfd","O_EXCL","O_NOFOLLOW","fsync(dirfd)","REPLAY_ALREADY_CONSUMED","claimReplay(request)"])expect(invoke).toContain(token);
     expect(invoke.indexOf("try verifyCommitMac(request)")).toBeLessThan(invoke.indexOf("claimReplay(request)"));
     expect(invoke.indexOf("claimReplay(request)")).toBeLessThan(invoke.indexOf("AXIsProcessTrusted()"));
   });
