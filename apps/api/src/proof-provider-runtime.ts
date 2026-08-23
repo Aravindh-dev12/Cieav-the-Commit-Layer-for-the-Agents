@@ -5,12 +5,14 @@ import {FilesystemProofProvider} from "./proof-providers/filesystem.js";
 import {HttpProofProvider} from "./proof-providers/http.js";
 import {GitProofProvider} from "./proof-providers/git.js";
 import {SqliteProofProvider} from "./proof-providers/sqlite.js";
+import {Ros2ProofProvider} from "./proof-providers/ros2.js";
 
 export type LocalProofProviderConfig={
   filesystemRoots?:string[];
   httpOrigins?:string[];
   gitRepositories?:string[];
   sqliteCatalogFile?:string;
+  ros2CatalogFile?:string;
   httpAllowPrivateNetworks?:boolean;
   maxFilesystemReadBytes?:number;
   maxHttpBodyBytes?:number;
@@ -25,6 +27,8 @@ export class CieavLocalProofProviderRuntime{
     if(config.gitRepositories?.length)this.registry.register(new GitProofProvider(config.gitRepositories,"git",config.maxGitOutputBytes));
     const sqliteCatalog=String(config.sqliteCatalogFile??process.env.CIEAV_PROOF_SQLITE_CATALOG??"").trim();
     if(sqliteCatalog){const provider=SqliteProofProvider.fromCatalogFile(path.resolve(sqliteCatalog));if(provider)this.registry.register(provider)}
+    const ros2Catalog=String(config.ros2CatalogFile??process.env.CIEAV_PROOF_ROS2_CATALOG??"").trim();
+    if(ros2Catalog){const provider=Ros2ProofProvider.fromCatalogFile(path.resolve(ros2Catalog));if(provider)this.registry.register(provider)}
   }
   list(){return this.registry.list()}
   health():Promise<ProviderHealth[]>{return this.registry.health()}

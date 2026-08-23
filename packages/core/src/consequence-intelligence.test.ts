@@ -29,6 +29,23 @@ describe("consequence intelligence baseline",()=>{
     expect(plan.authority).toBe(false);
   });
 
+  it("routes qualified model-family specialists only into declared cognitive roles",()=>{
+    const engine=(id:string,role:string)=>({id,kind:"MODEL" as const,provider:"cieav-qualified",local:true,modalities:["text"],competenceTags:[`role:${role}`,"qualified-model"],authority:false as const});
+    const state:IntelligenceState={version:"CIEAV_INTELLIGENCE_STATE_V1",objective:"Plan a high-consequence change",epistemicState:[],availableTools:[],availableSkills:[],activeHypotheses:[],uncertainty:.4,proofObligations:["prove post-state"],recoveryRequirements:["reconcile unknown"],authority:false,mayMintExecutionAuthority:false,budget:{privacy:"LOCAL_ONLY"},availableEngines:[engine("router","ROUTER"),engine("core","CORE_REASONER"),engine("consequence","CONSEQUENCE_MODEL"),engine("proof-planner","PROOF_PLANNER"),engine("authority-advisor","AUTHORITY_ADVISOR"),engine("recovery","RECOVERY_MODEL"),engine("critic","CRITIC_REWARD"),engine("compiler","SKILL_COMPILER")]};
+    const plan=buildBaselineCognitiveProgram(state);
+    expect(plan.strategy).toBe("QUALIFIED_MODEL_FAMILY");
+    expect(plan.steps.map(s=>[s.stepId,s.engineId])).toEqual(expect.arrayContaining([["route-cognition","router"],["reason","core"],["consequence-model","consequence"],["authority-advice","authority-advisor"],["proof-planner-model","proof-planner"],["recovery-model","recovery"],["critic","critic"]]));
+    expect(plan.steps.some(s=>s.engineId==="compiler")).toBe(false);
+    expect(plan.authority).toBe(false);
+  });
+
+  it("never promotes a specialist-only model into the generic primary reasoner",()=>{
+    const state:IntelligenceState={version:"CIEAV_INTELLIGENCE_STATE_V1",objective:"Reason",epistemicState:[],availableTools:[],availableSkills:[],activeHypotheses:[],uncertainty:.4,proofObligations:[],recoveryRequirements:[],authority:false,mayMintExecutionAuthority:false,budget:{privacy:"LOCAL_ONLY"},availableEngines:[{id:"skill-compiler",kind:"MODEL",provider:"cieav",local:true,modalities:["text"],competenceTags:["role:SKILL_COMPILER"],authority:false}]};
+    const plan=buildBaselineCognitiveProgram(state);
+    expect(plan.strategy).toBe("STOP_NO_ADMISSIBLE_ENGINE");
+    expect(plan.steps.some(s=>s.engineId==="skill-compiler")).toBe(false);
+  });
+
   it("preserves UNKNOWN and refuses agentic RL without authority-grade reality binding",()=>{
     const trajectory:AuthorizedOutcomeTrajectory={
       version:"CIEAV_AUTHORIZED_OUTCOME_TRAJECTORY_V2",trajectoryId:"trajectory-001",objective:"Transfer funds",operation:"financial.transfer",exactArgumentsDigest:"0123456789abcdef",executionEvents:[],evidence:[],outcome:"UNKNOWN",recovery:[],cryptographicallyVerified:true,authorityGrade:false,realityBound:false,eligibleAgenticRl:false,redactionProfile:"minimum-v1",authority:false,productionAuthority:false,

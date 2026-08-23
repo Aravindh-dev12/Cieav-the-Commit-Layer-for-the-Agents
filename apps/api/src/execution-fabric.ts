@@ -139,6 +139,12 @@ export class CieavExecutionFabricStore{
   }
   private activeLease(id:string){const l=this.payload.leases.find(x=>x.id===id);return l&&!l.revokedAt&&Date.parse(l.expiresAt)>Date.now()&&l.used<l.maxUses?l:null}
   private activeTool(id:string){return this.payload.tools.find(x=>x.id===id&&x.enabled)??null}
+  private assertContinuingContract(tool:FederatedTool,proposal:ExecutionProposal){
+    if(tool.executionMode!=="CONTINUING")return;
+    const requirement=proposal.continuingAuthority;
+    if(!requirement)throw new Error("continuing_authority_requirement_missing");
+    if(tool.requiredReflexPolicyId&&requirement.reflexPolicyId!==tool.requiredReflexPolicyId)throw new Error("required_reflex_policy_mismatch");
+  }
 
   registerAttestation(raw:unknown){
     return this.enqueue(async()=>{
@@ -199,6 +205,7 @@ export class CieavExecutionFabricStore{
       if(!lease||lease.identityAttestationId!==attestation.id||lease.sessionId!==task.sessionId||lease.scopeDeviceId!==proposal.scopeDeviceId||!lease.allowedIntentIds.includes(proposal.intentId)||!member(lease.allowedToolIds,proposal.toolId)||!member(lease.allowedOperations,proposal.operation)||!(["*",`tool:${proposal.toolId}`,proposal.toolId].includes(lease.audience))||riskRank[proposal.risk]>riskRank[lease.maxRisk])throw new Error("credential_lease_scope_violation");
       const tool=this.activeTool(proposal.toolId);
       if(!tool||tool.protocol!==proposal.protocol||tool.operation!==proposal.operation||riskRank[proposal.risk]>riskRank[tool.risk])throw new Error("registered_tool_scope_violation");
+      this.assertContinuingContract(tool,proposal);
       const graph=this.payload.graphs.find(x=>x.scopeDeviceId===proposal.scopeDeviceId&&x.rootIntentId===proposal.intentId);
       if(!graph)throw new Error("formal_permission_graph_required");
       const decision=evaluateFormalAuthorization(graph,proposal);
@@ -224,6 +231,7 @@ export class CieavExecutionFabricStore{
       if(!lease||lease.sessionId!==task.sessionId)throw new Error("credential_lease_not_active");
       const tool=this.activeTool(proposal.toolId);
       if(!tool||tool.protocol!==proposal.protocol||tool.operation!==proposal.operation)throw new Error("registered_tool_not_active");
+      this.assertContinuingContract(tool,proposal);
       const graph=this.payload.graphs.find(x=>x.scopeDeviceId===proposal.scopeDeviceId&&x.rootIntentId===proposal.intentId);
       if(!graph||graph.digest!==record.decision.graphDigest||evaluateFormalAuthorization(graph,proposal).decision!=="ALLOW")throw new Error("formal_authorization_changed_before_execution");
       const commits=await this.kernel.intentReality.listRealityBoundCommits(),commit=commits.find(x=>x.id===realityBoundCommitId);
@@ -248,6 +256,7 @@ export class CieavExecutionFabricStore{
       if(!record)throw new Error("execution_proposal_not_found");
       const tool=this.activeTool(record.proposal.toolId);
       if(!tool)throw new Error("registered_tool_not_active");
+      this.assertContinuingContract(tool,record.proposal);
       return{ticket,proposal:record.proposal,tool};
     });
   }
@@ -272,6 +281,7 @@ export class CieavExecutionFabricStore{
       if(!this.activeAttestation(record.proposal.identityAttestationId,record.proposal.subjectId))throw new Error("verified_agent_attestation_required");
       const tool=this.activeTool(record.proposal.toolId);
       if(!tool||tool.protocol!==record.proposal.protocol||tool.operation!==record.proposal.operation)throw new Error("registered_tool_not_active");
+      this.assertContinuingContract(tool,record.proposal);
       const leaseIndex=this.payload.leases.findIndex(x=>x.id===ticket.credentialLeaseId),lease=leaseIndex>=0?this.activeLease(ticket.credentialLeaseId):null;
       if(!lease||lease.sessionId!==task.sessionId)throw new Error("credential_lease_not_active");
       const consumed=ExecutionTicketSchema.parse({...ticket,status:"CONSUMED",consumedAt:new Date().toISOString()});
