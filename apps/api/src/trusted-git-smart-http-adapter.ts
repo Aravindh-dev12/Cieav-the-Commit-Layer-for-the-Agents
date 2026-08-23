@@ -14,7 +14,7 @@ const ArgsSchema=z.object({expectedOldOid:Oid,newCommitOid:Oid}).strict();
 const CredentialSchema=z.discriminatedUnion("kind",[
   z.object({kind:z.literal("NONE")}).strict(),
   z.object({kind:z.literal("BEARER_ENV"),env:EnvName}).strict(),
-  z.object({kind:z.literal("BASIC_ENV"),username:z.string().min(1).max(240).refine(v=>!/[\r\n\0:]/.test(v),"invalid Basic username"),env:EnvName}).strict()
+  z.object({kind:z.literal("BASIC_ENV"),username:z.string().min(1).max(240).regex(/^[^:\r\n\0]+$/,"invalid Basic username"),env:EnvName}).strict()
 ]);
 export const TrustedGitRemoteRefToolConfigSchema=z.object({
   toolId:z.string().min(1).max(240),repository:z.string().min(1).max(2000),gitDir:z.string().min(1).max(2000),objectDir:z.string().min(1).max(2000),remoteUrl:z.string().url().max(2000),remoteRef:z.string().min(1).max(1024),gitBinary:z.string().min(1).max(2000),gitBinarySha256:Digest,
