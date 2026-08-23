@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -8,6 +10,7 @@ import signal
 import subprocess
 import threading
 import time
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -46,6 +49,43 @@ def _redacted_url(url: str) -> str:
         return "[invalid-url]"
 
 
+def _canonical(value) -> str:
+    if isinstance(value,list): return "["+",".join(_canonical(v) for v in value)+"]"
+    if isinstance(value,dict): return "{"+",".join(json.dumps(str(k),ensure_ascii=False,separators=(",",":"))+":"+_canonical(value[k]) for k in sorted(value))+"}"
+    return json.dumps(value,ensure_ascii=False,separators=(",",":"))
+
+
+def _digest(value) -> str: return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
+def _sha_text(value: str) -> str: return hashlib.sha256(value.encode("utf-8")).hexdigest()
+def _exact_keys(value: dict, expected: set[str], label: str) -> None:
+    if not isinstance(value,dict) or set(value)!=expected: raise ValueError(f"{label}_fields_invalid")
+def _iso_timestamp(value) -> float:
+    text=str(value or "")
+    try:return datetime.fromisoformat(text.replace("Z","+00:00")).timestamp()
+    except Exception as exc:raise ValueError("browser_commit_ticket_time_invalid") from exc
+
+
+def _browser_action_binding(action: dict) -> tuple[str,str,str,str]:
+    if not isinstance(action,dict): raise ValueError("browser_commit_action_invalid")
+    operation=str(action.get("operation") or "").upper()
+    if operation=="NAVIGATE":
+        _exact_keys(action,{"operation","url"},"browser_commit_action")
+        target=str(action.get("url") or ""); normalized={"url":target}; material=f"NAVIGATE\n{target}"
+    elif operation=="CLICK":
+        _exact_keys(action,{"operation","pageUrl","selector"},"browser_commit_action")
+        target=str(action.get("pageUrl") or "");selector=str(action.get("selector") or "");normalized={"pageUrl":target,"selector":selector};material=f"CLICK\n{target}\n{selector}"
+    elif operation=="TYPE":
+        _exact_keys(action,{"operation","pageUrl","selector","text"},"browser_commit_action")
+        target=str(action.get("pageUrl") or "");selector=str(action.get("selector") or "");text=action.get("text")
+        if not isinstance(text,str) or "\x00" in text or len(text.encode("utf-8"))>64*1024: raise ValueError("browser_commit_action_text_invalid")
+        normalized={"pageUrl":target,"selector":selector,"text":text};material=f"TYPE\n{target}\n{selector}\n{len(text.encode('utf-8'))}\n{_sha_text(text)}"
+    else: raise ValueError("browser_commit_action_operation_invalid")
+    parts=urlsplit(target)
+    if parts.scheme not in {"http","https"} or not parts.netloc or parts.username or parts.password: raise ValueError("browser_commit_action_target_invalid")
+    if operation!="NAVIGATE" and (not selector or len(selector.encode("utf-8"))>2048 or "\x00" in selector): raise ValueError("browser_commit_action_selector_invalid")
+    return operation,target,_digest(normalized),_sha_text(material)
+
+
 class Gateway:
     """Always-on local control plane for CIEAV.
 
@@ -63,6 +103,9 @@ class Gateway:
         self.semantic_router_token = secrets.token_urlsafe(48)
         if len(self.semantic_router_token)<43 or secrets.compare_digest(self.semantic_router_token,self.token):
             raise RuntimeError("Failed to establish a distinct semantic-router capability")
+        self.browser_commit_token=os.environ.get("CIEAV_BROWSER_COMMIT_TOKEN","").strip()
+        if len(self.browser_commit_token)<43 or secrets.compare_digest(self.browser_commit_token,self.token) or secrets.compare_digest(self.browser_commit_token,self.semantic_router_token):
+            raise RuntimeError("Failed to establish a distinct browser commit capability")
         hf_cfg = HFConfig.load()
         if not hf_cfg.token:
             hf_cfg = HFConfig(token=settings.read_hf_token(), model=hf_cfg.model, provider=hf_cfg.provider, endpoint_url=hf_cfg.endpoint_url, timeout_seconds=hf_cfg.timeout_seconds)
@@ -107,7 +150,7 @@ class Gateway:
         for key in (
             "HF_TOKEN","HUGGING_FACE_HUB_TOKEN","JWT_SECRET","RECEIPT_SIGNING_SECRET",
             "CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN","CIEAV_TEST_AUTO_APPROVE","LATCH_TEST_AUTO_APPROVE",
-            "CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN"
+            "CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN","CIEAV_BROWSER_REPLAY_KEY"
         ):
             env.pop(key, None)
         env["CIEAV_STATE_DIR"] = str(self.s.state_dir)
@@ -139,6 +182,7 @@ class Gateway:
         token=control_token or secrets.token_urlsafe(48)
         if len(token)<43: raise RuntimeError("Browser control token is too weak")
         env["CIEAV_BROWSER_CONTROL_TOKEN"] = token
+        env["CIEAV_BROWSER_REPLAY_KEY"] = self.s.browser_replay_secret()
         env["CIEAV_REQUIRE_PRODUCTION_API"] = "1"
         env["CIEAV_TEST_AUTO_APPROVE"] = "0"
         return env
@@ -199,6 +243,39 @@ class Gateway:
         with self._lock: token=self.surface_control_token
         if not token: raise RuntimeError("Browser control capability is unavailable")
         return _request_json(f"http://127.0.0.1:{self.s.control_port}{path}",method=method,payload=payload,timeout=timeout,token=token)
+
+    def verify_browser_commit(self, raw: dict) -> dict:
+        _exact_keys(raw,{"version","envelope","action"},"browser_commit_request")
+        if raw.get("version")!=1: raise ValueError("browser_commit_request_version_invalid")
+        envelope=raw.get("envelope");action=raw.get("action")
+        fields={"version","ticketId","proposalId","realityBoundCommitId","toolId","authorizationDigest","routeDigest","normalizedArgumentsDigest","downstreamRef","ticketIssuedAt","ticketExpiresAt","ticketConsumedAt","actionDigest","signature"}
+        _exact_keys(envelope,fields,"browser_commit_envelope")
+        if envelope.get("version")!=1: raise ValueError("browser_commit_envelope_version_invalid")
+        operation,target,arguments_digest,action_digest=_browser_action_binding(action)
+        if not secrets.compare_digest(str(envelope.get("actionDigest") or ""),action_digest): raise ValueError("browser_commit_action_digest_mismatch")
+        material="\n".join(["CIEAV_BROWSER_COMMIT_DISPATCH_V1","1",str(envelope.get("ticketId")),str(envelope.get("proposalId")),str(envelope.get("realityBoundCommitId")),str(envelope.get("toolId")),str(envelope.get("authorizationDigest")),str(envelope.get("routeDigest")),str(envelope.get("normalizedArgumentsDigest")),str(envelope.get("downstreamRef")),str(envelope.get("ticketIssuedAt")),str(envelope.get("ticketExpiresAt")),str(envelope.get("ticketConsumedAt")),str(envelope.get("actionDigest"))])
+        expected=hmac.new(self.browser_commit_token.encode("utf-8"),material.encode("utf-8"),hashlib.sha256).hexdigest()
+        signature=str(envelope.get("signature") or "")
+        if len(signature)!=64 or not secrets.compare_digest(signature,expected): raise ValueError("browser_commit_envelope_signature_invalid")
+        if not secrets.compare_digest(str(envelope.get("normalizedArgumentsDigest") or ""),arguments_digest): raise ValueError("browser_commit_arguments_digest_mismatch")
+        route_digest=_digest({"toolId":str(envelope.get("toolId")),"protocol":"BROWSER","operation":operation,"target":target,"normalizedArgumentsDigest":arguments_digest})
+        if not secrets.compare_digest(str(envelope.get("routeDigest") or ""),route_digest): raise ValueError("browser_commit_route_digest_mismatch")
+        if _iso_timestamp(envelope.get("ticketExpiresAt"))<=time.time(): raise ValueError("browser_commit_ticket_expired")
+        try:
+            tickets_payload=_request_json(f"http://127.0.0.1:{self.s.api_port}/v1/agent-kernel/execution-fabric/tickets",timeout=2.0,token=self.token)
+            audit_payload=_request_json(f"http://127.0.0.1:{self.s.api_port}/v1/agent-kernel/execution-fabric/audit",timeout=2.0,token=self.token)
+        except Exception as exc: raise RuntimeError("browser_commit_verifier_unavailable") from exc
+        tickets=tickets_payload.get("tickets") if isinstance(tickets_payload.get("tickets"),list) else []
+        audit=audit_payload.get("audit") if isinstance(audit_payload.get("audit"),list) else []
+        ticket=next((row for row in tickets if isinstance(row,dict) and row.get("id")==envelope.get("ticketId")),None)
+        if not ticket: raise ValueError("browser_commit_authority_ticket_not_found")
+        if ticket.get("status")!="CONSUMED" or not ticket.get("consumedAt"): raise ValueError("browser_commit_authority_ticket_not_consumed")
+        for ticket_key,envelope_key in [("proposalId","proposalId"),("realityBoundCommitId","realityBoundCommitId"),("toolId","toolId"),("authorizationDigest","authorizationDigest"),("routeDigest","routeDigest"),("issuedAt","ticketIssuedAt"),("expiresAt","ticketExpiresAt"),("consumedAt","ticketConsumedAt")]:
+            if str(ticket.get(ticket_key) or "")!=str(envelope.get(envelope_key) or ""): raise ValueError(f"browser_commit_authority_{ticket_key}_mismatch")
+        route_events=[event for event in audit if isinstance(event,dict) and event.get("ticketId")==ticket.get("id") and event.get("phase")=="ROUTE" and event.get("outcome")=="PASS"]
+        if len(route_events)!=1: raise ValueError("browser_commit_authority_route_audit_missing")
+        if any(isinstance(event,dict) and event.get("ticketId")==ticket.get("id") and event.get("phase")=="EXECUTE" for event in audit): raise ValueError("browser_commit_authority_execution_already_attempted")
+        return{"ok":True,"ticketId":ticket.get("id"),"realityBoundCommitId":ticket.get("realityBoundCommitId"),"routeDigest":ticket.get("routeDigest"),"trustedAuthorityStateVerified":True,"executionAuthorityIssued":False}
 
     def _wait_surface(self, child: subprocess.Popen, timeout: float = 20.0) -> bool:
         deadline=time.time()+timeout
@@ -292,7 +369,7 @@ class Gateway:
             semantic_uptime=int(time.time()-self.semantic_started_at) if semantic_running and self.semantic_started_at else 0
             surface_uptime=int(time.time()-self.surface_started_at) if surface_running and self.surface_started_at else 0
         browser=self._browser_health() if surface_running else {"ok":False,"browserConnected":False}; semantic_health=self._semantic_health() if semantic_running else {"ok":False}
-        return {"ok":True,"platform":"CIEAV Gateway","runtime":"python","gatewayPid":os.getpid(),"paused":self.paused,"nodeRuntime":self.node_executable(),"semanticRunning":semantic_running,"semanticHealthy":bool(semantic_health.get("ok") and semantic_health.get("service")=="cieav-local-api"),"semanticService":semantic_health.get("service"),"semanticPid":semantic.pid if semantic_running and semantic else None,"semanticUptimeSeconds":semantic_uptime,"semanticRestartCount":self.semantic_restart_count,"semanticLastExitCode":self.semantic_last_exit,"surfaceRunning":surface_running,"surfacePid":surface.pid if surface_running and surface else None,"surfaceUptimeSeconds":surface_uptime,"surfaceRestartCount":self.surface_restart_count,"surfaceLastExitCode":self.surface_last_exit,"browserConnected":bool(browser.get("browserConnected")),"protectedPages":int(browser.get("protectedPages") or 0),"productionApiRequired":bool(browser.get("productionApiRequired",True)),"modelEnabled":bool(self.hf.configured or browser.get("modelEnabled") or semantic_health.get("modelEnabled")),"huggingFace":self.hf.status(),"attention":browser.get("attention",{}),"controlUrl":f"http://127.0.0.1:{self.s.control_port}","testLabUrl":self.test_lab_url,"browserControlAuthenticated":surface_running,"semanticSecretTransport":"private-one-shot-pipe" if semantic_running else "inactive"}
+        return {"ok":True,"platform":"CIEAV Gateway","runtime":"python","gatewayPid":os.getpid(),"paused":self.paused,"semanticRunning":semantic_running,"semanticHealthy":bool(semantic_health.get("ok") and semantic_health.get("service")=="cieav-local-api"),"semanticService":semantic_health.get("service"),"semanticPid":semantic.pid if semantic_running and semantic else None,"semanticUptimeSeconds":semantic_uptime,"semanticRestartCount":self.semantic_restart_count,"semanticLastExitCode":self.semantic_last_exit,"surfaceRunning":surface_running,"surfacePid":surface.pid if surface_running and surface else None,"surfaceUptimeSeconds":surface_uptime,"surfaceRestartCount":self.surface_restart_count,"surfaceLastExitCode":self.surface_last_exit,"browserConnected":bool(browser.get("browserConnected")),"protectedPages":int(browser.get("protectedPages") or 0),"productionApiRequired":bool(browser.get("productionApiRequired",True)),"modelEnabled":bool(self.hf.configured or browser.get("modelEnabled") or semantic_health.get("modelEnabled")),"huggingFace":self.hf.status(),"attention":browser.get("attention",{}),"controlUrl":f"http://127.0.0.1:{self.s.control_port}","testLabUrl":self.test_lab_url,"browserControlAuthenticated":surface_running,"semanticSecretTransport":"private-one-shot-pipe" if semantic_running else "inactive"}
 
     def _write_runtime(self) -> None:
         try: self.s.write_runtime(self.status())
@@ -355,6 +432,8 @@ class ControlHandler(BaseHTTPRequestHandler):
         bearer=self._bearer(); return bool(bearer) and secrets.compare_digest(bearer,self.gateway.token)
     def _semantic_authorized(self)->bool:
         bearer=self._bearer(); return bool(bearer) and (secrets.compare_digest(bearer,self.gateway.semantic_router_token) or secrets.compare_digest(bearer,self.gateway.token))
+    def _commit_authorized(self)->bool:
+        bearer=self._bearer(); return bool(bearer) and secrets.compare_digest(bearer,self.gateway.browser_commit_token)
     def _read_json(self)->dict:
         try: length=int(self.headers.get("content-length","0"))
         except ValueError: raise ValueError("invalid content-length")
@@ -377,6 +456,11 @@ class ControlHandler(BaseHTTPRequestHandler):
         self._send(404,{"error":"not_found"})
     def do_POST(self)->None:
         path=self.path.split("?",1)[0]
+        if path=="/v1/browser-commit/verify":
+            if not self._commit_authorized(): self._send(401,{"error":"unauthorized"}); return
+            try:self._send(200,self.gateway.verify_browser_commit(self._read_json()));return
+            except ValueError as exc:self._send(403 if "signature" in str(exc) else 409,{"error":str(exc)});return
+            except Exception:self._send(503,{"error":"browser_commit_verifier_unavailable"});return
         if path.startswith("/v1/hf/"):
             if not self._semantic_authorized(): self._send(401,{"error":"unauthorized"}); return
             try:
