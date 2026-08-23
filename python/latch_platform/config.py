@@ -20,6 +20,19 @@ def _env(primary: str, legacy: str | None = None) -> str | None:
     return None
 
 
+def _ensure_browser_runtime_capabilities() -> None:
+    def strong(name: str) -> str:
+        value=os.environ.get(name,"").strip()
+        if len(value)>=43:return value
+        value=secrets.token_urlsafe(48);os.environ[name]=value;return value
+    observation=strong("CIEAV_BROWSER_OBSERVATION_TOKEN")
+    commit=strong("CIEAV_BROWSER_COMMIT_TOKEN")
+    if secrets.compare_digest(observation,commit):
+        os.environ["CIEAV_BROWSER_COMMIT_TOKEN"]=secrets.token_urlsafe(48)
+    os.environ.pop("CIEAV_BROWSER_CONTROL_TOKEN",None)
+    os.environ.pop("LATCH_BROWSER_CONTROL_TOKEN",None)
+
+
 def _repo_root() -> Path:
     configured = _env("CIEAV_HOME", "LATCH_HOME")
     if configured:
@@ -85,6 +98,7 @@ class Settings:
 
     @classmethod
     def load(cls) -> "Settings":
+        _ensure_browser_runtime_capabilities()
         state = _state_dir()
         return cls(
             root=_repo_root(),
