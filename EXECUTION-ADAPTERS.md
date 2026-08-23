@@ -36,7 +36,7 @@ The catalog is local authority configuration. Agents cannot alter repository pat
 
 Git is a first-class `GIT` execution protocol. It is not routed through the generic `CLI` adapter.
 
-The current operation is deliberately narrow:
+The local operation is deliberately narrow:
 
 ```text
 operation = GIT_ADVANCE_REF
@@ -91,7 +91,7 @@ The adapter verifies before the effect boundary:
 - `newCommitOid` exists in the pinned object database and is a `commit` object;
 - when `requireFastForward=true`, the old commit is an ancestor of the candidate commit.
 
-The sole mutation primitive is equivalent to:
+The sole local mutation primitive is equivalent to:
 
 ```text
 git update-ref --no-deref <fixed-ref> <newCommitOid> <expectedOldOid>
@@ -158,6 +158,113 @@ git-ref:<sha256(canonical-work-tree + canonical-git-dir)>:<encoded-full-ref>
 
 Sharing target identity does not make execution and proof the same authority path: their configurations, classes, runtime registration, and permitted primitives remain separate.
 
+## Git Smart HTTP remote ref publication
+
+CIEAV also implements a separate first-class `GIT_PUSH_REF` consequence for publishing one already-existing candidate commit to one exact remote branch over Git Smart HTTP. It is not generic `git push` authority.
+
+```text
+operation = GIT_PUSH_REF
+fixed local repository + git dir + object dir
++ fixed HTTPS repository URL
++ fixed refs/heads/* destination
++ digest-pinned Git executable
++ fixed credential binding
++ exact expected remote old OID
++ exact pre-existing local candidate commit OID
+→ exact leased remote ref publication
+```
+
+Production URLs must use HTTPS. Plain HTTP is accepted only when `allowLoopback=true`, which exists for repository-local qualification fixtures and is not a production deployment mode.
+
+A catalog entry has this shape:
+
+```json
+{
+  "version": 1,
+  "gitRemoteRef": [
+    {
+      "toolId": "release-origin-main-push",
+      "repository": "/absolute/work/tree",
+      "gitDir": "/absolute/work/tree/.git",
+      "objectDir": "/absolute/work/tree/.git/objects",
+      "remoteUrl": "https://git.example.com/org/repo.git",
+      "remoteRef": "refs/heads/main",
+      "gitBinary": "/absolute/path/to/git",
+      "gitBinarySha256": "<64 lowercase hex>",
+      "credential": {"kind":"BEARER_ENV","env":"CIEAV_GIT_PUSH_TOKEN"},
+      "requireFastForward": true,
+      "allowLoopback": false,
+      "timeoutMs": 30000,
+      "maxStdoutBytes": 131072,
+      "maxStderrBytes": 131072
+    }
+  ]
+}
+```
+
+`credential.kind` is `NONE`, `BEARER_ENV`, or `BASIC_ENV`. Secret values are read only inside CIEAV. They are injected into Git's runtime configuration environment as an HTTP `Authorization` header; they are not placed in the remote URL, argv, authority target, downstream reference, evidence summary, or result metadata. The credential binding records only the credential kind and configured environment name, plus the BASIC username when applicable.
+
+Before any receive-pack attempt, the adapter:
+
+- revalidates the pinned Git executable and exact local repository, Git directory, and absolute object directory;
+- confirms both authorized OIDs are commits in the pinned local object store and have the repository's actual SHA-1/SHA-256 width;
+- enforces local fast-forward ancestry when configured;
+- validates the remote URL and exact full branch ref;
+- resolves the hostname itself and rejects private, loopback, link-local, multicast, documentation/reserved, or otherwise disallowed destinations in production mode;
+- pins the validated address set into Git/libcurl using `http.curloptResolve`, retaining the configured hostname for HTTPS certificate verification;
+- performs an exact read-only `ls-remote --refs` and requires the observed remote OID to equal `expectedOldOid`.
+
+The mutation itself is constrained to an ephemeral bare Git directory that reads candidate objects through `GIT_ALTERNATE_OBJECT_DIRECTORIES`. The source repository's remotes, hooks, push configuration, and credential helpers are therefore not inherited. The destination ref update uses both an explicit source OID and Git's stable exact lease form:
+
+```text
+git push --no-verify \
+  --force-with-lease=<fixed-ref>:<expectedOldOid> \
+  <fixed-remote-url> \
+  <newCommitOid>:<fixed-ref>
+```
+
+Ambient Git/network state is suppressed: system/global config, credential helpers, interactive credentials, proxy configuration, redirects, cookies, terminal prompting, replace objects, and unapproved protocols are disabled. Git runs with `shell=false`. `GIT_PROTOCOL_FROM_USER=0` and `GIT_ALLOW_PROTOCOL` restrict protocol selection, and the adapter does not inherit `HTTP_PROXY`/`HTTPS_PROXY` from the parent environment.
+
+### Remote Git ambiguity is deliberately asymmetric
+
+A deterministic stale remote observation before push starts is `REJECTED` with `effectAttempted=false`. A clean zero push exit is transport `ACCEPTED`, still requiring independent proof.
+
+Once the push child has started, however, the remote receive-pack path may already have executed server-side hooks or other external logic. Therefore a later observation of the old ref is **not** enough to claim that nothing happened. After the effect boundary:
+
+- exact readback of `newCommitOid` may reconcile transport to `ACCEPTED`, still requiring proof;
+- old ref, another ref value, observation failure, timeout, process error, or rejected receive-pack remain `UNKNOWN` unless the exact authorized new state is proven.
+
+CIEAV never silently maps this post-effect ambiguity to success or deterministic rejection.
+
+## Independent remote Git ref proof
+
+Remote settlement uses the separate read-only provider `cieav.git-remote-ref-proof.v1`, configured through `CIEAV_PROOF_GIT_REMOTE_REF_CATALOG`. Production deployments should use a credential that can read the ref but cannot publish it, independently from the execution credential.
+
+Example:
+
+```json
+{
+  "version": 1,
+  "gitRemoteRefProof": [
+    {
+      "id": "release-origin-main-proof",
+      "remoteUrl": "https://git.example.com/org/repo.git",
+      "remoteRef": "refs/heads/main",
+      "gitBinary": "/absolute/path/to/git",
+      "gitBinarySha256": "<64 lowercase hex>",
+      "credential": {"kind":"BEARER_ENV","env":"CIEAV_GIT_READ_TOKEN"},
+      "allowLoopback": false,
+      "timeoutMs": 10000,
+      "maxOutputBytes": 65536
+    }
+  ]
+}
+```
+
+The provider uses only exact `git ls-remote --refs <fixed-url> <fixed-ref>` observation under the same DNS, proxy, redirect, protocol and credential isolation rules. It supports the deterministic expectation `ref-oid:<exact object id>`. Unknown expectation syntax and observation errors are non-conclusive. Every result is authority-free and may not mint execution authority.
+
+Repository-local Smart HTTP qualification covers exact leased publication, stale pre-state rejection, independent exact-ref proof, BASIC credential isolation, and the critical receive-pack hook case where a real server hook runs but rejects the ref: that outcome stays `UNKNOWN`. Real GitHub/GitLab/enterprise hosting, production TLS/proxy topology, credential rotation/revocation, and provider-specific operational behavior remain external qualification gates.
+
 ## Other implemented execution surfaces
 
 ### HTTP and cloud APIs
@@ -196,7 +303,7 @@ ROS2 one-shot/continuing-action and MQTT QoS1 execution paths are implemented wi
 
 Adapter credentials are resolved inside CIEAV and are not returned to agents or copied into proof observations. Each adapter accepts only credential modes it explicitly implements. Unsupported modes fail closed.
 
-The Git ref adapter accepts only `credentialMode=NONE` because this local consequence primitive performs no remote network operation.
+The local Git ref adapter accepts only `credentialMode=NONE`. The remote Git Smart HTTP adapter accepts only its explicitly configured `NONE` or CIEAV-injected credential binding. Proof configuration remains separate from mutation configuration.
 
 ## Protocol status
 
@@ -208,7 +315,7 @@ The Git ref adapter accepts only `credentialMode=NONE` because this local conseq
 | A2A | protocol-aware task execution | external agent/runtime qualification |
 | BROWSER | NAVIGATE/CLICK/TYPE with ticket/replay binding | physical Chromium + independent external witness qualification |
 | CLI | digest-pinned no-shell adapter | per-tool executable/environment qualification |
-| **GIT** | fixed-ref CAS advance + exact-ref independent proof | physical cross-platform Git/runtime/repository qualification |
+| **GIT** | local fixed-ref CAS + exact-leased Smart HTTP publication + separate exact-ref proof | physical cross-platform Git plus real hosting/TLS/credential qualification |
 | FILESYSTEM | fixed-target replace/delete | platform filesystem/atomicity qualification |
 | DATABASE | fixed SQLite mutation + proof | production database/storage qualification |
 | ROS2 | one-shot + continuing action | real ROS2/robot/hardware qualification |

@@ -6,6 +6,11 @@ import {HttpProofProvider} from "./proof-providers/http.js";
 import {GitProofProvider} from "./proof-providers/git.js";
 import {GitRefProofProvider} from "./proof-providers/git-ref.js";
 import {GitRemoteRefProofProvider} from "./proof-providers/git-remote-ref.js";
+import {KubernetesDeploymentProofProvider} from "./proof-providers/kubernetes-deployment.js";
+import {AwsEc2ProofProvider} from "./proof-providers/aws-ec2.js";
+import {AzureVmProofProvider} from "./proof-providers/azure-vm.js";
+import {GcpComputeProofProvider} from "./proof-providers/gcp-compute.js";
+import {DesktopUiProofProvider} from "./proof-providers/desktop-ui.js";
 import {SqliteProofProvider} from "./proof-providers/sqlite.js";
 import {Ros2ProofProvider} from "./proof-providers/ros2.js";
 import {BrowserProofProvider} from "./proof-providers/browser.js";
@@ -16,6 +21,11 @@ export type LocalProofProviderConfig={
   gitRepositories?:string[];
   gitRefCatalogFile?:string;
   gitRemoteRefCatalogFile?:string;
+  kubernetesDeploymentCatalogFile?:string;
+  awsEc2CatalogFile?:string;
+  azureVmCatalogFile?:string;
+  gcpComputeCatalogFile?:string;
+  desktopUiCatalogFile?:string;
   sqliteCatalogFile?:string;
   ros2CatalogFile?:string;
   browserCatalogFile?:string;
@@ -35,6 +45,16 @@ export class CieavLocalProofProviderRuntime{
     if(gitRefCatalog){const provider=GitRefProofProvider.fromCatalogFile(path.resolve(gitRefCatalog));if(provider)this.registry.register(provider)}
     const gitRemoteRefCatalog=String(config.gitRemoteRefCatalogFile??process.env.CIEAV_PROOF_GIT_REMOTE_REF_CATALOG??"").trim();
     if(gitRemoteRefCatalog){const provider=GitRemoteRefProofProvider.fromCatalogFile(path.resolve(gitRemoteRefCatalog));if(provider)this.registry.register(provider)}
+    const kubernetesDeploymentCatalog=String(config.kubernetesDeploymentCatalogFile??process.env.CIEAV_PROOF_KUBERNETES_DEPLOYMENT_CATALOG??"").trim();
+    if(kubernetesDeploymentCatalog){const provider=KubernetesDeploymentProofProvider.fromCatalogFile(path.resolve(kubernetesDeploymentCatalog));if(provider)this.registry.register(provider)}
+    const awsEc2Catalog=String(config.awsEc2CatalogFile??process.env.CIEAV_PROOF_AWS_EC2_CATALOG??"").trim();
+    if(awsEc2Catalog){const provider=AwsEc2ProofProvider.fromCatalogFile(path.resolve(awsEc2Catalog));if(provider)this.registry.register(provider)}
+    const azureVmCatalog=String(config.azureVmCatalogFile??process.env.CIEAV_PROOF_AZURE_VM_CATALOG??"").trim();
+    if(azureVmCatalog){const provider=AzureVmProofProvider.fromCatalogFile(path.resolve(azureVmCatalog));if(provider)this.registry.register(provider)}
+    const gcpComputeCatalog=String(config.gcpComputeCatalogFile??process.env.CIEAV_PROOF_GCP_COMPUTE_CATALOG??"").trim();
+    if(gcpComputeCatalog){const provider=GcpComputeProofProvider.fromCatalogFile(path.resolve(gcpComputeCatalog));if(provider)this.registry.register(provider)}
+    const desktopUiCatalog=String(config.desktopUiCatalogFile??process.env.CIEAV_PROOF_DESKTOP_UI_CATALOG??"").trim();
+    if(desktopUiCatalog){const provider=DesktopUiProofProvider.fromCatalogFile(path.resolve(desktopUiCatalog));if(provider)this.registry.register(provider)}
     const sqliteCatalog=String(config.sqliteCatalogFile??process.env.CIEAV_PROOF_SQLITE_CATALOG??"").trim();
     if(sqliteCatalog){const provider=SqliteProofProvider.fromCatalogFile(path.resolve(sqliteCatalog));if(provider)this.registry.register(provider)}
     const ros2Catalog=String(config.ros2CatalogFile??process.env.CIEAV_PROOF_ROS2_CATALOG??"").trim();

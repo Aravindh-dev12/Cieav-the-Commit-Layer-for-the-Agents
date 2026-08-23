@@ -1,0 +1,15 @@
+import {describe,expect,it} from "vitest";
+import {readFileSync} from "node:fs";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../../..");
+const read=(relative:string)=>readFileSync(path.join(ROOT,relative),"utf8");
+
+describe("production Azure VM consequence boundary",()=>{
+  it("keeps Azure first-class and exact VM bound",()=>{const contracts=read("packages/contracts/src/execution-fabric.ts"),source=read("apps/api/src/trusted-azure-vm-adapter.ts"),loader=read("apps/api/src/trusted-cli-adapter.ts");for(const token of ['"AZURE"','readonly protocol="AZURE" as const','AZURE_VM_DEALLOCATE','azureVmTarget','azureVmDownstreamRef','subscriptionId','resourceGroup','vmName','loadTrustedAzureVmAdaptersSync'])expect(`${contracts}\n${source}\n${loader}`).toContain(token);expect(source).not.toContain('readonly protocol="CLOUD_API"')});
+  it("permits only exact instanceView observation and deallocate mutation",()=>{const source=read("apps/api/src/trusted-azure-vm-adapter.ts");for(const token of ['INSTANCE_VIEW','DEALLOCATE','/instanceView?api-version=${API_VERSION}','/deallocate?hibernate=false&api-version=${API_VERSION}','method=kind==="INSTANCE_VIEW"?"GET":"POST"','PowerState/running','PowerState/deallocated'])expect(source).toContain(token);for(const forbidden of ['DELETE','PUT','PATCH','beginDelete','restart','start?','redeploy','reimage','generalize','capture','hibernate=true','az ','child_process','spawn(','execFile('])expect(source).not.toContain(forbidden)});
+  it("keeps bearer value out of target, downstream and evidence metadata",()=>{const source=read("apps/api/src/trusted-azure-vm-adapter.ts");for(const token of ['bearerTokenEnv','authorization:`Bearer ${token(c,env)}`','credentialMode!=="CIEAV_INJECTED"'])expect(source).toContain(token);for(const forbidden of ['metadata:{token','tokenValue','azureVmTarget(c)}:${token','azureVmDownstreamRef(c)}:${token'])expect(source).not.toContain(forbidden)});
+  it("keeps post-effect ambiguity UNKNOWN unless exact deallocated state is read back",()=>{const source=read("apps/api/src/trusted-azure-vm-adapter.ts");for(const token of ['effectAttempted=r.started','s==="PowerState/deallocated"','transport:"UNKNOWN"'])expect(source).toContain(token);expect(source).not.toContain('before==="PowerState/running"?"REJECTED"')});
+  it("keeps Azure proof read-only and authority-free",()=>{const proof=read("apps/api/src/proof-providers/azure-vm.ts"),runtime=read("apps/api/src/proof-provider-runtime.ts");for(const token of ['cieav.azure-vm-proof.v1','method:"GET"','instanceView?api-version=${API_VERSION}','authority:false as const','mayMintExecutionAuthority:false','CIEAV_PROOF_AZURE_VM_CATALOG','AzureVmProofProvider.fromCatalogFile'])expect(`${proof}\n${runtime}`).toContain(token);for(const forbidden of ['method:"POST"','/deallocate','mintExecutionTicket(','consumeTicket(','issueCredentialLease(','trusted-azure-vm-adapter'])expect(proof).not.toContain(forbidden)});
+});

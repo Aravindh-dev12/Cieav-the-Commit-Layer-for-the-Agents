@@ -13,7 +13,7 @@ export const AgentIdentityAttestationSchema=z.object({
 }).strict();
 export type AgentIdentityAttestation=z.infer<typeof AgentIdentityAttestationSchema>;
 
-export const ToolProtocolSchema=z.enum(["MCP","A2A","HTTP","BROWSER","CLI","GIT","FILESYSTEM","DATABASE","CLOUD_API","ROS2","MQTT"]);
+export const ToolProtocolSchema=z.enum(["MCP","A2A","HTTP","BROWSER","DESKTOP","CLI","GIT","KUBERNETES","AWS","AZURE","GCP","FILESYSTEM","DATABASE","CLOUD_API","ROS2","MQTT"]);
 export const ToolExecutionModeSchema=z.enum(["ONESHOT","CONTINUING"]);
 export const CredentialModeSchema=z.enum(["NONE","CIEAV_INJECTED","DOWNSTREAM_OAUTH","MTLS","SIGNED_REQUEST"]);
 export const FederatedToolSchema=z.object({
