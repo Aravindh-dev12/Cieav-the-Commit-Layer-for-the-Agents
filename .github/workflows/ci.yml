@@ -24,6 +24,8 @@ jobs:
         run: node scripts/physical-release-workflow-static.mjs
       - name: Verify production qualification static contract
         run: node scripts/production-qualification-static.mjs
+      - name: Verify proof provider runtime boundary
+        run: node scripts/proof-provider-runtime-static.mjs
       - name: Verify production orchestration boundary
         run: node scripts/production-orchestration-static.mjs
       - name: Verify OpenClaw zero-dependency consumer boundary
@@ -86,6 +88,8 @@ jobs:
           node --check scripts/os-secret-root-release.mjs
           node --check scripts/managed-secret-pipe-release.mjs
           node --check scripts/physical-release-workflow-static.mjs
+          node --check scripts/production-qualification-static.mjs
+          node --check scripts/proof-provider-runtime-static.mjs
           node --check scripts/production-orchestration-static.mjs
           node --check scripts/production-release-preflight.mjs
           node --check scripts/production-release-signing-bootstrap.mjs
