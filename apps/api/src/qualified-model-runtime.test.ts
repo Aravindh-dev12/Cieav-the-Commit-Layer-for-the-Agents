@@ -1,0 +1,12 @@
+import {describe,expect,it} from "vitest";
+import {qualifiedModelCellId,qualifiedModelToCognitiveCell} from "./qualified-model-runtime.js";
+import type {CieavModelCandidate} from "./model-qualification-store.js";
+
+function candidate(state:CieavModelCandidate["state"]="ACTIVE",role:CieavModelCandidate["role"]="CORE_REASONER"):CieavModelCandidate{return{version:"CIEAV_MODEL_CANDIDATE_V1",candidateId:"candidate-core-0001",jobId:"job-1",role,checkpointUri:"file:///tmp/cieav-model",checkpointDigest:"a".repeat(64),qualificationProfile:"core-v1",state,qualificationSuiteDigest:"b".repeat(64),qualificationMeanReward:.9,qualificationViolations:[],activationApprovalRef:"cieav://qualification-approval/1",activatedBy:"trusted-controller",activatedAt:"2026-08-23T00:00:01.000Z",createdAt:"2026-08-23T00:00:00.000Z",updatedAt:"2026-08-23T00:00:01.000Z",authority:false,productionAuthority:false,promotionExecuted:false,mayMintExecutionAuthority:false,mayPromoteSelf:false}}
+
+describe("qualified model runtime",()=>{
+  it("projects only ACTIVE models as zero-authority local MODEL cells",()=>{const cell=qualifiedModelToCognitiveCell(candidate(),"2026-08-23T00:00:02.000Z");expect(cell.id).toBe(qualifiedModelCellId("candidate-core-0001"));expect(cell.type).toBe("MODEL");expect(cell.local).toBe(true);expect(cell.privacyBoundary).toBe("LOCAL_ONLY");expect(cell.competence["role:CORE_REASONER"]).toBe(1);expect(cell.authority).toBe(false);expect(cell.mayMintExecutionAuthority).toBe(false)});
+  it("rejects unqualified, quarantined and revoked candidates",()=>{for(const state of ["TRAINED_UNQUALIFIED","QUALIFIED","QUARANTINED","REVOKED"] as const)expect(()=>qualifiedModelToCognitiveCell(candidate(state),"2026-08-23T00:00:02.000Z")).toThrow("not_active")});
+  it("rejects active records missing independent activation evidence",()=>{const value=candidate();delete (value as any).activationApprovalRef;expect(()=>qualifiedModelToCognitiveCell(value,"2026-08-23T00:00:02.000Z")).toThrow("activation_evidence_missing")});
+  it("maps every model-family role to a bounded declared capability set",()=>{for(const role of ["ROUTER","CORE_REASONER","CONSEQUENCE_MODEL","PROOF_PLANNER","AUTHORITY_ADVISOR","RECOVERY_MODEL","CRITIC_REWARD","SKILL_COMPILER"] as const){const cell=qualifiedModelToCognitiveCell(candidate("ACTIVE",role),"2026-08-23T00:00:02.000Z");expect(cell.capabilities.length).toBeGreaterThan(0);expect(cell.competence[`role:${role}`]).toBe(1);expect(cell.authority).toBe(false)}});
+});
