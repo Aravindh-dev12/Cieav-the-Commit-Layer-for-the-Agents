@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 import hmac
 import json
@@ -14,6 +13,7 @@ import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
@@ -58,7 +58,6 @@ def _canonical(value) -> str:
 
 def _digest(value) -> str: return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
 def _sha_text(value: str) -> str: return hashlib.sha256(value.encode("utf-8")).hexdigest()
-def _hmac_b64url(key: str, value: str) -> str: return base64.urlsafe_b64encode(hmac.new(key.encode("utf-8"),value.encode("utf-8"),hashlib.sha256).digest()).decode("ascii").rstrip("=")
 def _exact_keys(value: dict, expected: set[str], label: str) -> None:
     if not isinstance(value,dict) or set(value)!=expected: raise ValueError(f"{label}_fields_invalid")
 def _iso_timestamp(value) -> float:
@@ -108,9 +107,6 @@ class Gateway:
         self.browser_commit_token=os.environ.get("CIEAV_BROWSER_COMMIT_TOKEN","").strip()
         if len(self.browser_commit_token)<43 or secrets.compare_digest(self.browser_commit_token,self.token) or secrets.compare_digest(self.browser_commit_token,self.semantic_router_token):
             raise RuntimeError("Failed to establish a distinct browser commit capability")
-        receipt_root=settings.receipt_signing_secret()
-        kernel_verifier=_hmac_b64url(receipt_root,"cieav-agent-kernel-state-v1")
-        self.execution_fabric_verification_secret=_hmac_b64url(kernel_verifier,"cieav-execution-fabric-state-v1")
         hf_cfg = HFConfig.load()
         if not hf_cfg.token:
             hf_cfg = HFConfig(token=settings.read_hf_token(), model=hf_cfg.model, provider=hf_cfg.provider, endpoint_url=hf_cfg.endpoint_url, timeout_seconds=hf_cfg.timeout_seconds)
@@ -266,26 +262,24 @@ class Gateway:
         route_digest=_digest({"toolId":str(envelope.get("toolId")),"protocol":"BROWSER","operation":operation,"target":target,"normalizedArgumentsDigest":arguments_digest})
         if not secrets.compare_digest(str(envelope.get("routeDigest") or ""),route_digest): raise ValueError("browser_commit_route_digest_mismatch")
         if _iso_timestamp(envelope.get("ticketExpiresAt"))<=time.time(): raise ValueError("browser_commit_ticket_expired")
-        state_file=self.s.state_dir/"execution-fabric-state.json"
+        binding={"protocol":"BROWSER","operation":operation,"target":target,"normalizedArgumentsDigest":arguments_digest,"downstreamRef":str(envelope.get("downstreamRef") or "")}
+        ticket_id=str(envelope.get("ticketId") or "")
         try:
-            state=json.loads(state_file.read_text("utf-8"))
-            payload=state.get("payload") if isinstance(state,dict) else None;mac=state.get("mac") if isinstance(state,dict) else None
-            if not isinstance(payload,dict) or payload.get("version")!=1 or not isinstance(mac,str): raise RuntimeError("browser_commit_verifier_state_invalid")
-            expected_state_mac=_hmac_b64url(self.execution_fabric_verification_secret,_canonical(payload))
-            if not secrets.compare_digest(mac,expected_state_mac): raise RuntimeError("browser_commit_verifier_state_integrity_failed")
-            tickets=payload.get("tickets") if isinstance(payload.get("tickets"),list) else []
-            audit=payload.get("audit") if isinstance(payload.get("audit"),list) else []
-        except RuntimeError: raise
-        except Exception as exc: raise RuntimeError("browser_commit_verifier_unavailable") from exc
-        ticket=next((row for row in tickets if isinstance(row,dict) and row.get("id")==envelope.get("ticketId")),None)
-        if not ticket: raise ValueError("browser_commit_authority_ticket_not_found")
-        if ticket.get("status")!="CONSUMED" or not ticket.get("consumedAt"): raise ValueError("browser_commit_authority_ticket_not_consumed")
-        for ticket_key,envelope_key in [("proposalId","proposalId"),("realityBoundCommitId","realityBoundCommitId"),("toolId","toolId"),("authorizationDigest","authorizationDigest"),("routeDigest","routeDigest"),("issuedAt","ticketIssuedAt"),("expiresAt","ticketExpiresAt"),("consumedAt","ticketConsumedAt")]:
-            if str(ticket.get(ticket_key) or "")!=str(envelope.get(envelope_key) or ""): raise ValueError(f"browser_commit_authority_{ticket_key}_mismatch")
-        route_events=[event for event in audit if isinstance(event,dict) and event.get("ticketId")==ticket.get("id") and event.get("phase")=="ROUTE" and event.get("outcome")=="PASS"]
-        if len(route_events)!=1: raise ValueError("browser_commit_authority_route_audit_missing")
-        if any(isinstance(event,dict) and event.get("ticketId")==ticket.get("id") and event.get("phase")=="EXECUTE" for event in audit): raise ValueError("browser_commit_authority_execution_already_attempted")
-        return{"ok":True,"ticketId":ticket.get("id"),"realityBoundCommitId":ticket.get("realityBoundCommitId"),"routeDigest":ticket.get("routeDigest"),"trustedAuthorityStateVerified":True,"executionAuthorityIssued":False}
+            verified=_request_json(f"http://127.0.0.1:{self.s.api_port}/v1/agent-kernel/execution-fabric/tickets/{ticket_id}/verify-dispatch",method="POST",payload=binding,timeout=2.0,token=self.token)
+        except HTTPError as exc:
+            try: detail=json.loads(exc.read().decode("utf-8") or "{}").get("error") or f"http_{exc.code}"
+            except Exception: detail=f"http_{exc.code}"
+            if 400<=exc.code<500: raise ValueError(f"browser_commit_authority_rejected:{detail}") from exc
+            raise RuntimeError("browser_commit_authority_verifier_unavailable") from exc
+        except Exception as exc: raise RuntimeError("browser_commit_authority_verifier_unavailable") from exc
+        ticket=verified.get("ticket") if isinstance(verified.get("ticket"),dict) else None
+        proposal=verified.get("proposal") if isinstance(verified.get("proposal"),dict) else None
+        tool=verified.get("tool") if isinstance(verified.get("tool"),dict) else None
+        if verified.get("authority") is not False or verified.get("executionAuthorityIssued") is not False or not ticket or not proposal or not tool: raise RuntimeError("browser_commit_authority_verifier_invalid_response")
+        if str(ticket.get("id") or "")!=ticket_id or str(ticket.get("proposalId") or "")!=str(envelope.get("proposalId") or "") or str(ticket.get("realityBoundCommitId") or "")!=str(envelope.get("realityBoundCommitId") or ""): raise RuntimeError("browser_commit_authority_verifier_binding_mismatch")
+        if str(proposal.get("toolId") or "")!=str(envelope.get("toolId") or "") or str(proposal.get("operation") or "")!=operation or str(proposal.get("target") or "")!=target: raise RuntimeError("browser_commit_authority_verifier_proposal_mismatch")
+        if str(tool.get("downstreamRef") or "")!=str(envelope.get("downstreamRef") or "") or str(tool.get("protocol") or "")!="BROWSER": raise RuntimeError("browser_commit_authority_verifier_tool_mismatch")
+        return{"ok":True,"ticketId":ticket_id,"realityBoundCommitId":ticket.get("realityBoundCommitId"),"routeDigest":verified.get("routeDigest"),"trustedAuthorityStateVerified":True,"executionAuthorityIssued":False}
 
     def _wait_surface(self, child: subprocess.Popen, timeout: float = 20.0) -> bool:
         deadline=time.time()+timeout
