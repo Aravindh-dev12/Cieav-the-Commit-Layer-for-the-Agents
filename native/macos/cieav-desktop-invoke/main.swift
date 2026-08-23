@@ -18,6 +18,7 @@ struct InvokeRequest: Decodable {
     let controlId: String
     let action: String
     let expectedStateDigest: String
+    let commitMac: String
 }
 
 struct ExecutionResponse: Encodable {
@@ -43,6 +44,33 @@ func validIdentity(_ value: String) -> Bool {
 
 func lowerHex64(_ value: String) -> Bool {
     value.utf8.count == 64 && value.allSatisfy { ($0 >= "0" && $0 <= "9") || ($0 >= "a" && $0 <= "f") }
+}
+
+func hexData(_ value: String) throws -> Data {
+    guard lowerHex64(value) else { throw DesktopError.invalidInput }
+    var out = Data(); out.reserveCapacity(32)
+    var index = value.startIndex
+    for _ in 0..<32 {
+        let next = value.index(index, offsetBy: 2)
+        guard let byte = UInt8(value[index..<next], radix: 16) else { throw DesktopError.invalidInput }
+        out.append(byte); index = next
+    }
+    return out
+}
+
+func commitMaterial(_ request: InvokeRequest) -> String {
+    ["CIEAV_DESKTOP_COMMIT_V1", request.ticketId, request.proposalId, request.normalizedArgumentsDigest, request.platform, request.appId, request.windowId, request.controlId, request.action, request.expectedStateDigest].joined(separator: "\n")
+}
+
+func verifyCommitMac(_ request: InvokeRequest) throws {
+    guard let rawKey = ProcessInfo.processInfo.environment["CIEAV_DESKTOP_COMMIT_KEY"] else { throw DesktopError.invalidInput }
+    let keyData = try hexData(rawKey), supplied = try hexData(request.commitMac)
+    let code = HMAC<SHA256>.authenticationCode(for: Data(commitMaterial(request).utf8), using: SymmetricKey(data: keyData))
+    let expected = Data(code)
+    guard expected.count == supplied.count else { throw DesktopError.invalidInput }
+    var difference: UInt8 = 0
+    for i in 0..<expected.count { difference |= expected[i] ^ supplied[i] }
+    guard difference == 0 else { throw DesktopError.invalidInput }
 }
 
 func attr(_ element: AXUIElement, _ name: CFString) -> CFTypeRef? {
@@ -126,12 +154,13 @@ func emit(_ effectStarted: Bool, _ transport: String, _ detailCode: String, _ po
 }
 
 do {
-    guard AXIsProcessTrusted() else { emit(false, "REJECTED", "ACCESSIBILITY_NOT_TRUSTED"); exit(0) }
     let request = try JSONDecoder().decode(InvokeRequest.self, from: readInput())
     guard request.version == 1, request.kind == "INVOKE", request.platform == "darwin", request.action == "INVOKE",
           UUID(uuidString: request.ticketId) != nil, UUID(uuidString: request.proposalId) != nil,
-          lowerHex64(request.normalizedArgumentsDigest), lowerHex64(request.expectedStateDigest),
+          lowerHex64(request.normalizedArgumentsDigest), lowerHex64(request.expectedStateDigest), lowerHex64(request.commitMac),
           validIdentity(request.appId), validIdentity(request.windowId), validIdentity(request.controlId) else { throw DesktopError.invalidInput }
+    try verifyCommitMac(request)
+    guard AXIsProcessTrusted() else { emit(false, "REJECTED", "ACCESSIBILITY_NOT_TRUSTED"); exit(0) }
 
     let resolved: (NSRunningApplication, AXUIElement, AXUIElement)
     do { resolved = try resolve(request) } catch { emit(false, "REJECTED", "TARGET_NOT_EXACT"); exit(0) }
