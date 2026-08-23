@@ -209,7 +209,8 @@ def main() -> int:
         dispatch=signed_browser_dispatch(commit_token,ticket=ticket,action=action,normalized_arguments_digest=args_digest)
         verified=g.verify_browser_commit(dispatch)
         assert verified["ok"] is True and verified["trustedAuthorityStateVerified"] is True and verified["executionAuthorityIssued"] is False
-        try:g.verify_browser_commit({...dispatch,"action":{...action,"selector":"#tampered"}})
+        tampered_dispatch={**dispatch,"action":{**action,"selector":"#tampered"}}
+        try:g.verify_browser_commit(tampered_dispatch)
         except ValueError as exc:assert "action_digest_mismatch" in str(exc)
         else:raise AssertionError("Gateway verifier accepted altered browser action")
         state_payload["audit"]=[];write_execution_fabric_state(g,state_payload)
