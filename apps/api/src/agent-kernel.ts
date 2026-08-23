@@ -16,6 +16,7 @@ import {CieavReflexLayer} from "./reflex-layer.js";
 import {CieavEdgeRuntime} from "./edge-runtime.js";
 import {CieavEdgeAuthorityIssuer} from "./edge-authority-issuer.js";
 import {CieavEdgeDeviceRegistry} from "./edge-device-registry.js";
+import {CieavEdgeSafeStateController,loadEdgeSafeStateControllerSync} from "./edge-safe-state.js";
 import {loadTrustedMqttAdaptersSync} from "./trusted-mqtt-adapter.js";
 
 type Payload={version:1;tasks:AgentTask[];events:AgentTaskEvent[]};
@@ -37,6 +38,7 @@ export class CieavAgentKernelStore{
   readonly continuingAuthority:CieavContinuingAuthorityStore;
   readonly reflexLayer:CieavReflexLayer;
   readonly edgeDevices:CieavEdgeDeviceRegistry;
+  readonly edgeSafeState:CieavEdgeSafeStateController;
   readonly edgeRuntime:CieavEdgeRuntime;
   readonly edgeAuthorityIssuer:CieavEdgeAuthorityIssuer;
   readonly controlPlane:CieavControlPlaneStore;
@@ -47,6 +49,7 @@ export class CieavAgentKernelStore{
   readonly executionRouter:CieavExecutionRouter;
   constructor(private readonly file:string,private readonly stateSecret:string){
     if(stateSecret.length<32)throw new Error("CIEAV agent-kernel state secret is too weak");
+    const stateDir=process.env.CIEAV_STATE_DIR?.trim()||process.env.LATCH_STATE_DIR?.trim()||path.dirname(file);
     const intentRealitySecret=crypto.createHmac("sha256",stateSecret).update("cieav-intent-reality-state-v1").digest("base64url");
     const executionFabricSecret=crypto.createHmac("sha256",stateSecret).update("cieav-execution-fabric-state-v1").digest("base64url");
     const continuingAuthoritySecret=crypto.createHmac("sha256",stateSecret).update("cieav-continuing-authority-state-v1").digest("base64url");
@@ -63,7 +66,8 @@ export class CieavAgentKernelStore{
     this.continuingAuthority=new CieavContinuingAuthorityStore(path.join(path.dirname(file),"continuing-authority-state.json"),continuingAuthoritySecret,this.executionFabric);
     this.reflexLayer=new CieavReflexLayer(path.join(path.dirname(file),"reflex-layer-state.json"),reflexLayerSecret,this.continuingAuthority);
     this.edgeDevices=new CieavEdgeDeviceRegistry(path.join(path.dirname(file),"edge-device-registry-state.json"),edgeDeviceSecret);
-    this.edgeRuntime=new CieavEdgeRuntime(path.join(path.dirname(file),"edge-runtime-state.json"),edgeStateSecret,edgeEnvelopeVerificationSecret,this.edgeDevices);
+    this.edgeSafeState=loadEdgeSafeStateControllerSync(stateDir,process.env);
+    this.edgeRuntime=new CieavEdgeRuntime(path.join(path.dirname(file),"edge-runtime-state.json"),edgeStateSecret,edgeEnvelopeVerificationSecret,this.edgeDevices,this.edgeSafeState);
     this.edgeAuthorityIssuer=new CieavEdgeAuthorityIssuer(edgeEnvelopeVerificationSecret,this.executionFabric);
     this.controlPlane=new CieavControlPlaneStore(path.join(path.dirname(file),"control-plane-state.json"),controlPlaneSecret,this,this.executionFabric);
     this.frameworkInterop=new CieavFrameworkInteropStore(path.join(path.dirname(file),"framework-interop-state.json"),frameworkInteropSecret,this);
@@ -71,7 +75,6 @@ export class CieavAgentKernelStore{
     this.hardwareSigner=new CieavHardwareSigner(this.hardwareKeyProviders);
     this.credentialAuthority=new CieavCredentialAuthority(path.join(path.dirname(file),"credential-authority-state.json"),credentialAuthoritySecret,process.env,this.hardwareSigner);
     this.executionRouter=new CieavExecutionRouter(this.executionFabric,[],this.controlPlane,this.credentialAuthority,this.continuingAuthority,this.reflexLayer);
-    const stateDir=process.env.CIEAV_STATE_DIR?.trim()||process.env.LATCH_STATE_DIR?.trim()||path.dirname(file);
     for(const adapter of loadTrustedMqttAdaptersSync(stateDir,process.env))this.executionRouter.register(adapter);
   }
   private mac(payload:Payload){return crypto.createHmac("sha256",this.stateSecret).update(canonical(payload)).digest("base64url")}
