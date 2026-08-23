@@ -1,15 +1,24 @@
+import crypto from "node:crypto";
 import {spawn} from "node:child_process";
+import {readFileSync,realpathSync,statSync} from "node:fs";
+import path from "node:path";
 
 const enabled=()=>!["0","false","off","disabled"].includes(String(process.env.CIEAV_NOTIFICATIONS??"1").trim().toLowerCase());
 const clean=(value,max)=>String(value??"").replace(/[\r\n\t]+/g," ").replace(/\s+/g," ").trim().slice(0,max);
 const minimalEnv=extra=>{
   const env={};
-  for(const key of ["SystemRoot","WINDIR","ComSpec","PATH","TEMP","TMP","USERPROFILE","HOME","LANG","LC_ALL","DISPLAY","DBUS_SESSION_BUS_ADDRESS","XDG_RUNTIME_DIR"]){
+  for(const key of ["SystemRoot","WINDIR","ComSpec","PATH","TEMP","TMP","USERPROFILE","HOME","LANG","LC_ALL","DISPLAY","WAYLAND_DISPLAY","DBUS_SESSION_BUS_ADDRESS","XDG_RUNTIME_DIR"]){
     if(process.env[key])env[key]=process.env[key];
   }
   return {...env,...extra};
 };
 const detached=child=>{child.on("error",()=>{});child.unref?.();return true};
+const sha256=value=>crypto.createHash("sha256").update(value).digest("hex");
+function verifiedApprovalHelper(){
+  const configured=String(process.env.CIEAV_NATIVE_APPROVAL_HELPER??"").trim(),expected=String(process.env.CIEAV_NATIVE_APPROVAL_HELPER_SHA256??"").trim().toLowerCase();
+  if(!configured||!/^[a-f0-9]{64}$/.test(expected)||!path.isAbsolute(configured))return null;
+  try{const helper=realpathSync(configured),stat=statSync(helper);if(!stat.isFile())return null;const actual=sha256(readFileSync(helper));return actual===expected?helper:null}catch{return null}
+}
 
 export function notifyNative(title,message,{level="info"}={}){
   if(!enabled())return false;
@@ -45,10 +54,11 @@ export function notifyNative(title,message,{level="info"}={}){
 }
 
 /**
- * Sends an approval request to the native action host. The one-use activation
- * capabilities are delivered over stdin, never argv or environment variables.
- * If a qualified native action host is unavailable this returns false; the
- * background mediator owns the single passive fail-closed warning.
+ * Sends an approval request to a digest-pinned native action host. The one-use
+ * activation capabilities are delivered over stdin, never argv/environment.
+ * All supported operating systems use the same CIEAV_NATIVE_APPROVAL_UI_V1
+ * protocol and request-bound activation capability. If the host is missing or
+ * its binary digest changes this returns false and the mediator fails closed.
  */
 export function notifyNativeApproval({title="CIEAV approval required",message,risk="HIGH",expiresAt,callbackUrl,approve,deny}={}){
   if(!enabled())return false;
@@ -57,11 +67,11 @@ export function notifyNativeApproval({title="CIEAV approval required",message,ri
   risk=clean(risk,16).toUpperCase();
   try{
     const callback=new URL(String(callbackUrl??""));
-    if(callback.protocol!=="http:"||callback.hostname!=="127.0.0.1"||callback.pathname!=="/api/native-approval")throw new Error("invalid_native_approval_callback");
+    if(callback.protocol!=="http:"||callback.hostname!=="127.0.0.1"||callback.pathname!=="/api/native-approval"||callback.username||callback.password||callback.search||callback.hash||callback.port==="")throw new Error("invalid_native_approval_callback");
+    const port=Number(callback.port);if(!Number.isInteger(port)||port<1024||port>65535)throw new Error("invalid_native_approval_callback_port");
     if(!approve?.payload||!approve?.mac||!deny?.payload||!deny?.mac)throw new Error("invalid_native_approval_capability");
-    if(process.platform!=="win32")return false;
-    const helper=String(process.env.CIEAV_NATIVE_APPROVAL_HELPER??"").trim();
-    if(!helper)return false;
+    if(!["win32","darwin","linux"].includes(process.platform))return false;
+    const helper=verifiedApprovalHelper();if(!helper)return false;
     const child=spawn(helper,[],{stdio:["pipe","ignore","ignore"],windowsHide:true,detached:true,env:minimalEnv({})});
     child.on("error",()=>{});
     const payload={version:"CIEAV_NATIVE_APPROVAL_UI_V1",title,message,risk,expiresAt:String(expiresAt??""),callbackUrl:callback.toString(),approve,deny};
