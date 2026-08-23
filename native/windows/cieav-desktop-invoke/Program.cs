@@ -30,7 +30,7 @@ static byte[] CommitKey()
     if (!IsLowerHex64(raw)) throw new InvalidDataException("invalid commit key");
     return Convert.FromHexString(raw);
 }
-static string CommitMaterial(InvokeRequest r) => string.Join("\n", new[] { "CIEAV_DESKTOP_COMMIT_V1", r.TicketId, r.ProposalId, r.NormalizedArgumentsDigest, r.Platform, r.AppId, r.WindowId, r.ControlId, r.Action, r.ExpectedStateDigest });
+static string CommitMaterial(InvokeRequest r) => string.Join("\n", new[] { "CIEAV_DESKTOP_COMMIT_V1", r.TicketId, r.ProposalId, r.NormalizedArgumentsDigest, r.Platform, r.AppId, r.WindowId, r.ControlId, r.Action, r.ReplayDirDigest, r.ExpectedStateDigest });
 static void VerifyCommitMac(InvokeRequest r)
 {
     var key = CommitKey();
@@ -38,6 +38,22 @@ static void VerifyCommitMac(InvokeRequest r)
     var expected = hmac.ComputeHash(Encoding.UTF8.GetBytes(CommitMaterial(r)));
     var supplied = Convert.FromHexString(r.CommitMac);
     if (!CryptographicOperations.FixedTimeEquals(expected, supplied)) throw new InvalidDataException("invalid commit mac");
+}
+static string? ClaimReplay(InvokeRequest r)
+{
+    var replayDir = Environment.GetEnvironmentVariable("CIEAV_DESKTOP_REPLAY_DIR");
+    if (string.IsNullOrWhiteSpace(replayDir) || !Path.IsPathFullyQualified(replayDir) || !string.Equals(Sha256Hex(replayDir), r.ReplayDirDigest, StringComparison.Ordinal) || !Directory.Exists(replayDir)) return "REPLAY_DIR_MISMATCH";
+    var marker = Path.Combine(replayDir, $"{r.TicketId}.used");
+    try
+    {
+        using var stream = new FileStream(marker, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough);
+        var bytes = Encoding.ASCII.GetBytes(r.CommitMac + "\n");
+        stream.Write(bytes);
+        stream.Flush(true);
+        return null;
+    }
+    catch (IOException) { return "REPLAY_ALREADY_CONSUMED"; }
+    catch { return "REPLAY_CLAIM_FAILED"; }
 }
 
 static IEnumerable<AutomationElement> Elements(AutomationElementCollection collection)
@@ -118,6 +134,8 @@ try
     var request = JsonSerializer.Deserialize<InvokeRequest>(await ReadBoundedStdinAsync(), JsonOptions.Default) ?? throw new InvalidDataException("missing request");
     request.Validate();
     VerifyCommitMac(request);
+    var replayError = ClaimReplay(request);
+    if (replayError is not null) { Emit(false, "REJECTED", replayError); return 0; }
 
     AutomationElement window;
     AutomationElement control;
@@ -153,13 +171,14 @@ sealed class InvokeRequest
     public string WindowId { get; set; } = "";
     public string ControlId { get; set; } = "";
     public string Action { get; set; } = "";
+    public string ReplayDirDigest { get; set; } = "";
     public string ExpectedStateDigest { get; set; } = "";
     public string CommitMac { get; set; } = "";
     public void Validate()
     {
         if (Version != 1 || Kind != "INVOKE" || Platform != "win32" || Action != "INVOKE") throw new InvalidDataException("invalid envelope");
         if (!Guid.TryParse(TicketId, out _) || !Guid.TryParse(ProposalId, out _)) throw new InvalidDataException("invalid authority ids");
-        if (!IsLowerHex64(NormalizedArgumentsDigest) || !IsLowerHex64(ExpectedStateDigest) || !IsLowerHex64(CommitMac)) throw new InvalidDataException("invalid digest");
+        if (!IsLowerHex64(NormalizedArgumentsDigest) || !IsLowerHex64(ReplayDirDigest) || !IsLowerHex64(ExpectedStateDigest) || !IsLowerHex64(CommitMac)) throw new InvalidDataException("invalid digest");
         if (!Path.IsPathFullyQualified(AppId)) throw new InvalidDataException("appId must be an absolute process image path");
         if (string.IsNullOrWhiteSpace(WindowId) || string.IsNullOrWhiteSpace(ControlId)) throw new InvalidDataException("missing automation ids");
         if (new[] { AppId, WindowId, ControlId }.Any(v => v.Length > 512 || v.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0)) throw new InvalidDataException("invalid identity");
