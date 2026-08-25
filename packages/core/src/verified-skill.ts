@@ -51,7 +51,10 @@ export function qualifyVerifiedSkill(candidateRaw:VerifiedSkillCandidate,traject
   if(ids.size!==trajectories.length)reasons.push("duplicate_trajectory_id");
   const expectedIds=[...candidate.evidenceTrajectoryIds].sort(),actualIds=[...ids].sort();if(canonicalVerifiedSkillValue(expectedIds)!==canonicalVerifiedSkillValue(actualIds))reasons.push("candidate_evidence_set_mismatch");
   if(trajectories.some(t=>t.operation!==candidate.operation))reasons.push("candidate_operation_mismatch");
-  if(candidate.argumentPolicy.mode==="EXACT_DIGEST"&&trajectories.some(t=>t.exactArgumentsDigest!==candidate.argumentPolicy.exactArgumentsDigest))reasons.push("candidate_exact_arguments_mismatch");
+  if(candidate.argumentPolicy.mode==="EXACT_DIGEST"){
+    const exactArgumentsDigest=candidate.argumentPolicy.exactArgumentsDigest;
+    if(trajectories.some(t=>t.exactArgumentsDigest!==exactArgumentsDigest))reasons.push("candidate_exact_arguments_mismatch");
+  }
   if(candidate.argumentPolicy.mode==="SCHEMA_DIGEST")reasons.push("schema_argument_policy_requires_external_deterministic_qualification");
 
   const samples=trajectories.length,successes=trajectories.filter(t=>t.outcome==="SUCCESS").length,failures=trajectories.filter(t=>t.outcome==="FAILURE").length,unknown=trajectories.filter(t=>t.outcome==="UNKNOWN").length;

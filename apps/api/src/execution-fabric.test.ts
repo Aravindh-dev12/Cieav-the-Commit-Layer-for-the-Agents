@@ -54,7 +54,7 @@ describe("CIEAV universal execution fabric",()=>{
 
   it("blocks a mismatched semantic effect even after the original reality commit was consumed",async()=>{const x=await setupFabric();const changed={...x.proposal,id:crypto.randomUUID(),semanticEffect:{...effect,target:"other@example.com"}};await x.fabric.authorize(changed);await consumeReality(x);await expect(x.fabric.issueTicket(changed.id,x.realityCommit.id)).rejects.toThrow("execution_proposal_reality_commit_binding_mismatch")});
 
-  it("rejects a proposal that differs from the exact proposal digest committed before execution",async()=>{const x=await setupFabric();const changed={...x.proposal,id:crypto.randomUUID(),target:"mailto:customer+changed@example.com"};await x.fabric.authorize(changed);await consumeReality(x);await expect(x.fabric.issueTicket(changed.id,x.realityCommit.id)).rejects.toThrow("execution_proposal_reality_commit_binding_mismatch")});
+  it("rejects a proposal that differs from the exact proposal digest committed before execution",async()=>{const x=await setupFabric();const changed={...x.proposal,id:crypto.randomUUID(),expectedPostStateDigest:"9".repeat(64)};await x.fabric.authorize(changed);await consumeReality(x);await expect(x.fabric.issueTicket(changed.id,x.realityCommit.id)).rejects.toThrow("execution_proposal_reality_commit_binding_mismatch")});
 
   it("revoked credential lease cannot authorize or route",async()=>{const x=await setupFabric();await x.fabric.revokeLease(x.lease.id);await expect(x.fabric.authorize(x.proposal)).rejects.toThrow("credential_lease_scope_violation")});
 

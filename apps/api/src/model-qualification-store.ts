@@ -28,7 +28,11 @@ const safe=(a:string,b:string)=>a.length===b.length&&crypto.timingSafeEqual(Buff
 async function durableReplace(file:string,contents:string){const dir=path.dirname(file),tmp=`${file}.${process.pid}.${crypto.randomUUID()}.tmp`;await mkdir(dir,{recursive:true,mode:0o700});await writeFile(tmp,contents,{encoding:"utf8",mode:0o600,flag:"wx"});const fh=await open(tmp,"r+");try{await fh.sync()}finally{await fh.close()}await rename(tmp,file);try{await chmod(file,0o600)}catch{}if(process.platform!=="win32")try{const dh=await open(dir,"r");try{await dh.sync()}finally{await dh.close()}}catch{}}
 
 export class CieavModelQualificationStore{
-  private readonly headFile:string,stateKey:Buffer,headKey:Buffer;private loaded=false;private chain:Promise<void>=Promise.resolve();private state:State={version:"CIEAV_MODEL_REGISTRY_STATE_V1",generation:0,candidates:[],qualifications:[],updatedAt:new Date(0).toISOString(),authority:false,productionAuthority:false,mayMintExecutionAuthority:false};
+  private readonly headFile:string;
+  private readonly stateKey:Buffer;
+  private readonly headKey:Buffer;
+  private loaded=false;
+  private chain:Promise<void>=Promise.resolve();private state:State={version:"CIEAV_MODEL_REGISTRY_STATE_V1",generation:0,candidates:[],qualifications:[],updatedAt:new Date(0).toISOString(),authority:false,productionAuthority:false,mayMintExecutionAuthority:false};
   constructor(private readonly file:string,secret:string,private readonly learningJobs:LearningJobsView){if(secret.length<32)throw new Error("CIEAV model registry secret is too weak");this.headFile=`${file}.head`;this.stateKey=crypto.createHmac("sha256",secret).update("cieav-model-registry-state-v1").digest();this.headKey=crypto.createHmac("sha256",secret).update("cieav-model-registry-head-v1").digest()}
   private enqueue<T>(fn:()=>Promise<T>):Promise<T>{const task=this.chain.then(fn,fn);this.chain=task.then(()=>undefined,()=>undefined);return task}
   private stateDigest(state:State){return digest(state)}

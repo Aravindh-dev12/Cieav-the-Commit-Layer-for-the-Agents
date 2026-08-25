@@ -121,7 +121,7 @@ export class CieavContinuingAuthorityStore{
     await this.assertExecutionBinding(input);
     const budgets=input.budgets.map(x=>BudgetSchema.parse({...x,consumed:x.consumed??0}));
     const base={...input,budgets},createdAt=new Date(now).toISOString();
-    const session=SessionSchema.parse({id:crypto.randomUUID(),version:1,authority:false,executionAuthorityIssued:false,...base,bindingDigest:this.expectedBinding(base),state:"ACTIVE",observations:[]});
+    const session=SessionSchema.parse({id:crypto.randomUUID(),version:1,authority:false,executionAuthorityIssued:false,...base,createdAt,bindingDigest:this.expectedBinding(base),state:"ACTIVE",observations:[]});
     this.sessions.set(session.id,session);await this.persist();return session;
   })}
   get(id:string){return this.enqueue(async()=>{await this.load();return this.sessions.get(id)??null})}

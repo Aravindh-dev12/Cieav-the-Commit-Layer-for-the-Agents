@@ -66,7 +66,9 @@ def main() -> None:
         s.write_hf_token("hf_test_abcdefghijklmnopqrstuvwxyz")
         assert s.read_hf_token()=="hf_test_abcdefghijklmnopqrstuvwxyz"
         old=os.environ.get("HF_TOKEN")
+        old_browser_commit=os.environ.get("CIEAV_BROWSER_COMMIT_TOKEN")
         os.environ["HF_TOKEN"]="hf_test_secret_never_log"
+        os.environ["CIEAV_BROWSER_COMMIT_TOKEN"]="C"*64
         try:
             g=Gateway(s)
             semantic_env=g._semantic_env()
@@ -88,6 +90,10 @@ def main() -> None:
         finally:
             if old is None: os.environ.pop("HF_TOKEN",None)
             else: os.environ["HF_TOKEN"]=old
+            if old_browser_commit is None:
+                os.environ.pop("CIEAV_BROWSER_COMMIT_TOKEN",None)
+            else:
+                os.environ["CIEAV_BROWSER_COMMIT_TOKEN"]=old_browser_commit
 
     print("CIEAV Hugging Face provider smoke passed")
 

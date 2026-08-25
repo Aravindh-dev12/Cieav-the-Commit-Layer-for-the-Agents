@@ -28,7 +28,7 @@ export function chromiumArgs({profile,headless=false,testMode=false}={}){
     "--no-default-browser-check",
     "--disable-session-crashed-bubble",
     "--no-proxy-server",
-    ...(headless?["--headless=new","--disable-gpu",...(testMode?["--no-sandbox"]:[])]:[]),
+    ...(headless?["--headless=new","--disable-gpu",...(testMode?["--no-sandbox","--enable-automation"]:[])]:[]),
     "about:blank"
   ];
 }

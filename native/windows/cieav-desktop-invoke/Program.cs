@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Windows.Automation;
 
 const int MaxInputChars = 64_000;
@@ -174,11 +176,14 @@ sealed class InvokeRequest
     public string ReplayDirDigest { get; set; } = "";
     public string ExpectedStateDigest { get; set; } = "";
     public string CommitMac { get; set; } = "";
+    private static bool IsLowerHex64Value(string value) =>
+        value.Length == 64 &&
+        value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
     public void Validate()
     {
         if (Version != 1 || Kind != "INVOKE" || Platform != "win32" || Action != "INVOKE") throw new InvalidDataException("invalid envelope");
         if (!Guid.TryParse(TicketId, out _) || !Guid.TryParse(ProposalId, out _)) throw new InvalidDataException("invalid authority ids");
-        if (!IsLowerHex64(NormalizedArgumentsDigest) || !IsLowerHex64(ReplayDirDigest) || !IsLowerHex64(ExpectedStateDigest) || !IsLowerHex64(CommitMac)) throw new InvalidDataException("invalid digest");
+        if (!IsLowerHex64Value(NormalizedArgumentsDigest) || !IsLowerHex64Value(ReplayDirDigest) || !IsLowerHex64Value(ExpectedStateDigest) || !IsLowerHex64Value(CommitMac)) throw new InvalidDataException("invalid digest");
         if (!Path.IsPathFullyQualified(AppId)) throw new InvalidDataException("appId must be an absolute process image path");
         if (string.IsNullOrWhiteSpace(WindowId) || string.IsNullOrWhiteSpace(ControlId)) throw new InvalidDataException("missing automation ids");
         if (new[] { AppId, WindowId, ControlId }.Any(v => v.Length > 512 || v.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0)) throw new InvalidDataException("invalid identity");
