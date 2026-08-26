@@ -42,7 +42,7 @@ describe("UniversalIntelligenceRuntime",()=>{
     expect(unknown.edge.unknown).toBe(1);
     expect(unknown.learning.outcome).toBe("UNKNOWN");
     expect(unknown.learning.reasons).toContain("unknown_is_training_signal_not_success");
-    expect(()=>runtime.ingestVerifiedExperience(trajectory({trajectoryId:"trajectory-bad",cryptographicallyVerified:false}))).toThrow(/cryptographically verified/i);
+    expect(()=>runtime.ingestVerifiedExperience(trajectory({trajectoryId:"trajectory-bad",cryptographicallyVerified:false}))).toThrow("consequence_graph_requires_cryptographically_verified_trajectory");
   });
 
   it("produces a non-authoritative organism snapshot",()=>{

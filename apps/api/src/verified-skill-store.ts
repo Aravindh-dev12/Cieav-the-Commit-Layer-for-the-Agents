@@ -22,7 +22,11 @@ const capabilitiesDigest=(cell:CognitiveCellDescriptor)=>verifiedSkillDigest([..
 const dependencyIds=(skill:VerifiedSkillArtifactV2)=>[...new Set(skill.candidate.program.steps.map(step=>step.engineId).filter((id):id is string=>Boolean(id)))].sort();
 
 export class CieavVerifiedSkillStore{
-  private readonly headFile:string,stateKey:Buffer,headKey:Buffer;private loaded=false;private chain:Promise<void>=Promise.resolve();
+  private readonly headFile:string;
+  private readonly stateKey:Buffer;
+  private readonly headKey:Buffer;
+  private loaded=false;
+  private chain:Promise<void>=Promise.resolve();
   private state:VerifiedSkillRegistryPersistedState={version:"CIEAV_VERIFIED_SKILL_REGISTRY_STATE_V1",generation:0,records:[],updatedAt:new Date(0).toISOString(),authority:false,productionAuthority:false,mayMintExecutionAuthority:false};
   constructor(private readonly file:string,secret:string){if(secret.length<32)throw new Error("CIEAV verified-skill registry secret is too weak");this.headFile=`${file}.head`;this.stateKey=crypto.createHmac("sha256",secret).update("cieav-verified-skill-registry-state-v1").digest();this.headKey=crypto.createHmac("sha256",secret).update("cieav-verified-skill-registry-head-v1").digest()}
   private enqueue<T>(fn:()=>Promise<T>):Promise<T>{const task=this.chain.then(fn,fn);this.chain=task.then(()=>undefined,()=>undefined);return task}

@@ -10,6 +10,7 @@ const requireTokens=(p,tokens)=>{const s=read(p);for(const token of tokens)if(!s
 const contracts=requireTokens("packages/contracts/src/authority-grade-settlement.ts",[
   "CIEAV_AUTHORITY_GRADE_SETTLEMENT_BUNDLE_V1","CIEAV_AUTHORITY_GRADE_SEMANTIC_ASSESSMENT_V1","Pure semantic assessment","only the trusted local exporter may make","CIEAV_AUTHORITY_GRADE_SETTLEMENT_ASSESSMENT_V1","cryptographicallyVerified:z.boolean()","authority:z.literal(false)","productionAuthority:z.literal(false)"
 ]);
+const proofContracts=requireTokens("packages/contracts/src/proof.ts",["ProofProvenanceSchema","AGENT_REPORT","UNVERIFIED"]);
 const graphContracts=requireTokens("packages/contracts/src/universal-runtime.ts",[
   "ConsequenceGraphTrajectoryLedgerEntrySchema","trajectoryDigest:z.string().regex","ingestedTrajectories:z.array","Durable at-most-once ledger","never silently evicted","authority:z.literal(false)","mayMintExecutionAuthority:z.literal(false)"
 ]);
@@ -50,7 +51,7 @@ for(const source of [contracts,graphContracts,settlement,graph,trajectory,export
 if(contracts.includes("sourceIntegrity"))throw new Error("public settlement bundle may not accept caller-asserted source integrity");
 if(settlement.includes("cryptographicallyVerified:true"))throw new Error("pure semantic verifier may not claim cryptographic source verification");
 if(receipt.includes("authorityGrade:true")||receipt.includes("realityBound:true"))throw new Error("finalized receipt exporter may not claim authority-grade or reality-bound truth");
-if(!settlement.includes("AGENT_REPORT")||!settlement.includes("UNVERIFIED"))throw new Error("settlement verifier no longer distinguishes untrusted proof provenance");
+if(!proofContracts.includes("AGENT_REPORT")||!proofContracts.includes("UNVERIFIED")||settlement.includes("AGENT_REPORT"))throw new Error("settlement verifier no longer distinguishes untrusted proof provenance");
 if(intelligenceApi.includes("IntelligenceExperienceRequestSchema.parse"))throw new Error("Gateway intelligence API may not accept caller-asserted verified trajectory objects");
 if(proofBridge.includes("provenance:"))throw new Error("trusted proof bridge must not accept caller-selected provenance");
 

@@ -57,9 +57,15 @@ std::wstring quote_arg(const std::wstring& arg) {
 }
 
 std::wstring handle_switch(HANDLE input, HANDLE output) {
-  const auto in_value = static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(input));
-  const auto out_value = static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(output));
-  return L"--remote-debugging-io-pipes=" + std::to_wstring(in_value) + L"," + std::to_wstring(out_value);
+  // Chromium serializes Windows HANDLE values as unsigned 32-bit integers.
+  // HANDLE is pointer-sized on Win64, but real kernel handle values are 32-bit.
+  const auto in_value =
+      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(input));
+  const auto out_value =
+      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(output));
+  return L"--remote-debugging-io-pipes=" +
+         std::to_wstring(in_value) + L"," +
+         std::to_wstring(out_value);
 }
 
 struct PipeCopyContext { HANDLE input; HANDLE output; };
@@ -176,6 +182,11 @@ int wmain(int argc, wchar_t** argv) {
   WaitForSingleObject(process_handle.value, INFINITE);
   DWORD exit_code = 1;
   GetExitCodeProcess(process_handle.value, &exit_code);
+  if (exit_code != 0) {
+    fwprintf(stderr,
+             L"CIEAV Windows CDP bridge: Chromium exited with code %lu\n",
+             static_cast<unsigned long>(exit_code));
+  }
   CancelSynchronousIo(inbound_thread.value);
   WaitForSingleObject(inbound_thread.value, 1500);
   parent_write.reset();

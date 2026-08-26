@@ -28,7 +28,7 @@ const base=(overrides:Partial<AuthorizedOutcomeTrajectory>={}):AuthorizedOutcome
 
 describe("ConsequenceGraph",()=>{
   it("rejects unverified trajectories",()=>{
-    expect(()=>trajectoryToGraphObservation(base({cryptographicallyVerified:false}))).toThrow(/cryptographically verified/i);
+    expect(()=>trajectoryToGraphObservation(base({cryptographicallyVerified:false}))).toThrow("consequence_graph_requires_cryptographically_verified_trajectory");
   });
 
   it("groups different post-states under the same pre-execution decision context",()=>{

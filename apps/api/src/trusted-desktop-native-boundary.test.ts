@@ -17,7 +17,7 @@ describe("Windows desktop native constitutional boundary",()=>{
 
   it("keeps observation read-only and free of commit/replay capability",()=>{
     expect(observe).toContain("System.Windows.Automation");
-    expect(observe).toContain("OBSERVATION_RESULT");
+    expect(observe).toContain('Kind = "OBSERVATION"');
     expect(observe).not.toContain("CIEAV_DESKTOP_COMMIT_KEY");
     expect(observe).not.toContain("CIEAV_DESKTOP_REPLAY_DIR");
     expect(observe).not.toContain("InvokePattern.Invoke(");
@@ -34,7 +34,7 @@ describe("Windows desktop native constitutional boundary",()=>{
     expect(invoke).toContain('Kind != "INVOKE"');
     expect(invoke).toContain('Action != "INVOKE"');
     expect(invoke).toContain("PRESTATE_MISMATCH");
-    expect(invoke).toContain("InvokePattern.Invoke()");
+    expect(invoke).toContain("TryGetCurrentPattern(InvokePattern.Pattern");expect(invoke).toContain("invokePattern.Invoke()");
     expect(invoke).not.toContain("ValuePattern.SetValue");
     expect(invoke).not.toContain("SendKeys");
     expect(invoke).not.toContain("Process.Start");

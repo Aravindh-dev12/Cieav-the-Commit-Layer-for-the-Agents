@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Windows.Automation;
 
 const int MaxInputChars = 64_000;

@@ -47,7 +47,12 @@ def main() -> int:
     root = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory(prefix="cieav-control-") as td:
         state = Path(td)
-        gateway = Gateway(settings_for(root, state))
+        with patch.dict(
+            os.environ,
+            {"CIEAV_BROWSER_COMMIT_TOKEN": "C" * 64},
+            clear=False,
+        ):
+            gateway = Gateway(settings_for(root, state))
         ControlHandler.gateway = gateway
         server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)

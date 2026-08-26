@@ -4,7 +4,8 @@ import {VerifiedSkillArtifactV2Schema,VerifiedSkillProvenanceSchema,VerifiedSkil
 import type {CieavUniversalIntelligenceStore} from "./universal-intelligence-store.js";
 import {CieavVerifiedSkillStore} from "./verified-skill-store.js";
 
-const RegisterSchema=z.object({artifact:VerifiedSkillArtifactV2Schema,validationEvidence:VerifiedSkillValidationEvidenceBundleSchema,provenance:VerifiedSkillProvenanceSchema.omit({subjectDigest:true,candidateDigest:true,sourceQualificationDigest:true,validationDigest:true,authority:true,productionAuthority:true,mayMintExecutionAuthority:true}),registeredAt:z.string().datetime().optional()}).strict();
+const ProvenanceInputSchema=VerifiedSkillProvenanceSchema.innerType().omit({subjectDigest:true,candidateDigest:true,sourceQualificationDigest:true,validationDigest:true,authority:true,productionAuthority:true,mayMintExecutionAuthority:true}).superRefine((value,ctx)=>{if(Boolean(value.externalAttestationRef)!==Boolean(value.externalAttestationDigest))ctx.addIssue({code:z.ZodIssueCode.custom,path:["externalAttestationRef"],message:"external_attestation_reference_and_digest_must_be_paired"})});
+const RegisterSchema=z.object({artifact:VerifiedSkillArtifactV2Schema,validationEvidence:VerifiedSkillValidationEvidenceBundleSchema,provenance:ProvenanceInputSchema,registeredAt:z.string().datetime().optional()}).strict();
 const ActivateSchema=z.object({approvalRef:z.string().min(8).max(500),activatedBy:z.string().min(1).max(300),at:z.string().datetime().optional()}).strict();
 const ReasonSchema=z.object({reason:z.string().min(1).max(1000),at:z.string().datetime().optional()}).strict();
 async function readBody(req:http.IncomingMessage){const chunks:Buffer[]=[];let size=0;for await(const chunk of req){const b=Buffer.from(chunk);size+=b.length;if(size>2_000_000)throw new Error("body_too_large");chunks.push(b)}return chunks.length?JSON.parse(Buffer.concat(chunks).toString("utf8")):{} }
