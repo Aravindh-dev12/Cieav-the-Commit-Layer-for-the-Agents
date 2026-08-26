@@ -18,6 +18,8 @@ CIEAV must not be reduced to only one of these categories:
 - robot safety layer
 - memory system
 - AI operating system
+- application-agent wrapper
+- tool-calling proxy
 
 The target is broader:
 
@@ -37,10 +39,17 @@ These are release blockers, not design preferences.
 NO MODEL CAN MINT AUTHORITY.
 NO AGENT CAN MINT AUTHORITY.
 NO ROUTER CAN MINT AUTHORITY.
+NO APPLICATION AGENT CAN MINT AUTHORITY.
+NO MODEL PROVIDER CAN MINT AUTHORITY.
+NO TOOL PROPOSAL CAN MINT AUTHORITY.
 NO MEMORY SYSTEM CAN MINT AUTHORITY.
 NO TRAINING JOB CAN MINT AUTHORITY.
 NO CANDIDATE MODEL CAN PROMOTE ITSELF.
 NO SKILL COMPILER CAN QUALIFY ITS OWN OUTPUT.
+MODEL OUTPUT IS NEVER OBSERVED REALITY.
+A TOOL DESCRIPTION IS NOT EXECUTION AUTHORITY.
+REMOTE MODEL ACCESS MUST RESPECT THE DATA PRIVACY BOUNDARY.
+EFFECTFUL TOOL CALLS MUST CROSS THE CONSEQUENCE / AUTHORITY BOUNDARY.
 UNKNOWN MUST NEVER BE SILENTLY MAPPED TO SUCCESS.
 COMMITTED MUST NEVER MEAN VERIFIED SUCCESS.
 ```
@@ -49,11 +58,17 @@ Every execution-capable integration must cross the deterministic Authority / Com
 
 Every learning path must remain authority-free.
 
+Every model-facing tool surface must be a controlled capability description. Model output may request or propose a tool operation, but it must never contain a hidden authority path to the underlying database, cloud account, shell, browser, device or actuator.
+
+Provider credentials and vendor-specific transports must remain outside the trust kernel. `@cieav/core` must not depend on OpenAI, Anthropic, cloud-provider or other vendor credential implementations.
+
 ---
 
 # 2. Target system anatomy
 
 CIEAV is designed like a distributed intelligence organism.
+
+## 2.1 Universal intelligence anatomy
 
 ```text
 SELF MODEL
@@ -74,6 +89,8 @@ COGNITIVE CELLS
   ↓
 INTELLIGENCE MESH
   ↓
+APPLICATION / DOMAIN AGENT ORCHESTRATION
+  ↓
 CONSEQUENCE / AUTHORITY / EXECUTION
   ↓
 SOFTWARE + CLOUD + DEVICES + ROBOTS
@@ -92,6 +109,62 @@ BETTER CIEAV
 ```
 
 The consequence subsystem is one critical organ of CIEAV, not the entire identity of CIEAV.
+
+## 2.2 Application / domain-agent anatomy
+
+CIEAV must also support the application architecture used by serious AI-native products: deterministic domain systems remain the source of truth, while models perform interpretation, routing, reasoning, drafting and tool selection above them.
+
+```text
+USER / AGENT OBJECTIVE
+        ↓
+APPLICATION / DOMAIN SERVICE
+        ↓
+SOURCE-OF-TRUTH DATA + BUSINESS RULES
+        ↓
+CONTEXT BUILDER
+  ├─ permissions
+  ├─ privacy reduction
+  ├─ source references
+  ├─ evidence / reality digests
+  └─ domain constraints
+        ↓
+APPLICATION AGENT
+  ├─ intent / workflow routing
+  ├─ context orchestration
+  ├─ agent selection
+  ├─ tool selection
+  └─ model selection
+        ↓
+MODEL GATEWAY
+  ├─ external provider adapters
+  ├─ local inference adapters
+  └─ CIEAV-qualified models
+        ↓
+ANSWER / STRUCTURED PROPOSAL / TOOL PROPOSAL
+        ↓
+TOOL REGISTRY + CONSEQUENCE NORMALIZATION
+        ↓
+POLICY + PERMISSIONS + AUTHORITY + APPROVAL
+        ↓
+TRUSTED EXECUTION ADAPTER
+        ↓
+REALITY
+        ↓
+PROOF / SETTLEMENT / AUDIT / LEARNING
+```
+
+This is the CIEAV form of a Rillet-style architecture: the model is a reasoning component inside a larger deterministic product and control system. The valuable layer is not merely an API call to a frontier model; it is the combination of live verified context, domain logic, controlled tools, permissions, approval, proof, audit and learning.
+
+### Source-of-truth rule
+
+```text
+MODEL = reasoning / language / planning / proposal
+DOMAIN SERVICE = deterministic business logic
+DATA SYSTEM = source of truth
+CIEAV = consequence, authority, execution, proof and audit boundary
+```
+
+The model must not become the database, ledger, permission system, policy engine or execution authority.
 
 ---
 
@@ -124,9 +197,14 @@ The repository currently contains working or partially working foundations for:
 - Epistemic State v1
 - Consequence Graph v1
 - Proof/Learning Provider runtime boundaries
+- Universal Intelligence runtime foundations
+- Cognitive Cell contracts and registration foundations
+- Global Intelligence Workspace foundations
+- qualified-model cognitive overlays
 - background notification-only mode
 - fail-closed hidden-browser approval behavior
 - local production-readiness/static qualification tooling
+- application-agent / tool-orchestration contracts and runtime work in active implementation
 
 No item in this list should be interpreted as final external production qualification.
 
@@ -136,13 +214,19 @@ Current known gaps include:
 
 - secure actionable native OS approval flow
 - full authority-grade Authorized Outcome Trajectory export
-- persistent Epistemic State storage
-- persistent Consequence Graph storage/indexing
-- live Intelligence Mesh runtime
-- Self Model runtime
-- Global Workspace runtime
-- Cognitive Cell registration/discovery
+- production-grade persistent Epistemic State indexing
+- production-grade persistent Consequence Graph indexing
+- live Intelligence Mesh orchestration across heterogeneous providers
 - full model competence profiling
+- production Application Agent API
+- production Model Gateway adapters
+- Domain Agent Registry
+- Context Builder Registry
+- Tool Registry with typed arguments and consequence metadata
+- provider credential isolation and secret-store integration
+- effectful tool-proposal to Consequence ABI bridge
+- application-agent audit/model-call telemetry
+- domain-service integration examples beyond infrastructure primitives
 - CIEAV Core/Proof/Recovery owned adapters
 - isolated RL environments
 - Verified Skill compiler and qualification pipeline
@@ -168,7 +252,7 @@ Current known gaps include:
 3. Ensure execution tickets are scoped, short-lived and one-use.
 4. Add duplicate-execution/idempotency semantics to every execution adapter.
 5. Ensure recovery/undo is itself a governed consequence.
-6. Add static dependency rules preventing intelligence/training packages from importing signer/credential/ticket minting internals.
+6. Add static dependency rules preventing intelligence/training/application-agent packages from importing signer/credential/ticket minting internals.
 
 ### Required tests
 
@@ -411,6 +495,417 @@ Routing quality is measurable against a deterministic baseline and never bypasse
 
 ---
 
+## Phase F2 — Application / Domain Agent and Tool Orchestration Layer
+
+This phase makes CIEAV usable as the trust substrate inside AI-native applications. It generalizes the architecture used by products where foundation models sit above live domain data and deterministic business logic.
+
+The application-agent layer is intelligence orchestration, not execution authority.
+
+### F2.1 Model Gateway
+
+Provide one provider-neutral invocation boundary:
+
+```text
+ApplicationModelProvider {
+    descriptor
+    health()
+    invoke(request)
+}
+```
+
+Initial provider classes:
+
+```text
+EXTERNAL_API
+LOCAL_RUNTIME
+QUALIFIED_CIEAV
+```
+
+Expected adapters over time:
+
+```text
+OpenAI-compatible provider
+Anthropic-compatible provider
+local model runtime
+Hugging Face / inference endpoint
+CIEAV-qualified model registry
+enterprise/private model gateway
+```
+
+The gateway must support:
+
+- provider health
+- model identity/version pinning
+- purpose-based routing
+- latency/cost budgets
+- privacy compatibility
+- structured output validation
+- bounded retries
+- request correlation
+- model-call telemetry
+- provider isolation
+- zero authority
+
+Provider credentials must be loaded by the adapter/runtime boundary through the CIEAV secret/credential infrastructure. Credentials must never be exposed to a model, workspace contribution or persisted prompt trace.
+
+### F2.2 Context Builder Registry
+
+Models must receive the smallest sufficient verified context, not unrestricted source databases.
+
+```text
+ContextDatum {
+    kind
+    sourceRef
+    summary
+    digest?
+    privacy
+    verified
+}
+```
+
+Required context classes:
+
+```text
+USER_INPUT
+FACT
+RECORD
+POLICY
+PERMISSION
+HISTORY
+TOOL_RESULT
+PROOF
+```
+
+Context builders must:
+
+- query authoritative domain services
+- enforce principal/session permissions before retrieval
+- redact/minimize sensitive data
+- classify local-only vs remote-allowed data
+- preserve source references
+- attach current reality/proof digests where applicable
+- mark model-generated context separately from observed facts
+- reject stale authority-relevant context
+- provide deterministic size limits
+
+### F2.3 Domain Agent Registry
+
+A domain agent packages domain-specific workflow knowledge without receiving authority.
+
+```text
+DomainAgent {
+    id
+    domain
+    capabilities
+    contextBuilders
+    allowedTools
+    preferredModelPurposes
+    policies
+    proofRequirements
+    authority: false
+}
+```
+
+Initial reference domains should include:
+
+```text
+software / Git
+cloud / DevOps
+filesystem
+browser / SaaS
+accounting-style financial workflow reference
+operations / support
+robot/device workflow later
+```
+
+The accounting-style reference exists to prove the architecture pattern:
+
+```text
+live domain records
+→ deterministic domain calculations
+→ bounded model context
+→ explanation or draft/proposal
+→ deterministic validation
+→ human approval when effectful
+→ authoritative write
+→ proof + audit
+```
+
+It must not create a second authority system inside the domain agent.
+
+### F2.4 Tool Registry
+
+The LLM must never receive direct database, shell, cloud or device credentials. It receives typed tool descriptions.
+
+```text
+ToolDescriptor {
+    id
+    operations
+    argumentSchema
+    readOnly
+    consequenceClass
+    dataCategories
+    privacyBoundary
+    permissionRequirements
+    proofProvider
+    duplicateSemantics
+    approvalPolicy
+    authority: false
+}
+```
+
+Example tool families:
+
+```text
+get_account_balance
+get_transactions
+compare_periods
+draft_journal_entry
+get_git_status
+read_file
+propose_file_change
+query_cloud_state
+propose_cloud_change
+browser_observe
+browser_propose_action
+robot_observe
+robot_propose_action
+```
+
+A model may emit only a `ToolProposal`:
+
+```text
+ToolProposal {
+    toolId
+    operation
+    target
+    normalizedArgumentsDigest
+    summary
+    confidence
+    authority: false
+    mayMintExecutionAuthority: false
+}
+```
+
+The runtime must reject:
+
+- undeclared tools
+- undeclared operations
+- malformed arguments
+- arguments outside the declared schema
+- hidden raw SQL/shell/HTTP escape hatches
+- privacy-incompatible tool requests
+- provider/model attempts to claim authority
+
+### F2.5 Read-only tool execution
+
+Read-only does not mean unrestricted.
+
+Read-only tools still require:
+
+- authenticated principal
+- permission check
+- data-minimization policy
+- privacy classification
+- audit correlation
+- bounded result size
+
+A read-only result may return directly to the workspace/model only if the permission and privacy boundary allows it.
+
+### F2.6 Effectful tool proposal bridge
+
+Every effectful proposal must cross the existing CIEAV execution constitution:
+
+```text
+MODEL TOOL PROPOSAL
+      ↓
+normalize to Consequence ABI
+      ↓
+current reality / pre-state witness
+      ↓
+policy + permissions
+      ↓
+commitment required?
+      ↓
+human approval / delegated authority
+      ↓
+one-use execution ticket
+      ↓
+trusted adapter
+      ↓
+post-state proof
+      ↓
+SUCCESS / FAILURE / UNKNOWN
+```
+
+The application agent must never call an effectful trusted adapter directly.
+
+### F2.7 Propose-and-approve workflow
+
+For consequential domain operations, the default workflow is:
+
+```text
+user objective
+→ domain agent
+→ verified context
+→ model reasoning
+→ structured proposal
+→ deterministic domain validation
+→ CIEAV consequence classification
+→ approval when required
+→ execution
+→ proof
+→ receipt/audit
+```
+
+Examples:
+
+```text
+journal entry draft
+cloud configuration change
+Git mutation
+filesystem mutation
+SaaS state change
+browser transaction
+permission change
+robot action
+```
+
+### F2.8 Model selection
+
+Routing may use purpose, competence, privacy, latency and cost:
+
+```text
+ROUTE
+CLASSIFY
+REASON
+EXPLAIN
+EXTRACT
+CRITIQUE
+DRAFT
+PLAN
+```
+
+Model routing remains advisory and authority-free.
+
+A stronger model may be selected for complex reasoning; a smaller model may be used for classification or extraction; local/CIEAV-qualified models may be required for local-only data.
+
+### F2.9 Audit and telemetry
+
+Every application-agent run must produce a correlation chain covering:
+
+```text
+request id
+principal/session
+domain agent
+context source refs + digests
+privacy decision
+model provider/model identity
+model purpose
+model usage/cost/latency
+tool proposals
+consequence ids
+authority/approval refs
+execution refs
+proof refs
+settlement
+```
+
+Do not persist raw secrets. Raw prompts/responses require explicit retention policy and privacy treatment.
+
+### F2.10 Required workflow modes
+
+#### Query / explain
+
+```text
+question
+→ authorized context retrieval
+→ deterministic calculations where possible
+→ model explanation
+→ evidence refs
+```
+
+No execution authority is created.
+
+#### Draft / propose
+
+```text
+objective
+→ context
+→ model draft/tool proposal
+→ validation
+→ preview
+→ optional approval
+```
+
+#### Execute
+
+```text
+approved proposal
+→ Consequence ABI
+→ Authority / Commit
+→ trusted adapter
+→ proof
+→ settlement
+```
+
+#### Multi-step agent workflow
+
+Each effectful step must independently bind to current reality and authority. A model-created plan is not a blanket execution permit.
+
+#### UNKNOWN recovery
+
+```text
+UNKNOWN
+→ stop blind retries
+→ reconciliation context
+→ recovery model/tool proposal
+→ governed recovery consequence
+```
+
+### F2.11 Required tests
+
+- provider descriptor authority rejection
+- provider result authority rejection
+- remote provider receives `LOCAL_ONLY` context
+- undeclared tool proposal rejection
+- undeclared operation rejection
+- malformed argument rejection
+- read-only permission bypass attempt
+- effectful direct-adapter bypass attempt
+- model-generated fake approval ref
+- model-generated fake proof ref
+- stale context action attempt
+- cross-session context leak
+- prompt-injection tool escalation
+- provider credential leakage
+- cost/latency budget exhaustion
+- provider timeout/failure
+- duplicate effect proposal
+- UNKNOWN blind retry prevention
+- audit correlation completeness
+
+### F2.12 Exit criteria
+
+`ApplicationAgentLayerQualification = PASS` only when:
+
+```text
+multiple providers can be registered without changing core authority code
+remote/local privacy boundaries are enforced
+context provenance survives end-to-end
+models can use typed read-only tools safely
+models can propose effectful tools but cannot execute them directly
+all effectful proposals cross Consequence ABI + Authority / Commit
+approval is request-bound and one-use where required
+execution produces proof and settlement
+provider/model/tool telemetry is correlated
+negative authority-bypass tests pass
+```
+
+This phase is not production-qualified merely because an OpenAI/Anthropic/local-model demo works.
+
+---
+
 ## Phase G — Epistemic State Persistence
 
 ### Requirements
@@ -497,6 +992,7 @@ Normalize actions from all ecosystems into one consequence descriptor.
 ```text
 MCP
 A2A
+Application Agent ToolProposal
 HTTP/gRPC
 CLI
 filesystem
@@ -532,7 +1028,7 @@ recoveryContract
 
 ### Exit criteria
 
-Cursor, Cline, ChatGPT-compatible MCP clients, Claude-compatible MCP clients and other agents can all reach the same CIEAV consequence boundary.
+Cursor, Cline, ChatGPT-compatible MCP clients, Claude-compatible MCP clients, CIEAV Application Agents and other agents can all reach the same CIEAV consequence boundary.
 
 ---
 
@@ -598,7 +1094,7 @@ consent/redaction/provenance
 
 Only explicitly qualified evidence classes may become agentic-RL data.
 
-Browser outcome receipts remain outcome-proof only unless the full authority chain is present.
+Browser outcome receipts and application-agent traces remain outcome/context evidence only unless the full authority chain is present.
 
 ### Exit criteria
 
@@ -627,6 +1123,8 @@ experience
 
 Not every experience becomes model training data.
 
+Application-agent prompts, tool proposals and conversations are not automatically training-eligible. Eligibility requires provenance, consent/redaction policy, settlement class and deterministic qualification.
+
 ### Exit criteria
 
 Learning eligibility is deterministic, provenance-aware and consent/redaction-aware.
@@ -647,6 +1145,8 @@ CIEAV Recovery Model
 CIEAV Consequence Model
 CIEAV Critic / Reward Models
 ```
+
+These models must also be usable through the same Application Model Gateway as external providers. CIEAV-owned models do not receive a privileged authority path.
 
 ### Initial approach
 
@@ -699,6 +1199,9 @@ CieavUnknownOutcomeEnv
 CieavDuplicateExecutionEnv
 CieavRecoveryEnv
 CieavStaleRealityEnv
+CieavApplicationToolEnv
+CieavContextPrivacyEnv
+CieavApprovalBoundaryEnv
 ```
 
 ### Rewards
@@ -711,6 +1214,8 @@ minimum authority
 reversibility
 recovery correctness
 policy compliance
+correct tool selection
+context minimization
 cost
 latency
 ```
@@ -723,6 +1228,9 @@ unsafe duplicate effect
 excess privilege
 blind retry after UNKNOWN
 stale-reality action
+undeclared tool escalation
+privacy-boundary violation
+approval bypass
 ```
 
 ### Exit criteria
@@ -749,6 +1257,8 @@ verified trajectories
 → VERIFIED SKILL
 ```
 
+Application agents should prefer a Verified Skill over fresh model planning when a qualified skill exactly matches the operation and current constraints.
+
 ### Hard rule
 
 The compiler cannot promote or install its own skill.
@@ -771,6 +1281,7 @@ credential exfiltration block
 ambiguous payment reconcile
 protected filesystem deny
 critical policy deny
+application-agent tool escalation deny
 ```
 
 ### Requirements
@@ -816,6 +1327,8 @@ error budget
 energy budget
 ```
 
+Application-agent plans do not override continuation constraints. Every long-running effect must remain bound to live authority-relevant reality.
+
 ### Exit criteria
 
 Long-running execution stops safely when authority-relevant reality changes.
@@ -837,6 +1350,8 @@ spatial budget
 time budget
 uncertainty budget
 externality budget
+model-call budget
+tool-call budget
 ```
 
 ### Exit criteria
@@ -888,7 +1403,7 @@ signed consequence journal
 safe degradation
 ```
 
-Heavy reasoning may be delegated to CIEAV Core.
+Heavy reasoning may be delegated to CIEAV Core through the same model/application-agent abstractions where privacy and connectivity allow it.
 
 ### Exit criteria
 
@@ -936,6 +1451,25 @@ No self-modification path bypasses deterministic qualification.
 
 # 5. Product integrations
 
+## AI-native application / Rillet-style domain products
+
+Primary pattern:
+
+```text
+product UI / API
+→ domain service
+→ CIEAV Application Agent
+→ Context Builder
+→ Model Gateway
+→ controlled ToolProposal
+→ Consequence ABI when effectful
+→ Authority / Approval
+→ trusted domain adapter
+→ proof + audit
+```
+
+The product's deterministic domain engine and database remain the source of truth.
+
 ## Cursor / coding tools
 
 Primary path:
@@ -963,14 +1497,14 @@ Even if Cline auto-approves internally, CIEAV keeps its independent consequence 
 
 ```text
 ChatGPT / API agent
-→ remote MCP
+→ remote MCP or Application Agent API
 → CIEAV
 ```
 
 ## Claude-compatible clients
 
 ```text
-Claude / MCP client
+Claude / MCP client or provider adapter
 → CIEAV
 ```
 
@@ -1019,8 +1553,28 @@ Competence Registry
 Self Model Store
 Objective / Workspace Store
 Provider Registry
+Domain Agent Registry
+Tool Registry
+Application Agent Run Store
+Context Provenance Store
 Audit Chain
 ```
+
+### Application-agent persistence rules
+
+Persist metadata necessary for reproducibility and audit:
+
+```text
+provider/model identity
+request correlation
+context source refs/digests
+privacy decision
+tool proposal digests
+consequence / authority / proof refs
+usage/cost/latency
+```
+
+Do not persist provider secrets. Do not persist raw prompts/responses by default when source-reference/digest metadata is sufficient. Any raw-content retention must be explicitly classified, encrypted where required and governed by retention policy.
 
 ### Requirements
 
@@ -1046,6 +1600,15 @@ gateway health
 provider health
 model health
 cell health
+application-agent health
+domain-agent health
+tool-registry health
+context-builder failures
+privacy-boundary rejections
+model latency / cost / token usage
+tool proposal counts
+undeclared-tool rejection counts
+approval-required proposal rate
 proof latency
 settlement latency
 UNKNOWN rate
@@ -1080,9 +1643,16 @@ Required before final production qualification:
 - provider sandbox tests
 - model prompt-injection isolation tests
 - malicious tool/provider tests
+- application-agent tool-escalation tests
+- provider credential isolation tests
+- cross-session/context leakage tests
+- remote-model privacy-boundary tests
+- model output spoofing of proof/approval/authority refs
 - compromised device/cell revocation tests
 - supply-chain/release signing review
 - independent security assessment
+
+Application-agent red-team tests must include hostile retrieved text attempting to instruct the model to invoke undeclared tools, expose credentials, weaken approval, forge proof or reinterpret UNKNOWN as success.
 
 ---
 
@@ -1103,6 +1673,9 @@ rollback tests
 uninstall tests
 startup-service tests
 clean-machine installer tests
+application-agent qualification workflow
+model-provider compatibility qualification
+privacy/tool-boundary negative tests
 ```
 
 No final production claim until real signing identities and supported-platform installer tests exist.
@@ -1128,6 +1701,33 @@ replay
 migration
 ```
 
+## Application-agent / tool-layer qualification
+
+Must include:
+
+```text
+provider registration/health
+provider identity pinning
+local/remote privacy compatibility
+context provenance
+context minimization
+cross-session isolation
+structured output validation
+tool allowlist enforcement
+tool operation enforcement
+argument schema validation
+read-only permission enforcement
+effectful proposal → Consequence ABI
+approval binding
+provider credential isolation
+model/provider timeout behavior
+cost/latency budgets
+prompt-injection tool escalation
+fake proof/approval/authority rejection
+UNKNOWN retry/recovery behavior
+end-to-end audit correlation
+```
+
 ## Model qualification
 
 Must include:
@@ -1141,6 +1741,8 @@ proof quality
 recovery correctness
 duplicate-effect rate
 policy violations
+correct tool selection
+privacy-boundary compliance
 cost/latency
 ```
 
@@ -1186,6 +1788,8 @@ tests
 external blockers
 ```
 
+Changes to the Application Agent, Model Gateway, Tool Registry, Consequence ABI, Authority Kernel, trusted adapters, proof semantics or credential boundary are security-boundary changes and require the corresponding negative tests.
+
 No issue should be closed merely because a scaffold or interface exists.
 
 ---
@@ -1199,6 +1803,7 @@ A subsystem is **not done** when:
 - a mock passes
 - a README says it works
 - a model produced a demo
+- an external model successfully called one tool
 
 A subsystem is done only when:
 
@@ -1214,6 +1819,22 @@ migration/upgrade behavior is defined
 qualification evidence exists
 ```
 
+For an application-agent/domain integration, Done additionally requires:
+
+```text
+authoritative source-of-truth service is identified
+context provenance and privacy are enforced
+model provider is replaceable
+model has zero authority
+tool surface is explicitly declared
+read permissions are enforced
+effectful operations cross Consequence ABI
+approval is bound where required
+execution is performed by trusted adapter
+outcome is proved as SUCCESS / FAILURE / UNKNOWN
+audit correlation is complete
+```
+
 External claims additionally require real external evidence.
 
 ---
@@ -1224,26 +1845,60 @@ The next implementation sequence is:
 
 ```text
 1. native actionable approval
-2. persistent Epistemic Store
-3. persistent Consequence Graph Store
-4. Cognitive Cell registry
-5. Self Model runtime
-6. Global Intelligence Workspace
+2. production-grade Epistemic Store/indexing
+3. production-grade Consequence Graph Store/indexing
+4. complete Cognitive Cell registry/health/competence runtime
+5. complete Self Model runtime
+6. complete Global Intelligence Workspace
 7. Cortex runtime over registered cells
-8. Proof Provider implementations
-9. full authority-grade Authorized Outcome Trajectory
-10. MCP/A2A universal Consequence ABI adapters
-11. Intelligence Metabolism pipeline
-12. CIEAV model-family training environments
-13. Verified Skill compiler + deterministic qualification
-14. Reflex Layer
-15. Continuing Authority
-16. Autonomy Budgets
-17. ROS 2 adapter
-18. CIEAV Edge runtime
-19. device onboarding/attestation integrations
-20. installer/release/security qualification
+8. Application Model Gateway registry + provider-neutral runtime
+9. OpenAI-compatible / Anthropic-compatible / local / qualified-CIEAV provider adapters
+10. Context Builder Registry + provenance/privacy enforcement
+11. Domain Agent Registry
+12. typed Tool Registry
+13. read-only tool execution boundary
+14. ToolProposal → Consequence ABI bridge
+15. Application Agent API + propose-and-approve workflow
+16. application-agent audit/model-call telemetry
+17. Proof Provider implementations
+18. full authority-grade Authorized Outcome Trajectory
+19. MCP/A2A universal Consequence ABI adapters
+20. Intelligence Metabolism pipeline
+21. CIEAV model-family training environments
+22. Verified Skill compiler + deterministic qualification
+23. Reflex Layer
+24. Continuing Authority
+25. Autonomy Budgets
+26. ROS 2 adapter
+27. CIEAV Edge runtime
+28. device onboarding/attestation integrations
+29. installer/release/security qualification
 ```
+
+### Application-agent implementation order
+
+Inside items 8–16, build in this dependency order:
+
+```text
+contracts
+→ provider registry
+→ local/remote privacy checks
+→ context builders
+→ domain agent descriptors
+→ tool registry
+→ structured tool proposals
+→ read-only tool runtime
+→ Consequence ABI bridge for effects
+→ approval bridge
+→ trusted adapter execution
+→ proof/settlement correlation
+→ telemetry/audit
+→ provider-specific adapters
+→ domain reference workflows
+→ qualification
+```
+
+Provider SDK integration must come after the zero-authority contracts and privacy/tool boundaries, not before them.
 
 Each phase must preserve the constitutional authority boundary.
 
@@ -1255,14 +1910,20 @@ The finished CIEAV experience should allow a user or organization to give an obj
 
 ```text
 objective
+→ select domain/application agent when appropriate
 → choose/compose cognition
+→ retrieve permission-bounded live context
 → retrieve relevant memory
 → inspect live reality
 → simulate where appropriate
-→ choose a proven or novel plan
+→ select model/provider under privacy/cost/latency constraints
+→ choose controlled tools / Verified Skills
+→ produce an answer or zero-authority proposal
+→ normalize effectful proposals into consequences
 → acquire minimum delegated authority
+→ obtain human approval when required
 → commit exact action
-→ execute through software/device/robot
+→ execute through trusted software/device/robot adapter
 → continuously validate required conditions
 → prove what happened
 → recover/reconcile when needed
@@ -1274,7 +1935,40 @@ while always preserving:
 ```text
 MODEL AUTHORITY = 0
 AGENT AUTHORITY = 0
+APPLICATION AGENT AUTHORITY = 0
+MODEL PROVIDER AUTHORITY = 0
+TOOL PROPOSAL AUTHORITY = 0
 LEARNING AUTHORITY = 0
+```
+
+The long-term product architecture is therefore not:
+
+```text
+LLM + prompt + direct database/tool credentials
+```
+
+It is:
+
+```text
+LIVE DOMAIN REALITY
+      ↓
+DETERMINISTIC DOMAIN SERVICES
+      ↓
+PERMISSION-BOUND CONTEXT
+      ↓
+CIEAV APPLICATION AGENT / CORTEX
+      ↓
+MODEL GATEWAY
+      ↓
+REASONING + CONTROLLED TOOL PROPOSALS
+      ↓
+CONSEQUENCE / AUTHORITY / APPROVAL
+      ↓
+TRUSTED EXECUTION
+      ↓
+PROOF / SETTLEMENT / AUDIT
+      ↓
+VERIFIED LEARNING
 ```
 
 That is the production target for CIEAV.
