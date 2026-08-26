@@ -1,0 +1,53 @@
+name: application-agent-layer
+
+on:
+  pull_request:
+    paths:
+      - "packages/contracts/src/application-agent.ts"
+      - "packages/contracts/src/index.ts"
+      - "packages/core/src/application-agent.ts"
+      - "packages/core/src/application-agent.test.ts"
+      - "packages/core/src/index.ts"
+      - "packages/core/package.json"
+      - "docs/application-agent-layer.md"
+      - ".github/workflows/application-agent-layer.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/contracts/src/application-agent.ts"
+      - "packages/contracts/src/index.ts"
+      - "packages/core/src/application-agent.ts"
+      - "packages/core/src/application-agent.test.ts"
+      - "packages/core/src/index.ts"
+      - "packages/core/package.json"
+      - "docs/application-agent-layer.md"
+      - ".github/workflows/application-agent-layer.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build contracts and core
+        run: |
+          npm run build -w @cieav/contracts
+          npm run build -w @cieav/core
+      - name: Typecheck contracts and core
+        run: |
+          npm run typecheck -w @cieav/contracts
+          npm run typecheck -w @cieav/core
+      - name: Test application-agent boundaries
+        run: npm run test -w @cieav/core -- application-agent.test.ts
+      - name: Run consequence and authority static gates
+        run: |
+          npm run test:consequence-intelligence
+          npm run test:authority-grade-learning
