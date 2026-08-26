@@ -20,8 +20,10 @@ import {
   type ScopedCredentialLease
 } from "@cieav/contracts/execution-fabric";
 import {digest,evaluateFormalAuthorization,executionBindingDigest,permissionGraphDigest} from "@cieav/core/execution-fabric";
+import {materializeExecutionProposal} from "@cieav/core/consequence-algebra";
 import type {CieavAgentKernelStore} from "./agent-kernel.js";
 import {semanticEffectKey} from "./intent-reality-engine.js";
+import {CieavConsequenceAlgebraStore} from "./consequence-algebra-store.js";
 
 const riskRank={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3} as const;
 const member=(items:string[],value:string)=>items.includes("*")||items.includes(value);
@@ -60,9 +62,12 @@ export class CieavExecutionFabricStore{
   private loaded=false;
   private payload:Payload=empty();
   private chain:Promise<void>=Promise.resolve();
+  readonly consequenceAlgebra:CieavConsequenceAlgebraStore;
 
   constructor(private readonly file:string,private readonly secret:string,private readonly kernel:CieavAgentKernelStore){
     if(secret.length<32)throw new Error("CIEAV execution-fabric secret is too weak");
+    const algebraSecret=crypto.createHmac("sha256",secret).update("cieav-consequence-algebra-state-v1").digest("base64url");
+    this.consequenceAlgebra=new CieavConsequenceAlgebraStore(path.join(path.dirname(file),"consequence-algebra-state.json"),algebraSecret);
   }
 
   private mac(payload:Payload){return crypto.createHmac("sha256",this.secret).update(canonical(payload)).digest("base64url")}
@@ -209,11 +214,27 @@ export class CieavExecutionFabricStore{
       const graph=this.payload.graphs.find(x=>x.scopeDeviceId===proposal.scopeDeviceId&&x.rootIntentId===proposal.intentId);
       if(!graph)throw new Error("formal_permission_graph_required");
       const decision=evaluateFormalAuthorization(graph,proposal);
+      let algebraAdmission;
+      if(decision.decision==="ALLOW"){
+        const materialization=materializeExecutionProposal(proposal),existing=await this.consequenceAlgebra.getNode(proposal.id);
+        if(existing){await this.consequenceAlgebra.ensureAdmitted(proposal.id)}
+        else{
+          const aggregationLimits=Object.fromEntries((proposal.continuingAuthority?.budgets??[]).map(b=>[b.dimension,b.limit]));
+          const algebra=await this.consequenceAlgebra.admit(materialization,{aggregationLimits});
+          algebraAdmission=algebra.admission;
+          if(algebra.admission.decision!=="ADMIT"){
+            this.appendAudit({scopeDeviceId:proposal.scopeDeviceId,intentId:proposal.intentId,taskId:proposal.taskId,proposalId:proposal.id,phase:"AUTHORIZE",outcome:"BLOCK",summary:`Consequence Algebra ${algebra.admission.decision}: ${algebra.admission.reasons.join(" ")}`.slice(0,1200),detailsDigest:digest(algebra.admission)});
+            await this.persist();
+            throw new Error(`consequence_algebra_${algebra.admission.decision.toLowerCase()}`);
+          }
+        }
+        await this.consequenceAlgebra.mark(proposal.id,"AUTHORIZED");
+      }
       this.payload.proposals=this.payload.proposals.filter(x=>x.proposal.id!==proposal.id);
       this.payload.proposals.push({proposal,decision});
-      this.appendAudit({scopeDeviceId:proposal.scopeDeviceId,intentId:proposal.intentId,taskId:proposal.taskId,proposalId:proposal.id,phase:"AUTHORIZE",outcome:decision.decision==="ALLOW"?"PASS":decision.decision==="ASK"?"ASK":"BLOCK",summary:decision.reasons.join(" ").slice(0,1200),detailsDigest:digest(decision)});
+      this.appendAudit({scopeDeviceId:proposal.scopeDeviceId,intentId:proposal.intentId,taskId:proposal.taskId,proposalId:proposal.id,phase:"AUTHORIZE",outcome:decision.decision==="ALLOW"?"PASS":decision.decision==="ASK"?"ASK":"BLOCK",summary:decision.reasons.join(" ").slice(0,1200),detailsDigest:digest({decision,algebraAdmission:algebraAdmission??null})});
       await this.persist();
-      return{proposal,decision,bindingDigest:executionBindingDigest(proposal,graph.digest)};
+      return{proposal,decision,bindingDigest:executionBindingDigest(proposal,graph.digest),...(algebraAdmission?{algebraAdmission}:{}),executionAuthorityIssued:false as const};
     });
   }
 
@@ -226,6 +247,8 @@ export class CieavExecutionFabricStore{
       if(this.payload.tickets.some(x=>(x.proposalId===proposalId||x.realityBoundCommitId===realityBoundCommitId)&&["ISSUED","CONSUMED"].includes(x.status)))throw new Error("execution_ticket_already_issued");
       const proposal=record.proposal,task=await this.kernel.get(proposal.taskId);
       if(!task||task.realityBoundCommitId!==realityBoundCommitId||!task.realityCommitConsumedAt)throw new Error("consumed_reality_bound_commit_required");
+      await this.consequenceAlgebra.ensureAdmitted(proposal.id);
+      await this.consequenceAlgebra.assertFencesSatisfied(proposal.id);
       if(!this.activeAttestation(proposal.identityAttestationId,proposal.subjectId))throw new Error("verified_agent_attestation_required");
       const lease=this.activeLease(proposal.credentialLeaseId);
       if(!lease||lease.sessionId!==task.sessionId)throw new Error("credential_lease_not_active");
@@ -236,11 +259,12 @@ export class CieavExecutionFabricStore{
       if(!graph||graph.digest!==record.decision.graphDigest||evaluateFormalAuthorization(graph,proposal).decision!=="ALLOW")throw new Error("formal_authorization_changed_before_execution");
       const commits=await this.kernel.intentReality.listRealityBoundCommits(),commit=commits.find(x=>x.id===realityBoundCommitId);
       if(!commit||commit.status!=="CONSUMED"||commit.taskId!==proposal.taskId||commit.intentId!==proposal.intentId||commit.proposalDigest!==digest(proposal)||commit.effectKey!==semanticEffectKey(proposal.intentId,proposal.semanticEffect)||commit.preStateDigest!==proposal.realityWitness.digest||commit.expectedPostStateDigest!==proposal.expectedPostStateDigest||commit.proofObligationDigest!==proposal.proofObligationDigest)throw new Error("execution_proposal_reality_commit_binding_mismatch");
+      await this.consequenceAlgebra.mark(proposal.id,"COMMITTED");
       const ttl=Math.max(5,Math.min(60,Math.floor(ttlSeconds))),now=Date.now();
       const authorizationDigest=digest(record.decision),routeDigest=digest({toolId:proposal.toolId,protocol:proposal.protocol,operation:proposal.operation,target:proposal.target??null,normalizedArgumentsDigest:proposal.normalizedArgumentsDigest});
       const ticket=ExecutionTicketSchema.parse({id:crypto.randomUUID(),version:1,proposalId:proposal.id,intentId:proposal.intentId,taskId:proposal.taskId,toolId:proposal.toolId,authorizationDigest,realityBoundCommitId,credentialLeaseId:lease.id,routeDigest,issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+ttl*1000).toISOString(),status:"ISSUED"});
       this.payload.tickets.push(ticket);
-      this.appendAudit({scopeDeviceId:proposal.scopeDeviceId,intentId:proposal.intentId,taskId:proposal.taskId,proposalId:proposal.id,ticketId:ticket.id,phase:"COMMIT",outcome:"PASS",summary:"Execution ticket issued only after fresh formal authorization and consumed Reality-Bound Commit with the exact committed proposal digest.",detailsDigest:digest(ticket)});
+      this.appendAudit({scopeDeviceId:proposal.scopeDeviceId,intentId:proposal.intentId,taskId:proposal.taskId,proposalId:proposal.id,ticketId:ticket.id,phase:"COMMIT",outcome:"PASS",summary:"Execution ticket issued only after fresh formal authorization, Consequence Algebra admission/fence recheck, and consumed Reality-Bound Commit with the exact committed proposal digest.",detailsDigest:digest(ticket)});
       await this.persist();
       return ticket;
     });
@@ -300,6 +324,8 @@ export class CieavExecutionFabricStore{
       }
       const record=this.payload.proposals.find(x=>x.proposal.id===ticket.proposalId);
       if(!record)throw new Error("execution_proposal_not_found");
+      await this.consequenceAlgebra.ensureAdmitted(record.proposal.id);
+      await this.consequenceAlgebra.assertFencesSatisfied(record.proposal.id);
       if(digest(normalizedArguments)!==record.proposal.normalizedArgumentsDigest)throw new Error("execution_arguments_changed_after_authorization");
       const task=await this.kernel.get(record.proposal.taskId);
       if(!task||!task.realityCommitConsumedAt||task.effectQuarantined)throw new Error("execution_task_no_longer_routable");
@@ -312,7 +338,7 @@ export class CieavExecutionFabricStore{
       const consumed=ExecutionTicketSchema.parse({...ticket,status:"CONSUMED",consumedAt:new Date().toISOString()});
       this.payload.tickets[i]=consumed;
       this.payload.leases[leaseIndex]=ScopedCredentialLeaseSchema.parse({...lease,used:lease.used+1});
-      this.appendAudit({scopeDeviceId:record.proposal.scopeDeviceId,intentId:record.proposal.intentId,taskId:record.proposal.taskId,proposalId:record.proposal.id,ticketId:consumed.id,phase:"ROUTE",outcome:"PASS",summary:"Single-use execution ticket consumed with exact authorized arguments at the trusted routing boundary.",detailsDigest:digest({ticket:consumed.id,argumentsDigest:record.proposal.normalizedArgumentsDigest})});
+      this.appendAudit({scopeDeviceId:record.proposal.scopeDeviceId,intentId:record.proposal.intentId,taskId:record.proposal.taskId,proposalId:record.proposal.id,ticketId:consumed.id,phase:"ROUTE",outcome:"PASS",summary:"Single-use execution ticket consumed with exact authorized arguments after Consequence Algebra reservation/fence recheck at the trusted routing boundary.",detailsDigest:digest({ticket:consumed.id,argumentsDigest:record.proposal.normalizedArgumentsDigest})});
       await this.persist();
       return{ticket:consumed,proposal:record.proposal,tool,normalizedArguments};
     });
@@ -331,6 +357,9 @@ export class CieavExecutionFabricStore{
         quarantine=await this.kernel.intentReality.quarantineUnknown(effectKey,record.proposal.taskId,record.proposal.intentId);
         await this.kernel.quarantineEffectTrusted(record.proposal.taskId,quarantine.id);
       }
+      if(transport==="ACCEPTED")await this.consequenceAlgebra.mark(record.proposal.id,"OBSERVING");
+      else if(transport==="UNKNOWN")await this.consequenceAlgebra.mark(record.proposal.id,"QUARANTINED");
+      else await this.consequenceAlgebra.mark(record.proposal.id,"SETTLED_FAILURE");
       const audit=this.appendAudit({scopeDeviceId:record.proposal.scopeDeviceId,intentId:record.proposal.intentId,taskId:record.proposal.taskId,proposalId:record.proposal.id,ticketId,phase:"EXECUTE",outcome:transport==="ACCEPTED"?"PASS":transport==="UNKNOWN"?"UNKNOWN":"ERROR",summary:summary.slice(0,1200),detailsDigest:digest(details)});
       await this.persist();
       return{audit,...(quarantine?{quarantine}:{})};
@@ -339,5 +368,5 @@ export class CieavExecutionFabricStore{
 
   listTickets(){return this.enqueue(async()=>{await this.load();return this.payload.tickets.slice().reverse()})}
   listAudit(){return this.enqueue(async()=>{await this.load();return this.payload.audit.slice().reverse()})}
-  async close(){await this.chain}
+  async close(){await this.chain;await this.consequenceAlgebra.close()}
 }
