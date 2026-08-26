@@ -7,9 +7,12 @@ const contracts=read("packages/contracts/src/consequence-algebra.ts");
 const core=read("packages/core/src/consequence-algebra.ts");
 const store=read("apps/api/src/consequence-algebra-store.ts");
 const tool=read("apps/api/src/consequence-algebra-tool.ts");
+const fabric=read("apps/api/src/execution-fabric.ts");
+const kernel=read("apps/api/src/agent-kernel.ts");
 const coreTest=read("packages/core/src/consequence-algebra.test.ts");
 const storeTest=read("apps/api/src/consequence-algebra-store.test.ts");
 const toolTest=read("apps/api/src/consequence-algebra-tool.test.ts");
+const fabricTest=read("apps/api/src/execution-fabric-consequence-algebra.test.ts");
 const must=(ok,msg)=>{if(!ok)throw new Error(`Consequence Algebra gate failed: ${msg}`)};
 
 for(const token of ["EQUIVALENT","INDEPENDENT","COMMUTES","CONFLICTS","REQUIRES","INVALIDATES","SUPERSEDES","COMPENSATES","AGGREGATES_WITH","UNKNOWN_RELATION"])must(contracts.includes(`\"${token}\"`),`relation ${token} missing`);
@@ -27,8 +30,13 @@ must(store.includes("assertSemanticRetryAllowed"),"semantic retry barrier missin
 must(store.includes("for(const node of active)")&&store.includes("budgetDeltas"),"in-flight anti-fragmentation budget accounting missing");
 for(const token of ["evaluateExecutionProposal","assertReadyForAuthority","markAuthorized","markCommitted","markDispatched","markObserving","settleTask","runtime"])must(tool.includes(token),`operational tool method ${token} missing`);
 must(tool.includes("CONSEQUENCE_ALGEBRA_TOOL_AUTHORITY=false")&&tool.includes("CONSEQUENCE_ALGEBRA_TOOL_MAY_MINT_EXECUTION_AUTHORITY=false"),"tool facade zero-authority constants missing");
+must(fabric.includes("materializeExecutionProposal")&&fabric.includes("consequenceAlgebra.admit"),"Execution Fabric does not require Algebra admission");
+must(fabric.includes("consequenceAlgebra.ensureAdmitted")&&fabric.includes("consequenceAlgebra.assertFencesSatisfied"),"ticket routing does not recheck Algebra reservation/fences");
+must(fabric.includes("consequence_algebra_${algebra.admission.decision.toLowerCase()}"),"Algebra denial is not fail-closed in authorization");
+must(kernel.includes("executionFabric.consequenceAlgebra.markTask")&&kernel.includes("SETTLED_UNKNOWN"),"trusted proof settlement is not bound back into Active Consequence Graph");
 must(coreTest.includes("independently of route protocol")&&coreTest.includes("cumulative budget fragmentation"),"core semantic qualification tests missing");
 must(storeTest.includes("persists an admitted reservation across restart")&&storeTest.includes("fails closed on tampered persisted state")&&storeTest.includes("cross-route duplicate")&&storeTest.includes("causal fence"),"durability/adversarial qualification tests missing");
 must(toolTest.includes("without minting authority")&&toolTest.includes("proof settlement")&&toolTest.includes("UNKNOWN"),"operational tool qualification tests missing");
+must(fabricTest.includes("requires Algebra ADMIT")&&fabricTest.includes("second protocol")&&fabricTest.includes("consequence_algebra_reconcile"),"mandatory Execution Fabric interposition tests missing");
 
-console.log("CIEAV Consequence Algebra static gate PASS - route-independent semantic identity + relation algebra + invariant witness + authenticated Active Consequence Graph + reservation/quarantine + proofability + causal fences + cumulative anti-fragmentation + operational zero-authority tool facade present");
+console.log("CIEAV Consequence Algebra static gate PASS - route-independent semantic identity + relation algebra + invariant witness + authenticated Active Consequence Graph + reservation/quarantine + proofability + causal fences + cumulative anti-fragmentation + mandatory Execution Fabric interposition + trusted settlement feedback + zero authority present");
