@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import {describe,expect,it} from "vitest";
 import type {ExecutionProposal} from "@cieav/contracts";
 import {admitConsequence,materializeExecutionProposal,relationBetween} from "./consequence-algebra.js";
