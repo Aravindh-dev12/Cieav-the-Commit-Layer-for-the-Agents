@@ -22,6 +22,7 @@
     "./cognitive-runtime": {"types": "./dist/cognitive-runtime.d.ts", "import": "./dist/cognitive-runtime.js"},
     "./cortex": {"types": "./dist/cortex.d.ts", "import": "./dist/cortex.js"},
     "./universal-intelligence": {"types": "./dist/universal-intelligence.d.ts", "import": "./dist/universal-intelligence.js"},
+    "./application-agent": {"types": "./dist/application-agent.d.ts", "import": "./dist/application-agent.js"},
     "./authority-grade-settlement": {"types": "./dist/authority-grade-settlement.d.ts", "import": "./dist/authority-grade-settlement.js"},
     "./authority-grade-trajectory": {"types": "./dist/authority-grade-trajectory.d.ts", "import": "./dist/authority-grade-trajectory.js"},
     "./intelligence-metabolism": {"types": "./dist/intelligence-metabolism.d.ts", "import": "./dist/intelligence-metabolism.js"},
