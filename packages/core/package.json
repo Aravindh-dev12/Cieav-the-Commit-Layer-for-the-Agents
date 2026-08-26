@@ -18,6 +18,7 @@
     "./provider-runtime": {"types": "./dist/provider-runtime.d.ts", "import": "./dist/provider-runtime.js"},
     "./consequence-graph": {"types": "./dist/consequence-graph.d.ts", "import": "./dist/consequence-graph.js"},
     "./consequence-abi": {"types": "./dist/consequence-abi.d.ts", "import": "./dist/consequence-abi.js"},
+    "./consequence-algebra": {"types": "./dist/consequence-algebra.d.ts", "import": "./dist/consequence-algebra.js"},
     "./epistemic-state": {"types": "./dist/epistemic-state.d.ts", "import": "./dist/epistemic-state.js"},
     "./cognitive-runtime": {"types": "./dist/cognitive-runtime.d.ts", "import": "./dist/cognitive-runtime.js"},
     "./cortex": {"types": "./dist/cortex.d.ts", "import": "./dist/cortex.js"},
