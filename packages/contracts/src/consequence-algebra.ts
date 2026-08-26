@@ -1,0 +1,44 @@
+import {z} from "zod";
+import {SemanticEffectSchema} from "./intent-reality.js";
+
+const DigestSchema=z.string().regex(/^[0-9a-f]{64}$/);
+const RefSchema=z.string().min(1).max(1000);
+
+export const ConsequenceRelationSchema=z.enum(["EQUIVALENT","INDEPENDENT","COMMUTES","CONFLICTS","REQUIRES","INVALIDATES","SUPERSEDES","COMPENSATES","AGGREGATES_WITH","UNKNOWN_RELATION"]);
+export type ConsequenceRelation=z.infer<typeof ConsequenceRelationSchema>;
+
+export const RealityAddressSchema=z.object({version:z.literal("CIEAV_REALITY_ADDRESS_V1"),namespace:z.string().min(1).max(120),authorityDomain:z.string().min(1).max(300),resourceKind:z.string().min(1).max(120),stableId:z.string().min(1).max(1000),aliases:z.array(z.string().min(1).max(2000)).max(100).default([]),parentRefs:z.array(RefSchema).max(32).default([]),identityEvidenceRefs:z.array(RefSchema).min(1).max(100),resolverId:z.string().min(1).max(200),resolverVersion:z.string().min(1).max(100),digest:DigestSchema});
+export type RealityAddress=z.infer<typeof RealityAddressSchema>;
+
+export const ConsequenceFootprintSchema=z.object({version:z.literal("CIEAV_CONSEQUENCE_FOOTPRINT_V1"),realityRead:z.array(RefSchema).max(500).default([]),realityWrite:z.array(RefSchema).max(500).default([]),create:z.array(RefSchema).max(500).default([]),delete:z.array(RefSchema).max(500).default([]),grant:z.array(RefSchema).max(500).default([]),revoke:z.array(RefSchema).max(500).default([]),authorityUse:z.array(RefSchema).max(200).default([]),credentialUse:z.array(RefSchema).max(200).default([]),budgetDeltas:z.record(z.string().max(120),z.number().finite()).default({}),privacyExternalities:z.array(z.string().min(1).max(300)).max(100).default([]),proofDependencies:z.array(RefSchema).max(100).default([]),invariantsTouched:z.array(RefSchema).max(100).default([]),spatialRegion:z.string().max(1000).optional(),temporalWindow:z.object({start:z.string().datetime().optional(),end:z.string().datetime().optional()}).optional(),digest:DigestSchema});
+export type ConsequenceFootprint=z.infer<typeof ConsequenceFootprintSchema>;
+
+export const SemanticEffectIdentitySchema=z.object({version:z.literal("CIEAV_SEMANTIC_EFFECT_IDENTITY_V1"),effectClass:z.string().min(1).max(200),targetRealityRefs:z.array(RefSchema).min(1).max(100),transitionShape:z.string().min(1).max(2000),normalizedDeltaDigest:DigestSchema,invariantContextDigest:DigestSchema,equivalenceScope:z.string().min(1).max(500),resolverId:z.string().min(1).max(200),resolverVersion:z.string().min(1).max(100),digest:DigestSchema});
+export type SemanticEffectIdentity=z.infer<typeof SemanticEffectIdentitySchema>;
+
+export const ConsequenceMaterializationSchema=z.object({version:z.literal("CIEAV_CONSEQUENCE_MATERIALIZATION_V1"),id:z.string().uuid(),taskId:z.string().uuid(),intentId:z.string().uuid(),scopeDeviceId:z.string().min(8).max(200),principalRef:z.string().min(1).max(300),toolId:z.string().min(1).max(240),operation:z.string().min(1).max(240),routeProtocol:z.string().min(1).max(80),normalizedArgumentsDigest:DigestSchema,semanticEffect:SemanticEffectSchema,realityAddress:RealityAddressSchema,semanticIdentity:SemanticEffectIdentitySchema,footprint:ConsequenceFootprintSchema,worldBeforeDigest:DigestSchema,expectedPostStateDigest:DigestSchema,proofObligationDigest:DigestSchema,risk:z.enum(["LOW","MEDIUM","HIGH","CRITICAL"]),rootIntentRef:z.string().min(1).max(500),createdAt:z.string().datetime(),authority:z.literal(false).default(false)});
+export type ConsequenceMaterialization=z.infer<typeof ConsequenceMaterializationSchema>;
+
+export const ConsequenceRelationResultSchema=z.object({version:z.literal("CIEAV_CONSEQUENCE_RELATION_V1"),leftId:z.string().uuid(),rightId:z.string().uuid(),relation:ConsequenceRelationSchema,basisDigest:DigestSchema,evidenceRefs:z.array(RefSchema).max(100).default([]),resolverId:z.string().min(1).max(200),resolverVersion:z.string().min(1).max(100),worldVersion:z.string().max(300).optional(),authority:z.literal(false).default(false)});
+export type ConsequenceRelationResult=z.infer<typeof ConsequenceRelationResultSchema>;
+
+export const InvariantCompatibilityWitnessSchema=z.object({version:z.literal("CIEAV_INVARIANT_COMPATIBILITY_V1"),consequenceRefs:z.array(z.string().uuid()).min(1).max(100),invariantRefs:z.array(RefSchema).max(100),worldVersion:z.string().min(1).max(300),compositionClass:z.string().min(1).max(200),result:z.enum(["PRESERVES","REQUIRES_COORDINATION","VIOLATES","UNKNOWN"]),basisDigest:DigestSchema,evidenceRefs:z.array(RefSchema).max(100).default([]),resolverId:z.string().min(1).max(200),resolverVersion:z.string().min(1).max(100),authority:z.literal(false).default(false)});
+export type InvariantCompatibilityWitness=z.infer<typeof InvariantCompatibilityWitnessSchema>;
+
+export const ConsequenceReservationSchema=z.object({id:z.string().uuid(),version:z.literal("CIEAV_CONSEQUENCE_RESERVATION_V1"),consequenceRef:z.string().uuid(),semanticEffectRef:DigestSchema,footprintDigest:DigestSchema,realityVersion:z.string().min(1).max(300),reservationClass:z.enum(["EXCLUSIVE_EFFECT","COMMUTATIVE_EFFECT","READ_STABILITY","BUDGET","SPATIAL_TEMPORAL","CONTINUING_EFFECT"]),ownerPrincipalRef:z.string().min(1).max(300),rootIntentRef:z.string().min(1).max(500),issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),state:z.enum(["RESERVED","DISPATCHED","OBSERVING","RELEASED","QUARANTINED","EXPIRED"]),reason:z.string().min(1).max(1000),authority:z.literal(false).default(false)});
+export type ConsequenceReservation=z.infer<typeof ConsequenceReservationSchema>;
+
+export const ProofPlanReservationSchema=z.object({id:z.string().uuid(),version:z.literal("CIEAV_PROOF_PLAN_RESERVATION_V1"),consequenceRef:z.string().uuid(),proofObligationDigest:DigestSchema,providerBindings:z.array(RefSchema).min(1).max(50),providerVersionDigests:z.array(DigestSchema).max(50).default([]),requiredEvidenceClasses:z.array(z.string().min(1).max(200)).max(50).default([]),freshnessRequirements:z.array(z.string().min(1).max(500)).max(50).default([]),timeoutPolicy:z.string().min(1).max(500),fallbackPolicy:z.string().min(1).max(500),issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),authority:z.literal(false).default(false)});
+export type ProofPlanReservation=z.infer<typeof ProofPlanReservationSchema>;
+
+export const CausalRealityFenceSchema=z.object({id:z.string().uuid(),version:z.literal("CIEAV_CAUSAL_REALITY_FENCE_V1"),consequenceRef:z.string().uuid(),predecessorConsequenceRefs:z.array(z.string().uuid()).min(1).max(100),requiredOutcomes:z.array(z.enum(["SUCCESS","FAILURE","UNKNOWN"])).min(1).max(3),requiredRealityClaims:z.array(RefSchema).max(100).default([]),minimumEvidenceClass:z.string().min(1).max(200),maxEvidenceAgeMs:z.number().int().positive().max(86_400_000),fenceDigest:DigestSchema,createdAt:z.string().datetime(),authority:z.literal(false).default(false)});
+export type CausalRealityFence=z.infer<typeof CausalRealityFenceSchema>;
+
+export const ConsequenceAggregationEntrySchema=z.object({id:z.string().uuid(),version:z.literal("CIEAV_CONSEQUENCE_AGGREGATION_V1"),principalRef:z.string().min(1).max(300),rootIntentRef:z.string().min(1).max(500),effectClass:z.string().min(1).max(200),targetRealityRefs:z.array(RefSchema).min(1).max(100),windowKey:z.string().min(1).max(300),dimensions:z.record(z.string().max(120),z.number().finite()),consequenceRef:z.string().uuid(),recordedAt:z.string().datetime(),authority:z.literal(false).default(false)});
+export type ConsequenceAggregationEntry=z.infer<typeof ConsequenceAggregationEntrySchema>;
+
+export const ActiveConsequenceNodeSchema=z.object({version:z.literal("CIEAV_ACTIVE_CONSEQUENCE_NODE_V1"),materialization:ConsequenceMaterializationSchema,state:z.enum(["MATERIALIZED","RESERVED","AUTHORIZED","COMMITTED","DISPATCHED","OBSERVING","QUARANTINED","SETTLED_SUCCESS","SETTLED_FAILURE","SETTLED_UNKNOWN","CANCELLED"]),reservationId:z.string().uuid().optional(),proofPlanReservationId:z.string().uuid().optional(),createdAt:z.string().datetime(),updatedAt:z.string().datetime(),settledAt:z.string().datetime().optional(),authority:z.literal(false).default(false)});
+export type ActiveConsequenceNode=z.infer<typeof ActiveConsequenceNodeSchema>;
+
+export const AlgebraAdmissionSchema=z.object({version:z.literal("CIEAV_ALGEBRA_ADMISSION_V1"),consequenceRef:z.string().uuid(),decision:z.enum(["ADMIT","COORDINATE","BLOCK","RECONCILE"]),relations:z.array(ConsequenceRelationResultSchema).max(1000),invariantWitnesses:z.array(InvariantCompatibilityWitnessSchema).max(100),reservation:ConsequenceReservationSchema.optional(),proofPlanReservation:ProofPlanReservationSchema.optional(),reasons:z.array(z.string().min(1).max(1000)).min(1).max(100),authority:z.literal(false).default(false),executionAuthorityIssued:z.literal(false).default(false)});
+export type AlgebraAdmission=z.infer<typeof AlgebraAdmissionSchema>;
