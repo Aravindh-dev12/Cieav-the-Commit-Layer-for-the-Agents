@@ -43,3 +43,4 @@ export * from "./learning-vault.js";
 export * from "./verified-skill.js";
 export * from "./verified-skill-security.js";
 export * from "./verified-skill-registry.js";
+export * from "./application-agent.js";
