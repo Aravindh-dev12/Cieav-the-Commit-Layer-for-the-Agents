@@ -23,6 +23,7 @@
     "./cognitive-runtime": {"types": "./dist/cognitive-runtime.d.ts", "import": "./dist/cognitive-runtime.js"},
     "./universal-runtime": {"types": "./dist/universal-runtime.d.ts", "import": "./dist/universal-runtime.js"},
     "./consequence-abi": {"types": "./dist/consequence-abi.d.ts", "import": "./dist/consequence-abi.js"},
+    "./consequence-algebra": {"types": "./dist/consequence-algebra.d.ts", "import": "./dist/consequence-algebra.js"},
     "./authority-grade-settlement": {"types": "./dist/authority-grade-settlement.d.ts", "import": "./dist/authority-grade-settlement.js"},
     "./intelligence-metabolism": {"types": "./dist/intelligence-metabolism.d.ts", "import": "./dist/intelligence-metabolism.js"},
     "./learning-vault": {"types": "./dist/learning-vault.d.ts", "import": "./dist/learning-vault.js"},
