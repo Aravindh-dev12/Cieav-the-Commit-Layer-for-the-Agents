@@ -19,10 +19,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: consequence-algebra-${{ github.ref }}-${{ matrix.os }}
-  cancel-in-progress: false
-
 jobs:
   qualify:
     name: qualify-${{ matrix.name }}
@@ -38,6 +34,9 @@ jobs:
             os: macos-latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    concurrency:
+      group: consequence-algebra-${{ github.ref }}-${{ matrix.name }}
+      cancel-in-progress: false
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4
