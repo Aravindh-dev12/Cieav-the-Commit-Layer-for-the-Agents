@@ -1,0 +1,104 @@
+import fs from "node:fs";
+import path from "node:path";
+
+export type AIProviderId="openai"|"kimi"|"anthropic"|"gemini"|"xai";
+export type AIModelRole="fast"|"primary"|"verifier"|"research";
+
+export interface AIProviderRuntimeConfig {
+  id:AIProviderId;
+  enabled:boolean;
+  baseUrl:string;
+  apiKey?:string;
+  models:Record<AIModelRole,string>;
+  timeoutMs:number;
+  authority:false;
+}
+
+export interface QualifiedModelEntry {
+  provider:AIProviderId;
+  host:string;
+  model:string;
+  modelVersion?:string;
+  roles:AIModelRole[];
+  capabilities:string[];
+  qualificationReceiptDigest:string;
+  qualifiedAt:string;
+  recheckAt?:string;
+  authority:false;
+}
+
+export interface QualifiedModelFile {
+  version:"CIEAV_QUALIFIED_MODELS_V1";
+  models:QualifiedModelEntry[];
+  authority:false;
+}
+
+export interface AIProviderRegistryConfig {
+  providers:Map<AIProviderId,AIProviderRuntimeConfig>;
+  order:AIProviderId[];
+  researchOrder:AIProviderId[];
+  requireQualifiedModels:boolean;
+  crossProviderVerify:boolean;
+  qualificationFile?:string;
+  qualifiedModels:QualifiedModelEntry[];
+  authority:false;
+}
+
+const PROVIDERS:AIProviderId[]=["openai","kimi","anthropic","gemini","xai"];
+const ROLES:AIModelRole[]=["fast","primary","verifier","research"];
+const SHA256=/^[a-f0-9]{64}$/i;
+
+function env(name:string,fallback=""){return String(process.env[name]??fallback).trim()}
+function boolEnv(name:string,fallback=false){const v=env(name);return v?(["1","true","yes","on"].includes(v.toLowerCase())):fallback}
+function intEnv(name:string,fallback:number,min:number,max:number){const n=Number(env(name,String(fallback)));return Number.isFinite(n)?Math.max(min,Math.min(max,Math.trunc(n))):fallback}
+function list<T extends string>(raw:string,allowed:readonly T[]):T[]{const result:T[]=[];for(const item of raw.split(",").map(x=>x.trim()).filter(Boolean)){if((allowed as readonly string[]).includes(item)&&!result.includes(item as T))result.push(item as T)}return result}
+
+function validatedBaseUrl(raw:string,provider:AIProviderId){if(!raw)throw new Error(`CIEAV ${provider} provider requires a base URL`);let u:URL;try{u=new URL(raw)}catch{throw new Error(`CIEAV ${provider} provider has an invalid base URL`)}const loopback=["127.0.0.1","localhost","::1","[::1]"].includes(u.hostname.toLowerCase());if(u.username||u.password||u.search||u.hash)throw new Error(`CIEAV ${provider} provider base URL must not contain credentials, query, or fragment`);if(u.protocol!=="https:"&&!(loopback&&u.protocol==="http:"))throw new Error(`CIEAV ${provider} provider requires HTTPS except for loopback`);return raw.replace(/\/$/,"")}
+function hostOf(raw:string){return new URL(raw).host.toLowerCase()}
+function keyFor(provider:AIProviderId){return provider.toUpperCase()}
+function modelEnv(provider:AIProviderId,role:AIModelRole,fallback=""){return env(`CIEAV_${keyFor(provider)}_${role.toUpperCase()}_MODEL`,fallback)}
+function providerOrder(name:string,fallback:string){const parsed=list(env(name,fallback),PROVIDERS);return parsed.length?parsed:["openai"]}
+
+function providerFromEnv(id:AIProviderId,defaults:{baseUrl:string;fast?:string;primary?:string;verifier?:string;research?:string},legacy?:{apiKey?:string;baseUrl?:string;fast?:string;primary?:string;verifier?:string}):AIProviderRuntimeConfig{
+  const prefix=keyFor(id),apiKey=env(`${prefix}_API_KEY`,legacy?.apiKey?env(legacy.apiKey):""),baseRaw=env(`${prefix}_BASE_URL`,legacy?.baseUrl?env(legacy.baseUrl,defaults.baseUrl):defaults.baseUrl),primary=modelEnv(id,"primary",legacy?.primary?env(legacy.primary,defaults.primary??""):defaults.primary??""),fast=modelEnv(id,"fast",legacy?.fast?env(legacy.fast,defaults.fast??primary):defaults.fast??primary)||primary,verifier=modelEnv(id,"verifier",legacy?.verifier?env(legacy.verifier,defaults.verifier??primary):defaults.verifier??primary)||primary,research=modelEnv(id,"research",defaults.research??primary)||primary,explicit=env(`CIEAV_${prefix}_ENABLED`);
+  const enabled=explicit?boolEnv(`CIEAV_${prefix}_ENABLED`):Boolean(apiKey&&primary);
+  const baseUrl=validatedBaseUrl(baseRaw,id),timeoutMs=intEnv(`CIEAV_${prefix}_TIMEOUT_MS`,intEnv("CIEAV_AI_TIMEOUT_MS",9500,2000,60000),2000,60000);
+  return{id,enabled,baseUrl,...(apiKey?{apiKey}:{}),models:{fast,primary,verifier,research},timeoutMs,authority:false};
+}
+
+function parseQualifiedFile(filePath:string):QualifiedModelEntry[]{
+  let raw:unknown;try{raw=JSON.parse(fs.readFileSync(filePath,"utf8"))}catch(error){throw new Error(`CIEAV qualified model registry cannot be read: ${error instanceof Error?error.message:String(error)}`)}
+  if(!raw||typeof raw!=="object"||(raw as any).version!=="CIEAV_QUALIFIED_MODELS_V1"||(raw as any).authority!==false||!Array.isArray((raw as any).models))throw new Error("CIEAV qualified model registry has invalid envelope");
+  const out:QualifiedModelEntry[]=[];
+  for(const item of (raw as any).models){
+    if(!item||typeof item!=="object"||!PROVIDERS.includes(item.provider)||typeof item.host!=="string"||!item.host.trim()||typeof item.model!=="string"||!item.model.trim()||!Array.isArray(item.roles)||!item.roles.every((x:unknown)=>ROLES.includes(x as AIModelRole))||!Array.isArray(item.capabilities)||!item.capabilities.every((x:unknown)=>typeof x==="string")||typeof item.qualificationReceiptDigest!=="string"||!SHA256.test(item.qualificationReceiptDigest)||typeof item.qualifiedAt!=="string"||Number.isNaN(Date.parse(item.qualifiedAt))||item.authority!==false)throw new Error("CIEAV qualified model registry contains an invalid entry");
+    if(item.recheckAt!==undefined&&(typeof item.recheckAt!=="string"||Number.isNaN(Date.parse(item.recheckAt))))throw new Error("CIEAV qualified model registry contains invalid recheckAt");
+    out.push({provider:item.provider,host:item.host.toLowerCase(),model:item.model,...(typeof item.modelVersion==="string"&&item.modelVersion?{modelVersion:item.modelVersion}:{}),roles:[...new Set(item.roles)],capabilities:[...new Set(item.capabilities.map((x:string)=>x.trim()).filter(Boolean))],qualificationReceiptDigest:item.qualificationReceiptDigest.toLowerCase(),qualifiedAt:new Date(item.qualifiedAt).toISOString(),...(item.recheckAt?{recheckAt:new Date(item.recheckAt).toISOString()}:{}),authority:false});
+  }
+  return out;
+}
+
+export function loadAIProviderRegistry(stateDir?:string):AIProviderRegistryConfig{
+  const providers=new Map<AIProviderId,AIProviderRuntimeConfig>();
+  const openai=providerFromEnv("openai",{baseUrl:"https://api.openai.com/v1",fast:"gpt-5.6-luna",primary:"gpt-5.6",verifier:"gpt-5.6-terra",research:"gpt-5.6"},{apiKey:"OPENAI_API_KEY",baseUrl:"OPENAI_BASE_URL",fast:"CIEAV_AI_FAST_MODEL",primary:"CIEAV_AI_PRIMARY_MODEL",verifier:"CIEAV_AI_VERIFIER_MODEL"});
+  providers.set("openai",openai);
+  providers.set("kimi",providerFromEnv("kimi",{baseUrl:"https://api.moonshot.ai/v1",primary:"kimi-k3",research:"kimi-k3"}));
+  providers.set("anthropic",providerFromEnv("anthropic",{baseUrl:"https://api.anthropic.com",primary:env("CIEAV_ANTHROPIC_MODEL"),research:env("CIEAV_ANTHROPIC_MODEL")}));
+  providers.set("gemini",providerFromEnv("gemini",{baseUrl:"https://generativelanguage.googleapis.com/v1beta",primary:env("CIEAV_GEMINI_MODEL"),research:env("CIEAV_GEMINI_MODEL")}));
+  providers.set("xai",providerFromEnv("xai",{baseUrl:"https://api.x.ai/v1",primary:"grok-4.6",research:"grok-4.6"}));
+  const requireQualifiedModels=boolEnv("CIEAV_AI_REQUIRE_QUALIFIED_MODELS",false),configuredFile=env("CIEAV_AI_QUALIFIED_MODELS_FILE"),qualificationFile=configuredFile?path.resolve(configuredFile):(stateDir?path.join(path.resolve(stateDir),"qualified-models.json"):undefined);
+  let qualifiedModels:QualifiedModelEntry[]=[];
+  if(qualificationFile&&fs.existsSync(qualificationFile))qualifiedModels=parseQualifiedFile(qualificationFile);
+  else if(requireQualifiedModels)throw new Error(`CIEAV qualified model registry required but missing: ${qualificationFile??"CIEAV_AI_QUALIFIED_MODELS_FILE"}`);
+  return{providers,order:providerOrder("CIEAV_AI_PROVIDER_ORDER","openai,kimi,anthropic,gemini,xai"),researchOrder:providerOrder("CIEAV_AI_RESEARCH_PROVIDER_ORDER","openai,kimi,anthropic,gemini,xai"),requireQualifiedModels,crossProviderVerify:boolEnv("CIEAV_AI_CROSS_PROVIDER_VERIFY",true),...(qualificationFile?{qualificationFile}:{}),qualifiedModels,authority:false};
+}
+
+export function providerModelQualified(registry:AIProviderRegistryConfig,provider:AIProviderRuntimeConfig,role:AIModelRole,at=new Date()){
+  const model=provider.models[role];if(!model)return false;
+  const host=hostOf(provider.baseUrl);
+  return registry.qualifiedModels.some(entry=>entry.provider===provider.id&&entry.host===host&&entry.model===model&&entry.roles.includes(role)&&(!entry.recheckAt||Date.parse(entry.recheckAt)>=at.getTime()));
+}
+
+export function providerEligible(registry:AIProviderRegistryConfig,provider:AIProviderRuntimeConfig,role:AIModelRole){return provider.enabled&&Boolean(provider.apiKey)&&Boolean(provider.models[role])&&(!registry.requireQualifiedModels||providerModelQualified(registry,provider,role))}
+
+export function providerRegistrySnapshot(registry:AIProviderRegistryConfig){return{version:"CIEAV_AI_PROVIDER_REGISTRY_V1",requireQualifiedModels:registry.requireQualifiedModels,crossProviderVerify:registry.crossProviderVerify,order:registry.order,researchOrder:registry.researchOrder,providers:[...registry.providers.values()].map(p=>({id:p.id,enabled:p.enabled,host:hostOf(p.baseUrl),models:p.models,qualified:Object.fromEntries(ROLES.map(role=>[role,providerModelQualified(registry,p,role)])),authority:false})),qualifiedModelCount:registry.qualifiedModels.length,authority:false as const}}
