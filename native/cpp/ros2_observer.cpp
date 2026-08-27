@@ -1,11 +1,13 @@
 #include "cieav_native_ml.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <memory>
 #include <mutex>
 #include <new>
 #include <string>
+#include <thread>
 
 #if defined(CIEAV_WITH_ROS2)
 #include <rclcpp/rclcpp.hpp>
