@@ -5,6 +5,7 @@ import {loadOptionalEnvFile} from "./env-file.js";
 import {consumeManagedSecrets} from "./managed-secrets.js";
 import {gatewayBearerDigest} from "./gateway-auth.js";
 import {loadAuthorityStateDeployment,type AuthorityStateDeployment} from "./authority-state-deployment.js";
+import {acquireAuthorityProcessLease} from "./authority-process-lease.js";
 
 export interface Config {
   port:number;databaseUrl?:string;jwtSecret:string;receiptSigningSecret:string;
@@ -32,6 +33,7 @@ export function loadConfig():Config{
   if(managedMode&&semanticRouterToken===gatewayToken)throw new Error("CIEAV managed semantic router capability must be distinct from Gateway admin authority");
   if(cloudModelDigest&&!/^[A-Fa-f0-9]{64}$/.test(cloudModelDigest))throw new Error("CIEAV_CLOUD_MODEL_DIGEST must be a 64-character SHA-256 hex digest");
   const authorityState=localAuthority?loadAuthorityStateDeployment(process.env):loadAuthorityStateDeployment({});
+  if(localAuthority&&stateDir&&authorityState.mode==="single-writer-file")acquireAuthorityProcessLease(path.resolve(stateDir));
   const allowedOrigins=localAuthority?[`http://127.0.0.1:${controlPort}`,`http://localhost:${controlPort}`]:env("CIEAV_ALLOW_ORIGIN","LATCH_ALLOW_ORIGIN","http://127.0.0.1:8790,http://localhost:8790,http://localhost:5173")!.split(",").map(s=>s.trim()).filter(Boolean);
   const proofFilesystemRoots=localAuthority?listEnv("CIEAV_PROOF_FILESYSTEM_ROOTS","LATCH_PROOF_FILESYSTEM_ROOTS").map(root=>path.resolve(root)):[];
   const proofHttpOrigins=localAuthority?listEnv("CIEAV_PROOF_HTTP_ORIGINS","LATCH_PROOF_HTTP_ORIGINS").map(value=>new URL(value).origin):[];
