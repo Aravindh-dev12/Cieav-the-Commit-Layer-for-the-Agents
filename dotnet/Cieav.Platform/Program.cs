@@ -142,7 +142,7 @@ internal static class Program
             }
             catch (Exception ex)
             {
-                response = IpcResponse.Error(ex.Message);
+                response = IpcResponse.Failure(ex.Message);
             }
             var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(response, JsonOptions) + "\n");
             await stream.WriteAsync(bytes, cancellationToken);
@@ -263,6 +263,6 @@ internal static class Program
     private sealed record IpcRequest(string Version, string RequestId, string Operation, DateTimeOffset Timestamp, string Nonce, string Mac);
     private sealed record IpcResponse(string Version, string? RequestId, bool Ok, object? Result, string? Error, DateTimeOffset RespondedAt, bool Authority, bool MayMintExecutionAuthority, bool ExecutionAuthorityIssued)
     {
-        public static IpcResponse Error(string error) => new(Protocol, null, false, null, error[..Math.Min(error.Length, 500)], DateTimeOffset.UtcNow, false, false, false);
+        public static IpcResponse Failure(string error) => new(Protocol, null, false, null, error[..Math.Min(error.Length, 500)], DateTimeOffset.UtcNow, false, false, false);
     }
 }
