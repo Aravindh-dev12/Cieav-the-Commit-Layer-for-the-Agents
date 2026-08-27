@@ -73,6 +73,8 @@
     "release:qualify:local-live:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-live-windows-qualification.ps1",
     "release:qualify:providers": "node scripts/qualify-ai-providers.mjs --live --require-qualified",
     "release:qualify:providers:offline": "node scripts/qualify-ai-providers.mjs",
+    "release:qualify:frontier-model": "npm run build:api && node scripts/qualify-frontier-model-live.mjs",
+    "release:promote:frontier-model": "npm run build -w @cieav/contracts && node scripts/promote-qualified-frontier-model.mjs",
     "release:smoke:runtime": "python scripts/clean-runtime-smoke.py",
     "release:smoke:runtime:publish": "python scripts/clean-runtime-publish-smoke.py",
     "release:smoke:service": "python scripts/service-lifecycle-smoke.py --confirm-service-mutation",
