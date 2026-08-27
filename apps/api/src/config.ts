@@ -1,6 +1,7 @@
 import path from "node:path";
 import type {AIProfile} from "./model/openai.js";
 import {loadAIProviderRegistry,type AIProviderRegistryConfig} from "./model/provider-registry.js";
+import {loadOptionalEnvFile} from "./env-file.js";
 import {consumeManagedSecrets} from "./managed-secrets.js";
 import {gatewayBearerDigest} from "./gateway-auth.js";
 
@@ -19,6 +20,7 @@ const listEnv=(primary:string,legacy?:string)=>String(env(primary,legacy,"")??""
 const DEV_JWT="dev-only-jwt-secret-change-me",DEV_RECEIPT="dev-only-receipt-secret-change-me";
 
 export function loadConfig():Config{
+  loadOptionalEnvFile();
   const managed=consumeManagedSecrets(),managedMode=process.env.CIEAV_MANAGED_SECRET_PIPE==="1";
   if(managedMode&&!managed)throw new Error("CIEAV managed local authority requires private bootstrap secrets");
   if(managed&&(process.env.JWT_SECRET||process.env.RECEIPT_SIGNING_SECRET||process.env.CIEAV_GATEWAY_TOKEN||process.env.LATCH_GATEWAY_TOKEN))throw new Error("CIEAV managed secret bootstrap must not be duplicated in process environment");
