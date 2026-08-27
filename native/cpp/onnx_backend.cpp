@@ -4,31 +4,51 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory>
 #include <new>
 #include <string>
-#include <vector>
 
 #if defined(CIEAV_WITH_ONNXRUNTIME)
 #include <onnxruntime_cxx_api.h>
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 namespace {
+Ort::SessionOptions make_options() {
+    Ort::SessionOptions options;
+    options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+    return options;
+}
+
+#if defined(_WIN32)
+std::wstring to_ort_path(const char *utf8) {
+    const int chars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, nullptr, 0);
+    if (chars <= 1) throw std::invalid_argument("invalid UTF-8 model path");
+    std::wstring out(static_cast<size_t>(chars - 1), L'\0');
+    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, out.data(), chars) == 0)
+        throw std::invalid_argument("invalid UTF-8 model path");
+    return out;
+}
+#else
+std::string to_ort_path(const char *utf8) { return std::string(utf8); }
+#endif
+
 struct CieavOnnxSession {
     Ort::Env env;
     Ort::SessionOptions options;
+#if defined(_WIN32)
+    std::wstring model_path;
+#else
+    std::string model_path;
+#endif
     Ort::Session session;
 
-    explicit CieavOnnxSession(const char *model_path)
+    explicit CieavOnnxSession(const char *model_path_utf8)
         : env(ORT_LOGGING_LEVEL_WARNING, "cieav-native"),
-          options(),
-#if defined(_WIN32)
-          session(env, std::wstring(model_path, model_path + std::strlen(model_path)).c_str(), options)
-#else
-          session(env, model_path, options)
-#endif
-    {
-        options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-    }
+          options(make_options()),
+          model_path(to_ort_path(model_path_utf8)),
+          session(env, model_path.c_str(), options) {}
 };
 
 bool valid_shape(const int64_t *shape, size_t rank, size_t *elements) {
@@ -66,8 +86,8 @@ int32_t cieav_native_onnx_open(const char *model_path_utf8, cieav_onnx_session_h
         return CIEAV_NATIVE_OK;
     } catch (const Ort::Exception &) {
         return CIEAV_NATIVE_E_INTERNAL;
-    } catch (const std::bad_alloc &) {
-        return CIEAV_NATIVE_E_INTERNAL;
+    } catch (const std::exception &) {
+        return CIEAV_NATIVE_E_INVALID_ARGUMENT;
     }
 #else
     (void)model_path_utf8;
@@ -85,7 +105,7 @@ int32_t cieav_native_onnx_run_f32(
     float *output_data,
     size_t output_capacity,
     size_t *output_required) {
-    if (session_handle == nullptr || input_name_utf8 == nullptr || input_data == nullptr || output_name_utf8 == nullptr || output_required == nullptr) return CIEAV_NATIVE_E_INVALID_ARGUMENT;
+    if (session_handle == nullptr || input_name_utf8 == nullptr || input_name_utf8[0] == '\0' || input_data == nullptr || output_name_utf8 == nullptr || output_name_utf8[0] == '\0' || output_required == nullptr) return CIEAV_NATIVE_E_INVALID_ARGUMENT;
 #if defined(CIEAV_WITH_ONNXRUNTIME)
     size_t input_elements = 0u;
     if (!valid_shape(input_shape, input_rank, &input_elements)) return CIEAV_NATIVE_E_INVALID_ARGUMENT;
