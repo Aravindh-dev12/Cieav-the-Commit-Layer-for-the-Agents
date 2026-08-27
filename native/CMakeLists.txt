@@ -1,0 +1,65 @@
+cmake_minimum_required(VERSION 3.20)
+project(cieav_native VERSION 1.0.0 LANGUAGES C CXX)
+
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(CIEAV_NATIVE_BUILD_SHARED "Build shared CIEAV native ABI library" ON)
+option(CIEAV_NATIVE_BUILD_TESTS "Build C/C++ native ABI tests" ON)
+
+set(CIEAV_NATIVE_SOURCES c/cieav_native.c)
+
+add_library(cieav_native_static STATIC ${CIEAV_NATIVE_SOURCES})
+target_include_directories(cieav_native_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set_target_properties(cieav_native_static PROPERTIES OUTPUT_NAME cieav_native POSITION_INDEPENDENT_CODE ON)
+
+if(MSVC)
+  target_compile_options(cieav_native_static PRIVATE /W4 /WX /sdl)
+else()
+  target_compile_options(cieav_native_static PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+if(CIEAV_NATIVE_BUILD_SHARED)
+  add_library(cieav_native SHARED ${CIEAV_NATIVE_SOURCES})
+  target_include_directories(cieav_native PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_compile_definitions(cieav_native PRIVATE CIEAV_NATIVE_BUILD_SHARED=1)
+  set_target_properties(cieav_native PROPERTIES C_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN YES)
+  if(MSVC)
+    target_compile_options(cieav_native PRIVATE /W4 /WX /sdl)
+  else()
+    target_compile_options(cieav_native PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  endif()
+endif()
+
+if(CIEAV_NATIVE_BUILD_TESTS)
+  enable_testing()
+
+  add_executable(cieav_native_c_test c/cieav_native_test.c)
+  target_include_directories(cieav_native_c_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_link_libraries(cieav_native_c_test PRIVATE cieav_native_static)
+
+  add_executable(cieav_native_cpp_smoke cpp/cieav_native_smoke.cpp)
+  target_include_directories(cieav_native_cpp_smoke PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_link_libraries(cieav_native_cpp_smoke PRIVATE cieav_native_static)
+
+  if(MSVC)
+    target_compile_options(cieav_native_c_test PRIVATE /W4 /WX /sdl)
+    target_compile_options(cieav_native_cpp_smoke PRIVATE /W4 /WX /sdl)
+  else()
+    target_compile_options(cieav_native_c_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(cieav_native_cpp_smoke PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  endif()
+
+  add_test(NAME cieav_native_c_test COMMAND cieav_native_c_test)
+  add_test(NAME cieav_native_cpp_smoke COMMAND cieav_native_cpp_smoke)
+endif()
+
+install(FILES include/cieav_native.h DESTINATION include)
+install(TARGETS cieav_native_static ARCHIVE DESTINATION lib)
+if(CIEAV_NATIVE_BUILD_SHARED)
+  install(TARGETS cieav_native RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
+endif()
