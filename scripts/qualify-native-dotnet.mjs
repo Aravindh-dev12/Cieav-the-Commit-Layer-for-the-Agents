@@ -11,6 +11,7 @@ const BUILD=path.join(ROOT,".cieav",`native-build-${process.platform}-${process.
 const REPORT_DIR=path.join(ROOT,"release","reports");
 const reportJson=path.join(REPORT_DIR,"latest-native-dotnet-qualification.json");
 const reportText=path.join(REPORT_DIR,"latest-native-dotnet-qualification.txt");
+const REQUIRED_DOTNET_MAJOR=10;
 const digest=(value)=>crypto.createHash("sha256").update(typeof value==="string"?value:JSON.stringify(value)).digest("hex");
 
 function run(name,cmd,args,env=process.env){
@@ -58,19 +59,41 @@ function findNativeLibrary(){
   throw new Error(`built shared native library not found under ${BUILD}`);
 }
 
+function dotnetSdkPreflight(){
+  const result=run("require .NET 10 SDK","dotnet",["--list-sdks"]);
+  if(!result.ok)return result;
+  const sdkLines=result.stdout.split(/\r?\n/).map((line)=>line.trim()).filter(Boolean);
+  const hasRequired=sdkLines.some((line)=>new RegExp(`^${REQUIRED_DOTNET_MAJOR}\\.`).test(line));
+  if(hasRequired)return result;
+  const installed=sdkLines.length?sdkLines.join("\n"):"none";
+  const installHint=process.platform==="win32"
+    ? "Install with: winget install Microsoft.DotNet.SDK.10 --source winget"
+    : "Install a supported .NET SDK 10.x before running this qualifier.";
+  return {
+    ...result,
+    ok:false,
+    status:2,
+    stderr:`CIEAV native/.NET qualification requires .NET SDK 10.x. Installed SDKs:\n${installed}\n${installHint}`
+  };
+}
+
 fs.mkdirSync(BUILD,{recursive:true});
 fs.mkdirSync(REPORT_DIR,{recursive:true});
 const steps=[];
 let failure=null;
 let nativeLibrary=null;
+let installedDotnetSdks=[];
+
+function record(result){
+  steps.push(result);
+  process.stdout.write(result.stdout);
+  if(result.stderr)process.stderr.write(`${result.stderr}${result.stderr.endsWith("\n")?"":"\n"}`);
+  if(!result.ok)failure=result.name;
+}
 
 function step(name,cmd,args,env){
   if(failure)return;
-  const result=run(name,cmd,args,env);
-  steps.push(result);
-  process.stdout.write(result.stdout);
-  process.stderr.write(result.stderr);
-  if(!result.ok)failure=name;
+  record(run(name,cmd,args,env));
 }
 
 step("configure native C/C++ ABI","cmake",["-S","native","-B",BUILD,"-DCMAKE_BUILD_TYPE=Release","-DCIEAV_NATIVE_BUILD_SHARED=ON","-DCIEAV_NATIVE_BUILD_TESTS=ON"]);
@@ -83,6 +106,12 @@ if(!failure){
     failure="resolve built native shared library";
     steps.push({name:failure,ok:false,status:1,durationMs:0,stdout:"",stderr:String(error?.message??error)});
   }
+}
+
+if(!failure){
+  const preflight=dotnetSdkPreflight();
+  installedDotnetSdks=preflight.stdout.split(/\r?\n/).map((line)=>line.trim()).filter(Boolean);
+  record(preflight);
 }
 
 step("build .NET 10 platform host","dotnet",["build","dotnet/Cieav.Platform/Cieav.Platform.csproj","-c","Release","--nologo"]);
@@ -100,10 +129,12 @@ const report={
   branch,
   platform:process.platform,
   arch:process.arch,
+  requirements:{dotnetSdkMajor:REQUIRED_DOTNET_MAJOR},
   toolchain:{
     node:process.version,
     cmake:version("cmake",["--version"]),
     dotnet:version("dotnet",["--version"]),
+    installedDotnetSdks,
     cc:process.env.CC??null,
     cxx:process.env.CXX??null
   },
@@ -125,7 +156,9 @@ fs.writeFileSync(reportText,
   `Commit: ${commit}\n`+
   `Branch: ${branch}\n`+
   `Platform: ${process.platform}/${process.arch}\n`+
+  `Required .NET SDK major: ${REQUIRED_DOTNET_MAJOR}\n`+
   `.NET: ${report.toolchain.dotnet??"unavailable"}\n`+
+  `Installed .NET SDKs: ${installedDotnetSdks.length?installedDotnetSdks.join(", "):"none"}\n`+
   `CMake: ${report.toolchain.cmake??"unavailable"}\n`+
   `Native library SHA-256: ${nativeLibraryDigest??"unavailable"}\n`+
   `Digest: ${report.digest}\n`+
