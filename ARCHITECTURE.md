@@ -8,9 +8,9 @@
 
 This is the canonical target architecture for CIEAV.
 
-Research/provider snapshot: **2026-08-27**. Model catalogs, model IDs, preview status, pricing, regions, SDKs and managed-training features change faster than this architecture. CIEAV must discover, pin, qualify and record exact provider/model/framework versions at deployment time. Names in this document are routing recommendations, not permanent protocol constants.
+Research/provider snapshot: **2026-08-27**. Model catalogs, model IDs, preview status, pricing, regions, SDKs, managed-training features and cloud availability change faster than this architecture. CIEAV must discover, pin, qualify and record exact provider/model/framework versions at deployment time. Names in this document are routing recommendations, not permanent protocol constants.
 
-A component appearing here is **not automatically implemented or production-qualified**. Production claims require the executable and external qualification evidence described below.
+A component appearing here is **not automatically implemented or production-qualified**. Production claims require executable and external qualification evidence.
 
 ---
 
@@ -54,7 +54,7 @@ WORLD AFTER
 SUCCESS / FAILURE / UNKNOWN
 ```
 
-Frontier APIs, open-weight models, local models, coding models, multimodal models, enterprise agents and CIEAV-trained checkpoints are replaceable cognitive engines inside this larger transaction boundary.
+Frontier APIs, open-weight models, local models, coding models, multimodal models, enterprise agents, proprietary training services and CIEAV-trained checkpoints are replaceable cognitive engines inside this larger transaction boundary.
 
 ---
 
@@ -80,8 +80,12 @@ These are architectural invariants, not preferences.
 16. **Production promotion is deterministic and external to model/training code.**
 17. **Human approval never implies hidden auto-approval.**
 18. **Native acceleration never bypasses policy, Algebra, proof or settlement.**
-19. **Provider compatibility does not imply semantic or security equivalence.**
+19. **Provider/API compatibility does not imply semantic or security equivalence.**
 20. **Only the Authority / Commit Plane may issue execution authority.**
+21. **Hosted AI, managed RL and fine-tuning services are Learning/Intelligence Providers, never Authority Providers.**
+22. **An open-weight model is not trusted merely because its weights are inspectable or local.**
+23. **A proprietary model is not trusted merely because the provider operates the infrastructure.**
+24. **Latest aliases are allowed for discovery/evaluation; production consequential paths must pin qualified model identity or record the resolved exact version.**
 
 Critical dependency direction:
 
@@ -110,7 +114,7 @@ cieav.intelligence / cieav.learning / native providers
 Never:
 
 ```text
-model / agent / RL policy / native worker
+model / agent / RL policy / native worker / hosted trainer
         ──► signer / permit minting / credential issuance / promotion authority
 ```
 
@@ -194,27 +198,25 @@ CIEAV deliberately uses five languages with **non-overlapping primary ownership*
 | **C++** | native/GPU inference, robotics/ROS2, vision/audio, high-rate sensor/device adapters, performance-critical kernels | C++20 baseline |
 | **C** | stable ABI, FFI, embedded/MCU/driver boundary and minimal native portability layer | C17 baseline |
 
-### 5.1 Why TypeScript stays canonical for trusted online logic
+### 5.1 TypeScript stays canonical for trusted online logic
 
 The repository already places contracts, core deterministic logic, API, Agent Kernel, MCP/A2A and Consequence Algebra in TypeScript/Node. Rewriting qualified authority/consequence logic merely for language symmetry would increase attack surface and semantic drift.
 
-### 5.2 Why Python owns training
+### 5.2 Python owns training and ML research
 
 Modern ML/RL research and production tooling remains Python-first. CIEAV's local training entrypoint already uses Python for SFT, DPO, KTO, GRPO and RLVR while a zero-authority Node verifier owns canonical scoring semantics.
 
-### 5.3 Why .NET exists
+### 5.3 .NET exists for Windows and enterprise integration
 
 .NET is a first-class enterprise/Windows integration runtime, not a second Authority implementation. Use it for Windows services, Microsoft identity/cloud integrations, enterprise agents, MCP and portable inference.
 
-### 5.4 Why C++ exists
+### 5.4 C++ exists for native performance and physical systems
 
 Use C++ only where native performance/hardware matters: inference, GPU runtimes, robotics, vision/audio and high-rate devices. Complex C++ workers should normally be isolated behind authenticated local IPC.
 
-### 5.5 Why C is the ABI waist
+### 5.5 C is the ABI waist
 
-C is the narrow cross-runtime native ABI. Export C++ functionality through a versioned `extern "C"` interface instead of coupling Node, Python and .NET to a C++ ABI.
-
-Target:
+C is the narrow cross-runtime native ABI. Export C++ functionality through a versioned `extern "C"` interface instead of coupling Node, Python and .NET directly to a C++ ABI.
 
 ```text
 TypeScript/Node ── Node-API / IPC ──┐
@@ -301,7 +303,7 @@ human escalation
 stop because evidence is insufficient
 ```
 
-Routing inputs include capability, risk, privacy, latency, cost, modality, proofability, historical calibration and known consequence semantics.
+Routing inputs include capability, risk, privacy, latency, cost, modality, proofability, historical calibration, provider availability and known consequence semantics.
 
 The scheduler has `authority = false`.
 
@@ -329,18 +331,29 @@ A provider adapter records at least:
 
 ```text
 provider
-model_id
-model_version/snapshot when available
+provider_account/project identity
+model_id requested
+model_id/version resolved
+model snapshot when available
 endpoint class
-region when relevant
+region / residency class when relevant
 request digest
 response digest
 usage/cost metadata
 latency
-capability flags
+reasoning/tool capability flags
 provider request/correlation ID
 SDK/API version
+provider safety/fallback metadata where exposed
 ```
+
+### 8.1 Latest aliases versus production pins
+
+`latest` aliases may be used in research and model discovery. Consequential production use should either pin an exact model snapshot/version or record the exact resolved model identity returned by the provider and prove that it is in the currently qualified set.
+
+### 8.2 Provider capability is not authority
+
+A provider may expose tool calling, computer use, web search, MCP, agents, code execution or long-running workflows. Those features remain zero-authority proposal mechanisms until converted into CIEAV-owned consequence semantics.
 
 ---
 
@@ -348,9 +361,9 @@ SDK/API version
 
 These are **2026-08-27 routing candidates**, not permanent allow-lists.
 
-### 9.1 OpenAI
+### 9.1 OpenAI / GPT API
 
-Current API tiers include:
+Current frontier API family:
 
 ```text
 GPT-5.6 Sol   → gpt-5.6-sol / gpt-5.6
@@ -358,79 +371,172 @@ GPT-5.6 Terra → gpt-5.6-terra
 GPT-5.6 Luna  → gpt-5.6-luna
 ```
 
+Current documented characteristics include a 1.05M-token context class, up to 128K output, text/image input, configurable reasoning effort, tool calling and Responses API support.
+
 Recommended CIEAV roles:
 
 ```text
-Sol   → hardest reasoning, coding, agentic/deep-research synthesis
-Terra → balanced production reasoning/cost
-Luna  → high-volume extraction, routing and lower-cost tasks
+Sol   → hardest reasoning, coding, consequence planning, deep-research synthesis
+Terra → balanced production reasoning / cost / agent workloads
+Luna  → high-volume extraction, routing, classification and economical subagents
 ```
 
-Prefer the OpenAI **Responses API** for tool/reasoning/agent workflows. OpenAI Agents SDK may be used only in the zero-authority intelligence plane.
+Prefer the **OpenAI Responses API** for new reasoning/tool workflows. OpenAI Agents SDK may be used only in the zero-authority intelligence plane.
 
-### 9.2 Moonshot AI / Kimi
-
-**Kimi K3** is a strong CIEAV candidate both as hosted API and open-weight/local deployment:
+For enterprise deployments, CIEAV may route supported GPT models through:
 
 ```text
-model: kimi-k3
-native multimodal
-open weights
-1M context
-MoE: 2.8T total / 104B active
-long-horizon coding / knowledge work / agentic research
+OpenAI first-party API     → fastest access to OpenAI-native capabilities
+Microsoft Foundry          → Azure enterprise governance/residency where available
+Amazon Bedrock             → AWS-governed OpenAI model access where available
 ```
 
-Kimi exposes OpenAI/Anthropic-compatible API interfaces. Compatibility is only transport convenience. CIEAV must normalize Kimi-specific reasoning/tool-history semantics and qualify it independently.
+Provider-hosting changes do not make model outputs equivalent. Each host/model combination is separately qualified.
 
-For local K3 deployment, vLLM/SGLang are candidate serving paths when the exact model release and hardware are qualified.
+GPT-5.6 inference availability does not imply GPT-5.6 fine-tuning/RFT availability. Fine-tuning support is discovered separately from inference support.
 
-### 9.3 Anthropic
+### 9.2 Moonshot AI / Kimi K3
 
-Support the current Claude family through the official Anthropic API/SDK. Model aliases and snapshots must be discovered and pinned at deployment because Anthropic's catalog evolves quickly.
-
-Recommended use:
+Kimi K3 is a current CIEAV frontier candidate:
 
 ```text
-highest Claude tier → difficult reasoning / long-running agents / research
-balanced Claude tier → coding / agentic production workloads
-fast Claude tier    → extraction / classification / lower-latency work
+Kimi K3
+2.8T total parameters
+104B activated parameters
+Mixture-of-Experts
+native vision / multimodal capability
+1M-token context window
+Kimi Delta Attention + Attention Residuals
+open-weight release
+long-horizon coding / knowledge work / reasoning / agentic research
 ```
 
-Claude output remains a proposal.
+Moonshot announced Kimi K3 in July 2026 and makes it available through Kimi products and the Kimi API. Full/open weights are also part of the K3 release.
+
+Kimi's API is OpenAI-compatible at the transport level. CIEAV may use an OpenAI-compatible client against the Moonshot/Kimi endpoint, but it must normalize Kimi-specific reasoning/tool semantics before producing CIEAV proposals.
+
+Important production rule: documentation pages and model-list pages can lag launches. Do not blindly hard-code a model slug from marketing material. At startup or qualification time:
+
+```text
+provider model discovery
+      ↓
+resolve available Kimi model identity
+      ↓
+compare with CIEAV qualified model registry
+      ↓
+pin/record exact model
+```
+
+Current Kimi material documents `kimi-k3` as the API flagship and Kimi Code also exposes K3 model variants. Qualified K2.x models may remain fallbacks where appropriate.
+
+For self-hosting, K3's extreme size means local deployment is a specialized multi-accelerator concern. Do not assume a workstation can host it merely because weights are open. Exact inference engine, quantization, tensor-parallel layout, hardware and weight digest must be qualified.
+
+### 9.3 Anthropic / Claude
+
+Current 2026 candidate classes include:
+
+```text
+Claude Fable 5   → highest-end general knowledge/coding/research tier
+Claude Opus 5    → long-running agents, coding and professional work
+Claude Sonnet 5  → balanced agent/coding/professional workloads
+```
+
+Recommended CIEAV roles:
+
+```text
+Fable 5  → hardest independent reasoning / research / difficult synthesis
+Opus 5   → long-horizon agent and software engineering workloads
+Sonnet 5 → balanced production agents and cross-checking
+```
+
+Claude output remains a proposal. Availability/safety routing can change independently of model identity, so CIEAV records provider-side fallback/safety metadata when exposed.
 
 ### 9.4 Google Gemini
 
 Current candidates include:
 
 ```text
-Gemini 3.7 Flash
-Gemini 3.1 Pro preview
-Gemini Deep Research / Deep Research Max preview
-Gemini Robotics ER 2 preview
+Gemini 3.1 Pro preview   → high-end reasoning / multimodal work
+Gemini 3.7 Flash         → current capable Flash model for coding/agent workflows
+Gemini 3.6 Flash         → previous stable Flash generation
+Gemini 3.5 Flash         → stable general/high-throughput tier
+Gemini 3.5 Flash-Lite    → low-cost high-throughput tier
 ```
 
-GA models may be production candidates after CIEAV qualification. Preview models/services require explicit fallback, deprecation monitoring and exact-version qualification.
+Use Gemini API directly for developer use and Vertex AI / Google Cloud for enterprise deployment, residency, IAM, managed tuning and platform integration.
 
-### 9.5 Additional provider adapters
+Preview models/services require explicit fallback, deprecation monitoring and exact-version qualification.
 
-CIEAV should support replaceable adapters where product needs justify them, including:
+### 9.5 xAI / Grok
+
+Current xAI documentation recommends **Grok 4.6** for general, coding, agentic and knowledge-work workloads. It supports text/image input, reasoning, tool use and Responses/Chat Completions APIs with a 500K context window.
+
+Candidate routing:
+
+```text
+Grok 4.6 → coding, agentic work, independent reasoning/cross-checking
+```
+
+CIEAV must pin exact model identity rather than relying on mutable latest aliases for consequential production.
+
+### 9.6 Cloud model aggregators / enterprise hosts
+
+CIEAV supports host adapters independently from model adapters:
 
 ```text
 Microsoft Foundry / Azure-hosted models
-AWS Bedrock model providers
-Mistral API
-xAI API
-Cohere
+Amazon Bedrock
+Google Vertex AI / Model Garden
+Databricks Mosaic AI / Model Serving
+Hugging Face Inference Endpoints
 Together AI
 Fireworks AI
 Groq
 Cerebras
-Hugging Face hosted endpoints
-qualified local OpenAI-compatible servers
+other qualified OpenAI-compatible services
 ```
 
-These names identify integration classes, not automatic trust or endorsement. Exact models are selected by evaluation and availability at deployment time.
+Examples from the current snapshot:
+
+- Microsoft Foundry documentation lists GPT-5.6 Sol/Terra/Luna support where regionally available.
+- Amazon Bedrock exposes GPT-5.6 Sol/Terra/Luna and supports Responses, Chat Completions and Converse on its Bedrock endpoints.
+- Amazon Bedrock also supports a broad multi-provider catalog; model availability must be queried rather than assumed.
+- Grok 4.6 is available through Microsoft Foundry as of August 26, 2026.
+
+### 9.7 Other useful provider/model families
+
+Adapters may be added where evaluation justifies them:
+
+```text
+Mistral
+Qwen
+DeepSeek
+MiniMax
+Cohere
+NVIDIA Nemotron
+Meta Llama family
+OpenAI open-weight models when applicable
+specialist embedding/reranking/vision/audio models
+```
+
+Provider/model inclusion means **available for evaluation**, not automatically approved for consequential production.
+
+### 9.8 Recommended frontier service portfolio for CIEAV
+
+For broad capability and vendor independence, a strong default portfolio is:
+
+```text
+PRIMARY FRONTIER REASONER     OpenAI GPT-5.6 Sol
+PRIMARY BALANCED REASONER     GPT-5.6 Terra
+PRIMARY ECONOMICAL SUBAGENT   GPT-5.6 Luna
+OPEN-WEIGHT FRONTIER PEER     Kimi K3
+INDEPENDENT REASONING PEER    Claude Fable 5 / Opus 5
+GOOGLE MULTIMODAL PEER        Gemini 3.1 Pro / 3.7 Flash
+ADDITIONAL DIVERSE PEER       Grok 4.6
+LOCAL SPECIALISTS             qualified open-weight models
+```
+
+The Cognitive Scheduler should choose from measured competence profiles rather than brand preference.
 
 ---
 
@@ -466,24 +572,43 @@ optional consequential proposal
 Consequence Compiler / Algebra / Authority
 ```
 
-### 10.1 Research providers
+### 10.1 Research provider portfolio
 
 CIEAV may use:
 
 ```text
-OpenAI reasoning/tool workflows
-Kimi K3 and Kimi research capabilities
-Gemini Deep Research / Deep Research Max
-Claude research/tool workflows
+GPT-5.6 Sol / Terra reasoning + hosted tools
+Kimi K3 long-context/open-weight frontier reasoning
+Claude Fable 5 / Opus 5 research and critique
+Gemini 3.1 Pro / 3.7 Flash multimodal research
+Grok 4.6 as an additional independent reasoning/search path
 local/open-weight research workers
 specialist search/retrieval services
 ```
 
 Managed research output is an **evidence candidate**, not authoritative truth. Preserve source URLs/IDs, dates, extracted claims, contradictions and provider provenance.
 
-### 10.2 Language ownership
+### 10.2 Deep Research roles
 
-TypeScript orchestrates research state, provider routing, MCP, citations and evidence graphs. Python supplies learned retrieval, embeddings, rerankers, classifiers and experimental multimodal processing where useful.
+```text
+ResearchPlanner
+QueryDecomposer
+SourceRetriever
+SourceExtractor
+ClaimBuilder
+ContradictionDetector
+FreshnessEvaluator
+CitationVerifier
+CrossModelCritic
+SynthesisAgent
+ResearchAuditor
+```
+
+Every role has zero authority.
+
+### 10.3 Language ownership
+
+TypeScript orchestrates research state, provider routing, MCP, citations and evidence graphs. Python supplies learned retrieval, embeddings, rerankers, classifiers, scientific tooling and experimental multimodal processing where useful. C++ may accelerate local inference/indexing only when profiling justifies it.
 
 ---
 
@@ -510,12 +635,18 @@ CIEAV Agent Kernel is the canonical orchestration/state boundary. Optional zero-
 OpenAI Agents SDK
 Google Agent Development Kit
 Microsoft Agent Framework
-LangGraph
+LangGraph / LangChain
+Semantic Kernel
+AutoGen where integration requirements justify it
 provider-managed agent runtimes
 custom enterprise agents
 ```
 
 A third-party agent framework may schedule, reason and propose. It may not settle, authorize or mint tickets.
+
+### 11.3 Framework containment rule
+
+Do not stack multiple agent frameworks in the same path without a concrete capability requirement. Every framework adds its own memory, retry, tool, state and error semantics. CIEAV must remain the durable source of consequence and authority state.
 
 ---
 
@@ -746,7 +877,7 @@ Use C++ for:
 
 ```text
 ONNX Runtime native inference
-NVIDIA TensorRT inference
+NVIDIA TensorRT / TensorRT-LLM inference
 llama.cpp/ggml local inference
 ROS2 rclcpp robotics
 computer vision/audio
@@ -852,49 +983,124 @@ Production is not an online RL exploration environment.
 
 ## 22. Open ML / RL framework stack
 
-### 22.1 Core ML
+CIEAV does not require every framework below. This is the approved evaluation universe. Add a dependency only when it supplies a capability absent from the current stack.
+
+### 22.1 Core deep-learning frameworks
 
 ```text
-PyTorch
+PyTorch           → default CIEAV training/tensor/autograd framework
+JAX               → optional XLA/TPU/research path when specifically justified
+TensorFlow/Keras  → compatibility path for existing TF/Keras models, not default new work
+```
+
+### 22.2 Foundation-model / transformer ecosystem
+
+```text
 Hugging Face Transformers
 Hugging Face Datasets
 Accelerate
 PEFT / LoRA / QLoRA
-scikit-learn
-JAX when specifically justified
+bitsandbytes
+safetensors
+Tokenizers
+Sentence Transformers where appropriate
 ```
 
-### 22.2 LLM post-training
+### 22.3 Training and distributed optimization
 
 ```text
-TRL
-SFT
-DPO
-KTO / preference objectives
-GRPO
-RLVR
-reward / critic models
-process rewards
-distillation
+PyTorch DDP
+FSDP / FSDP2
+DeepSpeed
+Megatron Core
+Liger Kernel
+FlashAttention-compatible paths when qualified
+NCCL / accelerator collective layer indirectly through frameworks
+```
+
+### 22.4 LLM post-training and preference optimization
+
+```text
+TRL              → CIEAV baseline SFT/DPO/KTO/GRPO/RLVR path
+Axolotl          → configuration-driven fine-tuning where useful
+Unsloth          → memory/throughput-efficient fine-tuning when qualified
+torchtune        → PyTorch-native tuning option
+OpenRLHF         → distributed RLHF/post-training candidate
+verl             → scalable LLM RL/post-training candidate
+NVIDIA NeMo RL   → large NVIDIA-oriented LLM/VLM RL candidate
 ```
 
 CIEAV's existing Python trainer remains the local baseline for SFT/DPO/KTO/GRPO/RLVR.
 
-### 22.3 General/distributed RL
+### 22.5 General reinforcement learning
 
 ```text
-TorchRL             → PyTorch-native general RL
-Ray RLlib           → distributed/general/multi-agent RL
-verl                → scalable LLM RL/post-training
-NVIDIA NeMo RL      → large NVIDIA-oriented LLM/VLM RL
-FSDP / FSDP2        → PyTorch distributed sharding
-DeepSpeed           → optional distributed optimization
-Megatron Core       → very large model parallelism when justified
+TorchRL                → default PyTorch-native general RL
+Gymnasium              → environment API/ecosystem
+PettingZoo             → multi-agent environment interface
+Stable-Baselines3      → mature baseline implementations and experiments
+CleanRL                → compact reference implementations / research validation
+Ray RLlib              → distributed/general/multi-agent RL at scale
+Tianshou               → optional PyTorch RL research library
+Acme                   → optional research environment when a specific algorithm requires it
 ```
 
-### 22.4 Graph learning
+### 22.6 Agentic / verifiable RL
 
-Use PyTorch Geometric or equivalent only when deterministic Consequence Graph semantics and verified data quality justify learned graph models.
+For CIEAV, the highest-value RL class is environment/verifier-driven agentic training:
+
+```text
+fresh model rollout
+      ↓
+sandboxed CIEAV environment
+      ↓
+mechanically verifiable task result
+      ↓
+zero-authority verifier
+      ↓
+reward / trajectory labels
+      ↓
+TRL / verl / OpenRLHF / NeMo RL / RLlib as appropriate
+```
+
+Prefer mechanically verified rewards to LLM-as-judge whenever the environment can prove the outcome.
+
+### 22.7 Classical ML and structured models
+
+```text
+scikit-learn
+XGBoost
+LightGBM
+CatBoost
+statsmodels where statistical inference is required
+ML.NET for .NET-local conventional inference when appropriate
+```
+
+Use these for calibration, anomaly detection, routing, outcome prediction, risk estimation, ranking and conventional supervised problems where deep learning is unnecessary.
+
+### 22.8 Graph learning
+
+```text
+PyTorch Geometric
+DGL where specifically justified
+```
+
+Use graph learning only when deterministic Consequence Graph semantics and verified data quality justify learned graph models. The learned model never replaces the canonical Consequence Algebra.
+
+### 22.9 Experiment tracking and evaluation
+
+Possible integrations:
+
+```text
+Weights & Biases
+MLflow
+Databricks MLflow
+OpenTelemetry for runtime traces
+provider-native evaluation systems
+CIEAV deterministic eval/qualification receipts
+```
+
+External tracking systems never receive CIEAV signing keys or unrestricted secrets.
 
 ---
 
@@ -906,76 +1112,182 @@ CIEAV owns:
 
 ```text
 dataset eligibility
-provenance/consent/redaction
+provenance / consent / redaction
 reward semantics
 verifier semantics
 candidate status
 held-out qualification
 promotion decision
+checkpoint identity
+production allow-list
 ```
 
-The vendor supplies compute/training mechanics.
+The vendor supplies model access, compute, managed training or training mechanics.
 
-### 23.1 Microsoft Foundry / Azure ML
+### 23.1 OpenAI managed fine-tuning / reinforcement fine-tuning
 
-Candidate uses:
+OpenAI's fine-tuning API exposes supervised, DPO and reinforcement methods where supported by the selected model/account.
+
+RFT is a useful CIEAV candidate when a hosted OpenAI reasoning model is materially better than a locally trainable model and the reward can be expressed through a qualified grader.
+
+Rules:
 
 ```text
-managed model/agent endpoints
-Microsoft Agent Framework integration
-supported fine-tuning / reinforcement-tuning products
-Azure ML custom PyTorch jobs
-enterprise identity/networking/accelerators
+OpenAI RFT grader != CIEAV authority
+fine-tuned model   = CANDIDATE
+provider job PASS  != production qualification
+GPT-5.6 inference support != GPT-5.6 fine-tuning support
 ```
 
-Exact model/region/account support is qualified at deployment.
+CIEAV must dynamically discover supported fine-tuning/RFT models and keep training-provider capability separate from inference-provider capability.
 
-### 23.2 Google Vertex AI
+### 23.2 Microsoft Foundry / Azure OpenAI / Azure Machine Learning
 
-Candidate uses:
+Candidate services:
 
 ```text
-Gemini tuning where supported
-custom PyTorch training
-managed accelerators
-agent/research services
-managed evaluation/deployment
+GPT / multi-provider inference through Microsoft Foundry
+supervised fine-tuning where supported
+DPO where supported
+reinforcement fine-tuning where supported
+Azure Machine Learning custom PyTorch/DeepSpeed/FSDP jobs
+managed endpoints / registries / MLOps
+enterprise identity / private networking / data residency
 ```
 
-Preview tuning/research features require explicit qualification/fallback.
+Microsoft currently documents reinforcement fine-tuning for selected models including `o4-mini` and gated `gpt-5`. Do not extrapolate that support to GPT-5.6 without the service reporting it.
 
-### 23.3 AWS Bedrock / SageMaker AI
+Use Azure ML when CIEAV must own the training container/code while using Azure-managed compute. Use Foundry-managed tuning only when its method/model/region/data terms satisfy CIEAV governance.
 
-Candidate uses:
+### 23.3 Google Vertex AI / Gemini Enterprise Agent Platform
+
+Candidate services:
 
 ```text
-Bedrock model customization on supported models
-reward-function / reinforcement tuning where supported
-model distillation where supported
-Bedrock AgentCore / managed agent infrastructure
-SageMaker custom PyTorch/distributed training
+Gemini inference
+Vertex AI custom training
+managed accelerators / TPU/GPU
+supervised/preference tuning where supported
+reinforcement learning fine-tuning where supported
+managed evaluation / model registry / deployment
+Gemini enterprise/agent services
 ```
 
-### 23.4 Databricks AI Runtime
+Google documents a reinforcement-learning fine-tuning path for Gemini with reward functions including string matching, Gemini-based autoraters, code execution, custom Cloud Run reward services and composite rewards. The current documented offering is **Pre-GA**, so CIEAV treats it as evaluation-only unless its service lifecycle/status changes and explicit production qualification is completed.
 
-Use where lakehouse/data governance and managed GPU training fit the deployment. CIEAV still owns qualification, reward semantics and promotion.
+A custom reward service is a useful place to expose a CIEAV zero-authority verifier, but it must not receive Authority credentials.
 
-### 23.5 NVIDIA commercial stack
+### 23.4 Amazon Bedrock / SageMaker AI / HyperPod
+
+Candidate services:
 
 ```text
-NeMo RL
+Bedrock managed foundation-model inference
+Bedrock model customization/distillation features where supported
+SageMaker AI custom training
+SageMaker HyperPod large-scale PyTorch training
+Ray on HyperPod for distributed Python/RL workloads
+managed model registry/deployment/observability
+```
+
+HyperPod can run standard Ray and PyTorch workloads rather than forcing CIEAV to rewrite training semantics into an AWS-specific framework. This is the preferred AWS strategy for CIEAV-owned RL loops.
+
+Do not assume every Bedrock inference model is customizable or supports RL. Inference, fine-tuning, distillation and reinforcement capability are separate provider capabilities.
+
+### 23.5 Databricks / Mosaic AI
+
+Use where lakehouse governance, data lineage, MLflow and managed GPU training fit the deployment.
+
+Current useful classes include:
+
+```text
+Databricks Serverless GPU / AI Runtime
+PyTorch distributed training
+DeepSpeed + TRL
+Axolotl
+Unsloth
+LLM Foundry
+MLflow experiment/model lifecycle
+Mosaic AI Model Serving / Gateway where qualified
+```
+
+CIEAV still owns reward semantics, candidate state and deterministic promotion.
+
+### 23.6 NVIDIA commercial / enterprise stack
+
+```text
+NVIDIA NeMo RL
 Megatron Core
-TensorRT
-NIM / DGX / AI Enterprise deployment options
+TensorRT / TensorRT-LLM
+NIM
+DGX / cluster deployment options
+CUDA ecosystem
 ```
 
-These accelerate training/serving; they do not alter CIEAV's authority model.
+NeMo RL currently supports scalable post-training algorithms including GRPO, PPO, SFT, DPO, reward modeling and on-policy distillation, with PyTorch DTensor and Megatron Core training backends. NVIDIA components accelerate training and serving; they do not alter CIEAV's authority model.
 
-### 23.6 Other hosted training/serving vendors
+### 23.7 Hugging Face managed services
 
-Adapters may be added for providers such as Together AI, Fireworks AI, Hugging Face, cloud GPU platforms and future RL/fine-tuning services if they satisfy CIEAV data-governance, versioning, verifier and qualification requirements.
+Candidate uses:
 
-No hosted provider receives CIEAV signing keys, raw long-lived credentials or promotion authority.
+```text
+Inference Endpoints
+AutoTrain where method/control is sufficient
+Hub model/dataset registry
+Spaces for non-authority research tooling
+managed accelerator partners
+```
+
+CIEAV must independently verify license, model digest/revision, remote-code requirements and provider data handling.
+
+### 23.8 Specialized hosted inference / fine-tuning providers
+
+Possible adapters include:
+
+```text
+Together AI
+Fireworks AI
+Groq
+Cerebras
+Baseten
+Replicate
+Modal
+RunPod
+Lambda cloud
+CoreWeave
+other qualified GPU clouds
+```
+
+These are infrastructure/inference/training options, not trust endorsements. A provider is added only if its API, security posture, model identity, data handling, failure behavior and reproducibility can be qualified.
+
+### 23.9 Proprietary model providers without general weight access
+
+CIEAV should support hosted inference adapters for:
+
+```text
+OpenAI
+Anthropic
+Google
+xAI
+other proprietary frontier providers
+```
+
+If the provider does not expose weight-level training, use its documented customization surface only. Do not build CIEAV architecture around private undocumented capabilities.
+
+### 23.10 Managed RL selection rule
+
+Select the managed RL service by control needs:
+
+```text
+Need full control of algorithm/reward/runtime   → own Python RL on qualified GPU cloud
+Need OpenAI reasoning-model RFT               → OpenAI RFT or qualified Foundry equivalent
+Need Gemini managed reinforcement tuning      → Google RL fine-tuning only when lifecycle status permits
+Need NVIDIA-scale open-weight post-training   → NeMo RL / Megatron on qualified NVIDIA infrastructure
+Need distributed generic RL                  → Ray RLlib on qualified cluster/HyperPod/etc.
+Need CIEAV current local baseline             → Python TRL + Node verifier
+```
+
+Do not choose a proprietary platform merely because it offers an “agent” or “RL” label.
 
 ---
 
@@ -988,9 +1300,12 @@ CIEAV Learning Provider
     ├── cieav-local-trl
     ├── cieav-torchrl
     ├── cieav-verl
+    ├── cieav-openrlhf
     ├── cieav-nemo-rl
     ├── cieav-rllib
-    ├── cieav-azure
+    ├── cieav-openai-rft
+    ├── cieav-azure-foundry
+    ├── cieav-azure-ml
     ├── cieav-vertex
     ├── cieav-bedrock-sagemaker
     ├── cieav-databricks
@@ -998,6 +1313,26 @@ CIEAV Learning Provider
 ```
 
 Every provider output remains `CANDIDATE` until deterministic promotion.
+
+A Learning Provider contract records at least:
+
+```text
+provider + region
+training code/container digest
+base model identity/revision
+training method
+training dataset digest
+validation dataset digest
+reward/verifier identity
+hyperparameters
+seed(s)
+hardware/runtime metadata
+framework versions
+checkpoint digest
+provider job ID
+training metrics
+qualification state
+```
 
 ---
 
@@ -1025,6 +1360,8 @@ Hard penalties include false success, unsafe duplicate consequence, stale-world 
 
 Whenever reality is mechanically verifiable, prefer deterministic environment/verifier reward over an LLM judge.
 
+LLM judges may be used for subjective dimensions but should be calibrated against human/mechanical references and never control promotion alone for safety-critical behavior.
+
 ---
 
 ## 26. Agentic training environments
@@ -1051,6 +1388,8 @@ CieavRoboticsSimEnv
 
 A production consequence is evidence for offline learning, not an invitation for online exploration.
 
+Environment versions, seeds, simulator versions and verifier versions are part of training provenance.
+
 ---
 
 ## 27. Inference and serving matrix
@@ -1058,15 +1397,37 @@ A production consequence is evidence for offline learning, not an invitation for
 Use the runtime that fits deployment:
 
 ```text
-vLLM        → high-throughput GPU LLM serving
-SGLang      → high-performance alternative serving/runtime
-ONNX Runtime→ portable CPU/GPU inference across Python/C++/.NET and other bindings
-TensorRT    → NVIDIA-specific optimized inference
-llama.cpp   → portable/local quantized LLM/VLM inference
-provider API→ managed frontier inference
+provider API       → managed frontier inference
+vLLM               → high-throughput GPU LLM serving
+SGLang             → high-performance alternative serving/runtime
+TensorRT-LLM       → optimized NVIDIA LLM inference
+ONNX Runtime       → portable CPU/GPU inference across Python/C++/.NET
+TensorRT           → NVIDIA-specific optimized general inference
+llama.cpp / ggml   → portable/local quantized LLM/VLM inference
+KTransformers      → specialist large-MoE local inference candidate
+Triton Inference   → multi-model NVIDIA serving where justified
 ```
 
 A loopback/local model server is still an untrusted intelligence provider.
+
+### 27.1 Serving qualification
+
+Pin and record:
+
+```text
+weight/checkpoint digest
+quantization format
+inference engine version
+CUDA/driver/runtime versions
+GPU/CPU architecture
+parallelism layout
+context limits
+sampling/reasoning defaults
+tool-call output contract
+OOM/restart behavior
+```
+
+OpenAI-compatible wire format is not proof of semantic equivalence.
 
 ---
 
@@ -1122,9 +1483,27 @@ critical duplicate action unsafe   → FAIL
 critical false-success claim       → FAIL
 ```
 
-### 29.2 Native/provider qualification
+### 29.2 Provider-model qualification tuple
+
+Do not qualify only a model name. Qualify a tuple:
+
+```text
+provider
+endpoint/region
+model ID + snapshot/resolved version
+SDK/API version
+system prompt/tool schema version
+reasoning/sampling configuration
+safety/fallback configuration when observable
+```
+
+### 29.3 Native/provider qualification
 
 Require exact OS/arch/hardware/provider/model versions, failure injection, timeout/retry behavior, process crash behavior, ABI compatibility, network failure behavior and supply-chain provenance as appropriate.
+
+### 29.4 Cross-provider comparison
+
+Before promoting a frontier model for a role, compare it against at least one materially independent provider on representative CIEAV tasks. This reduces single-provider blind spots and identifies regressions hidden by generic benchmarks.
 
 ---
 
@@ -1162,6 +1541,8 @@ unrestricted browser/device-control capabilities
 
 Complex native inference code should not share memory with Authority unless a measured latency requirement and dedicated audit justify it.
 
+Provider API keys are scoped to the provider adapter process/service and are not included in model prompts or training examples.
+
 ---
 
 ## 31. Target package/process layout
@@ -1172,6 +1553,7 @@ packages/
   core/                    # deterministic core + Consequence Algebra
   ai-runtime/              # TS model/agent/provider adapters, zero authority
   ai-mcp/                  # optional reusable MCP integration helpers
+  research/                # TS research state/claim/evidence orchestration
 apps/
   api/                     # Agent Kernel / trusted API / Execution Fabric
   mcp/                     # external MCP surface
@@ -1188,6 +1570,10 @@ native/
 ```
 
 `dotnet/` and `native/` are target architecture until corresponding code and qualification evidence exist.
+
+### 31.1 Dependency rule
+
+Trusted authority/execution packages must not depend on provider adapters in a way that allows provider code to issue authority. Provider and ML packages depend inward only through CIEAV-owned proposal/evidence contracts.
 
 ---
 
@@ -1216,6 +1602,8 @@ That exact run passed the static gate, API build, contracts/core/API typechecks,
 
 Subsequent architecture/documentation commits do not create a new executable qualification receipt. C#/.NET, C++ and C sections in this document are target architecture until implemented and independently qualified.
 
+Provider/model names in this document are researched targets; an adapter is not implemented merely because the provider is listed.
+
 ---
 
 ## 33. Production-readiness definition
@@ -1240,7 +1628,11 @@ Require dataset provenance, held-out qualification, calibration, adversarial eva
 
 ### External-provider features
 
-Require real provider integration, pinned model/API versions, network failure tests, retry/idempotency behavior, quotas/rate-limit handling, privacy/residency review and operational monitoring.
+Require real provider integration, pinned/resolved model/API versions, network failure tests, retry/idempotency behavior, quotas/rate-limit handling, privacy/residency review and operational monitoring.
+
+### Managed-training features
+
+Require exact training service, region, base model, method, container/framework version, dataset/reward/verifier digests, checkpoint digest and export/deployment path.
 
 ### Release security
 
@@ -1263,9 +1655,13 @@ retention
 jurisdiction/residency
 provider data-use terms
 human data handling
+model-license restrictions
+export/import restrictions where applicable
 ```
 
 Prefer typed semantic evidence and digests/references over unnecessary raw content or reusable secrets.
+
+For frontier providers, record whether requests are first-party, cloud-marketplace hosted or routed through an intermediary because data handling and contractual terms may differ.
 
 ---
 
@@ -1287,6 +1683,8 @@ intention
 
 Providers own replaceable mechanisms behind explicit contracts.
 
+A good provider adapter can be removed without changing the meaning of CIEAV authority, proof or settlement.
+
 ---
 
 ## 36. Complete closed loop
@@ -1303,7 +1701,7 @@ Providers own replaceable mechanisms behind explicit contracts.
        ┌────────────────────┼────────────────────┐
        ▼                    ▼                    ▼
  frontier APIs         CIEAV models       Verified Skills
- OpenAI/Kimi/...       local/open ML       deterministic
+ GPT/Kimi/Claude/...    local/open ML       deterministic
        │                    │                    │
        └────────────────────┼────────────────────┘
                             ▼
@@ -1360,11 +1758,12 @@ Providers own replaceable mechanisms behind explicit contracts.
 At every iteration:
 
 ```text
-MODEL AUTHORITY    = 0
-AGENT AUTHORITY    = 0
-MCP AUTHORITY      = 0
-LEARNING AUTHORITY = 0
-NATIVE AI AUTHORITY= 0
+MODEL AUTHORITY       = 0
+AGENT AUTHORITY       = 0
+MCP AUTHORITY         = 0
+LEARNING AUTHORITY    = 0
+HOSTED-RL AUTHORITY   = 0
+NATIVE AI AUTHORITY   = 0
 
 ONLY THE AUTHORITY / COMMIT PLANE ISSUES EXECUTION AUTHORITY.
 ```
@@ -1379,7 +1778,7 @@ Every new feature/provider/model/framework/native component must answer:
 2. Which principal/identity is responsible?
 3. Is it intelligence, evidence, policy, authority or execution?
 4. What prevents it from minting authority?
-5. What exact model/provider/framework/runtime version is pinned?
+5. What exact model/provider/framework/runtime version is pinned or resolved?
 6. What minimum credential scope exists?
 7. What current reality must be fresh?
 8. What exact arguments/resource identity are bound?
@@ -1391,17 +1790,63 @@ Every new feature/provider/model/framework/native component must answer:
 14. When must the result remain UNKNOWN?
 15. What recovery/reconciliation path exists?
 16. What evidence may safely become learning data?
-17. What provider/privacy/residency constraints apply?
+17. What provider/privacy/residency/license constraints apply?
 18. What process/ABI/native failure boundary exists?
 19. What deterministic qualification proves readiness?
 20. What external OS/hardware/provider evidence is still required?
+21. How is model/provider deprecation detected?
+22. What fallback is safe if a provider model disappears or changes?
+23. If managed training is used, what proves the exact checkpoint lineage?
+24. If a provider uses an alias, how is the resolved model identity recorded?
 
 If those questions do not have explicit answers, the feature is not complete.
 
 ---
 
-## 38. Canonical architecture principle
+## 38. Research-backed provider freshness policy
+
+The current snapshot was cross-checked against official/current provider documentation and current release material for:
+
+```text
+OpenAI model catalog / GPT-5.6 guidance
+Kimi/Moonshot K3 release and Kimi API platform
+Anthropic current Claude releases
+Google Gemini API model/deprecation catalog
+xAI/Grok model catalog
+Microsoft Foundry model/tuning documentation
+Google managed reinforcement-tuning documentation
+Amazon Bedrock/SageMaker/HyperPod documentation
+Databricks GPU/LLM training documentation
+NVIDIA NeMo RL documentation
+```
+
+For automated production use, architecture text is not the source of truth for availability. Provider discovery must query the provider API/catalog and compare the result with CIEAV's qualified provider registry.
+
+Recommended registry shape:
+
+```text
+QualifiedModel {
+    provider
+    host
+    region
+    model_id
+    model_version_or_snapshot
+    capabilities
+    context_limit
+    modality_set
+    tool_protocols
+    qualification_receipt_digest
+    qualified_at
+    expires_or_recheck_at
+    fallback_model_refs[]
+    authority: false
+}
+```
+
+---
+
+## 39. Canonical architecture principle
 
 > **Intelligence proposes. Consequence Algebra constrains. Authority permits. Execution changes reality. Proof settles reality. Learning improves future proposals.**
 
-> **No language, framework, model, provider, agent, reward function or native accelerator is allowed to collapse those boundaries.**
+> **No language, framework, model, provider, agent, reward function, managed trainer or native accelerator is allowed to collapse those boundaries.**
