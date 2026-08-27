@@ -17,7 +17,8 @@ async function callProvider(ctx:ActionContext,base:ActionManifest,provider:AIPro
   if(provider.id!=="openai")return analyzeWithExternalProvider(ctx,base,provider,role);
   const result=await analyzeWithOpenAI(ctx,base,{apiKey:provider.apiKey!,baseUrl:provider.baseUrl,profile,fastModel:provider.models.fast,primaryModel:role==="verifier"?provider.models.verifier:provider.models.primary,verifierModel:provider.models.verifier,timeoutMs:provider.timeoutMs});
   const successful=result.meta.stages.filter(x=>x.ok);if(!successful.length){const errors=result.meta.stages.map(x=>x.error??"").filter(Boolean),kind=openAIFailureKind(errors);throw new ProviderCallError(kind,`OpenAI analysis unavailable: ${errors.join(" | ").slice(0,400)}`)}
-  return{manifest:result.manifest,meta:{provider:"openai",model:role==="verifier"?provider.models.verifier:provider.models.primary,host:new URL(provider.baseUrl).host.toLowerCase(),...(successful.find(x=>x.requestId)?.requestId?{requestId:successful.find(x=>x.requestId)!.requestId}:{}),latencyMs:result.meta.totalLatencyMs,authority:false}};
+  const requestId=successful.find(x=>x.requestId)?.requestId;
+  return{manifest:result.manifest,meta:{provider:"openai",model:role==="verifier"?provider.models.verifier:provider.models.primary,host:new URL(provider.baseUrl).host.toLowerCase(),...(requestId?{requestId}:{}),latencyMs:result.meta.totalLatencyMs,circuitState:"CLOSED",authority:false}};
 }
 function highRisk(base:ActionManifest){return riskRank[base.risk]>=riskRank.HIGH||base.dataCategories.some(x=>sensitive.has(x))||base.reversibility==="IRREVERSIBLE"||base.reversibility==="UNKNOWN"}
 export function hasEligibleAIProvider(registry:AIProviderRegistryConfig,role:AIModelRole="primary"){return registry.order.some(id=>{const p=registry.providers.get(id);return Boolean(p&&providerEligible(registry,p,role))})}
