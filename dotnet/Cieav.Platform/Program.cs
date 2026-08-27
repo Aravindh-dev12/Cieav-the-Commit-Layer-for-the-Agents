@@ -24,9 +24,10 @@ internal static class Program
             return command switch
             {
                 "health" => Print(Health()),
+                "native-health" => NativeHealth(),
                 "selftest" => SelfTest(),
                 "serve" => await ServeAsync(args.Length > 1 ? args[1] : Environment.GetEnvironmentVariable("CIEAV_DOTNET_PIPE_NAME") ?? "cieav-platform-v1"),
-                _ => Fail("usage: Cieav.Platform [health|selftest|serve [pipe-name]]")
+                _ => Fail("usage: Cieav.Platform [health|native-health|selftest|serve [pipe-name]]")
             };
         }
         catch (Exception ex)
@@ -56,10 +57,17 @@ internal static class Program
         os = RuntimeInformation.OSDescription,
         architecture = RuntimeInformation.ProcessArchitecture.ToString(),
         processId = Environment.ProcessId,
+        nativeLibraryConfigured = NativeBridge.IsConfigured,
         authority = false,
         mayMintExecutionAuthority = false,
         executionAuthorityIssued = false
     };
+
+    private static int NativeHealth()
+    {
+        using var native = NativeBridge.OpenConfigured();
+        return Print(native.HealthSnapshot());
+    }
 
     private static int SelfTest()
     {
@@ -68,7 +76,13 @@ internal static class Program
         var mac = ComputeMac(secret, request with { Mac = string.Empty });
         if (!VerifyMac(secret, request with { Mac = mac })) return Fail("selftest_hmac_failed");
         if (VerifyMac(secret + "x", request with { Mac = mac })) return Fail("selftest_wrong_key_accepted");
-        Console.WriteLine(JsonSerializer.Serialize(new { ok = true, version = Protocol, authority = false, mayMintExecutionAuthority = false, executionAuthorityIssued = false }, JsonOptions));
+        object? native = null;
+        if (NativeBridge.IsConfigured)
+        {
+            using var bridge = NativeBridge.OpenConfigured();
+            native = new { health = bridge.HealthSnapshot(), snapshot = JsonSerializer.Deserialize<JsonElement>(bridge.PlatformSnapshotJson()) };
+        }
+        Console.WriteLine(JsonSerializer.Serialize(new { ok = true, version = Protocol, native, authority = false, mayMintExecutionAuthority = false, executionAuthorityIssued = false }, JsonOptions));
         return 0;
     }
 
@@ -141,32 +155,47 @@ internal static class Program
         object result = request.Operation switch
         {
             "health" => Health(),
-            "platform_snapshot" => new
-            {
-                machineName = Environment.MachineName,
-                userName = Environment.UserName,
-                processId = Environment.ProcessId,
-                processStartTime = Process.GetCurrentProcess().StartTime.ToUniversalTime(),
-                os = RuntimeInformation.OSDescription,
-                osArchitecture = RuntimeInformation.OSArchitecture.ToString(),
-                processArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
-                framework = RuntimeInformation.FrameworkDescription,
-                processorCount = Environment.ProcessorCount,
-                workingSetBytes = Environment.WorkingSet,
-                authority = false,
-                mayMintExecutionAuthority = false,
-                executionAuthorityIssued = false
-            },
+            "platform_snapshot" => PlatformSnapshot(),
+            "native_snapshot" => NativeSnapshot(),
             _ => throw new InvalidOperationException("operation_not_allowed")
         };
         return new IpcResponse(Protocol, request.RequestId, true, result, null, DateTimeOffset.UtcNow, false, false, false);
     }
 
+    private static object PlatformSnapshot()
+    {
+        using var current = Process.GetCurrentProcess();
+        return new
+        {
+            machineName = Environment.MachineName,
+            userName = Environment.UserName,
+            processId = Environment.ProcessId,
+            processStartTime = current.StartTime.ToUniversalTime(),
+            os = RuntimeInformation.OSDescription,
+            osArchitecture = RuntimeInformation.OSArchitecture.ToString(),
+            processArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
+            framework = RuntimeInformation.FrameworkDescription,
+            processorCount = Environment.ProcessorCount,
+            workingSetBytes = Environment.WorkingSet,
+            authority = false,
+            mayMintExecutionAuthority = false,
+            executionAuthorityIssued = false
+        };
+    }
+
+    private static object NativeSnapshot()
+    {
+        using var native = NativeBridge.OpenConfigured();
+        return JsonSerializer.Deserialize<JsonElement>(native.PlatformSnapshotJson());
+    }
+
     private static void ValidateRequest(IpcRequest request, string secret)
     {
         if (request.Version != Protocol) throw new InvalidDataException("protocol_version_mismatch");
-        if (request.RequestId.Length is < 8 or > 200) throw new InvalidDataException("invalid_request_id");
-        if (request.Nonce.Length is < 8 or > 200) throw new InvalidDataException("invalid_nonce");
+        if (request.RequestId is null || request.RequestId.Length is < 8 or > 200) throw new InvalidDataException("invalid_request_id");
+        if (request.Operation is null || request.Operation.Length is < 1 or > 80) throw new InvalidDataException("invalid_operation");
+        if (request.Nonce is null || request.Nonce.Length is < 8 or > 200) throw new InvalidDataException("invalid_nonce");
+        if (request.Mac is null || request.Mac.Length is < 16 or > 200) throw new InvalidDataException("invalid_mac");
         var now = DateTimeOffset.UtcNow;
         if ((now - request.Timestamp).Duration() > Freshness) throw new InvalidDataException("stale_request");
         PruneNonces(now);
