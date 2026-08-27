@@ -81,6 +81,7 @@
     "release:qualify:managed-learning": "node scripts/qualify-managed-learning.mjs --live",
     "release:qualify:managed-learning:offline": "node scripts/qualify-managed-learning.mjs",
     "release:qualify:native-dotnet": "node scripts/qualify-native-dotnet.mjs",
+    "release:qualify:authority-state": "node scripts/qualify-authority-state.mjs",
     "release:smoke:runtime": "python scripts/clean-runtime-smoke.py",
     "release:smoke:runtime:publish": "python scripts/clean-runtime-publish-smoke.py",
     "release:smoke:service": "python scripts/service-lifecycle-smoke.py --confirm-service-mutation",
@@ -95,7 +96,7 @@
     "release:qualify:installers": "node scripts/qualify-installers.mjs",
     "release:qualify:governance": "node scripts/repository-governance-check.mjs",
     "release:qualify:physical": "node scripts/qualify-physical-evidence.mjs",
-    "release:qualify:production": "node scripts/qualify-production.mjs",
+    "release:qualify:production": "node scripts/qualify-authority-state.mjs && node scripts/qualify-production.mjs",
     "release:qualify:current:publish": "node scripts/qualify-current-publish.mjs",
     "release:build:publish-layout": "node scripts/build-publish-layout.mjs"
   },
