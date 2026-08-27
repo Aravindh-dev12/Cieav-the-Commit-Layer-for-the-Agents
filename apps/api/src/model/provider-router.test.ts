@@ -12,21 +12,9 @@ function configure(){vi.stubEnv("KIMI_API_KEY","kimi-key");vi.stubEnv("XAI_API_K
 function okEnvelope(){return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(modelManifest)}}]}),{status:200,headers:{"content-type":"application/json","x-request-id":"provider-request"}})}
 
 describe("CIEAV multi-provider router",()=>{
-  it("falls back only after provider availability retries are exhausted",async()=>{
-    const registry=configure();let calls=0;vi.stubGlobal("fetch",vi.fn(async()=>{calls++;return calls<=2?new Response("temporary outage",{status:503}):okEnvelope()}));
-    const result=await analyzeWithProviderRouter(ctx,base,registry,{profile:"balanced"});
-    expect(calls).toBe(3);expect(result.meta.selectedProvider).toBe("xai");expect(result.meta.fallbackUsed).toBe(true);expect(result.meta.attempts[0]?.failureKind).toBe("unavailable");expect(result.meta.authority).toBe(false);expect(result.meta.executionAuthorityIssued).toBe(false);expect(result.manifest.risk).toBe("HIGH");
-  });
+  it("falls back only after provider availability retries are exhausted",async()=>{const registry=configure();let calls=0;vi.stubGlobal("fetch",vi.fn(async()=>{calls++;return calls<=2?new Response("temporary outage",{status:503}):okEnvelope()}));const result=await analyzeWithProviderRouter(ctx,base,registry,{profile:"balanced"});expect(calls).toBe(3);expect(result.meta.version).toBe("CIEAV_PROVIDER_ROUTING_RECEIPT_V1");expect(result.meta.selectedProviderId).toBe("xai");expect(result.meta.fallbackUsed).toBe(true);expect(result.meta.attempts[0]?.providerId).toBe("kimi");expect(result.meta.attempts[0]?.failureKind).toBe("unavailable");expect(result.meta.authority).toBe(false);expect(result.meta.mayMintExecutionAuthority).toBe(false);expect(result.meta.executionAuthorityIssued).toBe(false);expect(result.manifest.risk).toBe("HIGH")});
 
-  it("does not vendor-shop around a safety or policy refusal",async()=>{
-    const registry=configure();const fetchMock=vi.fn(async()=>new Response("request blocked by safety policy",{status:400}));vi.stubGlobal("fetch",fetchMock);
-    const result=await analyzeWithProviderRouter(ctx,base,registry,{profile:"balanced"});
-    expect(fetchMock).toHaveBeenCalledTimes(1);expect(result.meta.selectedProvider).toBeUndefined();expect(result.meta.attempts).toHaveLength(1);expect(result.meta.attempts[0]?.failureKind).toBe("policy");expect(result.meta.attempts[0]?.fallbackEligible).toBe(false);expect(result.manifest).toEqual(base);
-  });
+  it("does not vendor-shop around a safety or policy refusal",async()=>{const registry=configure();const fetchMock=vi.fn(async()=>new Response("request blocked by safety policy",{status:400}));vi.stubGlobal("fetch",fetchMock);const result=await analyzeWithProviderRouter(ctx,base,registry,{profile:"balanced"});expect(fetchMock).toHaveBeenCalledTimes(1);expect(result.meta.selectedProviderId).toBeUndefined();expect(result.meta.attempts).toHaveLength(1);expect(result.meta.attempts[0]?.failureKind).toBe("policy");expect(result.meta.attempts[0]?.fallbackEligible).toBe(false);expect(result.manifest).toEqual(base)});
 
-  it("does not vendor-shop around authentication failure",async()=>{
-    const registry=configure();const fetchMock=vi.fn(async()=>new Response("invalid api key",{status:401}));vi.stubGlobal("fetch",fetchMock);
-    const result=await analyzeWithProviderRouter(ctx,base,registry,{profile:"balanced"});
-    expect(fetchMock).toHaveBeenCalledTimes(1);expect(result.meta.attempts[0]?.failureKind).toBe("authentication");expect(result.meta.attempts[0]?.fallbackEligible).toBe(false);expect(result.meta.authority).toBe(false);
-  });
+  it("does not vendor-shop around authentication failure",async()=>{const registry=configure();const fetchMock=vi.fn(async()=>new Response("invalid api key",{status:401}));vi.stubGlobal("fetch",fetchMock);const result=await analyzeWithProviderRouter(ctx,base,registry,{profile:"balanced"});expect(fetchMock).toHaveBeenCalledTimes(1);expect(result.meta.attempts[0]?.failureKind).toBe("authentication");expect(result.meta.attempts[0]?.fallbackEligible).toBe(false);expect(result.meta.authority).toBe(false)});
 });
