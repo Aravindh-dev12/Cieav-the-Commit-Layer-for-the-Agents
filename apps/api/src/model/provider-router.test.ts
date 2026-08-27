@@ -12,10 +12,10 @@ function configure(){vi.stubEnv("KIMI_API_KEY","kimi-key");vi.stubEnv("XAI_API_K
 function okEnvelope(){return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify(modelManifest)}}]}),{status:200,headers:{"content-type":"application/json","x-request-id":"provider-request"}})}
 
 describe("CIEAV multi-provider router",()=>{
-  it("falls back only after provider availability failure",async()=>{
-    const registry=configure();let calls=0;vi.stubGlobal("fetch",vi.fn(async()=>{calls++;return calls===1?new Response("temporary outage",{status:503}):okEnvelope()}));
+  it("falls back only after provider availability retries are exhausted",async()=>{
+    const registry=configure();let calls=0;vi.stubGlobal("fetch",vi.fn(async()=>{calls++;return calls<=2?new Response("temporary outage",{status:503}):okEnvelope()}));
     const result=await analyzeWithProviderRouter(ctx,base,registry,{profile:"balanced"});
-    expect(result.meta.selectedProvider).toBe("xai");expect(result.meta.fallbackUsed).toBe(true);expect(result.meta.attempts[0]?.failureKind).toBe("unavailable");expect(result.meta.authority).toBe(false);expect(result.meta.executionAuthorityIssued).toBe(false);expect(result.manifest.risk).toBe("HIGH");
+    expect(calls).toBe(3);expect(result.meta.selectedProvider).toBe("xai");expect(result.meta.fallbackUsed).toBe(true);expect(result.meta.attempts[0]?.failureKind).toBe("unavailable");expect(result.meta.authority).toBe(false);expect(result.meta.executionAuthorityIssued).toBe(false);expect(result.manifest.risk).toBe("HIGH");
   });
 
   it("does not vendor-shop around a safety or policy refusal",async()=>{
