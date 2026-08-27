@@ -7,13 +7,17 @@ Set-StrictMode -Version Latest
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $Root
 
-function Invoke-Checked([string]$File,[string[]]$Args) {
-  Write-Host "> $File $($Args -join ' ')" -ForegroundColor Cyan
-  & $File @Args
+function Invoke-Checked {
+  param(
+    [Parameter(Mandatory=$true)][string]$File,
+    [Parameter()][string[]]$CommandArgs = @()
+  )
+  Write-Host "> $File $($CommandArgs -join ' ')" -ForegroundColor Cyan
+  & $File @CommandArgs
   if ($LASTEXITCODE -ne 0) { throw "$File failed with exit code $LASTEXITCODE" }
 }
 
-Invoke-Checked 'git' @('rev-parse','--is-inside-work-tree')
+Invoke-Checked -File 'git' -CommandArgs @('rev-parse','--is-inside-work-tree')
 $Head = (& git rev-parse HEAD).Trim()
 $Branch = (& git rev-parse --abbrev-ref HEAD).Trim()
 if ($Branch -ne 'tmp-consequence-algebra-build') { throw "Checkout tmp-consequence-algebra-build before qualification. Current branch: $Branch" }
@@ -31,8 +35,8 @@ Write-Host "Commit: $Head"
 Write-Host "Node:   $NodeVersion"
 Write-Host "OS:     Windows $([Environment]::OSVersion.VersionString)"
 
-if (-not $SkipInstall) { Invoke-Checked 'npm.cmd' @('ci','--ignore-scripts') }
-Invoke-Checked 'node' @('scripts/qualify-consequence-algebra.mjs')
+if (-not $SkipInstall) { Invoke-Checked -File 'npm.cmd' -CommandArgs @('ci','--ignore-scripts') }
+Invoke-Checked -File 'node' -CommandArgs @('scripts/qualify-consequence-algebra.mjs')
 
 $Receipt = Join-Path $Root 'release/reports/latest-consequence-algebra-qualification.json'
 if (-not (Test-Path $Receipt)) { throw 'Qualification receipt was not produced.' }
@@ -43,6 +47,6 @@ if ($Evidence.platform.os -ne 'win32') { throw "Receipt platform mismatch: $($Ev
 Write-Host "PASS exact-head Windows qualification: $Receipt" -ForegroundColor Green
 
 if ($FullProduction) {
-  Invoke-Checked 'node' @('scripts/qualify-production-with-consequence-algebra.mjs')
+  Invoke-Checked -File 'node' -CommandArgs @('scripts/qualify-production-with-consequence-algebra.mjs')
   Write-Host 'Full CIEAV production + Consequence Algebra qualification completed.' -ForegroundColor Green
 }
