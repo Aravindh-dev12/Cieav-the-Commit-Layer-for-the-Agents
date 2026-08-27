@@ -5,7 +5,7 @@ import {fileURLToPath} from "node:url";
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),".."),read=p=>fs.readFileSync(path.join(root,p),"utf8"),fail=[];
 function need(file,...tokens){const text=read(file);for(const token of tokens)if(!text.includes(token))fail.push(`${file}: missing ${token}`)}
 need("packages/contracts/src/provider-runtime.ts","CIEAV_QUALIFIED_MODELS_V1","CIEAV_PROVIDER_ROUTING_RECEIPT_V1","mayMintExecutionAuthority:z.literal(false)","executionAuthorityIssued:z.literal(false)","candidateMustRemainUnqualified:z.literal(true)");
-need("apps/api/src/model/provider-registry.ts","process.env.NODE_ENV===\"production\"","QualifiedModelRegistrySchema","requires HTTPS except for loopback","providerModelQualified","providerEligible");
+need("apps/api/src/model/provider-registry.ts","process.env.NODE_ENV","production","QualifiedModelRegistrySchema","requires HTTPS except for loopback","providerModelQualified","providerEligible");
 need("apps/api/src/model/provider-router.ts","ProviderRoutingReceiptSchema","providerFailureAllowsFallback","crossProviderVerifierId","executionAuthorityIssued:false","mayMintExecutionAuthority:false");
 need("apps/api/src/model/provider-adapters.ts","privacyReduceContext","ProviderReliabilityManager","policyPattern","provider refused request under safety/policy","providerFailureAllowsFallback");
 need("apps/api/src/model/provider-discovery.ts","ProviderModelDiscoverySchema","checkedAt:new Date().toISOString()","authority:false");
