@@ -24,17 +24,15 @@ export function loadAuthorityStateDeployment(env:NodeJS.ProcessEnv=process.env):
   if(mode==="single-writer-file"){
     if(store!=="file")throw new Error("single-writer-file authority mode requires CIEAV_CONSEQUENCE_ALGEBRA_STORE=file");
     if(replicas!==1)throw new Error("CIEAV file-backed authority state is single-writer only; CIEAV_AUTHORITY_REPLICAS must be 1");
+    return{mode,replicas,consequenceAlgebraStore:"file",safeForRequestedTopology:true,authority:false,mayMintExecutionAuthority:false};
   }
   if(mode==="single-host-sqlite"){
     if(store!=="sqlite")throw new Error("single-host-sqlite authority mode requires CIEAV_CONSEQUENCE_ALGEBRA_STORE=sqlite");
-    if(replicas>1&&env.CIEAV_AUTHORITY_SHARED_HOST!=="1")throw new Error("SQLite authority replicas are allowed only on one qualified shared host; set CIEAV_AUTHORITY_SHARED_HOST=1 only after dedicated multiprocess qualification");
+    if(replicas>1&&env.CIEAV_AUTHORITY_SHARED_HOST!=="1")throw new Error("SQLite authority replicas require a qualified shared-host deployment");
+    throw new Error("single-host-sqlite authority state is reserved but not implemented by the current trusted-state backend; refusing unsafe startup");
   }
-  if(mode==="cluster-ha"){
-    if(!clusterBackend)throw new Error("cluster-ha authority mode requires CIEAV_AUTHORITY_CLUSTER_BACKEND");
-    throw new Error("cluster-ha authority mode is not implemented by the current trusted-state backend; refusing unsafe startup");
-  }
-
-  return{mode,replicas,consequenceAlgebraStore:store,...(clusterBackend?{clusterBackend}:{}),safeForRequestedTopology:true,authority:false,mayMintExecutionAuthority:false};
+  if(!clusterBackend)throw new Error("cluster-ha authority mode requires CIEAV_AUTHORITY_CLUSTER_BACKEND");
+  throw new Error("cluster-ha authority mode is not implemented by the current trusted-state backend; refusing unsafe startup");
 }
 
 export function authorityStateHealth(deployment:AuthorityStateDeployment){return{mode:deployment.mode,replicas:deployment.replicas,consequenceAlgebraStore:deployment.consequenceAlgebraStore,safeForRequestedTopology:deployment.safeForRequestedTopology,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false};}
