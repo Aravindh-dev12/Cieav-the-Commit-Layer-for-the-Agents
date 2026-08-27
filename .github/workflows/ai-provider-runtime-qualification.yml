@@ -1,0 +1,94 @@
+name: ai-provider-runtime-qualification
+
+on:
+  push:
+    branches:
+      - tmp-consequence-algebra-build
+    paths:
+      - '.env.example'
+      - 'package.json'
+      - 'packages/contracts/src/provider-runtime.ts'
+      - 'apps/api/src/env-file.ts'
+      - 'apps/api/src/env-file.test.ts'
+      - 'apps/api/src/model/provider-*.ts'
+      - 'scripts/provider-runtime-static.mjs'
+      - 'scripts/qualify-ai-providers.mjs'
+      - '.github/workflows/ai-provider-runtime-qualification.yml'
+  pull_request:
+    paths:
+      - '.env.example'
+      - 'package.json'
+      - 'packages/contracts/src/provider-runtime.ts'
+      - 'apps/api/src/env-file.ts'
+      - 'apps/api/src/env-file.test.ts'
+      - 'apps/api/src/model/provider-*.ts'
+      - 'scripts/provider-runtime-static.mjs'
+      - 'scripts/qualify-ai-providers.mjs'
+      - '.github/workflows/ai-provider-runtime-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify-offline:
+    name: provider-runtime-${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+          - name: windows
+            os: windows-latest
+          - name: macos
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    concurrency:
+      group: ai-provider-runtime-${{ github.ref }}-${{ matrix.name }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Offline exact-head provider qualification
+        run: npm run release:qualify:providers:offline
+
+      - name: Verify exact-head zero-authority receipt
+        shell: node {0}
+        run: |
+          const fs=require('node:fs');
+          const cp=require('node:child_process');
+          const p='release/reports/latest-ai-provider-qualification.json';
+          const r=JSON.parse(fs.readFileSync(p,'utf8'));
+          const head=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+          if(r.verdict!=='PASS') throw new Error('provider qualification receipt is not PASS');
+          if(r.commit!==head) throw new Error(`receipt commit ${r.commit} != HEAD ${head}`);
+          if(r.mode!=='OFFLINE') throw new Error('hosted CI provider gate must be OFFLINE unless secrets are explicitly provisioned');
+          if(r.platform!==process.platform) throw new Error(`receipt platform ${r.platform} != ${process.platform}`);
+          if(r.authority!==false||r.mayMintExecutionAuthority!==false||r.executionAuthorityIssued!==false) throw new Error('provider zero-authority invariant failed');
+          console.log(`Provider runtime qualified ${process.platform}/${process.arch} at ${head}`);
+
+      - name: Upload exact-head provider evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-provider-runtime-${{ matrix.name }}-${{ github.sha }}
+          path: |
+            release/reports/latest-ai-provider-qualification.json
+            release/reports/latest-ai-provider-qualification.txt
+          if-no-files-found: error
+          retention-days: 30
