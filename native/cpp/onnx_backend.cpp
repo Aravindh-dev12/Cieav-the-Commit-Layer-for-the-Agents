@@ -25,10 +25,11 @@ Ort::SessionOptions make_options() {
 std::wstring to_ort_path(const char *utf8) {
     const int chars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, nullptr, 0);
     if (chars <= 1) throw std::invalid_argument("invalid UTF-8 model path");
-    std::wstring out(static_cast<size_t>(chars - 1), L'\0');
-    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, out.data(), chars) == 0)
+    std::wstring buffer(static_cast<size_t>(chars), L'\0');
+    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, -1, buffer.data(), chars) != chars)
         throw std::invalid_argument("invalid UTF-8 model path");
-    return out;
+    buffer.resize(static_cast<size_t>(chars - 1));
+    return buffer;
 }
 #else
 std::string to_ort_path(const char *utf8) { return std::string(utf8); }
