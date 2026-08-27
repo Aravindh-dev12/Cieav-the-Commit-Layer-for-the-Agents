@@ -14,9 +14,13 @@ need("apps/api/src/env-file.ts","parseEnv","CIEAV_ENV_FILE","permissions are too
 need("apps/api/src/server.ts","analyzeWithProviderRouter","providerRegistrySnapshot","hasEligibleAIProvider");
 need(".env.example","CIEAV_AI_REQUIRE_QUALIFIED_MODELS","CIEAV_AI_PROVIDER_ORDER","KIMI_API_KEY","ANTHROPIC_API_KEY","GEMINI_API_KEY","XAI_API_KEY","OPENAI_TRAINING_API_KEY","CIEAV_AI_QUALIFIED_MODELS_FILE");
 need("scripts/qualify-ai-providers.mjs","--live","--require-qualified","latest-ai-provider-qualification.json","executionAuthorityIssued:false");
+need("scripts/qualify-frontier-model-live.mjs","CIEAV_FRONTIER_MODEL_QUALIFICATION_V1","providerCoveragePct","modelCoveragePct","zeroAuthorityCoveragePct","qualificationReceiptDigest","executionAuthorityIssued:false","mayMintExecutionAuthority:false");
+need("scripts/promote-qualified-frontier-model.mjs","qualification receipt is not exact-head","qualification receipt digest mismatch","approval-ref","QualifiedModelRegistrySchema","durableWrite","promotionDoesNotGrantExecutionAuthority:true","executionAuthorityIssued:false","mayMintExecutionAuthority:false");
+need("package.json","release:qualify:frontier-model","release:promote:frontier-model");
+need(".github/workflows/ai-provider-runtime-qualification.yml","ubuntu-latest","windows-latest","macos-latest","release:qualify:providers:offline","executionAuthorityIssued");
 need("apps/api/src/model/provider-router.test.ts","does not vendor-shop around a safety or policy refusal","does not vendor-shop around authentication failure","CIEAV_PROVIDER_ROUTING_RECEIPT_V1");
 need("apps/api/src/model/provider-registry.test.ts","never treats an API key as qualification","production to run deterministically with no AI provider enabled");
 need("apps/api/src/model/provider-discovery.test.ts","canonical zero-authority evidence");
 need("apps/api/src/env-file.test.ts","without overriding injected process secrets");
 if(fail.length){console.error("CIEAV provider runtime static gate FAIL");for(const item of fail)console.error(` - ${item}`);process.exit(1)}
-console.log("CIEAV provider runtime static gate PASS - canonical qualification + live discovery + availability-only fallback + cross-provider verification + circuit/concurrency controls + secure env loading + zero authority present");
+console.log("CIEAV provider runtime static gate PASS - canonical qualification + live discovery + evidence-bound promotion + availability-only fallback + cross-provider verification + circuit/concurrency controls + secure env loading + cross-platform offline qualification + zero authority present");
