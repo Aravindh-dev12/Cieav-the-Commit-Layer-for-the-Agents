@@ -89,16 +89,9 @@ export class CieavSqlServerTrustedStatePersistence {
   }
 }
 
-type PatchableStore={
-  file:string;
-  loaded:boolean;
-  load:()=>Promise<void>;
-  persist:()=>Promise<void>;
-  [key:string]:unknown;
-};
-
+type PatchableStore={file:string;loaded:boolean;load:()=>Promise<void>;persist:()=>Promise<void>};
 type AttachedStore={key:SqlTrustedStateKey;revision:string|null;fault:Error|null};
-const attached=Symbol("cieav.sqlserver.trusted-state.attached");
+const attachedStores=new WeakSet<object>();
 
 function assertPatchable(value:unknown,label:string):PatchableStore{
   const store=value as Partial<PatchableStore>;
@@ -113,9 +106,9 @@ async function stage<T>(prefix:string,fn:(file:string)=>Promise<T>){
 
 function attachStore(storeValue:unknown,key:SqlTrustedStateKey,persistence:CieavSqlServerTrustedStatePersistence,label:string){
   const store=assertPatchable(storeValue,label);
-  if(store[attached])throw new Error(`CIEAV SQL trusted-state migration already attached ${label}`);
+  if(attachedStores.has(store))throw new Error(`CIEAV SQL trusted-state migration already attached ${label}`);
+  attachedStores.add(store);
   const originalFile=store.file,originalLoad=store.load.bind(store),originalPersist=store.persist.bind(store),state:AttachedStore={key,revision:null,fault:null};
-  Object.defineProperty(store,attached,{value:state,enumerable:false,configurable:false,writable:false});
 
   store.load=async()=>{
     if(state.fault)throw state.fault;
