@@ -8,6 +8,7 @@ import {
   type SqlServerAuthorityClusterConfig,
   type SqlServerDriverLike
 } from "./authority-cluster-sqlserver.js";
+import {withManagedAuthoritySqlSecrets} from "./managed-secrets.js";
 
 export const QUALIFIED_MSSQL_RUNTIME_VERSION="12.7.0" as const;
 
@@ -58,7 +59,7 @@ export async function loadQualifiedMssqlDriver(resolvePath?:(specifier:string)=>
 }
 
 export async function createLiveSqlServerAuthorityStateBackendFromEnv(env:NodeJS.ProcessEnv=process.env){
-  const config=loadSqlServerAuthorityClusterConfig(env),driver=await loadQualifiedMssqlDriver();
+  const projectedEnv=withManagedAuthoritySqlSecrets(env,true),config=loadSqlServerAuthorityClusterConfig(projectedEnv),driver=await loadQualifiedMssqlDriver();
   const pool=new driver.ConnectionPool(sqlServerLivePoolConfig(config));
   const database=new SqlServerAuthorityClusterDatabase(pool,driver,config.transactionRetries);
   return new CieavSqlServerAuthorityStateBackend(database,config.namespace,config.leaseMs);
@@ -71,6 +72,8 @@ export function sqlServerLiveRuntimePosture(){return{
   multiSubnetFailover:true,
   encryptedConnectionRequired:true,
   trustServerCertificate:false,
+  managedCredentialProjection:true,
+  processEnvironmentCredentialLeakage:false,
   serializableTransactions:true,
   monotonicFencing:true,
   idempotentCommitRecovery:true,
