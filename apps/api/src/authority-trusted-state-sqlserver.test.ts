@@ -22,6 +22,23 @@ const create={scopeDeviceId:"dev_sql_ha_12345678",intentId,owner:{id:"user-1",ki
 async function dir(){const d=await mkdtemp(path.join(os.tmpdir(),"cieav-sql-trusted-state-"));dirs.push(d);return d}
 
 describe("CIEAV SQL Server trusted-state migration",()=>{
+  it("renews the SQL writer lease before an idle candidate reaches expiry",async()=>{
+    const database=new MemorySqlAuthorityDatabase(),backend=new CieavSqlServerAuthorityStateBackend(database,"cluster-heartbeat-test",10_000),persistence=new CieavSqlServerTrustedStatePersistence(backend,"authority-node-a");
+    await persistence.start();const first=database.leases.get("cluster-heartbeat-test");expect(first).toBeDefined();expect(persistence.health()).toMatchObject({leaseHeartbeatActive:true,leaseHealthy:true,fatalFault:null});
+    database.now+=7_000;await persistence.verifyWriterLease();const renewed=database.leases.get("cluster-heartbeat-test");expect(renewed!.leaseUntilMs).toBeGreaterThan(first!.leaseUntilMs);expect(renewed!.fenceToken).toBe(first!.fenceToken);expect(persistence.health()).toMatchObject({leaseHeartbeatActive:true,leaseHealthy:true,fatalFault:null});
+    await persistence.close();
+  });
+
+  it("permanently fails persistence closed when the SQL writer lease is lost",async()=>{
+    const database=new MemorySqlAuthorityDatabase(),backend=new CieavSqlServerAuthorityStateBackend(database,"cluster-heartbeat-loss",10_000),persistence=new CieavSqlServerTrustedStatePersistence(backend,"authority-node-a");
+    await persistence.start();database.now+=10_001;
+    await expect(persistence.verifyWriterLease()).rejects.toThrow(/writer lease lost.*process must restart/i);
+    expect(persistence.health()).toMatchObject({leaseHealthy:false});expect(persistence.health().fatalFault).toMatch(/writer lease lost/i);
+    await expect(persistence.read(SQL_TRUSTED_STATE_KEYS.kernel)).rejects.toThrow(/writer lease lost/i);
+    await expect(persistence.write(SQL_TRUSTED_STATE_KEYS.kernel,null,"{}","lease-lost-write-001")).rejects.toThrow(/writer lease lost/i);
+    await persistence.close();
+  });
+
   it("bootstraps authenticated local trusted state into empty SQL without losing it",async()=>{
     const database=new MemorySqlAuthorityDatabase(),backend=new CieavSqlServerAuthorityStateBackend(database,"cluster-bootstrap-test",10_000),localDir=await dir(),file=path.join(localDir,"kernel.json");
     const localKernel=new CieavAgentKernelStore(file,secret),created=await localKernel.create({...create,goal:"Existing authenticated local authority state"});await localKernel.close();
@@ -33,6 +50,7 @@ describe("CIEAV SQL Server trusted-state migration",()=>{
     for(const key of Object.values(SQL_TRUSTED_STATE_KEYS))expect(await backend.readState(key)).not.toBeNull();
     expect(candidate.migration.health()).toMatchObject({trustedStoresMigrated:true,startupInitializationBarrier:true,sqlServerAuthoritative:true,localFilesAuthoritative:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false});
     expect(candidate.migration.health().stores.every(store=>store.revision!==null&&store.fault===null)).toBe(true);
+    expect(persistence.health()).toMatchObject({leaseHeartbeatActive:true,leaseHealthy:true,fatalFault:null});
     await migratingKernel.close();await persistence.close();
   });
 
