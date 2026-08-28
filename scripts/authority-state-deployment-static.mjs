@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 
+const forbiddenFiles=["apps/api/src/authority-cluster-postgres.ts","apps/api/src/authority-cluster-postgres.test.ts"];
 const checks=[
   ["apps/api/src/authority-state-deployment.ts",["single-writer-file","single-host-sqlite","cluster-ha","sqlserver-ha-v1","authorityClusterBackendCapability","CIEAV_AUTHORITY_REPLICAS","CIEAV_AUTHORITY_SHARED_HOST","CIEAV_AUTHORITY_CLUSTER_BACKEND","trusted stores are not yet migrated","external failover is not qualified","clusterHaQualified:false","authority:false","mayMintExecutionAuthority:false"]],
   ["apps/api/src/authority-cluster-sqlserver.ts",["SERIALIZABLE","UPDLOCK,HOLDLOCK","SYSUTCDATETIME()","sp_getapplock","fenceToken","authority_cluster_writer_fenced","authority_cluster_revision_conflict","authority_cluster_transaction_idempotency_conflict","multiKeyAtomicCas:true","monotonicFencing:true","databaseClockLeases:true","idempotentCommitRecovery:true","encrypt:true","trustServerCertificate:false","clusterHaQualified:false","authority:false","mayMintExecutionAuthority:false","executionAuthorityIssued:false"]],
@@ -13,6 +14,7 @@ const checks=[
 ];
 
 const missing=[];
+for(const file of forbiddenFiles)if(fs.existsSync(file))missing.push(`${file}: PostgreSQL authority backend is forbidden; use sqlserver-ha-v1`);
 for(const [file,tokens] of checks){if(!fs.existsSync(file)){missing.push(`${file}: file missing`);continue}const text=fs.readFileSync(file,"utf8");for(const token of tokens)if(!text.includes(token))missing.push(`${file}: ${token}`)}
 if(missing.length){console.error("CIEAV authority state deployment static gate FAIL");for(const item of missing)console.error(` - missing ${item}`);process.exit(1)}
-console.log("CIEAV authority state deployment static gate PASS - exclusive local writer lease + SQL Server SERIALIZABLE multi-key CAS + monotonic database fencing + idempotent commit recovery + encrypted transport + cluster-HA runtime fail-closed + zero authority present");
+console.log("CIEAV authority state deployment static gate PASS - exclusive local writer lease + SQL Server SERIALIZABLE multi-key CAS + monotonic database fencing + idempotent commit recovery + encrypted transport + PostgreSQL authority backend forbidden + cluster-HA runtime fail-closed + zero authority present");
