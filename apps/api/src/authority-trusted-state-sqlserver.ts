@@ -1,3 +1,4 @@
+import {AsyncLocalStorage} from "node:async_hooks";
 import crypto from "node:crypto";
 import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
 import os from "node:os";
@@ -18,12 +19,27 @@ export type SqlTrustedStateKey=typeof SQL_TRUSTED_STATE_KEYS[keyof typeof SQL_TR
 const ownerPattern=/^[A-Za-z0-9._:-]{8,200}$/;
 const txId=(key:string)=>`state-${crypto.createHash("sha256").update(key).digest("hex").slice(0,16)}-${crypto.randomUUID()}`;
 
+type AtomicSnapshot={
+  key:SqlTrustedStateKey;
+  expectedRevision:string|null;
+  value:string;
+  onCommit:(record:AuthorityClusterStateRecord)=>void;
+  onFailure:(error:Error)=>void;
+};
+
+type AtomicContext={
+  fallbackTransactionId:string;
+  transactionId:string|null;
+  snapshots:Map<SqlTrustedStateKey,AtomicSnapshot>;
+};
+
 export class CieavSqlServerTrustedStatePersistence {
   private lease:AuthorityClusterLease|null=null;
   private closed=false;
   private fatalFault:Error|null=null;
   private chain:Promise<void>=Promise.resolve();
   private heartbeat:NodeJS.Timeout|null=null;
+  private readonly atomic=new AsyncLocalStorage<AtomicContext>();
 
   constructor(readonly backend:CieavSqlServerAuthorityStateBackend,readonly ownerId:string){
     if(!ownerPattern.test(ownerId))throw new Error("CIEAV SQL trusted-state owner id must be 8-200 safe identifier characters");
@@ -63,6 +79,55 @@ export class CieavSqlServerTrustedStatePersistence {
     return this.queue(async()=>{const lease=await this.renewLease();return fn(lease)});
   }
 
+  private failAtomicContext(context:AtomicContext,error:unknown){
+    const fault=error instanceof Error&&/atomic transaction failed/i.test(error.message)
+      ? error
+      : new Error(`CIEAV SQL trusted-state atomic transaction failed; process must restart before authority operations continue: ${error instanceof Error?error.message:String(error)}`);
+    for(const snapshot of context.snapshots.values())snapshot.onFailure(fault);
+    this.fatalFault??=fault;
+    return fault;
+  }
+
+  runAtomicTrustedStateTransaction<T>(fallbackTransactionId:string,fn:()=>Promise<T>):Promise<T>{
+    if(this.atomic.getStore())return Promise.reject(new Error("CIEAV SQL trusted-state atomic transactions cannot be nested"));
+    const context:AtomicContext={fallbackTransactionId,transactionId:null,snapshots:new Map()};
+    return this.atomic.run(context,async()=>{
+      let result:T;
+      try{result=await fn()}catch(error){
+        if(context.snapshots.size)throw this.failAtomicContext(context,error);
+        throw error;
+      }
+      if(!context.snapshots.size)return result;
+      const snapshots=[...context.snapshots.values()],transactionId=context.transactionId??context.fallbackTransactionId;
+      try{
+        const committed=await this.withWriter(lease=>this.backend.writeTransaction(transactionId,lease,snapshots.map(({key,expectedRevision,value})=>({key,expectedRevision,value}))));
+        const byKey=new Map(committed.map(record=>[record.key,record]));
+        for(const snapshot of snapshots)if(!byKey.has(snapshot.key))throw new Error(`authority atomic transaction omitted committed key:${snapshot.key}`);
+        for(const snapshot of snapshots)snapshot.onCommit(byKey.get(snapshot.key)!);
+        return result;
+      }catch(error){throw this.failAtomicContext(context,error)}
+    });
+  }
+
+  bindAtomicTransactionId(transactionId:string){
+    const context=this.atomic.getStore();
+    if(!context)return false;
+    if(context.transactionId&&context.transactionId!==transactionId)throw new Error(`CIEAV SQL trusted-state atomic transaction identity conflict:${context.transactionId}:${transactionId}`);
+    context.transactionId=transactionId;
+    return true;
+  }
+
+  persistSnapshot(key:SqlTrustedStateKey,expectedRevision:string|null,value:string,onCommit:(record:AuthorityClusterStateRecord)=>void,onFailure:(error:Error)=>void){
+    const context=this.atomic.getStore();
+    if(context){
+      const existing=context.snapshots.get(key);
+      if(existing&&existing.expectedRevision!==expectedRevision)throw new Error(`CIEAV SQL trusted-state staged revision changed before atomic commit:${key}`);
+      context.snapshots.set(key,{key,expectedRevision,value,onCommit,onFailure});
+      return Promise.resolve();
+    }
+    return this.write(key,expectedRevision,value).then(record=>{onCommit(record)}).catch(error=>{const fault=error instanceof Error?error:new Error(String(error));onFailure(fault);throw fault});
+  }
+
   read(key:SqlTrustedStateKey){
     if(this.closed)return Promise.reject(new Error("CIEAV SQL trusted-state persistence is closed"));
     if(this.fatalFault)return Promise.reject(this.fatalFault);
@@ -92,6 +157,8 @@ export class CieavSqlServerTrustedStatePersistence {
     replicatedAuthorityJournal:true,
     sqlServerAuthoritative:true,
     localFilesAuthoritative:false,
+    atomicTrustedStateTransactionCoordinator:true,
+    journalTransactionIdentityBinding:true,
     recoverablyAtomicCrossStoreTransactions:true,
     singleTransactionCrossStoreCommit:false,
     externalFailoverQualified:false,
@@ -135,6 +202,7 @@ function attachStore(storeValue:unknown,key:SqlTrustedStateKey,persistence:Cieav
   attachedStores.add(store);
   const originalFile=store.file,originalLoad=store.load.bind(store),originalPersist=store.persist.bind(store);
   const state:AttachedStore={key,revision:null,fault:null,initialize:async()=>store.load()};
+  const fail=(error:Error)=>{state.fault=new Error(`CIEAV SQL trusted-state persistence fault for ${label}; process must restart before authority operations continue: ${error.message}`)};
 
   store.load=async()=>{
     if(state.fault)throw state.fault;
@@ -158,15 +226,45 @@ function attachStore(storeValue:unknown,key:SqlTrustedStateKey,persistence:Cieav
       try{await originalPersist();contents=await readFile(staged,"utf8")}finally{store.file=originalFile}
     });
     try{
-      const committed=await persistence.write(key,state.revision,contents);
-      state.revision=committed.revision;
+      await persistence.persistSnapshot(key,state.revision,contents,committed=>{state.revision=committed.revision},fail);
     }catch(error){
-      state.fault=new Error(`CIEAV SQL trusted-state persistence fault for ${label}; process must restart before authority operations continue: ${error instanceof Error?error.message:String(error)}`);
-      throw state.fault;
+      if(!state.fault)fail(error instanceof Error?error:new Error(String(error)));
+      throw state.fault!;
     }
   };
 
   return state;
+}
+
+type UnknownAsyncMethod=(...args:unknown[])=>Promise<unknown>;
+
+function patchJournalTransactionIdentity(fabric:Record<string,unknown>,persistence:CieavSqlServerTrustedStatePersistence){
+  const journal=fabric.authorityTransactions as Record<string,unknown>|undefined;
+  if(!journal)throw new Error("CIEAV SQL trusted-state migration cannot attach authority transaction identity binding");
+  const begin=journal.begin;
+  const pending=journal.pending;
+  if(typeof begin!=="function"||typeof pending!=="function")throw new Error("CIEAV SQL trusted-state migration authority journal methods are unavailable");
+  const originalBegin=(begin as UnknownAsyncMethod).bind(journal),originalPending=(pending as UnknownAsyncMethod).bind(journal);
+  journal.begin=async(...args:unknown[])=>{
+    const entry=await originalBegin(...args),id=typeof entry==="object"&&entry!==null?String((entry as {id?:unknown}).id??""):"";
+    if(id)persistence.bindAtomicTransactionId(`journal-${id}`);
+    return entry;
+  };
+  journal.pending=async(...args:unknown[])=>{
+    const value=await originalPending(...args);
+    if(Array.isArray(value)&&value.length){
+      const ids=value.map(entry=>typeof entry==="object"&&entry!==null?String((entry as {id?:unknown}).id??""):"").filter(Boolean).sort();
+      if(ids.length){const digest=crypto.createHash("sha256").update(ids.join("\n")).digest("hex").slice(0,48);persistence.bindAtomicTransactionId(`journal-recovery-${digest}`)}
+    }
+    return value;
+  };
+}
+
+function wrapJournaledAtomicMethod(target:Record<string,unknown>,methodName:string,persistence:CieavSqlServerTrustedStatePersistence){
+  const method=target[methodName];
+  if(typeof method!=="function")throw new Error(`CIEAV SQL trusted-state migration cannot wrap ${methodName}`);
+  const original=(method as UnknownAsyncMethod).bind(target);
+  target[methodName]=(...args:unknown[])=>persistence.runAtomicTrustedStateTransaction(`trusted-${methodName}-${crypto.randomUUID()}`,()=>original(...args));
 }
 
 export function attachSqlServerTrustedState(kernel:CieavAgentKernelStore,persistence:CieavSqlServerTrustedStatePersistence){
@@ -176,6 +274,8 @@ export function attachSqlServerTrustedState(kernel:CieavAgentKernelStore,persist
   const executionFabricState=attachStore(fabric,SQL_TRUSTED_STATE_KEYS.executionFabric,persistence,"execution-fabric");
   const consequenceAlgebraState=attachStore(fabric.consequenceAlgebra,SQL_TRUSTED_STATE_KEYS.consequenceAlgebra,persistence,"consequence-algebra");
   const authorityTransactionsState=attachStore(fabric.authorityTransactions,SQL_TRUSTED_STATE_KEYS.authorityTransactions,persistence,"authority-transactions");
+  patchJournalTransactionIdentity(fabric,persistence);
+  for(const methodName of ["issueTicket","consumeTicket","recordExecutionAttempt","recoverAuthorityTransactionsOnStartup"])wrapJournaledAtomicMethod(fabric,methodName,persistence);
   const states=[kernelState,intentRealityState,executionFabricState,consequenceAlgebraState,authorityTransactionsState];
   const startupOrder=[kernelState,intentRealityState,consequenceAlgebraState,authorityTransactionsState,executionFabricState];
   return{
@@ -189,6 +289,9 @@ export function attachSqlServerTrustedState(kernel:CieavAgentKernelStore,persist
       replicatedAuthorityJournal:true,
       sqlServerAuthoritative:true,
       localFilesAuthoritative:false,
+      atomicTrustedStateTransactionCoordinator:true,
+      journalTransactionIdentityBinding:true,
+      journaledAuthorityAtomicMethods:["issueTicket","consumeTicket","recordExecutionAttempt","recoverAuthorityTransactionsOnStartup"] as const,
       recoverablyAtomicCrossStoreTransactions:true,
       singleTransactionCrossStoreCommit:false,
       externalFailoverQualified:false,
