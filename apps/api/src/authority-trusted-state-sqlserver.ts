@@ -21,7 +21,9 @@ const txId=(key:string)=>`state-${crypto.createHash("sha256").update(key).digest
 export class CieavSqlServerTrustedStatePersistence {
   private lease:AuthorityClusterLease|null=null;
   private closed=false;
+  private fatalFault:Error|null=null;
   private chain:Promise<void>=Promise.resolve();
+  private heartbeat:NodeJS.Timeout|null=null;
 
   constructor(readonly backend:CieavSqlServerAuthorityStateBackend,readonly ownerId:string){
     if(!ownerPattern.test(ownerId))throw new Error("CIEAV SQL trusted-state owner id must be 8-200 safe identifier characters");
@@ -29,24 +31,44 @@ export class CieavSqlServerTrustedStatePersistence {
 
   async start(){
     if(this.closed)throw new Error("CIEAV SQL trusted-state persistence is closed");
+    if(this.fatalFault)throw this.fatalFault;
     if(this.lease)return this.health();
     await this.backend.initialize();
     this.lease=await this.backend.acquireWriterLease(this.ownerId);
+    const interval=Math.max(1000,Math.floor(this.backend.defaultLeaseMs/3));
+    this.heartbeat=setInterval(()=>{void this.verifyWriterLease().catch(()=>undefined)},interval);
+    this.heartbeat.unref();
     return this.health();
   }
 
-  private withWriter<T>(fn:(lease:AuthorityClusterLease)=>Promise<T>):Promise<T>{
+  private queue<T>(fn:()=>Promise<T>):Promise<T>{
     if(this.closed)return Promise.reject(new Error("CIEAV SQL trusted-state persistence is closed"));
-    const task=this.chain.then(async()=>{
-      if(!this.lease)throw new Error("CIEAV SQL trusted-state persistence is not started");
-      this.lease=await this.backend.renewWriterLease(this.lease);
-      return fn(this.lease);
-    });
+    if(this.fatalFault)return Promise.reject(this.fatalFault);
+    const task=this.chain.then(async()=>{if(this.fatalFault)throw this.fatalFault;return fn()});
     this.chain=task.then(()=>undefined,()=>undefined);
     return task;
   }
 
-  read(key:SqlTrustedStateKey){return this.backend.readState(key)}
+  private async renewLease(){
+    if(!this.lease)throw new Error("CIEAV SQL trusted-state persistence is not started");
+    try{this.lease=await this.backend.renewWriterLease(this.lease);return this.lease}catch(error){
+      this.fatalFault=new Error(`CIEAV SQL trusted-state writer lease lost; process must restart before authority operations continue: ${error instanceof Error?error.message:String(error)}`);
+      throw this.fatalFault;
+    }
+  }
+
+  verifyWriterLease(){return this.queue(async()=>{await this.renewLease();return this.health()})}
+
+  private withWriter<T>(fn:(lease:AuthorityClusterLease)=>Promise<T>):Promise<T>{
+    return this.queue(async()=>{const lease=await this.renewLease();return fn(lease)});
+  }
+
+  read(key:SqlTrustedStateKey){
+    if(this.closed)return Promise.reject(new Error("CIEAV SQL trusted-state persistence is closed"));
+    if(this.fatalFault)return Promise.reject(this.fatalFault);
+    if(!this.lease)return Promise.reject(new Error("CIEAV SQL trusted-state persistence is not started"));
+    return this.backend.readState(key);
+  }
 
   write(key:SqlTrustedStateKey,expectedRevision:string|null,value:string,transactionId=txId(key)){
     return this.withWriter(async lease=>(await this.backend.writeTransaction(transactionId,lease,[{key,expectedRevision,value}]))[0]!);
@@ -63,6 +85,9 @@ export class CieavSqlServerTrustedStatePersistence {
     ownerId:this.ownerId,
     started:Boolean(this.lease)&&!this.closed,
     fenceToken:this.lease?.fenceToken??null,
+    leaseHeartbeatActive:Boolean(this.heartbeat)&&!this.closed,
+    leaseHealthy:Boolean(this.lease)&&!this.closed&&!this.fatalFault,
+    fatalFault:this.fatalFault?.message??null,
     trustedStateKeys:Object.values(SQL_TRUSTED_STATE_KEYS),
     replicatedAuthorityJournal:true,
     sqlServerAuthoritative:true,
@@ -77,11 +102,13 @@ export class CieavSqlServerTrustedStatePersistence {
   }}
 
   async close(){
+    if(this.heartbeat){clearInterval(this.heartbeat);this.heartbeat=null}
     await this.chain.catch(()=>undefined);
     if(this.closed)return;
     this.closed=true;
     const lease=this.lease;this.lease=null;
     if(lease){try{await this.backend.releaseWriterLease(lease)}catch{}}
+    await this.backend.close();
   }
 }
 
