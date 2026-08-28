@@ -50,10 +50,11 @@ describe("CIEAV SQL Server trusted-state migration",()=>{
   it("fails the attached process closed after a SQL CAS revision conflict",async()=>{
     const database=new MemorySqlAuthorityDatabase(),backend=new CieavSqlServerAuthorityStateBackend(database,"cluster-cas-test",10_000),dirA=await dir(),kernel=new CieavAgentKernelStore(path.join(dirA,"kernel.json"),secret),persistence=new CieavSqlServerTrustedStatePersistence(backend,"authority-node-a");
     await createSqlServerTrustedKernelCandidate({kernel,persistence});
+    await kernel.create(create);
     const current=await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel);expect(current).not.toBeNull();
-    const lease=await backend.acquireWriterLease("authority-node-a");
-    await backend.writeTransaction("external-conflict-001",lease,[{key:SQL_TRUSTED_STATE_KEYS.kernel,expectedRevision:current!.revision,value:current!.value}]);
-    await expect(kernel.create(create)).rejects.toThrow(/persistence fault|revision_conflict/i);
+    const live=database.leases.get("cluster-cas-test");if(!live)throw new Error("missing live SQL writer lease");
+    await backend.writeTransaction("external-conflict-001",{ownerId:live.ownerId,fenceToken:live.fenceToken,leaseUntilMs:live.leaseUntilMs},[{key:SQL_TRUSTED_STATE_KEYS.kernel,expectedRevision:current!.revision,value:current!.value}]);
+    await expect(kernel.create({...create,goal:"stale revision must fail"})).rejects.toThrow(/persistence fault|revision_conflict/i);
     await expect(kernel.create({...create,goal:"must stay failed closed"})).rejects.toThrow(/persistence fault/i);
     await kernel.close();await persistence.close();
   });
