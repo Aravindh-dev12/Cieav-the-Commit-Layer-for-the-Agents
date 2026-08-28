@@ -35,19 +35,15 @@ export class CieavSqlServerTrustedStatePersistence {
     return this.health();
   }
 
-  private async withWriter<T>(fn:(lease:AuthorityClusterLease)=>Promise<T>):Promise<T>{
-    if(this.closed)throw new Error("CIEAV SQL trusted-state persistence is closed");
-    let resolve!:()=>void,reject!:(error:unknown)=>void;
-    const gate=new Promise<void>((r,j)=>{resolve=r;reject=j}),previous=this.chain;
-    this.chain=previous.then(()=>gate,()=>gate);
-    await previous;
-    try{
+  private withWriter<T>(fn:(lease:AuthorityClusterLease)=>Promise<T>):Promise<T>{
+    if(this.closed)return Promise.reject(new Error("CIEAV SQL trusted-state persistence is closed"));
+    const task=this.chain.then(async()=>{
       if(!this.lease)throw new Error("CIEAV SQL trusted-state persistence is not started");
       this.lease=await this.backend.renewWriterLease(this.lease);
-      const value=await fn(this.lease);
-      resolve();
-      return value;
-    }catch(error){reject(error);throw error}
+      return fn(this.lease);
+    });
+    this.chain=task.then(()=>undefined,()=>undefined);
+    return task;
   }
 
   read(key:SqlTrustedStateKey){return this.backend.readState(key)}
@@ -104,6 +100,8 @@ async function stage<T>(prefix:string,fn:(file:string)=>Promise<T>){
   try{return await fn(file)}finally{await rm(dir,{recursive:true,force:true})}
 }
 
+async function readLocalIfPresent(file:string){try{return await readFile(file,"utf8")}catch(error){const code=typeof error==="object"&&error!==null?String((error as {code?:unknown}).code??""):"";if(code==="ENOENT")return null;throw error}}
+
 function attachStore(storeValue:unknown,key:SqlTrustedStateKey,persistence:CieavSqlServerTrustedStatePersistence,label:string){
   const store=assertPatchable(storeValue,label);
   if(attachedStores.has(store))throw new Error(`CIEAV SQL trusted-state migration already attached ${label}`);
@@ -113,13 +111,15 @@ function attachStore(storeValue:unknown,key:SqlTrustedStateKey,persistence:Cieav
   store.load=async()=>{
     if(state.fault)throw state.fault;
     if(store.loaded)return;
-    const record=await persistence.read(key);
+    const record=await persistence.read(key),local=record?null:await readLocalIfPresent(originalFile);
+    state.revision=record?.revision??null;
     await stage(label.replace(/[^a-z0-9]+/gi,"-").toLowerCase(),async staged=>{
-      if(record)await writeFile(staged,record.value,{encoding:"utf8",mode:0o600,flag:"wx"});
+      const source=record?.value??local;
+      if(source!==null)await writeFile(staged,source,{encoding:"utf8",mode:0o600,flag:"wx"});
       store.file=staged;
       try{await originalLoad()}finally{store.file=originalFile}
     });
-    state.revision=record?.revision??null;
+    if(state.revision===null)await store.persist();
   };
 
   store.persist=async()=>{
