@@ -1,16 +1,43 @@
+import {loadPostgresAuthorityClusterConfig} from "./authority-cluster-postgres.js";
+
 export type AuthorityStateMode="single-writer-file"|"single-host-sqlite"|"cluster-ha";
+export type AuthorityClusterBackend="postgres-ha-v1";
 
 export interface AuthorityStateDeployment {
   mode:AuthorityStateMode;
   replicas:number;
   consequenceAlgebraStore:"file"|"sqlite";
-  clusterBackend?:string;
+  clusterBackend?:AuthorityClusterBackend;
   safeForRequestedTopology:boolean;
   authority:false;
   mayMintExecutionAuthority:false;
 }
 
+export interface AuthorityClusterBackendCapability {
+  backend:AuthorityClusterBackend;
+  namespace:string;
+  postgresTlsVerifyFull:true;
+  serializableTransactions:true;
+  multiKeyAtomicCas:true;
+  monotonicFencing:true;
+  databaseClockLeases:true;
+  idempotentCommitRecovery:true;
+  trustedStoresMigrated:false;
+  externalFailoverQualified:false;
+  clusterHaQualified:false;
+  authority:false;
+  mayMintExecutionAuthority:false;
+}
+
 function positiveInt(raw:string|undefined,name:string,fallback:number){const n=Number(raw??fallback);if(!Number.isInteger(n)||n<1||n>1024)throw new Error(`${name} must be an integer between 1 and 1024`);return n}
+
+export function authorityClusterBackendCapability(env:NodeJS.ProcessEnv=process.env):AuthorityClusterBackendCapability{
+  const backend=String(env.CIEAV_AUTHORITY_CLUSTER_BACKEND??"").trim();
+  if(!backend)throw new Error("cluster-ha authority mode requires CIEAV_AUTHORITY_CLUSTER_BACKEND");
+  if(backend!=="postgres-ha-v1")throw new Error(`unsupported CIEAV_AUTHORITY_CLUSTER_BACKEND: ${backend}`);
+  const config=loadPostgresAuthorityClusterConfig(env);
+  return{backend,namespace:config.namespace,postgresTlsVerifyFull:true,serializableTransactions:true,multiKeyAtomicCas:true,monotonicFencing:true,databaseClockLeases:true,idempotentCommitRecovery:true,trustedStoresMigrated:false,externalFailoverQualified:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false};
+}
 
 export function loadAuthorityStateDeployment(env:NodeJS.ProcessEnv=process.env):AuthorityStateDeployment{
   const replicas=positiveInt(env.CIEAV_AUTHORITY_REPLICAS,"CIEAV_AUTHORITY_REPLICAS",1);
@@ -31,8 +58,10 @@ export function loadAuthorityStateDeployment(env:NodeJS.ProcessEnv=process.env):
     if(replicas>1&&env.CIEAV_AUTHORITY_SHARED_HOST!=="1")throw new Error("SQLite authority replicas require a qualified shared-host deployment");
     throw new Error("single-host-sqlite authority state is reserved but not implemented by the current trusted-state backend; refusing unsafe startup");
   }
+  if(replicas<3)throw new Error("cluster-ha authority mode requires at least 3 replicas for qualified failover topology");
   if(!clusterBackend)throw new Error("cluster-ha authority mode requires CIEAV_AUTHORITY_CLUSTER_BACKEND");
-  throw new Error("cluster-ha authority mode is not implemented by the current trusted-state backend; refusing unsafe startup");
+  authorityClusterBackendCapability(env);
+  throw new Error("postgres-ha-v1 backend primitives are implemented, but Fabric/Algebra/Kernel/Intent-Reality trusted stores are not yet migrated and external failover is not qualified; refusing unsafe cluster-ha startup");
 }
 
-export function authorityStateHealth(deployment:AuthorityStateDeployment){return{mode:deployment.mode,replicas:deployment.replicas,consequenceAlgebraStore:deployment.consequenceAlgebraStore,safeForRequestedTopology:deployment.safeForRequestedTopology,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false};}
+export function authorityStateHealth(deployment:AuthorityStateDeployment){return{mode:deployment.mode,replicas:deployment.replicas,consequenceAlgebraStore:deployment.consequenceAlgebraStore,safeForRequestedTopology:deployment.safeForRequestedTopology,clusterBackend:deployment.clusterBackend??null,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false};}
