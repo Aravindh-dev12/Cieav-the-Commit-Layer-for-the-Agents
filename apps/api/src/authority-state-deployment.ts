@@ -1,4 +1,5 @@
 import {loadSqlServerAuthorityClusterConfig} from "./authority-cluster-sqlserver.js";
+import {withManagedAuthoritySqlSecrets} from "./managed-secrets.js";
 
 export type AuthorityStateMode="single-writer-file"|"single-host-sqlite"|"sqlserver-candidate"|"cluster-ha";
 export type AuthorityClusterBackend="sqlserver-ha-v1";
@@ -43,7 +44,7 @@ export function authorityClusterBackendCapability(env:NodeJS.ProcessEnv=process.
   const backend=String(env.CIEAV_AUTHORITY_CLUSTER_BACKEND??"").trim();
   if(!backend)throw new Error("SQL Server authority mode requires CIEAV_AUTHORITY_CLUSTER_BACKEND");
   if(backend!=="sqlserver-ha-v1")throw new Error(`unsupported CIEAV_AUTHORITY_CLUSTER_BACKEND: ${backend}`);
-  const config=loadSqlServerAuthorityClusterConfig(env);
+  const config=loadSqlServerAuthorityClusterConfig(withManagedAuthoritySqlSecrets(env,false));
   return{backend,namespace:config.namespace,encryptedConnectionRequired:true,serializableTransactions:true,multiKeyAtomicCas:true,monotonicFencing:true,databaseClockLeases:true,idempotentCommitRecovery:true,coreTrustedStoresMigrated:true,trustedStoresMigrated:false,remainingAuthorityStoresLocal:true,externalFailoverQualified:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false};
 }
 
