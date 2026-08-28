@@ -1,3 +1,4 @@
+import "./authority-cluster-postgres.test.js";
 import {describe,expect,it} from "vitest";
 import {authorityClusterBackendCapability,authorityStateHealth,loadAuthorityStateDeployment} from "./authority-state-deployment.js";
 
