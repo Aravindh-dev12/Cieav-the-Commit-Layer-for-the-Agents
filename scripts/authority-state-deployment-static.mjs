@@ -2,12 +2,14 @@
 import fs from "node:fs";
 
 const checks=[
-  ["apps/api/src/authority-state-deployment.ts",["single-writer-file","single-host-sqlite","cluster-ha","CIEAV_AUTHORITY_REPLICAS","CIEAV_AUTHORITY_SHARED_HOST","CIEAV_AUTHORITY_CLUSTER_BACKEND","cluster-ha authority mode is not implemented","authority:false","mayMintExecutionAuthority:false"]],
+  ["apps/api/src/authority-state-deployment.ts",["single-writer-file","single-host-sqlite","cluster-ha","postgres-ha-v1","authorityClusterBackendCapability","CIEAV_AUTHORITY_REPLICAS","CIEAV_AUTHORITY_SHARED_HOST","CIEAV_AUTHORITY_CLUSTER_BACKEND","trusted stores are not yet migrated","external failover is not qualified","clusterHaQualified:false","authority:false","mayMintExecutionAuthority:false"]],
+  ["apps/api/src/authority-cluster-postgres.ts",["BEGIN ISOLATION LEVEL SERIALIZABLE","FOR UPDATE","clock_timestamp()","fenceToken","authority_cluster_writer_fenced","authority_cluster_revision_conflict","authority_cluster_transaction_idempotency_conflict","multiKeyAtomicCas:true","monotonicFencing:true","databaseClockLeases:true","idempotentCommitRecovery:true","sslmode=verify-full","clusterHaQualified:false","authority:false","mayMintExecutionAuthority:false","executionAuthorityIssued:false"]],
   ["apps/api/src/authority-process-lease.ts",["authority-writer.lock","fs.openSync(lockFile,\"wx\"","fs.fsyncSync","process.kill(pid,0)","refusing split-brain startup","authority:false","mayMintExecutionAuthority:false"]],
   ["apps/api/src/config.ts",["loadAuthorityStateDeployment","authorityState:AuthorityStateDeployment","acquireAuthorityProcessLease","authorityState.mode===\"single-writer-file\""]],
-  ["apps/api/src/authority-state-deployment.test.ts",["rejects multiple file-backed authority replicas","authorityStateHealth(d).clusterHaQualified).toBe(false)","refuses cluster-ha"]],
+  ["apps/api/src/authority-state-deployment.test.ts",["rejects multiple file-backed authority replicas","authorityStateHealth(d).clusterHaQualified).toBe(false)","recognizes postgres-ha-v1 backend primitives","still refuses cluster-ha startup"]],
+  ["apps/api/src/authority-cluster-postgres.test.ts",["monotonic fencing","atomically CAS-updates multiple trusted-state keys","committed transaction replay-safe","database-clock lease renewal","refuses to self-claim cluster HA qualification","sslmode=verify-full"]],
   ["apps/api/src/authority-process-lease.test.ts",["refuses a lock owned by a live same-host process","recovers a stale same-host lock","never steals a lock written by another host","fails closed on a corrupt lock file"]],
-  [".env.example",["CIEAV_AUTHORITY_STATE_MODE","CIEAV_AUTHORITY_REPLICAS","CIEAV_AUTHORITY_SHARED_HOST","CIEAV_AUTHORITY_CLUSTER_BACKEND"]]
+  [".env.example",["CIEAV_AUTHORITY_STATE_MODE","CIEAV_AUTHORITY_REPLICAS","CIEAV_AUTHORITY_SHARED_HOST","CIEAV_AUTHORITY_CLUSTER_BACKEND","CIEAV_AUTHORITY_POSTGRES_URL","CIEAV_AUTHORITY_CLUSTER_NAMESPACE","CIEAV_AUTHORITY_CLUSTER_LEASE_MS","CIEAV_AUTHORITY_CLUSTER_TX_RETRIES","CIEAV_AUTHORITY_POSTGRES_POOL_MAX"]]
 ];
 
 const missing=[];
@@ -24,4 +26,4 @@ if(missing.length){
   process.exit(1);
 }
 
-console.log("CIEAV authority state deployment static gate PASS - exclusive writer lease + stale-lock recovery + split-brain refusal + cluster-HA fail-closed + zero authority present");
+console.log("CIEAV authority state deployment static gate PASS - exclusive local writer lease + PostgreSQL SERIALIZABLE multi-key CAS + monotonic database fencing + idempotent commit recovery + cluster-HA runtime fail-closed + zero authority present");
