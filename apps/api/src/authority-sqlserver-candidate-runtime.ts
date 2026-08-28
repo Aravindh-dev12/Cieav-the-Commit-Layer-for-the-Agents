@@ -3,7 +3,8 @@ import type {CieavAgentKernelStore} from "./agent-kernel.js";
 import {createLiveSqlServerAuthorityStateBackendFromEnv,sqlServerLiveRuntimePosture} from "./authority-cluster-sqlserver-live.js";
 import type {CieavSqlServerAuthorityStateBackend} from "./authority-cluster-sqlserver.js";
 import {authorityStateHealth,loadAuthorityStateDeployment} from "./authority-state-deployment.js";
-import {CieavSqlServerTrustedStatePersistence,createSqlServerTrustedKernelCandidate} from "./authority-trusted-state-sqlserver.js";
+import {CieavSqlServerTrustedStatePersistence} from "./authority-trusted-state-sqlserver.js";
+import {createAtomicSqlServerTrustedKernelCandidate} from "./authority-trusted-state-sqlserver-candidate.js";
 
 const nodeIdPattern=/^[A-Za-z0-9._:-]{8,120}$/;
 const instanceIdPattern=/^[A-Za-z0-9._:-]{8,120}$/;
@@ -26,7 +27,7 @@ export async function createSqlServerAuthorityCandidateRuntime(input:{kernel:Cie
   const backend=await (input.backendFactory??createLiveSqlServerAuthorityStateBackendFromEnv)(env);
   const persistence=new CieavSqlServerTrustedStatePersistence(backend,ownerId);
   try{
-    const candidate=await createSqlServerTrustedKernelCandidate({kernel:input.kernel,persistence});
+    const candidate=await createAtomicSqlServerTrustedKernelCandidate({kernel:input.kernel,persistence});
     return{
       ...candidate,
       deployment,
@@ -39,6 +40,7 @@ export async function createSqlServerAuthorityCandidateRuntime(input:{kernel:Cie
         migration:candidate.migration.health(),
         processInstanceWriterIdentity:true,
         productionBootstrapPath:true,
+        startupTrustedStateAtomic:true,
         remainingAuthorityStoresLocal:true,
         multiReplicaAuthoritySafe:false,
         externalFailoverQualified:false,
