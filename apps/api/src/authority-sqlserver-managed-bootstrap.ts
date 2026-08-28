@@ -5,7 +5,8 @@ import {createSqlServerAuthorityCandidateRuntime} from "./authority-sqlserver-ca
 type ManagedCandidateRuntime={health:()=>unknown;persistence:{close:()=>Promise<void>}};
 type RuntimeFactory=(input:{kernel:CieavAgentKernelStore;env:NodeJS.ProcessEnv})=>Promise<ManagedCandidateRuntime>;
 type KernelApiLike={store:CieavAgentKernelStore};
-type OriginalRecover=(this:KernelApiLike)=>Promise<unknown>;
+type RecoveryResult=Awaited<ReturnType<CieavAgentKernelStore["recoverOnStartup"]>>;
+type OriginalRecover=(this:KernelApiLike)=>Promise<RecoveryResult>;
 const runtimeByKernel=new WeakMap<CieavAgentKernelStore,ManagedCandidateRuntime>();
 const INSTALL_MARKER=Symbol.for("cieav.sqlserver-candidate-managed-bootstrap.v1");
 const HEALTH_MARKER=Symbol.for("cieav.sqlserver-candidate-runtime-health.v1");
@@ -14,7 +15,7 @@ type GlobalWithMarkers=typeof globalThis&{[INSTALL_MARKER]?:boolean;[HEALTH_MARK
 
 export function managedSqlServerCandidateHealth(){const global=globalThis as GlobalWithMarkers;return global[HEALTH_MARKER]?.()??null}
 
-export async function recoverManagedSqlServerCandidate(api:KernelApiLike,originalRecover:OriginalRecover,runtimeFactory:RuntimeFactory=createSqlServerAuthorityCandidateRuntime,env:NodeJS.ProcessEnv=process.env){
+export async function recoverManagedSqlServerCandidate(api:KernelApiLike,originalRecover:OriginalRecover,runtimeFactory:RuntimeFactory=createSqlServerAuthorityCandidateRuntime,env:NodeJS.ProcessEnv=process.env):Promise<RecoveryResult>{
   if(env.CIEAV_AUTHORITY_STATE_MODE!=="sqlserver-candidate")return originalRecover.call(api);
   const existing=runtimeByKernel.get(api.store);
   if(existing)return api.store.recoverOnStartup();
