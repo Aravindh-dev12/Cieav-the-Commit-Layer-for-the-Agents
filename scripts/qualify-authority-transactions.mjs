@@ -42,6 +42,11 @@ const report={
   ticketIssueRecoveryTested:true,
   ticketConsumeRecoveryTested:true,
   credentialLeaseDoubleSpendRecoveryTested:true,
+  executionAttemptRecoveryTested:true,
+  unknownOutcomeQuarantineRecoveryTested:true,
+  semanticRetryBlockedOnUnknownTested:true,
+  kernelQuarantineReplayIdempotencyTested:true,
+  deadlockSafeStartupReplayTested:true,
   localFencingOnly:true,
   clusterHaQualified:false,
   authority:false,
@@ -63,6 +68,11 @@ fs.writeFileSync(path.join(DIR,"latest-authority-transaction-qualification.txt")
   `Ticket issue recovery tested: true\n`+
   `Ticket consume recovery tested: true\n`+
   `Credential lease double-spend recovery tested: true\n`+
+  `Execution-attempt recovery tested: true\n`+
+  `UNKNOWN quarantine recovery tested: true\n`+
+  `Semantic retry blocked on UNKNOWN tested: true\n`+
+  `Kernel quarantine replay idempotency tested: true\n`+
+  `Deadlock-safe startup replay tested: true\n`+
   `Local fencing only: true\n`+
   `Cluster HA qualified: false\n`+
   `Authority: false\n`+
