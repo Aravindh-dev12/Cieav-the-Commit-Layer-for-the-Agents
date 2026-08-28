@@ -1,5 +1,6 @@
 import {readFile} from "node:fs/promises";
 import {createRequire} from "node:module";
+import path from "node:path";
 import {
   CieavSqlServerAuthorityStateBackend,
   SqlServerAuthorityClusterDatabase,
@@ -17,28 +18,34 @@ export function sqlServerLivePoolConfig(config:SqlServerAuthorityClusterConfig){
     database:config.database,
     user:config.user,
     password:config.password,
-    options:{
-      encrypt:true,
-      trustServerCertificate:false,
-      enableArithAbort:true,
-      multiSubnetFailover:true,
-      appName:"CIEAV Authority State"
-    },
+    options:{encrypt:true,trustServerCertificate:false,enableArithAbort:true,multiSubnetFailover:true,appName:"CIEAV Authority State"},
     pool:{max:config.poolMax,min:0,idleTimeoutMillis:30_000},
     connectionTimeout:5_000,
     requestTimeout:10_000
   };
 }
 
+async function locateMssqlPackage(entryPath:string){
+  let current=path.dirname(entryPath);
+  for(let depth=0;depth<8;depth++){
+    const candidate=path.join(current,"package.json");
+    try{
+      const parsed=JSON.parse(await readFile(candidate,"utf8")) as {name?:unknown;version?:unknown};
+      if(parsed?.name==="mssql")return{packagePath:candidate,version:String(parsed.version??"")};
+    }catch(error){const code=typeof error==="object"&&error!==null?String((error as {code?:unknown}).code??""):"";if(code!=="ENOENT"&&!(error instanceof SyntaxError))throw error}
+    const parent=path.dirname(current);if(parent===current)break;current=parent;
+  }
+  throw new Error("CIEAV could not locate mssql package metadata from its resolved entry point");
+}
+
 export async function assertQualifiedMssqlRuntime(resolvePath?:(specifier:string)=>string){
   const resolve=resolvePath??createRequire(import.meta.url).resolve;
-  let packagePath:string;
-  try{packagePath=resolve("mssql/package.json")}catch(error){throw new Error(`CIEAV sqlserver-candidate requires mssql@${QUALIFIED_MSSQL_RUNTIME_VERSION}: ${error instanceof Error?error.message:String(error)}`)}
-  let parsed:unknown;
-  try{parsed=JSON.parse(await readFile(packagePath,"utf8"))}catch(error){throw new Error(`CIEAV could not read the installed mssql package metadata: ${error instanceof Error?error.message:String(error)}`)}
-  const version=typeof parsed==="object"&&parsed!==null?String((parsed as {version?:unknown}).version??""):"";
-  if(version!==QUALIFIED_MSSQL_RUNTIME_VERSION)throw new Error(`CIEAV sqlserver-candidate requires exactly mssql@${QUALIFIED_MSSQL_RUNTIME_VERSION}; found ${version||"unknown"}`);
-  return{packagePath,version};
+  let entryPath:string;
+  try{entryPath=resolve("mssql")}catch(error){throw new Error(`CIEAV sqlserver-candidate requires mssql@${QUALIFIED_MSSQL_RUNTIME_VERSION}: ${error instanceof Error?error.message:String(error)}`)}
+  let metadata:{packagePath:string;version:string};
+  try{metadata=await locateMssqlPackage(entryPath)}catch(error){throw new Error(`CIEAV could not verify the installed mssql runtime: ${error instanceof Error?error.message:String(error)}`)}
+  if(metadata.version!==QUALIFIED_MSSQL_RUNTIME_VERSION)throw new Error(`CIEAV sqlserver-candidate requires exactly mssql@${QUALIFIED_MSSQL_RUNTIME_VERSION}; found ${metadata.version||"unknown"}`);
+  return{entryPath,...metadata};
 }
 
 export async function loadQualifiedMssqlDriver(resolvePath?:(specifier:string)=>string){
