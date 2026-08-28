@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import {chmod,mkdir,open,readFile,rename,writeFile} from "node:fs/promises";
 import path from "node:path";
 
-export type AuthorityTransactionKind="ISSUE_TICKET"|"CONSUME_TICKET";
+export type AuthorityTransactionKind="ISSUE_TICKET"|"CONSUME_TICKET"|"RECORD_EXECUTION_ATTEMPT";
 export type AuthorityTransactionStage="PREPARED"|"APPLIED"|"COMMITTED";
 
 export type AuthorityTransactionEntry<T=unknown>={
