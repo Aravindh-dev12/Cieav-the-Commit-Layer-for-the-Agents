@@ -5,6 +5,7 @@ const checks=[
   ["apps/api/src/authority-transaction-journal.ts",[
     "CIEAV_AUTHORITY_TRANSACTION_V1",
     "PREPARED","APPLIED","COMMITTED",
+    "RECORD_EXECUTION_ATTEMPT",
     "fenceToken",
     "previousHash",
     "entryHash",
@@ -22,14 +23,24 @@ const checks=[
     "recoverPendingAuthorityTransactions",
     "ISSUE_TICKET",
     "CONSUME_TICKET",
+    "RECORD_EXECUTION_ATTEMPT",
     "ensureAlgebraAtLeast",
     "applyIssueTicketTransaction",
     "applyConsumeTicketTransaction",
+    "applyExecutionAttemptTransaction",
+    "committedExecutionAttemptResult",
+    "semantic_effect_quarantine_binding_conflict",
+    "authority_transaction_execution_audit_conflict",
     "credential_lease_counter_conflict",
     "authorityTransactionHealth"
   ]],
   ["apps/api/src/agent-kernel.ts",[
-    "await this.executionFabric.recoverAuthorityTransactionsOnStartup();await this.executionFabric.consequenceAlgebra.recoverOnStartup()"
+    "startupRecovery",
+    "recoverStartupInternal",
+    "await this.executionFabric.recoverAuthorityTransactionsOnStartup();",
+    "await this.executionFabric.consequenceAlgebra.recoverOnStartup();",
+    "agent_task_quarantine_id_conflict",
+    "agent_task_quarantine_binding_missing"
   ]],
   ["apps/api/src/authority-transaction-journal.test.ts",[
     "monotonic fencing",
@@ -39,6 +50,9 @@ const checks=[
   ["apps/api/src/authority-transaction-recovery.test.ts",[
     "recovers a prepared ticket issue exactly once after reopen",
     "recovers a prepared ticket consumption without double-spending the lease",
+    "records UNKNOWN execution once and blocks semantic retry",
+    "recovers a partially applied UNKNOWN execution with the same quarantine id",
+    "semantic_effect_quarantined",
     "clusterHaQualified:false",
     "pending:0"
   ]]
@@ -55,4 +69,4 @@ if(failures.length){
   for(const failure of failures)console.error(` - ${failure}`);
   process.exit(1);
 }
-console.log("CIEAV authority transaction static gate PASS - authenticated durable journal + monotonic local fencing + crash recovery + idempotent ticket/lease transitions + startup replay ordering + zero authority present");
+console.log("CIEAV authority transaction static gate PASS - authenticated durable journal + monotonic local fencing + crash recovery + idempotent ticket/lease/execution transitions + UNKNOWN quarantine convergence + deadlock-safe startup replay + zero authority present");
