@@ -45,7 +45,7 @@ async function setup(){
   return{dir,kernel,fabric,taskId,proposal,realityCommit,lease};
 }
 
-function buildTicket(x:Awaited<ReturnType<typeof setup>>,record:NonNullable<Awaited<ReturnType<typeof x.fabric.getProposalRecord>>>){
+function buildTicket(x:Awaited<ReturnType<typeof setup>>,record:{decision:unknown}){
   const now=Date.now();
   return {id:crypto.randomUUID(),version:1 as const,proposalId:x.proposal.id,intentId,taskId:x.taskId,toolId:x.proposal.toolId,authorizationDigest:digest(record.decision),realityBoundCommitId:x.realityCommit.id,credentialLeaseId:x.lease.id,routeDigest:digest({toolId:x.proposal.toolId,protocol:x.proposal.protocol,operation:x.proposal.operation,target:x.proposal.target??null,normalizedArgumentsDigest:x.proposal.normalizedArgumentsDigest}),issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+30_000).toISOString(),status:"ISSUED" as const};
 }
