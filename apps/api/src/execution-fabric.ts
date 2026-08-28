@@ -34,6 +34,8 @@ type Payload={version:1;attestations:AgentIdentityAttestation[];tools:FederatedT
 type Envelope={payload:Payload;mac:string};
 type IssueTicketTransaction={ticket:ExecutionTicket;proposalId:string;scopeDeviceId:string;intentId:string;taskId:string};
 type ConsumeTicketTransaction={ticketId:string;consumed:ExecutionTicket;proposalId:string;leaseId:string;leaseUsedBefore:number;argumentsDigest:string;scopeDeviceId:string;intentId:string;taskId:string};
+type ExecutionAttemptTransport="ACCEPTED"|"REJECTED"|"UNKNOWN";
+type ExecutionAttemptTransaction={ticketId:string;proposalId:string;scopeDeviceId:string;intentId:string;taskId:string;transport:ExecutionAttemptTransport;summary:string;detailsDigest:string;effectKey:string};
 const empty=():Payload=>({version:1,attestations:[],tools:[],leases:[],graphs:[],proposals:[],tickets:[],audit:[]});
 async function durableReplace(file:string,contents:string){const dir=path.dirname(file),tmp=`${file}.${process.pid}.${crypto.randomUUID()}.tmp`;await writeFile(tmp,contents,{encoding:"utf8",mode:0o600,flag:"wx"});const fh=await open(tmp,"r+");try{await fh.sync()}finally{await fh.close()}await rename(tmp,file);try{await chmod(file,0o600)}catch{}if(process.platform!=="win32")try{const dh=await open(dir,"r");try{await dh.sync()}finally{await dh.close()}}catch{}}
 
@@ -105,6 +107,49 @@ export class CieavExecutionFabricStore{
     return consumed;
   }
 
+  private executionOutcome(transport:ExecutionAttemptTransport):ExecutionAuditEvent["outcome"]{return transport==="ACCEPTED"?"PASS":transport==="UNKNOWN"?"UNKNOWN":"ERROR"}
+
+  private async committedExecutionAttemptResult(tx:AuthorityTransactionEntry<ExecutionAttemptTransaction>){
+    const data=tx.payload,outcome=this.executionOutcome(data.transport),audit=this.payload.audit.find(x=>x.ticketId===data.ticketId&&x.phase==="EXECUTE");
+    if(!audit||audit.outcome!==outcome||audit.summary!==data.summary||audit.detailsDigest!==data.detailsDigest)throw new Error("authority_transaction_execution_audit_conflict");
+    if(data.transport!=="UNKNOWN")return{audit};
+    const quarantines=await this.kernel.intentReality.listQuarantines(),quarantine=quarantines.find(q=>q.effectKey===data.effectKey&&q.status==="OPEN");
+    if(!quarantine||quarantine.taskId!==data.taskId||quarantine.intentId!==data.intentId||quarantine.reason!=="UNKNOWN_OUTCOME")throw new Error("semantic_effect_quarantine_binding_conflict");
+    return{audit,quarantine};
+  }
+
+  private async applyExecutionAttemptTransaction(tx:AuthorityTransactionEntry<ExecutionAttemptTransaction>){
+    if(tx.stage==="COMMITTED")return this.committedExecutionAttemptResult(tx);
+    const data=tx.payload,ticket=this.payload.tickets.find(x=>x.id===data.ticketId),record=this.payload.proposals.find(x=>x.proposal.id===data.proposalId);
+    if(!ticket||ticket.status!=="CONSUMED"||ticket.proposalId!==data.proposalId)throw new Error("authority_transaction_execution_ticket_conflict");
+    if(!record||record.proposal.taskId!==data.taskId||record.proposal.intentId!==data.intentId||record.proposal.scopeDeviceId!==data.scopeDeviceId)throw new Error("authority_transaction_execution_proposal_conflict");
+    const expectedEffectKey=semanticEffectKey(record.proposal.intentId,record.proposal.semanticEffect);
+    if(expectedEffectKey!==data.effectKey)throw new Error("authority_transaction_execution_effect_conflict");
+    let quarantine;
+    const node=await this.consequenceAlgebra.getNode(data.proposalId);
+    if(!node)throw new Error(`authority_transaction_consequence_missing:${data.proposalId}`);
+    if(data.transport==="UNKNOWN"){
+      quarantine=await this.kernel.intentReality.quarantineUnknown(data.effectKey,data.taskId,data.intentId,"UNKNOWN_OUTCOME");
+      if(quarantine.effectKey!==data.effectKey||quarantine.taskId!==data.taskId||quarantine.intentId!==data.intentId||quarantine.reason!=="UNKNOWN_OUTCOME"||quarantine.status!=="OPEN")throw new Error("semantic_effect_quarantine_binding_conflict");
+      await this.kernel.quarantineEffectTrusted(data.taskId,quarantine.id);
+      if(node.state!=="QUARANTINED"){
+        if(!["DISPATCHED","OBSERVING"].includes(node.state))throw new Error(`authority_transaction_invalid_unknown_algebra_state:${node.state}`);
+        await this.consequenceAlgebra.mark(data.proposalId,"QUARANTINED");
+      }
+    }else if(node.state!=="OBSERVING"){
+      if(node.state!=="DISPATCHED")throw new Error(`authority_transaction_invalid_execution_algebra_state:${node.state}`);
+      await this.consequenceAlgebra.mark(data.proposalId,"OBSERVING");
+    }
+    const outcome=this.executionOutcome(data.transport),existing=this.payload.audit.find(x=>x.ticketId===data.ticketId&&x.phase==="EXECUTE");
+    if(existing){if(existing.outcome!==outcome||existing.summary!==data.summary||existing.detailsDigest!==data.detailsDigest)throw new Error("authority_transaction_execution_audit_conflict")}
+    else this.appendAudit({scopeDeviceId:data.scopeDeviceId,intentId:data.intentId,taskId:data.taskId,proposalId:data.proposalId,ticketId:data.ticketId,phase:"EXECUTE",outcome,summary:data.summary,detailsDigest:data.detailsDigest});
+    await this.persist();
+    if(tx.stage==="PREPARED")tx=await this.authorityTransactions.advance(tx.id,"APPLIED") as AuthorityTransactionEntry<ExecutionAttemptTransaction>;
+    if(tx.stage!=="COMMITTED")await this.authorityTransactions.advance(tx.id,"COMMITTED");
+    const audit=this.payload.audit.find(x=>x.ticketId===data.ticketId&&x.phase==="EXECUTE")!;
+    return{audit,...(quarantine?{quarantine}:{})};
+  }
+
   private async recoverPendingAuthorityTransactions(){
     if(this.recovering)return;
     this.recovering=true;
@@ -113,6 +158,7 @@ export class CieavExecutionFabricStore{
       for(const raw of pending){
         if(raw.kind==="ISSUE_TICKET")await this.applyIssueTicketTransaction(raw as AuthorityTransactionEntry<IssueTicketTransaction>);
         else if(raw.kind==="CONSUME_TICKET")await this.applyConsumeTicketTransaction(raw as AuthorityTransactionEntry<ConsumeTicketTransaction>);
+        else if(raw.kind==="RECORD_EXECUTION_ATTEMPT")await this.applyExecutionAttemptTransaction(raw as AuthorityTransactionEntry<ExecutionAttemptTransaction>);
         else throw new Error(`unsupported authority transaction kind:${raw.kind}`);
       }
     }finally{this.recovering=false}
@@ -139,7 +185,7 @@ export class CieavExecutionFabricStore{
   inspectTicket(id:string){return this.enqueue(async()=>{await this.load();const ticket=this.payload.tickets.find(x=>x.id===id);if(!ticket)throw new Error("execution_ticket_not_found");if(ticket.status!=="ISSUED"||Date.parse(ticket.expiresAt)<=Date.now())throw new Error("execution_ticket_not_issuable");const record=this.payload.proposals.find(x=>x.proposal.id===ticket.proposalId);if(!record)throw new Error("execution_proposal_not_found");const tool=this.activeTool(record.proposal.toolId);if(!tool)throw new Error("registered_tool_not_active");this.assertContinuingContract(tool,record.proposal);return{ticket,proposal:record.proposal,tool}})}
   verifyConsumedDispatch(id:string,binding:{protocol:string;operation:string;target:string|null;normalizedArgumentsDigest:string;downstreamRef:string}){return this.enqueue(async()=>{await this.load();const ticket=this.payload.tickets.find(x=>x.id===id);if(!ticket)throw new Error("execution_ticket_not_found");if(ticket.status!=="CONSUMED"||!ticket.consumedAt)throw new Error("consumed_execution_ticket_required");if(Date.parse(ticket.expiresAt)<=Date.now())throw new Error("execution_ticket_expired");const record=this.payload.proposals.find(x=>x.proposal.id===ticket.proposalId);if(!record)throw new Error("execution_proposal_not_found");const proposal=record.proposal;if(record.decision.decision!=="ALLOW"||digest(record.decision)!==ticket.authorizationDigest)throw new Error("execution_authorization_binding_invalid");if(proposal.id!==ticket.proposalId||proposal.intentId!==ticket.intentId||proposal.taskId!==ticket.taskId||proposal.toolId!==ticket.toolId||proposal.credentialLeaseId!==ticket.credentialLeaseId)throw new Error("execution_ticket_proposal_binding_invalid");if(binding.protocol!==proposal.protocol||binding.operation!==proposal.operation||(binding.target??null)!==(proposal.target??null)||binding.normalizedArgumentsDigest!==proposal.normalizedArgumentsDigest)throw new Error("execution_dispatch_proposal_binding_invalid");const tool=this.activeTool(proposal.toolId);if(!tool||tool.protocol!==proposal.protocol||tool.operation!==proposal.operation||tool.downstreamRef!==binding.downstreamRef)throw new Error("registered_tool_dispatch_binding_invalid");if(tool.executionMode==="CONTINUING")throw new Error("continuing_dispatch_not_supported_by_oneshot_verifier");const expectedRoute=digest({toolId:proposal.toolId,protocol:proposal.protocol,operation:proposal.operation,target:proposal.target??null,normalizedArgumentsDigest:proposal.normalizedArgumentsDigest});if(expectedRoute!==ticket.routeDigest)throw new Error("execution_route_binding_invalid");const routeEvents=this.payload.audit.filter(x=>x.ticketId===ticket.id&&x.phase==="ROUTE"&&x.outcome==="PASS");if(routeEvents.length!==1)throw new Error("execution_route_audit_required");if(this.payload.audit.some(x=>x.ticketId===ticket.id&&x.phase==="EXECUTE"))throw new Error("execution_attempt_already_recorded");return{ticket,proposal,tool,authorizationDigest:ticket.authorizationDigest,routeDigest:ticket.routeDigest,verifiedAt:new Date().toISOString(),authority:false as const,executionAuthorityIssued:false as const}})}
   consumeTicket(id:string,normalizedArguments:unknown){return this.enqueue(async()=>{await this.load();const i=this.payload.tickets.findIndex(x=>x.id===id);if(i<0)throw new Error("execution_ticket_not_found");const ticket=this.payload.tickets[i]!;if(ticket.status!=="ISSUED")throw new Error("execution_ticket_not_issuable");if(Date.parse(ticket.expiresAt)<=Date.now()){this.payload.tickets[i]=ExecutionTicketSchema.parse({...ticket,status:"EXPIRED"});await this.persist();throw new Error("execution_ticket_expired")}const record=this.payload.proposals.find(x=>x.proposal.id===ticket.proposalId);if(!record)throw new Error("execution_proposal_not_found");await this.consequenceAlgebra.ensureAdmitted(record.proposal.id);await this.consequenceAlgebra.assertProofPlanValid(record.proposal.id);await this.consequenceAlgebra.assertFencesSatisfied(record.proposal.id);if(digest(normalizedArguments)!==record.proposal.normalizedArgumentsDigest)throw new Error("execution_arguments_changed_after_authorization");const task=await this.kernel.get(record.proposal.taskId);if(!task||!task.realityCommitConsumedAt||task.effectQuarantined)throw new Error("execution_task_no_longer_routable");if(!this.activeAttestation(record.proposal.identityAttestationId,record.proposal.subjectId))throw new Error("verified_agent_attestation_required");const tool=this.activeTool(record.proposal.toolId);if(!tool||tool.protocol!==record.proposal.protocol||tool.operation!==record.proposal.operation)throw new Error("registered_tool_not_active");this.assertContinuingContract(tool,record.proposal);const leaseIndex=this.payload.leases.findIndex(x=>x.id===ticket.credentialLeaseId),lease=leaseIndex>=0?this.activeLease(ticket.credentialLeaseId):null;if(!lease||lease.sessionId!==task.sessionId)throw new Error("credential_lease_not_active");const consumed=ExecutionTicketSchema.parse({...ticket,status:"CONSUMED",consumedAt:new Date().toISOString()}),tx=await this.authorityTransactions.begin("CONSUME_TICKET",`consume:${ticket.id}`,{ticketId:ticket.id,consumed,proposalId:record.proposal.id,leaseId:lease.id,leaseUsedBefore:lease.used,argumentsDigest:record.proposal.normalizedArgumentsDigest,scopeDeviceId:record.proposal.scopeDeviceId,intentId:record.proposal.intentId,taskId:record.proposal.taskId} satisfies ConsumeTicketTransaction);await this.applyConsumeTicketTransaction(tx);return{ticket:consumed,proposal:record.proposal,tool,normalizedArguments}})}
-  recordExecutionAttempt(ticketId:string,transport:"ACCEPTED"|"REJECTED"|"UNKNOWN",summary:string,details:unknown){return this.enqueue(async()=>{await this.load();const ticket=this.payload.tickets.find(x=>x.id===ticketId);if(!ticket||ticket.status!=="CONSUMED")throw new Error("consumed_execution_ticket_required");const record=this.payload.proposals.find(x=>x.proposal.id===ticket.proposalId);if(!record)throw new Error("execution_proposal_not_found");let quarantine;if(transport==="UNKNOWN"){const effectKey=semanticEffectKey(record.proposal.intentId,record.proposal.semanticEffect);quarantine=await this.kernel.intentReality.quarantineUnknown(effectKey,record.proposal.taskId,record.proposal.intentId);await this.kernel.quarantineEffectTrusted(record.proposal.taskId,quarantine.id)}if(transport==="UNKNOWN")await this.consequenceAlgebra.mark(record.proposal.id,"QUARANTINED");else await this.consequenceAlgebra.mark(record.proposal.id,"OBSERVING");const audit=this.appendAudit({scopeDeviceId:record.proposal.scopeDeviceId,intentId:record.proposal.intentId,taskId:record.proposal.taskId,proposalId:record.proposal.id,ticketId,phase:"EXECUTE",outcome:transport==="ACCEPTED"?"PASS":transport==="UNKNOWN"?"UNKNOWN":"ERROR",summary:summary.slice(0,1200),detailsDigest:digest(details)});await this.persist();return{audit,...(quarantine?{quarantine}:{})}})}
+  recordExecutionAttempt(ticketId:string,transport:ExecutionAttemptTransport,summary:string,details:unknown){return this.enqueue(async()=>{await this.load();const ticket=this.payload.tickets.find(x=>x.id===ticketId);if(!ticket||ticket.status!=="CONSUMED")throw new Error("consumed_execution_ticket_required");const record=this.payload.proposals.find(x=>x.proposal.id===ticket.proposalId);if(!record)throw new Error("execution_proposal_not_found");const effectKey=semanticEffectKey(record.proposal.intentId,record.proposal.semanticEffect),txData:ExecutionAttemptTransaction={ticketId,proposalId:record.proposal.id,scopeDeviceId:record.proposal.scopeDeviceId,intentId:record.proposal.intentId,taskId:record.proposal.taskId,transport,summary:summary.slice(0,1200),detailsDigest:digest(details),effectKey},tx=await this.authorityTransactions.begin("RECORD_EXECUTION_ATTEMPT",`execute:${ticketId}`,txData);return this.applyExecutionAttemptTransaction(tx)})}
   listTickets(){return this.enqueue(async()=>{await this.load();return this.payload.tickets.slice().reverse()})}
   listAudit(){return this.enqueue(async()=>{await this.load();return this.payload.audit.slice().reverse()})}
   async close(){await this.chain;await this.authorityTransactions.close();await this.consequenceAlgebra.close()}
