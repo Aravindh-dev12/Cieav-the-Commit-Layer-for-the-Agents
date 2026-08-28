@@ -1,0 +1,69 @@
+name: Authority Transaction Qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - tmp-consequence-algebra-build
+    paths:
+      - "apps/api/src/authority-transaction-journal.ts"
+      - "apps/api/src/authority-transaction-journal.test.ts"
+      - "apps/api/src/authority-transaction-recovery.test.ts"
+      - "apps/api/src/execution-fabric.ts"
+      - "apps/api/src/execution-fabric.test.ts"
+      - "scripts/authority-transaction-static.mjs"
+      - "scripts/qualify-authority-transactions.mjs"
+      - "package.json"
+      - ".github/workflows/authority-transaction-qualification.yml"
+  pull_request:
+    paths:
+      - "apps/api/src/authority-transaction-journal.ts"
+      - "apps/api/src/authority-transaction-journal.test.ts"
+      - "apps/api/src/authority-transaction-recovery.test.ts"
+      - "apps/api/src/execution-fabric.ts"
+      - "apps/api/src/execution-fabric.test.ts"
+      - "scripts/authority-transaction-static.mjs"
+      - "scripts/qualify-authority-transactions.mjs"
+      - "package.json"
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    name: ${{ matrix.os }} authority transaction recovery
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run release:qualify:authority-transactions
+      - name: Verify qualification receipt
+        shell: pwsh
+        run: |
+          $receipt = Get-Content release/reports/latest-authority-transaction-qualification.json -Raw | ConvertFrom-Json
+          $head = git rev-parse HEAD
+          if ($receipt.verdict -ne 'PASS') { throw "qualification verdict is not PASS" }
+          if ($receipt.commit -ne $head) { throw "receipt commit does not match exact HEAD" }
+          if ($receipt.crashRecoveryTested -ne $true) { throw "crash recovery was not tested" }
+          if ($receipt.credentialLeaseDoubleSpendRecoveryTested -ne $true) { throw "credential lease double-spend recovery was not tested" }
+          if ($receipt.localFencingOnly -ne $true) { throw "local fencing scope is not explicit" }
+          if ($receipt.clusterHaQualified -ne $false) { throw "cluster HA must remain unqualified" }
+          if ($receipt.authority -ne $false -or $receipt.mayMintExecutionAuthority -ne $false -or $receipt.executionAuthorityIssued -ne $false) { throw "zero-authority invariant violated" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: authority-transaction-qualification-${{ matrix.os }}
+          path: |
+            release/reports/latest-authority-transaction-qualification.json
+            release/reports/latest-authority-transaction-qualification.txt
+          if-no-files-found: error
