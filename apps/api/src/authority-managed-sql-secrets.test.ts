@@ -1,0 +1,11 @@
+import {beforeEach,describe,expect,it,vi} from "vitest";
+
+const base=()=>({jwtSecret:"j".repeat(64),receiptSigningSecret:"r".repeat(64),gatewayToken:"g".repeat(64),semanticRouterToken:"s".repeat(64)});
+async function fresh(){vi.resetModules();return import("./managed-secrets.js")}
+
+describe("CIEAV managed SQL authority credentials",()=>{
+  beforeEach(()=>vi.resetModules());
+  it("keeps SQL credentials out of the core managed-secret consumer",async()=>{const secrets=await fresh();secrets.installManagedSecrets({...base(),authoritySqlUser:"cieav_runtime",authoritySqlPassword:"p".repeat(32)});expect(secrets.consumeManagedSecrets()).toEqual(base());expect(secrets.peekManagedAuthoritySqlSecrets()).toEqual({user:"cieav_runtime",password:"p".repeat(32)})});
+  it("projects SQL credentials into an ephemeral env clone and consumes them once without mutating the source env",async()=>{const secrets=await fresh();secrets.installManagedSecrets({...base(),authoritySqlUser:"cieav_runtime",authoritySqlPassword:"p".repeat(32)});secrets.consumeManagedSecrets();const source:NodeJS.ProcessEnv={CIEAV_AUTHORITY_SQL_SERVER:"listener.internal"},peeked=secrets.withManagedAuthoritySqlSecrets(source,false);expect(peeked).not.toBe(source);expect(peeked).toMatchObject({CIEAV_AUTHORITY_SQL_SERVER:"listener.internal",CIEAV_AUTHORITY_SQL_USER:"cieav_runtime",CIEAV_AUTHORITY_SQL_PASSWORD:"p".repeat(32)});expect(source.CIEAV_AUTHORITY_SQL_USER).toBeUndefined();const consumed=secrets.withManagedAuthoritySqlSecrets(source,true);expect(consumed.CIEAV_AUTHORITY_SQL_USER).toBe("cieav_runtime");expect(secrets.peekManagedAuthoritySqlSecrets()).toBeUndefined();expect(secrets.withManagedAuthoritySqlSecrets(source,false)).toBe(source)});
+  it("fails closed instead of choosing between duplicate env and private-pipe SQL credentials",async()=>{const secrets=await fresh();secrets.installManagedSecrets({...base(),authoritySqlUser:"cieav_runtime",authoritySqlPassword:"p".repeat(32)});secrets.consumeManagedSecrets();expect(()=>secrets.withManagedAuthoritySqlSecrets({CIEAV_AUTHORITY_SQL_USER:"duplicate"},false)).toThrow(/must not be duplicated in process environment/i);expect(()=>secrets.withManagedAuthoritySqlSecrets({CIEAV_AUTHORITY_SQL_PASSWORD:"duplicate-password"},false)).toThrow(/must not be duplicated in process environment/i)});
+});

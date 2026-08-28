@@ -1,0 +1,92 @@
+name: authority-state-qualification
+
+on:
+  push:
+    branches:
+      - tmp-consequence-algebra-build
+    paths:
+      - 'apps/api/src/authority-state-deployment.ts'
+      - 'apps/api/src/authority-process-lease.ts'
+      - 'apps/api/src/authority-state-deployment.test.ts'
+      - 'apps/api/src/authority-process-lease.test.ts'
+      - 'apps/api/src/config.ts'
+      - 'scripts/authority-state-deployment-static.mjs'
+      - 'scripts/qualify-authority-state.mjs'
+      - 'package.json'
+      - '.github/workflows/authority-state-qualification.yml'
+  pull_request:
+    paths:
+      - 'apps/api/src/authority-state-deployment.ts'
+      - 'apps/api/src/authority-process-lease.ts'
+      - 'apps/api/src/authority-state-deployment.test.ts'
+      - 'apps/api/src/authority-process-lease.test.ts'
+      - 'apps/api/src/config.ts'
+      - 'scripts/authority-state-deployment-static.mjs'
+      - 'scripts/qualify-authority-state.mjs'
+      - 'package.json'
+      - '.github/workflows/authority-state-qualification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    name: authority-state-${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+          - name: windows
+            os: windows-latest
+          - name: macos
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Qualify authority state
+        run: npm run release:qualify:authority-state
+
+      - name: Verify exact-head zero-authority receipt
+        shell: node {0}
+        run: |
+          const fs=require('node:fs');
+          const cp=require('node:child_process');
+          const p='release/reports/latest-authority-state-qualification.json';
+          const r=JSON.parse(fs.readFileSync(p,'utf8'));
+          const head=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+          if(r.verdict!=='PASS') throw new Error('authority-state qualification is not PASS');
+          if(r.commit!==head) throw new Error(`receipt commit ${r.commit} != HEAD ${head}`);
+          if(r.platform!==process.platform) throw new Error('receipt platform mismatch');
+          if(r.singleWriterLeaseTested!==true) throw new Error('single-writer lease was not tested');
+          if(r.clusterHaQualified!==false) throw new Error('cluster HA must not be claimed by the file backend');
+          if(r.authority!==false||r.mayMintExecutionAuthority!==false||r.executionAuthorityIssued!==false) throw new Error('zero-authority qualification invariant failed');
+          console.log(`Authority state qualified ${process.platform}/${process.arch} at ${head}`);
+
+      - name: Upload authority-state evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authority-state-${{ matrix.name }}-${{ github.sha }}
+          path: |
+            release/reports/latest-authority-state-qualification.json
+            release/reports/latest-authority-state-qualification.txt
+          if-no-files-found: error
+          retention-days: 30
