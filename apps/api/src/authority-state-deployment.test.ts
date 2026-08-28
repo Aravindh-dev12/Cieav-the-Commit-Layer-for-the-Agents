@@ -1,7 +1,8 @@
 import {describe,expect,it} from "vitest";
-import {authorityStateHealth,loadAuthorityStateDeployment} from "./authority-state-deployment.js";
+import {authorityClusterBackendCapability,authorityStateHealth,loadAuthorityStateDeployment} from "./authority-state-deployment.js";
 
 const base=():NodeJS.ProcessEnv=>({CIEAV_CONSEQUENCE_ALGEBRA_STORE:"file",CIEAV_AUTHORITY_REPLICAS:"1"});
+const cluster=():NodeJS.ProcessEnv=>({...base(),CIEAV_AUTHORITY_STATE_MODE:"cluster-ha",CIEAV_AUTHORITY_REPLICAS:"3",CIEAV_AUTHORITY_CLUSTER_BACKEND:"postgres-ha-v1",CIEAV_AUTHORITY_POSTGRES_URL:"postgresql://cieav:secret@db.internal:5432/cieav?sslmode=verify-full",CIEAV_AUTHORITY_CLUSTER_NAMESPACE:"production-us-east-1"});
 
 describe("CIEAV authority state deployment",()=>{
   it("defaults to a truthful single-writer file topology",()=>{const d=loadAuthorityStateDeployment(base());expect(d).toMatchObject({mode:"single-writer-file",replicas:1,consequenceAlgebraStore:"file",safeForRequestedTopology:true,authority:false,mayMintExecutionAuthority:false});expect(authorityStateHealth(d).clusterHaQualified).toBe(false)});
@@ -11,6 +12,9 @@ describe("CIEAV authority state deployment",()=>{
   it("rejects multiple sqlite replicas without a shared-host qualification claim",()=>{expect(()=>loadAuthorityStateDeployment({...base(),CIEAV_CONSEQUENCE_ALGEBRA_STORE:"sqlite",CIEAV_AUTHORITY_STATE_MODE:"single-host-sqlite",CIEAV_AUTHORITY_REPLICAS:"2"})).toThrow(/qualified shared-host/)});
   it("still refuses shared-host sqlite until its trusted-state backend exists",()=>{expect(()=>loadAuthorityStateDeployment({...base(),CIEAV_CONSEQUENCE_ALGEBRA_STORE:"sqlite",CIEAV_AUTHORITY_STATE_MODE:"single-host-sqlite",CIEAV_AUTHORITY_REPLICAS:"2",CIEAV_AUTHORITY_SHARED_HOST:"1"})).toThrow(/reserved but not implemented.*refusing unsafe startup/i)});
   it("also refuses single-replica sqlite until the backend exists",()=>{expect(()=>loadAuthorityStateDeployment({...base(),CIEAV_CONSEQUENCE_ALGEBRA_STORE:"sqlite",CIEAV_AUTHORITY_STATE_MODE:"single-host-sqlite",CIEAV_AUTHORITY_REPLICAS:"1"})).toThrow(/reserved but not implemented/i)});
-  it("refuses cluster-ha even when a backend name is supplied until a replicated backend exists",()=>{expect(()=>loadAuthorityStateDeployment({...base(),CIEAV_AUTHORITY_STATE_MODE:"cluster-ha",CIEAV_AUTHORITY_REPLICAS:"3",CIEAV_AUTHORITY_CLUSTER_BACKEND:"future-replicated-store"})).toThrow(/not implemented.*refusing unsafe startup/i)});
+  it("rejects unknown cluster backend names",()=>{expect(()=>loadAuthorityStateDeployment({...base(),CIEAV_AUTHORITY_STATE_MODE:"cluster-ha",CIEAV_AUTHORITY_REPLICAS:"3",CIEAV_AUTHORITY_CLUSTER_BACKEND:"future-replicated-store"})).toThrow(/unsupported CIEAV_AUTHORITY_CLUSTER_BACKEND/)});
+  it("requires at least three authority replicas for cluster-ha",()=>{expect(()=>loadAuthorityStateDeployment({...cluster(),CIEAV_AUTHORITY_REPLICAS:"2"})).toThrow(/at least 3 replicas/)});
   it("requires a named backend for any cluster-ha request",()=>{expect(()=>loadAuthorityStateDeployment({...base(),CIEAV_AUTHORITY_STATE_MODE:"cluster-ha",CIEAV_AUTHORITY_REPLICAS:"3"})).toThrow(/requires CIEAV_AUTHORITY_CLUSTER_BACKEND/)});
+  it("recognizes postgres-ha-v1 backend primitives without claiming trusted-store migration or external failover qualification",()=>{expect(authorityClusterBackendCapability(cluster())).toMatchObject({backend:"postgres-ha-v1",namespace:"production-us-east-1",postgresTlsVerifyFull:true,serializableTransactions:true,multiKeyAtomicCas:true,monotonicFencing:true,databaseClockLeases:true,idempotentCommitRecovery:true,trustedStoresMigrated:false,externalFailoverQualified:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false})});
+  it("still refuses cluster-ha startup until all trusted stores migrate and external failover is qualified",()=>{expect(()=>loadAuthorityStateDeployment(cluster())).toThrow(/backend primitives are implemented.*trusted stores are not yet migrated.*external failover is not qualified.*refusing unsafe cluster-ha startup/i)});
 });
