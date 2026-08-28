@@ -5,7 +5,7 @@ import path from "node:path";
 import {afterEach,describe,expect,it} from "vitest";
 import {digest} from "@cieav/core/execution-fabric";
 import {CieavAgentKernelStore} from "./agent-kernel.js";
-import {makeRealityWitness,sha256} from "./intent-reality-engine.js";
+import {makeRealityWitness,semanticEffectKey,sha256} from "./intent-reality-engine.js";
 
 const dirs:string[]=[];
 afterEach(async()=>{await Promise.all(dirs.splice(0).map(d=>rm(d,{recursive:true,force:true})))});
@@ -50,6 +50,8 @@ function buildTicket(x:Awaited<ReturnType<typeof setup>>,record:{decision:unknow
   return {id:crypto.randomUUID(),version:1 as const,proposalId:x.proposal.id,intentId,taskId:x.taskId,toolId:x.proposal.toolId,authorizationDigest:digest(record.decision),realityBoundCommitId:x.realityCommit.id,credentialLeaseId:x.lease.id,routeDigest:digest({toolId:x.proposal.toolId,protocol:x.proposal.protocol,operation:x.proposal.operation,target:x.proposal.target??null,normalizedArgumentsDigest:x.proposal.normalizedArgumentsDigest}),issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+30_000).toISOString(),status:"ISSUED" as const};
 }
 
+async function setupConsumedTicket(){const x=await setup(),ticket=await x.fabric.issueTicket(x.proposal.id,x.realityCommit.id);await x.fabric.consumeTicket(ticket.id,normalizedArguments);return{...x,ticket}}
+
 describe("CIEAV authority transaction crash recovery",()=>{
   it("recovers a prepared ticket issue exactly once after reopen",async()=>{
     const x=await setup(),record=await x.fabric.getProposalRecord(x.proposal.id);
@@ -88,6 +90,39 @@ describe("CIEAV authority transaction crash recovery",()=>{
     expect((await reopened.executionFabric.listLeases()).find(l=>l.id===x.lease.id)?.used).toBe(x.lease.used+1);
     expect((await reopened.executionFabric.listAudit()).filter(a=>a.ticketId===ticket.id&&a.phase==="ROUTE"&&a.outcome==="PASS")).toHaveLength(1);
     expect((await reopened.executionFabric.authorityTransactionHealth()).pending).toBe(0);
+    await reopened.close();
+  });
+
+  it("records UNKNOWN execution once and blocks semantic retry",async()=>{
+    const x=await setupConsumedTicket(),details={provider:"gmail",error:"socket closed after request write"},first=await x.fabric.recordExecutionAttempt(x.ticket.id,"UNKNOWN","Provider outcome could not be determined.",details),second=await x.fabric.recordExecutionAttempt(x.ticket.id,"UNKNOWN","Provider outcome could not be determined.",details);
+    expect(first.quarantine?.id).toBe(second.quarantine?.id);
+    expect((await x.kernel.intentReality.listQuarantines()).filter(q=>q.effectKey===x.realityCommit.effectKey&&q.status==="OPEN")).toHaveLength(1);
+    expect((await x.kernel.get(x.taskId))?.effectQuarantined).toBe(true);
+    expect((await x.fabric.consequenceAlgebra.getNode(x.proposal.id))?.state).toBe("QUARANTINED");
+    expect((await x.fabric.listAudit()).filter(a=>a.ticketId===x.ticket.id&&a.phase==="EXECUTE"&&a.outcome==="UNKNOWN")).toHaveLength(1);
+    await expect(x.kernel.intentReality.assertRetryAllowed(x.realityCommit.effectKey)).rejects.toThrow("semantic_effect_quarantined");
+    expect((await x.fabric.authorityTransactionHealth()).pending).toBe(0);
+    await expect(x.fabric.recordExecutionAttempt(x.ticket.id,"UNKNOWN","Provider outcome could not be determined.",{provider:"gmail",error:"different evidence"})).rejects.toThrow("authority transaction committed key conflict");
+  });
+
+  it("recovers a partially applied UNKNOWN execution with the same quarantine id",async()=>{
+    const x=await setupConsumedTicket(),effectKey=semanticEffectKey(intentId,x.proposal.semanticEffect),summary="Provider outcome could not be determined.",details={provider:"gmail",error:"connection reset"},detailsDigest=digest(details),quarantine=await x.kernel.intentReality.quarantineUnknown(effectKey,x.taskId,intentId,"UNKNOWN_OUTCOME");
+    await x.fabric.authorityTransactions.begin("RECORD_EXECUTION_ATTEMPT",`execute:${x.ticket.id}`,{ticketId:x.ticket.id,proposalId:x.proposal.id,scopeDeviceId:deviceId,intentId,taskId:x.taskId,transport:"UNKNOWN",summary,detailsDigest,effectKey});
+    expect((await x.fabric.authorityTransactions.health()).pending).toBe(1);
+    await x.kernel.close();
+
+    const reopened=new CieavAgentKernelStore(path.join(x.dir,"kernel.json"),stateSecret);
+    await reopened.recoverOnStartup();
+    const quarantines=(await reopened.intentReality.listQuarantines()).filter(q=>q.effectKey===effectKey&&q.status==="OPEN");
+    expect(quarantines).toHaveLength(1);
+    expect(quarantines[0]?.id).toBe(quarantine.id);
+    expect((await reopened.get(x.taskId))?.effectQuarantined).toBe(true);
+    expect((await reopened.executionFabric.consequenceAlgebra.getNode(x.proposal.id))?.state).toBe("QUARANTINED");
+    expect((await reopened.executionFabric.listAudit()).filter(a=>a.ticketId===x.ticket.id&&a.phase==="EXECUTE"&&a.outcome==="UNKNOWN")).toHaveLength(1);
+    await expect(reopened.intentReality.assertRetryAllowed(effectKey)).rejects.toThrow(`semantic_effect_quarantined:${quarantine.id}`);
+    expect((await reopened.executionFabric.authorityTransactionHealth()).pending).toBe(0);
+    await reopened.recoverOnStartup();
+    expect((await reopened.executionFabric.listAudit()).filter(a=>a.ticketId===x.ticket.id&&a.phase==="EXECUTE"&&a.outcome==="UNKNOWN")).toHaveLength(1);
     await reopened.close();
   });
 });
