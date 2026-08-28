@@ -34,3 +34,10 @@ export function installManagedSecrets(raw:unknown):void{
 export function consumeManagedSecrets():ManagedSecrets|undefined{const value=pending;pending=undefined;return value}
 export function peekManagedAuthoritySqlSecrets():ManagedAuthoritySqlSecrets|undefined{return pendingAuthoritySql}
 export function consumeManagedAuthoritySqlSecrets():ManagedAuthoritySqlSecrets|undefined{const value=pendingAuthoritySql;pendingAuthoritySql=undefined;return value}
+
+export function withManagedAuthoritySqlSecrets(env:NodeJS.ProcessEnv=process.env,consume=false):NodeJS.ProcessEnv{
+  const managed=consume?consumeManagedAuthoritySqlSecrets():peekManagedAuthoritySqlSecrets();
+  if(!managed)return env;
+  if(env.CIEAV_AUTHORITY_SQL_USER||env.CIEAV_AUTHORITY_SQL_PASSWORD)throw new Error("CIEAV managed SQL authority credentials must not be duplicated in process environment");
+  return{...env,CIEAV_AUTHORITY_SQL_USER:managed.user,CIEAV_AUTHORITY_SQL_PASSWORD:managed.password};
+}
