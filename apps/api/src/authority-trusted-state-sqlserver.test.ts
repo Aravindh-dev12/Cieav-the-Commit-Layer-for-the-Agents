@@ -22,6 +22,18 @@ const create={scopeDeviceId:"dev_sql_ha_12345678",intentId,owner:{id:"user-1",ki
 async function dir(){const d=await mkdtemp(path.join(os.tmpdir(),"cieav-sql-trusted-state-"));dirs.push(d);return d}
 
 describe("CIEAV SQL Server trusted-state migration",()=>{
+  it("bootstraps authenticated local trusted state into empty SQL without losing it",async()=>{
+    const database=new MemorySqlAuthorityDatabase(),backend=new CieavSqlServerAuthorityStateBackend(database,"cluster-bootstrap-test",10_000),localDir=await dir(),file=path.join(localDir,"kernel.json");
+    const localKernel=new CieavAgentKernelStore(file,secret),created=await localKernel.create({...create,goal:"Existing authenticated local authority state"});await localKernel.close();
+    expect(await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel)).toBeNull();
+    const migratingKernel=new CieavAgentKernelStore(file,secret),persistence=new CieavSqlServerTrustedStatePersistence(backend,"authority-node-a");
+    await createSqlServerTrustedKernelCandidate({kernel:migratingKernel,persistence});
+    expect((await migratingKernel.get(created.task.id))?.goal).toBe("Existing authenticated local authority state");
+    const sqlKernel=await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel);expect(sqlKernel?.revision).toBe("1");expect(sqlKernel?.value).toContain("Existing authenticated local authority state");
+    for(const key of Object.values(SQL_TRUSTED_STATE_KEYS))expect(await backend.readState(key)).not.toBeNull();
+    await migratingKernel.close();await persistence.close();
+  });
+
   it("reopens all authority-critical documents from SQL after node-local storage is replaced",async()=>{
     const database=new MemorySqlAuthorityDatabase(),backend=new CieavSqlServerAuthorityStateBackend(database,"cluster-prod-test",10_000),dirA=await dir();
     const kernelA=new CieavAgentKernelStore(path.join(dirA,"kernel.json"),secret),persistenceA=new CieavSqlServerTrustedStatePersistence(backend,"authority-node-a");
