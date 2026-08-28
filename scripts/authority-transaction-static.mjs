@@ -28,6 +28,9 @@ const checks=[
     "credential_lease_counter_conflict",
     "authorityTransactionHealth"
   ]],
+  ["apps/api/src/agent-kernel.ts",[
+    "await this.executionFabric.recoverAuthorityTransactionsOnStartup();await this.executionFabric.consequenceAlgebra.recoverOnStartup()"
+  ]],
   ["apps/api/src/authority-transaction-journal.test.ts",[
     "monotonic fencing",
     "fails closed when the authenticated journal is tampered",
@@ -52,4 +55,4 @@ if(failures.length){
   for(const failure of failures)console.error(` - ${failure}`);
   process.exit(1);
 }
-console.log("CIEAV authority transaction static gate PASS - authenticated durable journal + monotonic local fencing + crash recovery + idempotent ticket/lease transitions + zero authority present");
+console.log("CIEAV authority transaction static gate PASS - authenticated durable journal + monotonic local fencing + crash recovery + idempotent ticket/lease transitions + startup replay ordering + zero authority present");
