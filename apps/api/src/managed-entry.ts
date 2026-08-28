@@ -1,4 +1,5 @@
 import {installManagedSecrets} from "./managed-secrets.js";
+import {installManagedSqlServerCandidateBootstrap} from "./authority-sqlserver-managed-bootstrap.js";
 
 const MAX_BOOTSTRAP_BYTES=16*1024;
 
@@ -25,4 +26,5 @@ async function installBootstrapFromPrivatePipe():Promise<void>{
 }
 
 await installBootstrapFromPrivatePipe();
+installManagedSqlServerCandidateBootstrap();
 await import("./server.js");
