@@ -1,4 +1,3 @@
-import "./authority-cluster-sqlserver.test.js";
 import {describe,expect,it} from "vitest";
 import {authorityClusterBackendCapability,authorityStateHealth,loadAuthorityStateDeployment} from "./authority-state-deployment.js";
 
