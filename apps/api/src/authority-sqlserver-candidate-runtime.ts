@@ -8,7 +8,7 @@ import {CieavSqlServerTrustedStatePersistence,createSqlServerTrustedKernelCandid
 const nodeIdPattern=/^[A-Za-z0-9._:-]{8,120}$/;
 const instanceIdPattern=/^[A-Za-z0-9._:-]{8,120}$/;
 
-export function buildSqlServerAuthorityOwnerId(nodeId:string,instanceId=crypto.randomUUID(),pid=process.pid){
+export function buildSqlServerAuthorityOwnerId(nodeId:string,instanceId:string=crypto.randomUUID(),pid:number=process.pid){
   if(!nodeIdPattern.test(nodeId))throw new Error("CIEAV SQL authority node id must be 8-120 safe identifier characters");
   if(!instanceIdPattern.test(instanceId))throw new Error("CIEAV SQL authority instance id must be 8-120 safe identifier characters");
   if(!Number.isInteger(pid)||pid<1)throw new Error("CIEAV SQL authority process id is invalid");
