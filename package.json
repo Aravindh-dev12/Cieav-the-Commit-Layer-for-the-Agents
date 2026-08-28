@@ -33,7 +33,7 @@
     "test:managed-learning": "node scripts/managed-learning-static.mjs && npm run test -w @cieav/api -- managed-learning-providers.test.ts",
     "test:native-dotnet:static": "node scripts/native-dotnet-static.mjs",
     "test:native-dotnet": "node scripts/native-dotnet-static.mjs && node scripts/qualify-native-dotnet.mjs",
-    "test:authority-state": "node scripts/authority-state-deployment-static.mjs && npm run test -w @cieav/api -- authority-state-deployment.test.ts authority-process-lease.test.ts authority-cluster-sqlserver.test.ts config.test.ts",
+    "test:authority-state": "node scripts/authority-state-deployment-static.mjs && npm run test -w @cieav/api -- authority-state-deployment.test.ts authority-process-lease.test.ts authority-cluster-sqlserver.test.ts authority-trusted-state-sqlserver.test.ts config.test.ts",
     "test:authority-transactions": "node scripts/authority-transaction-static.mjs && npm run test -w @cieav/api -- authority-transaction-journal.test.ts authority-transaction-recovery.test.ts execution-fabric.test.ts",
     "test:boundaries": "node scripts/platform-boundary-static.mjs && node scripts/release-workflow-static.mjs && node scripts/production-qualification-static.mjs && npm run test:production-orchestration && npm run test:ml-training && npm run test:consequence-intelligence && npm run test:authority-grade-learning && npm run test:verified-skill && npm run test:native-approval && npm run test:desktop-native && npm run test:physical-evidence && npm run test:providers && npm run test:managed-learning && npm run test:native-dotnet:static && npm run test:authority-state && npm run test:authority-transactions",
     "test:namespace": "node scripts/package-namespace-smoke.mjs && python scripts/python-namespace-smoke.py",
