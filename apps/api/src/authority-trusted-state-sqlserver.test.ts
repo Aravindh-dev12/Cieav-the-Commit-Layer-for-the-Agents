@@ -27,10 +27,12 @@ describe("CIEAV SQL Server trusted-state migration",()=>{
     const localKernel=new CieavAgentKernelStore(file,secret),created=await localKernel.create({...create,goal:"Existing authenticated local authority state"});await localKernel.close();
     expect(await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel)).toBeNull();
     const migratingKernel=new CieavAgentKernelStore(file,secret),persistence=new CieavSqlServerTrustedStatePersistence(backend,"authority-node-a");
-    await createSqlServerTrustedKernelCandidate({kernel:migratingKernel,persistence});
+    const candidate=await createSqlServerTrustedKernelCandidate({kernel:migratingKernel,persistence});
     expect((await migratingKernel.get(created.task.id))?.goal).toBe("Existing authenticated local authority state");
     const sqlKernel=await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel);expect(sqlKernel?.revision).toBe("1");expect(sqlKernel?.value).toContain("Existing authenticated local authority state");
     for(const key of Object.values(SQL_TRUSTED_STATE_KEYS))expect(await backend.readState(key)).not.toBeNull();
+    expect(candidate.migration.health()).toMatchObject({trustedStoresMigrated:true,startupInitializationBarrier:true,sqlServerAuthoritative:true,localFilesAuthoritative:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false});
+    expect(candidate.migration.health().stores.every(store=>store.revision!==null&&store.fault===null)).toBe(true);
     await migratingKernel.close();await persistence.close();
   });
 
@@ -55,7 +57,7 @@ describe("CIEAV SQL Server trusted-state migration",()=>{
     expect((await kernelB.executionFabric.listAttestations()).some(a=>a.subjectId==="agent-1")).toBe(true);
     expect((await kernelB.executionFabric.consequenceAlgebra.listAudit()).some(a=>a.type==="POLICY_CHANGED")).toBe(true);
     expect((await kernelB.executionFabric.authorityTransactions.health()).localFencingOnly).toBe(true);
-    expect(candidate.migration.health()).toMatchObject({trustedStoresMigrated:true,replicatedAuthorityJournal:true,sqlServerAuthoritative:true,localFilesAuthoritative:false,recoverablyAtomicCrossStoreTransactions:true,singleTransactionCrossStoreCommit:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false,executionAuthorityIssued:false});
+    expect(candidate.migration.health()).toMatchObject({trustedStoresMigrated:true,startupInitializationBarrier:true,replicatedAuthorityJournal:true,sqlServerAuthoritative:true,localFilesAuthoritative:false,recoverablyAtomicCrossStoreTransactions:true,singleTransactionCrossStoreCommit:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false,executionAuthorityIssued:false});
     await kernelB.close();await persistenceB.close();
   });
 
