@@ -92,10 +92,11 @@ class Gateway:
 
     The Gateway owns process lifecycle, local signing secrets, semantic routing,
     health, and privileged local control. Chromium never receives provider tokens,
-    the Gateway bearer token, receipt/API signing keys, or the browser-control
-    capability used between the Gateway and the Node mediator. Managed semantic
-    secrets are delivered once over a private child stdin pipe, not inherited in
-    the semantic process environment or exposed in command-line arguments.
+    the Gateway bearer token, receipt/API signing keys, SQL authority credentials,
+    or the browser-control capability used between the Gateway and the Node mediator.
+    Managed semantic and authority secrets are delivered once over a private child
+    stdin pipe, not inherited in the semantic process environment or exposed in
+    command-line arguments.
     """
 
     def __init__(self, settings: Settings):
@@ -151,7 +152,8 @@ class Gateway:
         for key in (
             "HF_TOKEN","HUGGING_FACE_HUB_TOKEN","JWT_SECRET","RECEIPT_SIGNING_SECRET",
             "CIEAV_GATEWAY_TOKEN","LATCH_GATEWAY_TOKEN","CIEAV_TEST_AUTO_APPROVE","LATCH_TEST_AUTO_APPROVE",
-            "CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN","CIEAV_BROWSER_REPLAY_KEY"
+            "CIEAV_BROWSER_CONTROL_TOKEN","LATCH_BROWSER_CONTROL_TOKEN","CIEAV_BROWSER_REPLAY_KEY",
+            "CIEAV_AUTHORITY_SQL_USER","CIEAV_AUTHORITY_SQL_PASSWORD"
         ):
             env.pop(key, None)
         env["CIEAV_STATE_DIR"] = str(self.s.state_dir)
@@ -170,6 +172,13 @@ class Gateway:
 
     def _semantic_bootstrap(self) -> bytearray:
         payload={"jwtSecret":self.s.local_api_secret(),"receiptSigningSecret":self.s.receipt_signing_secret(),"gatewayToken":self.token,"semanticRouterToken":self.semantic_router_token}
+        if os.environ.get("CIEAV_AUTHORITY_STATE_MODE","").strip().lower()=="sqlserver-candidate":
+            sql_user=os.environ.get("CIEAV_AUTHORITY_SQL_USER","").strip()
+            sql_password=os.environ.get("CIEAV_AUTHORITY_SQL_PASSWORD","")
+            if not sql_user or len(sql_user)>256: raise RuntimeError("SQL Server candidate requires a valid CIEAV_AUTHORITY_SQL_USER")
+            if len(sql_password)<12 or len(sql_password)>4096: raise RuntimeError("SQL Server candidate requires a strong CIEAV_AUTHORITY_SQL_PASSWORD")
+            payload["authoritySqlUser"]=sql_user
+            payload["authoritySqlPassword"]=sql_password
         body=bytearray(json.dumps(payload,separators=(",",":"),ensure_ascii=True).encode("utf-8"))
         if len(body)>16*1024:
             body[:]=b"\0"*len(body)
