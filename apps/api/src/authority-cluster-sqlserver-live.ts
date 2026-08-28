@@ -1,6 +1,7 @@
 import {readFile} from "node:fs/promises";
 import {createRequire} from "node:module";
 import path from "node:path";
+import {pathToFileURL} from "node:url";
 import {
   CieavSqlServerAuthorityStateBackend,
   SqlServerAuthorityClusterDatabase,
@@ -11,6 +12,8 @@ import {
 import {withManagedAuthoritySqlSecrets} from "./managed-secrets.js";
 
 export const QUALIFIED_MSSQL_RUNTIME_VERSION="12.7.0" as const;
+type ModuleLoader=(specifier:string)=>Promise<unknown>;
+const importModule:ModuleLoader=specifier=>import(specifier);
 
 export function sqlServerLivePoolConfig(config:SqlServerAuthorityClusterConfig){
   return{
@@ -49,10 +52,11 @@ export async function assertQualifiedMssqlRuntime(resolvePath?:(specifier:string
   return{entryPath,...metadata};
 }
 
-export async function loadQualifiedMssqlDriver(resolvePath?:(specifier:string)=>string){
-  await assertQualifiedMssqlRuntime(resolvePath);
-  const moduleName="mssql";let loaded:unknown;
-  try{loaded=await import(moduleName)}catch(error){throw new Error(`CIEAV sqlserver-candidate could not load mssql@${QUALIFIED_MSSQL_RUNTIME_VERSION}: ${error instanceof Error?error.message:String(error)}`)}
+export async function loadQualifiedMssqlDriver(resolvePath?:(specifier:string)=>string,loadModule:ModuleLoader=importModule){
+  const {entryPath}=await assertQualifiedMssqlRuntime(resolvePath);
+  const qualifiedEntry=pathToFileURL(entryPath).href;
+  let loaded:unknown;
+  try{loaded=await loadModule(qualifiedEntry)}catch(error){throw new Error(`CIEAV sqlserver-candidate could not load verified mssql@${QUALIFIED_MSSQL_RUNTIME_VERSION} entry ${entryPath}: ${error instanceof Error?error.message:String(error)}`)}
   const module=loaded as SqlServerDriverLike&{default?:SqlServerDriverLike},driver=(module.ConnectionPool?module:module.default) as SqlServerDriverLike|undefined;
   if(!driver?.ConnectionPool||!driver.Transaction)throw new Error("CIEAV sqlserver-candidate mssql runtime driver is invalid");
   return driver;
