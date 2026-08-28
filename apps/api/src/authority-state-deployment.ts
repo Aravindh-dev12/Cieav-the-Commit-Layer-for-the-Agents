@@ -1,7 +1,7 @@
-import {loadPostgresAuthorityClusterConfig} from "./authority-cluster-postgres.js";
+import {loadSqlServerAuthorityClusterConfig} from "./authority-cluster-sqlserver.js";
 
 export type AuthorityStateMode="single-writer-file"|"single-host-sqlite"|"cluster-ha";
-export type AuthorityClusterBackend="postgres-ha-v1";
+export type AuthorityClusterBackend="sqlserver-ha-v1";
 
 export interface AuthorityStateDeployment {
   mode:AuthorityStateMode;
@@ -16,7 +16,7 @@ export interface AuthorityStateDeployment {
 export interface AuthorityClusterBackendCapability {
   backend:AuthorityClusterBackend;
   namespace:string;
-  postgresTlsVerifyFull:true;
+  encryptedConnectionRequired:true;
   serializableTransactions:true;
   multiKeyAtomicCas:true;
   monotonicFencing:true;
@@ -34,9 +34,9 @@ function positiveInt(raw:string|undefined,name:string,fallback:number){const n=N
 export function authorityClusterBackendCapability(env:NodeJS.ProcessEnv=process.env):AuthorityClusterBackendCapability{
   const backend=String(env.CIEAV_AUTHORITY_CLUSTER_BACKEND??"").trim();
   if(!backend)throw new Error("cluster-ha authority mode requires CIEAV_AUTHORITY_CLUSTER_BACKEND");
-  if(backend!=="postgres-ha-v1")throw new Error(`unsupported CIEAV_AUTHORITY_CLUSTER_BACKEND: ${backend}`);
-  const config=loadPostgresAuthorityClusterConfig(env);
-  return{backend,namespace:config.namespace,postgresTlsVerifyFull:true,serializableTransactions:true,multiKeyAtomicCas:true,monotonicFencing:true,databaseClockLeases:true,idempotentCommitRecovery:true,trustedStoresMigrated:false,externalFailoverQualified:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false};
+  if(backend!=="sqlserver-ha-v1")throw new Error(`unsupported CIEAV_AUTHORITY_CLUSTER_BACKEND: ${backend}`);
+  const config=loadSqlServerAuthorityClusterConfig(env);
+  return{backend,namespace:config.namespace,encryptedConnectionRequired:true,serializableTransactions:true,multiKeyAtomicCas:true,monotonicFencing:true,databaseClockLeases:true,idempotentCommitRecovery:true,trustedStoresMigrated:false,externalFailoverQualified:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false};
 }
 
 export function loadAuthorityStateDeployment(env:NodeJS.ProcessEnv=process.env):AuthorityStateDeployment{
@@ -47,7 +47,6 @@ export function loadAuthorityStateDeployment(env:NodeJS.ProcessEnv=process.env):
   const clusterBackend=String(env.CIEAV_AUTHORITY_CLUSTER_BACKEND??"").trim();
   const mode:AuthorityStateMode=requested?requested as AuthorityStateMode:store==="sqlite"?"single-host-sqlite":"single-writer-file";
   if(!["single-writer-file","single-host-sqlite","cluster-ha"].includes(mode))throw new Error(`unsupported CIEAV_AUTHORITY_STATE_MODE: ${requested}`);
-
   if(mode==="single-writer-file"){
     if(store!=="file")throw new Error("single-writer-file authority mode requires CIEAV_CONSEQUENCE_ALGEBRA_STORE=file");
     if(replicas!==1)throw new Error("CIEAV file-backed authority state is single-writer only; CIEAV_AUTHORITY_REPLICAS must be 1");
@@ -61,7 +60,7 @@ export function loadAuthorityStateDeployment(env:NodeJS.ProcessEnv=process.env):
   if(replicas<3)throw new Error("cluster-ha authority mode requires at least 3 replicas for qualified failover topology");
   if(!clusterBackend)throw new Error("cluster-ha authority mode requires CIEAV_AUTHORITY_CLUSTER_BACKEND");
   authorityClusterBackendCapability(env);
-  throw new Error("postgres-ha-v1 backend primitives are implemented, but Fabric/Algebra/Kernel/Intent-Reality trusted stores are not yet migrated and external failover is not qualified; refusing unsafe cluster-ha startup");
+  throw new Error("sqlserver-ha-v1 backend primitives are implemented, but Fabric/Algebra/Kernel/Intent-Reality trusted stores are not yet migrated and external failover is not qualified; refusing unsafe cluster-ha startup");
 }
 
 export function authorityStateHealth(deployment:AuthorityStateDeployment){return{mode:deployment.mode,replicas:deployment.replicas,consequenceAlgebraStore:deployment.consequenceAlgebraStore,safeForRequestedTopology:deployment.safeForRequestedTopology,clusterBackend:deployment.clusterBackend??null,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false};}
