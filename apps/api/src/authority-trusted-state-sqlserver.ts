@@ -86,7 +86,7 @@ export class CieavSqlServerTrustedStatePersistence {
 }
 
 type PatchableStore={file:string;loaded:boolean;load:()=>Promise<void>;persist:()=>Promise<void>};
-type AttachedStore={key:SqlTrustedStateKey;revision:string|null;fault:Error|null};
+type AttachedStore={key:SqlTrustedStateKey;revision:string|null;fault:Error|null;initialize:()=>Promise<void>};
 const attachedStores=new WeakSet<object>();
 
 function assertPatchable(value:unknown,label:string):PatchableStore{
@@ -106,7 +106,8 @@ function attachStore(storeValue:unknown,key:SqlTrustedStateKey,persistence:Cieav
   const store=assertPatchable(storeValue,label);
   if(attachedStores.has(store))throw new Error(`CIEAV SQL trusted-state migration already attached ${label}`);
   attachedStores.add(store);
-  const originalFile=store.file,originalLoad=store.load.bind(store),originalPersist=store.persist.bind(store),state:AttachedStore={key,revision:null,fault:null};
+  const originalFile=store.file,originalLoad=store.load.bind(store),originalPersist=store.persist.bind(store);
+  const state:AttachedStore={key,revision:null,fault:null,initialize:async()=>store.load()};
 
   store.load=async()=>{
     if(state.fault)throw state.fault;
@@ -143,19 +144,21 @@ function attachStore(storeValue:unknown,key:SqlTrustedStateKey,persistence:Cieav
 
 export function attachSqlServerTrustedState(kernel:CieavAgentKernelStore,persistence:CieavSqlServerTrustedStatePersistence){
   const raw=kernel as unknown as Record<string,unknown>,fabric=raw.executionFabric as Record<string,unknown>;
-  const states=[
-    attachStore(kernel,SQL_TRUSTED_STATE_KEYS.kernel,persistence,"agent-kernel"),
-    attachStore(raw.intentReality,SQL_TRUSTED_STATE_KEYS.intentReality,persistence,"intent-reality"),
-    attachStore(fabric,SQL_TRUSTED_STATE_KEYS.executionFabric,persistence,"execution-fabric"),
-    attachStore(fabric.consequenceAlgebra,SQL_TRUSTED_STATE_KEYS.consequenceAlgebra,persistence,"consequence-algebra"),
-    attachStore(fabric.authorityTransactions,SQL_TRUSTED_STATE_KEYS.authorityTransactions,persistence,"authority-transactions")
-  ];
+  const kernelState=attachStore(kernel,SQL_TRUSTED_STATE_KEYS.kernel,persistence,"agent-kernel");
+  const intentRealityState=attachStore(raw.intentReality,SQL_TRUSTED_STATE_KEYS.intentReality,persistence,"intent-reality");
+  const executionFabricState=attachStore(fabric,SQL_TRUSTED_STATE_KEYS.executionFabric,persistence,"execution-fabric");
+  const consequenceAlgebraState=attachStore(fabric.consequenceAlgebra,SQL_TRUSTED_STATE_KEYS.consequenceAlgebra,persistence,"consequence-algebra");
+  const authorityTransactionsState=attachStore(fabric.authorityTransactions,SQL_TRUSTED_STATE_KEYS.authorityTransactions,persistence,"authority-transactions");
+  const states=[kernelState,intentRealityState,executionFabricState,consequenceAlgebraState,authorityTransactionsState];
+  const startupOrder=[kernelState,intentRealityState,consequenceAlgebraState,authorityTransactionsState,executionFabricState];
   return{
     states,
+    initializeAll:async()=>{for(const state of startupOrder)await state.initialize();return states},
     health:()=>({
       version:"CIEAV_SQLSERVER_TRUSTED_STATE_MIGRATION_HEALTH_V1" as const,
       stores:states.map(state=>({key:state.key,revision:state.revision,fault:state.fault?.message??null})),
       trustedStoresMigrated:true,
+      startupInitializationBarrier:true,
       replicatedAuthorityJournal:true,
       sqlServerAuthoritative:true,
       localFilesAuthoritative:false,
@@ -174,6 +177,7 @@ export function attachSqlServerTrustedState(kernel:CieavAgentKernelStore,persist
 export async function createSqlServerTrustedKernelCandidate(input:{kernel:CieavAgentKernelStore;persistence:CieavSqlServerTrustedStatePersistence}){
   await input.persistence.start();
   const migration=attachSqlServerTrustedState(input.kernel,input.persistence);
+  await migration.initializeAll();
   await input.kernel.recoverOnStartup();
   return{kernel:input.kernel,persistence:input.persistence,migration};
 }
