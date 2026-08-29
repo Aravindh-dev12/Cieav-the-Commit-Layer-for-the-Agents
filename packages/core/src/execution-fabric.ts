@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type {ExecutionProposal,FederatedTool,FormalAuthorizationDecision,FormalPermissionGraph,PermissionGraphEdge,TrustedToolConsequenceContract} from "@cieav/contracts/execution-fabric";
+import type {ExecutionProposal,FederatedTool,FormalAuthorizationDecision,FormalPermissionGraph,PermissionGraphEdge,TrustedToolAuthorizationBinding,TrustedToolConsequenceContract} from "@cieav/contracts/execution-fabric";
 
 const riskRank={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3} as const;
 const canonical=(value:unknown):string=>Array.isArray(value)?`[${value.map(canonical).join(",")}]`:value&&typeof value==="object"?`{${Object.keys(value as Record<string,unknown>).sort().map(k=>`${JSON.stringify(k)}:${canonical((value as Record<string,unknown>)[k])}`).join(",")}}`:JSON.stringify(value);
@@ -43,6 +43,31 @@ export function assertTrustedToolConsequenceContract(tool:FederatedTool,proposal
   return{contract,contractDigest:digest(contract),canonicalTarget,productionQualified:true,authority:false,mayMintExecutionAuthority:false};
 }
 
+export function trustedToolAuthorizationBinding(tool:FederatedTool,proposal:ExecutionProposal,options:{requireContract?:boolean}={}):TrustedToolAuthorizationBinding{
+  const validation=assertTrustedToolConsequenceContract(tool,proposal,options);
+  if(!validation.productionQualified)throw new Error("trusted_tool_consequence_not_production_qualified");
+  const base={
+    version:"CIEAV_TRUSTED_TOOL_AUTHORIZATION_BINDING_V1" as const,
+    toolId:tool.id,
+    protocol:tool.protocol,
+    operation:tool.operation,
+    contractDigest:validation.contractDigest,
+    canonicalTarget:validation.canonicalTarget,
+    canonicalResolverId:validation.contract?.canonicalResolverId??null,
+    canonicalResolverVersion:validation.contract?.canonicalResolverVersion??null,
+    productionQualified:true as const,
+    authority:false as const,
+    mayMintExecutionAuthority:false as const
+  };
+  return{...base,bindingDigest:digest(base)};
+}
+
+export function assertTrustedToolAuthorizationBinding(tool:FederatedTool,proposal:ExecutionProposal,expected:TrustedToolAuthorizationBinding,options:{requireContract?:boolean}={}):TrustedToolAuthorizationBinding{
+  const current=trustedToolAuthorizationBinding(tool,proposal,options);
+  if(current.bindingDigest!==expected.bindingDigest||current.contractDigest!==expected.contractDigest||current.canonicalTarget!==expected.canonicalTarget)throw new Error("trusted_tool_consequence_contract_drift");
+  return current;
+}
+
 export function permissionGraphDigest(graph:Omit<FormalPermissionGraph,"digest">){return digest(graph)}
 export function verifyPermissionGraph(graph:FormalPermissionGraph):boolean{
   const {digest:actual,...unsigned}=graph;
@@ -60,4 +85,4 @@ export function evaluateFormalAuthorization(graph:FormalPermissionGraph,proposal
   return{decision,graphDigest:graph.digest,intentId:proposal.intentId,subjectId:proposal.subjectId,toolId:proposal.toolId,operation:proposal.operation,matchedEdgeIds:decisive.map(e=>e.id),evidenceRefs:[...new Set(decisive.flatMap(e=>e.evidenceRefs))],reasons:decisive.length?decisive.map(e=>e.reason):["Deny-by-default: no permission edge authorizes this execution."],evaluatedAt:now,engine:"CIEAV_FORMAL_AUTH_V1"};
 }
 
-export function executionBindingDigest(proposal:ExecutionProposal,graphDigest:string){return digest({version:1,proposalId:proposal.id,taskId:proposal.taskId,intentId:proposal.intentId,scopeDeviceId:proposal.scopeDeviceId,subjectId:proposal.subjectId,identityAttestationId:proposal.identityAttestationId,credentialLeaseId:proposal.credentialLeaseId,toolId:proposal.toolId,protocol:proposal.protocol,operation:proposal.operation,target:proposal.target??null,risk:proposal.risk,normalizedArgumentsDigest:proposal.normalizedArgumentsDigest,semanticEffect:proposal.semanticEffect,realityDigest:proposal.realityWitness.digest,expectedPostStateDigest:proposal.expectedPostStateDigest,proofObligationDigest:proposal.proofObligationDigest,attenuationWitnessIds:proposal.attenuationWitnessIds,continuingAuthority:proposal.continuingAuthority??null,graphDigest});}
+export function executionBindingDigest(proposal:ExecutionProposal,graphDigest:string,trustedToolBindingDigest?:string){return digest({version:1,proposalId:proposal.id,taskId:proposal.taskId,intentId:proposal.intentId,scopeDeviceId:proposal.scopeDeviceId,subjectId:proposal.subjectId,identityAttestationId:proposal.identityAttestationId,credentialLeaseId:proposal.credentialLeaseId,toolId:proposal.toolId,protocol:proposal.protocol,operation:proposal.operation,target:proposal.target??null,risk:proposal.risk,normalizedArgumentsDigest:proposal.normalizedArgumentsDigest,semanticEffect:proposal.semanticEffect,realityDigest:proposal.realityWitness.digest,expectedPostStateDigest:proposal.expectedPostStateDigest,proofObligationDigest:proposal.proofObligationDigest,attenuationWitnessIds:proposal.attenuationWitnessIds,continuingAuthority:proposal.continuingAuthority??null,graphDigest,trustedToolBindingDigest:trustedToolBindingDigest??null});}
