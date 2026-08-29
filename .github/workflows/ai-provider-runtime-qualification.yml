@@ -3,10 +3,11 @@ name: ai-provider-runtime-qualification
 on:
   push:
     branches:
-      - tmp-consequence-algebra-build
+      - main
     paths:
       - '.env.example'
       - 'package.json'
+      - 'package-lock.json'
       - 'packages/contracts/src/provider-runtime.ts'
       - 'apps/api/src/env-file.ts'
       - 'apps/api/src/env-file.test.ts'
@@ -18,6 +19,7 @@ on:
     paths:
       - '.env.example'
       - 'package.json'
+      - 'package-lock.json'
       - 'packages/contracts/src/provider-runtime.ts'
       - 'apps/api/src/env-file.ts'
       - 'apps/api/src/env-file.test.ts'
