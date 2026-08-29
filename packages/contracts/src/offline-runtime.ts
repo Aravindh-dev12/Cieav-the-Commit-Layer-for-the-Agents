@@ -73,11 +73,16 @@ export const OfflineActionRequirementSchema=z.object({
   networkRequirement:NetworkRequirementSchema,
   requiredProofProviderRefs:z.array(RefSchema).max(500).default([]),
   proofMayBeDeferred:z.boolean().default(false),
+  durableLocalProofReservationReady:z.boolean().default(false),
   requiresFreshRemoteReality:z.boolean().default(false),
   requiresRemoteCredentialLease:z.boolean().default(false),
   requirementDigest:DigestSchema,
   authority:z.literal(false)
-}).strict();
+}).strict().superRefine((value,ctx)=>{
+  if(value.proofMayBeDeferred&&!value.durableLocalProofReservationReady){
+    ctx.addIssue({code:z.ZodIssueCode.custom,path:["durableLocalProofReservationReady"],message:"Deferred proof requires a durable local proof reservation"});
+  }
+});
 export type OfflineActionRequirement=z.infer<typeof OfflineActionRequirementSchema>;
 
 export const OfflineActionAdmissionSchema=z.object({
