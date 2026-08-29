@@ -101,6 +101,21 @@ export const OfflineActionAdmissionSchema=z.object({
 }).strict();
 export type OfflineActionAdmission=z.infer<typeof OfflineActionAdmissionSchema>;
 
+export const DeferredNetworkProposalSchema=z.object({
+  version:z.literal("CIEAV_DEFERRED_NETWORK_PROPOSAL_V1"),
+  proposalRef:RefSchema,
+  consequenceIdentityDigest:DigestSchema.optional(),
+  requirementDigest:DigestSchema,
+  deferredBecause:z.enum(["NETWORK_UNAVAILABLE","REMOTE_PROOF_UNAVAILABLE","REMOTE_REALITY_STALE","REMOTE_CREDENTIAL_UNAVAILABLE"]),
+  queuedAt:z.string().datetime(),
+  executionAuthorityCarried:z.literal(false),
+  executableCredentialCarried:z.literal(false),
+  deferredDigest:DigestSchema,
+  authority:z.literal(false),
+  mayMintExecutionAuthority:z.literal(false)
+}).strict();
+export type DeferredNetworkProposal=z.infer<typeof DeferredNetworkProposalSchema>;
+
 export const OfflineSyncEnvelopeSchema=z.object({
   version:z.literal("CIEAV_OFFLINE_SYNC_ENVELOPE_V1"),
   nodeId:RefSchema,
@@ -133,3 +148,26 @@ export const OnlineControlUpdateSchema=z.object({
   mayMintExecutionAuthority:z.literal(false)
 }).strict();
 export type OnlineControlUpdate=z.infer<typeof OnlineControlUpdateSchema>;
+
+export const ReconnectPlanSchema=z.object({
+  version:z.literal("CIEAV_RECONNECT_PLAN_V1"),
+  nodeId:RefSchema,
+  previousSnapshotDigest:DigestSchema,
+  currentSnapshotDigest:DigestSchema,
+  steps:z.array(z.enum([
+    "UPLOAD_LOCAL_LEDGER",
+    "FETCH_SIGNED_CONTROL_UPDATES",
+    "REVALIDATE_LOCAL_POLICY_AND_TOOL_STATE",
+    "RECONCILE_UNKNOWN_CONSEQUENCES",
+    "REVALIDATE_DEFERRED_PROPOSALS",
+    "ISSUE_FRESH_LOCAL_AUTHORITY_IF_ALLOWED"
+  ])).min(1).max(20),
+  unknownConsequenceRefs:z.array(RefSchema).max(10000).default([]),
+  deferredProposalRefs:z.array(RefSchema).max(10000).default([]),
+  outstandingAuthorityMayResume:z.literal(false),
+  createdAt:z.string().datetime(),
+  planDigest:DigestSchema,
+  authority:z.literal(false),
+  mayMintExecutionAuthority:z.literal(false)
+}).strict();
+export type ReconnectPlan=z.infer<typeof ReconnectPlanSchema>;
