@@ -38,6 +38,7 @@ export * from "./cognitive-runtime.js";
 export * from "./universal-runtime.js";
 export * from "./consequence-abi.js";
 export * from "./consequence-algebra.js";
+export * from "./consequence-bundle.js";
 export * from "./authority-grade-settlement.js";
 export * from "./intelligence-metabolism.js";
 export * from "./learning-vault.js";
