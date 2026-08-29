@@ -13,6 +13,7 @@
     "@cieav/contracts": "*",
     "@cieav/core": "*",
     "@modelcontextprotocol/client": "^2.0.0",
+    "mssql": "12.7.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - tmp-consequence-algebra-build
+      - main
     paths:
       - "apps/api/src/authority-transaction-journal.ts"
       - "apps/api/src/authority-transaction-journal.test.ts"
@@ -14,6 +14,7 @@ on:
       - "scripts/authority-transaction-static.mjs"
       - "scripts/qualify-authority-transactions.mjs"
       - "package.json"
+      - "package-lock.json"
       - ".github/workflows/authority-transaction-qualification.yml"
   pull_request:
     paths:
@@ -25,6 +26,8 @@ on:
       - "scripts/authority-transaction-static.mjs"
       - "scripts/qualify-authority-transactions.mjs"
       - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/authority-transaction-qualification.yml"
 
 permissions:
   contents: read

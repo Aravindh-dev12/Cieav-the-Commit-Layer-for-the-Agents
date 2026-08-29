@@ -48,10 +48,43 @@ describe("CIEAV SQL Server trusted-state migration",()=>{
     expect((await migratingKernel.get(created.task.id))?.goal).toBe("Existing authenticated local authority state");
     const sqlKernel=await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel);expect(sqlKernel?.revision).toBe("1");expect(sqlKernel?.value).toContain("Existing authenticated local authority state");
     for(const key of Object.values(SQL_TRUSTED_STATE_KEYS))expect(await backend.readState(key)).not.toBeNull();
-    expect(candidate.migration.health()).toMatchObject({trustedStoresMigrated:true,startupInitializationBarrier:true,sqlServerAuthoritative:true,localFilesAuthoritative:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false});
+    expect(candidate.migration.health()).toMatchObject({trustedStoresMigrated:true,startupInitializationBarrier:true,sqlServerAuthoritative:true,localFilesAuthoritative:false,atomicTrustedStateTransactionCoordinator:true,journalTransactionIdentityBinding:true,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false});
     expect(candidate.migration.health().stores.every(store=>store.revision!==null&&store.fault===null)).toBe(true);
-    expect(persistence.health()).toMatchObject({leaseHeartbeatActive:true,leaseHealthy:true,fatalFault:null});
+    expect(persistence.health()).toMatchObject({leaseHeartbeatActive:true,leaseHealthy:true,fatalFault:null,atomicTrustedStateTransactionCoordinator:true,journalTransactionIdentityBinding:true});
     await migratingKernel.close();await persistence.close();
+  });
+
+  it("commits staged trusted stores in one SQL transaction receipt",async()=>{
+    const database=new MemorySqlAuthorityDatabase(),backend=new CieavSqlServerAuthorityStateBackend(database,"cluster-atomic-test",10_000),localDir=await dir(),kernel=new CieavAgentKernelStore(path.join(localDir,"kernel.json"),secret),persistence=new CieavSqlServerTrustedStatePersistence(backend,"authority-node-a");
+    await createSqlServerTrustedKernelCandidate({kernel,persistence});
+    const kernelBefore=await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel),intentBefore=await backend.readState(SQL_TRUSTED_STATE_KEYS.intentReality);expect(kernelBefore).not.toBeNull();expect(intentBefore).not.toBeNull();
+    const transactionId="trusted-atomic-commit-001";
+    await persistence.runAtomicTrustedStateTransaction(transactionId,async()=>{
+      await kernel.create({...create,goal:"Atomic trusted-state commit"});
+      await kernel.intentReality.quarantineUnknown(effectKey,crypto.randomUUID(),intentId,"UNKNOWN_OUTCOME");
+    });
+    const receipt=database.receipts.get(`cluster-atomic-test\n${transactionId}`);expect(receipt).toBeDefined();
+    const committed=JSON.parse(receipt!.resultJson) as Array<{key:string;revision:string}>;expect(committed.map(record=>record.key).sort()).toEqual([SQL_TRUSTED_STATE_KEYS.intentReality,SQL_TRUSTED_STATE_KEYS.kernel].sort());
+    const kernelAfter=await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel),intentAfter=await backend.readState(SQL_TRUSTED_STATE_KEYS.intentReality);expect(BigInt(kernelAfter!.revision)).toBe(BigInt(kernelBefore!.revision)+1n);expect(BigInt(intentAfter!.revision)).toBe(BigInt(intentBefore!.revision)+1n);
+    expect(kernelAfter!.value).toContain("Atomic trusted-state commit");expect(intentAfter!.value).toContain(effectKey);
+    await kernel.close();await persistence.close();
+  });
+
+  it("rolls back every staged trusted store and fails closed on atomic CAS conflict",async()=>{
+    const database=new MemorySqlAuthorityDatabase(),backend=new CieavSqlServerAuthorityStateBackend(database,"cluster-atomic-rollback",10_000),localDir=await dir(),kernel=new CieavAgentKernelStore(path.join(localDir,"kernel.json"),secret),persistence=new CieavSqlServerTrustedStatePersistence(backend,"authority-node-a");
+    await createSqlServerTrustedKernelCandidate({kernel,persistence});
+    const kernelBefore=await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel),intentBefore=await backend.readState(SQL_TRUSTED_STATE_KEYS.intentReality);expect(kernelBefore).not.toBeNull();expect(intentBefore).not.toBeNull();
+    const live=database.leases.get("cluster-atomic-rollback");if(!live)throw new Error("missing live SQL writer lease");
+    await backend.writeTransaction("external-atomic-conflict-001",{ownerId:live.ownerId,fenceToken:live.fenceToken,leaseUntilMs:live.leaseUntilMs},[{key:SQL_TRUSTED_STATE_KEYS.kernel,expectedRevision:kernelBefore!.revision,value:kernelBefore!.value}]);
+    const externallyAdvanced=await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel);expect(BigInt(externallyAdvanced!.revision)).toBe(BigInt(kernelBefore!.revision)+1n);
+    await expect(persistence.runAtomicTrustedStateTransaction("trusted-atomic-rollback-001",async()=>{
+      await kernel.create({...create,goal:"Must not partially commit"});
+      await kernel.intentReality.quarantineUnknown(effectKey,crypto.randomUUID(),intentId,"UNKNOWN_OUTCOME");
+    })).rejects.toThrow(/atomic transaction failed|revision_conflict/i);
+    const kernelAfter=await backend.readState(SQL_TRUSTED_STATE_KEYS.kernel),intentAfter=await backend.readState(SQL_TRUSTED_STATE_KEYS.intentReality);expect(kernelAfter!.revision).toBe(externallyAdvanced!.revision);expect(kernelAfter!.value).toBe(externallyAdvanced!.value);expect(intentAfter!.revision).toBe(intentBefore!.revision);expect(intentAfter!.value).toBe(intentBefore!.value);
+    expect(database.receipts.has("cluster-atomic-rollback\ntrusted-atomic-rollback-001")).toBe(false);
+    expect(persistence.health().fatalFault).toMatch(/atomic transaction failed/i);await expect(persistence.read(SQL_TRUSTED_STATE_KEYS.kernel)).rejects.toThrow(/atomic transaction failed/i);
+    await kernel.close();await persistence.close();
   });
 
   it("reopens all authority-critical documents from SQL after node-local storage is replaced",async()=>{
@@ -75,7 +108,7 @@ describe("CIEAV SQL Server trusted-state migration",()=>{
     expect((await kernelB.executionFabric.listAttestations()).some(a=>a.subjectId==="agent-1")).toBe(true);
     expect((await kernelB.executionFabric.consequenceAlgebra.listAudit()).some(a=>a.type==="POLICY_CHANGED")).toBe(true);
     expect((await kernelB.executionFabric.authorityTransactions.health()).localFencingOnly).toBe(true);
-    expect(candidate.migration.health()).toMatchObject({trustedStoresMigrated:true,startupInitializationBarrier:true,replicatedAuthorityJournal:true,sqlServerAuthoritative:true,localFilesAuthoritative:false,recoverablyAtomicCrossStoreTransactions:true,singleTransactionCrossStoreCommit:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false,executionAuthorityIssued:false});
+    expect(candidate.migration.health()).toMatchObject({trustedStoresMigrated:true,startupInitializationBarrier:true,replicatedAuthorityJournal:true,sqlServerAuthoritative:true,localFilesAuthoritative:false,atomicTrustedStateTransactionCoordinator:true,journalTransactionIdentityBinding:true,recoverablyAtomicCrossStoreTransactions:true,singleTransactionCrossStoreCommit:false,clusterHaQualified:false,authority:false,mayMintExecutionAuthority:false,executionAuthorityIssued:false});
     await kernelB.close();await persistenceB.close();
   });
 
