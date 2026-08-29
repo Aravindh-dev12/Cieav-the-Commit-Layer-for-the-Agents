@@ -3,7 +3,7 @@ name: native-dotnet-qualification
 on:
   push:
     branches:
-      - tmp-consequence-algebra-build
+      - main
     paths:
       - 'native/CMakeLists.txt'
       - 'native/include/**'
