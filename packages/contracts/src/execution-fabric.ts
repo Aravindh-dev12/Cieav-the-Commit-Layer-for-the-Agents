@@ -35,6 +35,22 @@ export const TrustedToolConsequenceContractSchema=z.object({
 });
 export type TrustedToolConsequenceContract=z.infer<typeof TrustedToolConsequenceContractSchema>;
 
+export const TrustedToolAuthorizationBindingSchema=z.object({
+  version:z.literal("CIEAV_TRUSTED_TOOL_AUTHORIZATION_BINDING_V1"),
+  toolId:z.string().min(1).max(240),
+  protocol:ToolProtocolSchema,
+  operation:z.string().min(1).max(240),
+  contractDigest:DigestSchema.nullable(),
+  canonicalTarget:z.string().max(2000).nullable(),
+  canonicalResolverId:z.string().min(1).max(240).nullable(),
+  canonicalResolverVersion:z.string().min(1).max(120).nullable(),
+  productionQualified:z.literal(true),
+  bindingDigest:DigestSchema,
+  authority:z.literal(false),
+  mayMintExecutionAuthority:z.literal(false)
+}).strict();
+export type TrustedToolAuthorizationBinding=z.infer<typeof TrustedToolAuthorizationBindingSchema>;
+
 export const FederatedToolSchema=z.object({
   id:z.string().min(1).max(240),displayName:z.string().min(1).max(240),protocol:ToolProtocolSchema,operation:z.string().min(1).max(240),
   downstreamRef:z.string().min(1).max(2000),credentialMode:CredentialModeSchema,risk:RiskSchema,
