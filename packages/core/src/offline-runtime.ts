@@ -1,18 +1,25 @@
 import {
   CognitiveRouteDecisionSchema,
   CognitiveRouteRequirementSchema,
+  DeferredNetworkProposalSchema,
   OfflineActionAdmissionSchema,
   OfflineActionRequirementSchema,
   OfflineRuntimeSnapshotSchema,
   OfflineSyncEnvelopeSchema,
+  ReconnectPlanSchema,
   type CognitiveRouteDecision,
   type CognitiveRouteRequirement,
+  type DeferredNetworkProposal,
   type OfflineActionAdmission,
   type OfflineActionRequirement,
   type OfflineRuntimeSnapshot,
-  type OfflineSyncEnvelope
+  type OfflineSyncEnvelope,
+  type ReconnectPlan
 } from "@cieav/contracts/offline-runtime";
 import {digest} from "./execution-fabric.js";
+
+type CognitiveRouteRequirementInput=Omit<CognitiveRouteRequirement,"version"|"requirementDigest"|"authority"|"networkRequirement"|"localOnly"|"allowLan"|"allowCloud"|"dataClassRefs">&Partial<Pick<CognitiveRouteRequirement,"networkRequirement"|"localOnly"|"allowLan"|"allowCloud"|"dataClassRefs">>;
+type OfflineActionRequirementInput=Omit<OfflineActionRequirement,"version"|"requirementDigest"|"authority"|"requiredProofProviderRefs"|"proofMayBeDeferred"|"durableLocalProofReservationReady"|"requiresFreshRemoteReality"|"requiresRemoteCredentialLease">&Partial<Pick<OfflineActionRequirement,"requiredProofProviderRefs"|"proofMayBeDeferred"|"durableLocalProofReservationReady"|"requiresFreshRemoteReality"|"requiresRemoteCredentialLease">>;
 
 export function offlineRuntimeSnapshot(input:Omit<OfflineRuntimeSnapshot,"version"|"snapshotDigest"|"authority"|"mayMintExecutionAuthority">):OfflineRuntimeSnapshot{
   const base={
@@ -24,8 +31,16 @@ export function offlineRuntimeSnapshot(input:Omit<OfflineRuntimeSnapshot,"versio
   return OfflineRuntimeSnapshotSchema.parse({...base,snapshotDigest:digest(base)});
 }
 
-export function cognitiveRouteRequirement(input:Omit<CognitiveRouteRequirement,"version"|"requirementDigest"|"authority">):CognitiveRouteRequirement{
-  const base={version:"CIEAV_COGNITIVE_ROUTE_REQUIREMENT_V1" as const,...input,authority:false as const};
+export function cognitiveRouteRequirement(input:CognitiveRouteRequirementInput):CognitiveRouteRequirement{
+  const normalized={
+    networkRequirement:input.networkRequirement??"NONE",
+    localOnly:input.localOnly??false,
+    allowLan:input.allowLan??true,
+    allowCloud:input.allowCloud??true,
+    dataClassRefs:input.dataClassRefs??[],
+    ...input
+  };
+  const base={version:"CIEAV_COGNITIVE_ROUTE_REQUIREMENT_V1" as const,...normalized,authority:false as const};
   return CognitiveRouteRequirementSchema.parse({...base,requirementDigest:digest(base)});
 }
 
@@ -77,8 +92,16 @@ export function selectCognitiveRoute(snapshot:OfflineRuntimeSnapshot,requirement
   return CognitiveRouteDecisionSchema.parse({...base,decisionDigest:digest(base)});
 }
 
-export function offlineActionRequirement(input:Omit<OfflineActionRequirement,"version"|"requirementDigest"|"authority">):OfflineActionRequirement{
-  const base={version:"CIEAV_OFFLINE_ACTION_REQUIREMENT_V1" as const,...input,authority:false as const};
+export function offlineActionRequirement(input:OfflineActionRequirementInput):OfflineActionRequirement{
+  const normalized={
+    requiredProofProviderRefs:input.requiredProofProviderRefs??[],
+    proofMayBeDeferred:input.proofMayBeDeferred??false,
+    durableLocalProofReservationReady:input.durableLocalProofReservationReady??false,
+    requiresFreshRemoteReality:input.requiresFreshRemoteReality??false,
+    requiresRemoteCredentialLease:input.requiresRemoteCredentialLease??false,
+    ...input
+  };
+  const base={version:"CIEAV_OFFLINE_ACTION_REQUIREMENT_V1" as const,...normalized,authority:false as const};
   return OfflineActionRequirementSchema.parse({...base,requirementDigest:digest(base)});
 }
 
@@ -120,8 +143,8 @@ export function evaluateOfflineAction(snapshot:OfflineRuntimeSnapshot,requiremen
   const remoteProof=new Set(snapshot.remoteProofProviderRefs);
   const missingProof=requirement.requiredProofProviderRefs.filter(ref=>!localProof.has(ref)&&!(connectivitySatisfies(snapshot.connectivity,"INTERNET")&&remoteProof.has(ref)));
   if(decision!=="BLOCK"&&missingProof.length>0){
-    if(requirement.proofMayBeDeferred){
-      reasonCodes.push("PROOF_DEFERRED_UNTIL_CONNECTIVITY_RETURNS");
+    if(requirement.proofMayBeDeferred&&requirement.durableLocalProofReservationReady){
+      reasonCodes.push("PROOF_DEFERRED_WITH_DURABLE_LOCAL_RESERVATION");
     }else{
       decision="WAIT_NETWORK";
       reasonCodes.push("REQUIRED_PROOF_PROVIDER_UNAVAILABLE");
@@ -145,6 +168,33 @@ export function evaluateOfflineAction(snapshot:OfflineRuntimeSnapshot,requiremen
     mayMintExecutionAuthority:false as const
   };
   return OfflineActionAdmissionSchema.parse({...base,admissionDigest:digest(base)});
+}
+
+export function deferredNetworkProposal(input:{
+  requirement:OfflineActionRequirement;
+  admission:OfflineActionAdmission;
+  consequenceIdentityDigest?:string;
+  queuedAt?:string;
+}):DeferredNetworkProposal{
+  if(input.admission.proposalRef!==input.requirement.proposalRef)throw new Error("deferred_proposal_requirement_mismatch");
+  if(input.admission.decision!=="WAIT_NETWORK")throw new Error("deferred_proposal_requires_wait_network_admission");
+  let deferredBecause:DeferredNetworkProposal["deferredBecause"]="NETWORK_UNAVAILABLE";
+  if(input.admission.reasonCodes.includes("REMOTE_CREDENTIAL_LEASE_UNAVAILABLE"))deferredBecause="REMOTE_CREDENTIAL_UNAVAILABLE";
+  else if(input.admission.reasonCodes.includes("FRESH_REMOTE_REALITY_REQUIRED"))deferredBecause="REMOTE_REALITY_STALE";
+  else if(input.admission.reasonCodes.includes("REQUIRED_PROOF_PROVIDER_UNAVAILABLE"))deferredBecause="REMOTE_PROOF_UNAVAILABLE";
+  const base={
+    version:"CIEAV_DEFERRED_NETWORK_PROPOSAL_V1" as const,
+    proposalRef:input.requirement.proposalRef,
+    ...(input.consequenceIdentityDigest?{consequenceIdentityDigest:input.consequenceIdentityDigest}:{}),
+    requirementDigest:input.requirement.requirementDigest,
+    deferredBecause,
+    queuedAt:input.queuedAt??new Date().toISOString(),
+    executionAuthorityCarried:false as const,
+    executableCredentialCarried:false as const,
+    authority:false as const,
+    mayMintExecutionAuthority:false as const
+  };
+  return DeferredNetworkProposalSchema.parse({...base,deferredDigest:digest(base)});
 }
 
 export function offlineSyncEnvelope(input:{
@@ -171,4 +221,33 @@ export function offlineSyncEnvelope(input:{
     mayMintExecutionAuthority:false as const
   };
   return OfflineSyncEnvelopeSchema.parse({...base,envelopeDigest:digest(base)});
+}
+
+export function reconnectPlan(previous:OfflineRuntimeSnapshot,current:OfflineRuntimeSnapshot,options:{unknownConsequenceRefs?:string[];deferredProposalRefs?:string[];createdAt?:string}={}):ReconnectPlan{
+  if(previous.nodeId!==current.nodeId)throw new Error("reconnect_plan_node_mismatch");
+  if(current.connectivity!=="ONLINE"&&current.connectivity!=="ONLINE_DEGRADED")throw new Error("reconnect_plan_requires_online_current_snapshot");
+  const unknownConsequenceRefs=options.unknownConsequenceRefs??[];
+  const deferredProposalRefs=options.deferredProposalRefs??[];
+  const steps:ReconnectPlan["steps"]=[
+    "UPLOAD_LOCAL_LEDGER",
+    "FETCH_SIGNED_CONTROL_UPDATES",
+    "REVALIDATE_LOCAL_POLICY_AND_TOOL_STATE"
+  ];
+  if(unknownConsequenceRefs.length>0)steps.push("RECONCILE_UNKNOWN_CONSEQUENCES");
+  if(deferredProposalRefs.length>0)steps.push("REVALIDATE_DEFERRED_PROPOSALS");
+  if(deferredProposalRefs.length>0)steps.push("ISSUE_FRESH_LOCAL_AUTHORITY_IF_ALLOWED");
+  const base={
+    version:"CIEAV_RECONNECT_PLAN_V1" as const,
+    nodeId:current.nodeId,
+    previousSnapshotDigest:previous.snapshotDigest,
+    currentSnapshotDigest:current.snapshotDigest,
+    steps,
+    unknownConsequenceRefs,
+    deferredProposalRefs,
+    outstandingAuthorityMayResume:false as const,
+    createdAt:options.createdAt??new Date().toISOString(),
+    authority:false as const,
+    mayMintExecutionAuthority:false as const
+  };
+  return ReconnectPlanSchema.parse({...base,planDigest:digest(base)});
 }
