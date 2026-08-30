@@ -44,11 +44,13 @@ export function mintLocalConsequenceAuthority(snapshot:ConsequenceAuthoritySnaps
   if(formalDecision.decision!=="ALLOW")throw new Error("consequence_authority_formal_allow_required");
   if(algebraAdmission.decision!=="ADMIT"||!algebraAdmission.reservation)throw new Error("consequence_authority_algebra_admission_required");
   if(proposal.id!==materialization.id||proposal.id!==algebraAdmission.consequenceRef)throw new Error("consequence_authority_consequence_binding_mismatch");
-  if(consequenceBundle.invocationDigest!==proposal.normalizedArgumentsDigest)throw new Error("consequence_authority_invocation_digest_mismatch");
+  if(consequenceBundle.id!==proposal.id||consequenceBundle.taskId!==proposal.taskId||consequenceBundle.intentId!==proposal.intentId)throw new Error("consequence_authority_bundle_identity_mismatch");
+  if(consequenceBundle.normalizedArgumentsDigest!==proposal.normalizedArgumentsDigest)throw new Error("consequence_authority_arguments_digest_mismatch");
   if(trustedToolBinding.bindingDigest!==consequenceBundle.trustedToolBindingDigest)throw new Error("consequence_authority_tool_binding_mismatch");
   if(materialization.semanticIdentity.targetRealityRefs.length<1)throw new Error("consequence_authority_reality_ref_required");
   if(!materialization.semanticIdentity.targetRealityRefs.includes(canonicalRealityResolution.canonicalRealityRef))throw new Error("consequence_authority_resolution_materialization_mismatch");
-  if(consequenceBundle.primaryEffects[0]?.semanticIdentityRef!==materialization.semanticIdentity.digest)throw new Error("consequence_authority_bundle_semantic_identity_mismatch");
+  const primary=consequenceBundle.primaryEffects[0];
+  if(!primary||primary.kind!==materialization.semanticIdentity.effectClass||primary.footprint.digest!==materialization.footprint.digest||digest(primary.semanticEffect)!==digest(materialization.semanticEffect)||!primary.realityAddresses.some(address=>address.digest===materialization.realityAddress.digest))throw new Error("consequence_authority_bundle_materialization_mismatch");
   const relevantClosures=snapshot.quarantineClosures.filter(closure=>authorityRelevantQuarantine(closure,materialization));
   if(relevantClosures.some(closure=>closure.blockerConsequenceRefs.includes(materialization.id)||closure.reconcileCandidateRefs.includes(materialization.id)))throw new Error("consequence_authority_quarantine_blocked");
   const routeId=snapshot.routeId??`${proposal.protocol}:${proposal.toolId}:${proposal.operation}`;
