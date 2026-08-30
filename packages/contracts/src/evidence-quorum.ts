@@ -70,3 +70,21 @@ export const EvidenceQuorumPlanSchema=z.object({
   mayMintExecutionAuthority:z.literal(false).default(false)
 });
 export type EvidenceQuorumPlan=z.infer<typeof EvidenceQuorumPlanSchema>;
+
+export const EvidenceQuorumAssessmentSchema=z.object({
+  version:z.literal("CIEAV_EVIDENCE_QUORUM_ASSESSMENT_V1"),
+  consequenceRef:z.string().uuid(),
+  proofObligationDigest:DigestSchema,
+  state:z.enum(["PROOFABLE","UNPROOFABLE","NO_REQUIREMENT"]),
+  requirementRef:z.string().uuid().optional(),
+  plan:EvidenceQuorumPlanSchema.optional(),
+  reasons:z.array(z.string().min(1).max(1000)).max(100).default([]),
+  assessedAt:z.string().datetime(),
+  authority:z.literal(false).default(false),
+  mayMintExecutionAuthority:z.literal(false).default(false)
+}).superRefine((value,ctx)=>{
+  if(value.state==="PROOFABLE"&&(!value.requirementRef||!value.plan||value.plan.availabilityState!=="SATISFIABLE"))ctx.addIssue({code:z.ZodIssueCode.custom,path:["plan"],message:"PROOFABLE assessment requires a satisfiable quorum plan"});
+  if(value.state==="UNPROOFABLE"&&(!value.requirementRef||!value.plan||value.plan.availabilityState!=="UNSATISFIABLE"))ctx.addIssue({code:z.ZodIssueCode.custom,path:["plan"],message:"UNPROOFABLE assessment requires an unsatisfiable quorum plan"});
+  if(value.state==="NO_REQUIREMENT"&&(value.requirementRef||value.plan))ctx.addIssue({code:z.ZodIssueCode.custom,path:["requirementRef"],message:"NO_REQUIREMENT assessment cannot bind a requirement or plan"});
+});
+export type EvidenceQuorumAssessment=z.infer<typeof EvidenceQuorumAssessmentSchema>;
