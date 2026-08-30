@@ -34,6 +34,7 @@ export * from "./cognitive-runtime.js";
 export * from "./cortex.js";
 export * from "./universal-intelligence.js";
 export * from "./application-agent.js";
+export * from "./adapter-qualification.js";
 export * from "./ml-types.js";
 export * from "./ml-reward.js";
 export * from "./ml-trajectory.js";
