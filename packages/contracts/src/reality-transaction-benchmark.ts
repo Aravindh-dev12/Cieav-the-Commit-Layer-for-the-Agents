@@ -7,6 +7,7 @@ export const RealityTransactionBenchmarkRuntimeClassSchema=z.enum(["SIMULATED","
 export type RealityTransactionBenchmarkRuntimeClass=z.infer<typeof RealityTransactionBenchmarkRuntimeClassSchema>;
 
 export const RealityTransactionBenchmarkScenarioKindSchema=z.enum([
+  "EXECUTION_FABRIC_LIVE",
   "HETEROGENEOUS_EQUIVALENCE",
   "CROSS_ROUTE_CONFLICT",
   "UNKNOWN_QUARANTINE",
@@ -78,5 +79,6 @@ export const RealityTransactionBenchmarkReportSchema=z.object({
   if(report.productionQualified&&report.unresolvedBlockers.length)ctx.addIssue({code:z.ZodIssueCode.custom,path:["unresolvedBlockers"],message:"production qualification cannot contain unresolved blockers"});
   if(report.productionQualified&&report.routeProtocols.length<2)ctx.addIssue({code:z.ZodIssueCode.custom,path:["routeProtocols"],message:"production qualification requires heterogeneous route protocols"});
   if(report.productionQualified&&report.runtimeClasses.includes("SIMULATED"))ctx.addIssue({code:z.ZodIssueCode.custom,path:["runtimeClasses"],message:"production qualification cannot rely on simulated scenarios"});
+  if(report.productionQualified&&!report.requiredScenarioKinds.includes("EXECUTION_FABRIC_LIVE"))ctx.addIssue({code:z.ZodIssueCode.custom,path:["requiredScenarioKinds"],message:"production qualification requires an end-to-end live Execution Fabric scenario"});
 });
 export type RealityTransactionBenchmarkReport=z.infer<typeof RealityTransactionBenchmarkReportSchema>;
