@@ -1,6 +1,7 @@
+import crypto from "node:crypto";
 import {describe,expect,it} from "vitest";
-import type {ExecutionProposal,FormalPermissionGraph,PermissionGraphEdge} from "@cieav/contracts/execution-fabric";
-import {evaluateFormalAuthorization,permissionGraphDigest,verifyPermissionGraph} from "./execution-fabric.js";
+import type {ExecutionProposal,FederatedTool,FormalPermissionGraph,PermissionGraphEdge} from "@cieav/contracts/execution-fabric";
+import {assertTrustedToolAuthorizationBinding,evaluateFormalAuthorization,permissionGraphDigest,trustedToolAuthorizationBinding,verifyPermissionGraph} from "./execution-fabric.js";
 
 const intentId="33333333-3333-4333-8333-333333333333",deviceId="dev_test_12345678";
 const edge=(overrides:Partial<PermissionGraphEdge>={}):PermissionGraphEdge=>({
@@ -14,8 +15,10 @@ const proposal=(overrides:Partial<ExecutionProposal>={}):ExecutionProposal=>({
   realityWitness:{version:1,observedAt:"2026-08-19T00:00:00.000Z",facts:[{key:"message-1",valueDigest:"2".repeat(64),source:"provider",observedAt:"2026-08-19T00:00:00.000Z"}],digest:"3".repeat(64)},
   expectedPostStateDigest:"4".repeat(64),proofObligationDigest:"5".repeat(64),attenuationWitnessIds:[],createdAt:"2026-08-19T00:00:00.000Z",...overrides
 });
-
-import crypto from "node:crypto";
+const tool: FederatedTool={
+  id:"gmail.send",displayName:"Gmail Send",protocol:"MCP",operation:"send",downstreamRef:"mcp://gmail/send",credentialMode:"CIEAV_INJECTED",risk:"HIGH",consequenceCapable:true,proofSources:["provider-readback"],enabled:true,
+  consequenceContract:{version:"CIEAV_TRUSTED_TOOL_CONSEQUENCE_CONTRACT_V1",effectKinds:["COMMUNICATE"],targetBinding:"ROUTE_TARGET",targetPrefixes:["mailto:customer@"],requiredAttributeKeys:["channel"],duplicateSemantics:"RECONCILE_BEFORE_RETRY",canonicalResolverId:"cieav.mail.address.v1",canonicalResolverVersion:"1",authority:false}
+};
 
 describe("CIEAV formal execution authorization",()=>{
   it("denies by default when no permission edge matches",()=>{expect(evaluateFormalAuthorization(graph([]),proposal()).decision).toBe("BLOCK")});
@@ -24,4 +27,17 @@ describe("CIEAV formal execution authorization",()=>{
   it("returns ASK when no matching deny exists",()=>{const d=evaluateFormalAuthorization(graph([edge(),edge({effect:"ASK",reason:"Escalate this consequence."})]),proposal());expect(d.decision).toBe("ASK")});
   it("fails closed when the permission graph is tampered",()=>{const g=graph([edge()]);const tampered={...g,edges:[...g.edges,edge({toolIds:["stripe.refund"]})]};expect(verifyPermissionGraph(tampered)).toBe(false);expect(evaluateFormalAuthorization(tampered,proposal()).decision).toBe("BLOCK")});
   it("fails closed on device or root-intent substitution",()=>{const g=graph([edge()]);expect(evaluateFormalAuthorization(g,proposal({scopeDeviceId:"dev_other_12345678"})).decision).toBe("BLOCK");expect(evaluateFormalAuthorization(g,proposal({intentId:"66666666-6666-4666-8666-666666666666"})).decision).toBe("BLOCK")});
+});
+
+describe("CIEAV trusted tool authorization binding",()=>{
+  it("detects persisted binding-field tampering even when the stored digest is left unchanged",()=>{
+    const p=proposal(),binding=trustedToolAuthorizationBinding(tool,p,{requireContract:true});
+    const tampered={...binding,canonicalResolverVersion:"2"};
+    expect(()=>assertTrustedToolAuthorizationBinding(tool,p,tampered,{requireContract:true})).toThrow("trusted_tool_authorization_binding_integrity_mismatch");
+  });
+  it("detects real contract drift after a previously valid binding was persisted",()=>{
+    const p=proposal(),binding=trustedToolAuthorizationBinding(tool,p,{requireContract:true});
+    const drifted={...tool,consequenceContract:{...tool.consequenceContract!,canonicalResolverVersion:"2"}};
+    expect(()=>assertTrustedToolAuthorizationBinding(drifted,p,binding,{requireContract:true})).toThrow("trusted_tool_consequence_contract_drift");
+  });
 });
