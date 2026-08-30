@@ -16,7 +16,7 @@ on:
           - success
           - rollback
       rollback_cloud_outage_confirmed:
-        description: For rollback only: confirm the installer-pinned Cloud endpoint is intentionally unavailable after CDN verification
+        description: For rollback only, confirm the installer-pinned Cloud endpoint is intentionally unavailable after CDN verification
         required: true
         default: false
         type: boolean
@@ -26,17 +26,20 @@ permissions:
   actions: read
 
 concurrency:
-  group: live-installer-qualification-${{ github.sha }}-${{ inputs.scenario }}
+  group: live-installer-qualification-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   verify-source:
+    name: verify-release-source-self-hosted
     if: ${{ github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 1
           clean: true
       - name: Require explicit rollback outage confirmation
         if: ${{ inputs.scenario == 'rollback' }}
@@ -50,34 +53,24 @@ jobs:
         run: |
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID" > "$RUNNER_TEMP/release-run.json"
           node - "$RUNNER_TEMP/release-run.json" <<'NODE'
-          const fs=require('fs'); const r=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const fs=require('fs');
+          const r=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
           const fail=m=>{console.error(m);process.exit(2)};
           if(r.conclusion!=='success') fail('release source run is not successful');
           if(r.head_sha!==process.env.GITHUB_SHA) fail(`release source run head ${r.head_sha} != qualification head ${process.env.GITHUB_SHA}`);
           if(r.path!=='.github/workflows/release-runtime.yml') fail(`unexpected source workflow: ${r.path}`);
           NODE
 
-  live-installer:
+  live-installer-linux:
+    name: live-installer-linux-x64
     needs: verify-source
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: windows-x64
-            runs_on: '["self-hosted","windows","cieav-release-hardware","cieav-live-installer"]'
-            installer: publish/install.ps1
-          - target: macos-arm64
-            runs_on: '["self-hosted","macOS","cieav-release-hardware","cieav-live-installer"]'
-            installer: publish/install.sh
-          - target: linux-x64
-            runs_on: '["self-hosted","linux","cieav-release-hardware","cieav-live-installer"]'
-            installer: publish/install.sh
-    runs-on: ${{ fromJSON(matrix.runs_on) }}
+    runs-on: [self-hosted, linux, x64, cieav-release-hardware, cieav-live-installer]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 1
           clean: true
       - uses: actions/setup-python@v5
         with:
@@ -91,16 +84,107 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ inputs.release_run_id }}
       - name: Require rendered installer bytes
-        shell: bash
+        shell: node {0}
         run: |
-          test -f '${{ matrix.installer }}'
-          if grep -q '__CIEAV_DOWNLOAD_BASE_URL__\|__CIEAV_RELEASE_VERSION__\|__CIEAV_RELEASE_KEY_ID__' '${{ matrix.installer }}'; then echo 'installer is not fully rendered'; exit 2; fi
+          const fs=require('fs');
+          const p='publish/install.sh';
+          if(!fs.existsSync(p)) throw new Error(`missing ${p}`);
+          const s=fs.readFileSync(p,'utf8');
+          if(/__CIEAV_DOWNLOAD_BASE_URL__|__CIEAV_RELEASE_VERSION__|__CIEAV_RELEASE_KEY_ID__/.test(s)) throw new Error('installer is not fully rendered');
       - name: Exercise real HTTPS installer transaction
-        run: python scripts/installer-live-smoke.py --installer '${{ matrix.installer }}' --scenario '${{ inputs.scenario }}' --mode publish --confirm-install-mutation
+        run: python scripts/installer-live-smoke.py --installer publish/install.sh --scenario '${{ inputs.scenario }}' --mode publish --confirm-install-mutation
       - name: Upload live installer evidence
         uses: actions/upload-artifact@v4
         with:
-          name: live-installer-${{ inputs.scenario }}-${{ matrix.target }}
+          name: live-installer-${{ inputs.scenario }}-linux-x64
+          path: release/reports/cieav-installer-${{ inputs.scenario }}-*.json
+          if-no-files-found: error
+      - name: Scrub qualification worktree
+        if: ${{ always() }}
+        run: |
+          git reset --hard HEAD
+          git clean -ffdx
+
+  live-installer-windows:
+    name: live-installer-windows-x64
+    needs: verify-source
+    runs-on: [self-hosted, windows, x64, cieav-release-hardware, cieav-live-installer]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          clean: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download exact signed publish layout
+        uses: actions/download-artifact@v4
+        with:
+          name: cieav-cdn-publish-layout
+          path: publish
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.release_run_id }}
+      - name: Require rendered installer bytes
+        shell: node {0}
+        run: |
+          const fs=require('fs');
+          const p='publish/install.ps1';
+          if(!fs.existsSync(p)) throw new Error(`missing ${p}`);
+          const s=fs.readFileSync(p,'utf8');
+          if(/__CIEAV_DOWNLOAD_BASE_URL__|__CIEAV_RELEASE_VERSION__|__CIEAV_RELEASE_KEY_ID__/.test(s)) throw new Error('installer is not fully rendered');
+      - name: Exercise real HTTPS installer transaction
+        run: python scripts/installer-live-smoke.py --installer publish/install.ps1 --scenario '${{ inputs.scenario }}' --mode publish --confirm-install-mutation
+      - name: Upload live installer evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-installer-${{ inputs.scenario }}-windows-x64
+          path: release/reports/cieav-installer-${{ inputs.scenario }}-*.json
+          if-no-files-found: error
+      - name: Scrub qualification worktree
+        if: ${{ always() }}
+        run: |
+          git reset --hard HEAD
+          git clean -ffdx
+
+  live-installer-macos:
+    name: live-installer-macos-arm64
+    needs: verify-source
+    runs-on: [self-hosted, macos, arm64, cieav-release-hardware, cieav-live-installer]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          clean: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download exact signed publish layout
+        uses: actions/download-artifact@v4
+        with:
+          name: cieav-cdn-publish-layout
+          path: publish
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.release_run_id }}
+      - name: Require rendered installer bytes
+        shell: node {0}
+        run: |
+          const fs=require('fs');
+          const p='publish/install.sh';
+          if(!fs.existsSync(p)) throw new Error(`missing ${p}`);
+          const s=fs.readFileSync(p,'utf8');
+          if(/__CIEAV_DOWNLOAD_BASE_URL__|__CIEAV_RELEASE_VERSION__|__CIEAV_RELEASE_KEY_ID__/.test(s)) throw new Error('installer is not fully rendered');
+      - name: Exercise real HTTPS installer transaction
+        run: python scripts/installer-live-smoke.py --installer publish/install.sh --scenario '${{ inputs.scenario }}' --mode publish --confirm-install-mutation
+      - name: Upload live installer evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-installer-${{ inputs.scenario }}-macos-arm64
           path: release/reports/cieav-installer-${{ inputs.scenario }}-*.json
           if-no-files-found: error
       - name: Scrub qualification worktree
