@@ -19,10 +19,32 @@ describe("CIEAV consequence settlement durable store",()=>{
     expect(latest?.realityState).toBe("OBSERVED_SUCCESS");expect(latest?.recoveryState).toBe("REQUIRED");expect(history).toHaveLength(2);expect(transitions).toHaveLength(1);expect(transitions[0]?.previousDigest).toBe(initial.settlementDigest);await reopened.close();
   });
 
+  it("keeps ACCEPTED transport separate from observed reality",async()=>{
+    const {file,secret}=await store(),consequenceRef=crypto.randomUUID(),first=new CieavConsequenceSettlementStore(file,secret);
+    const dispatched=await first.recordExecutionTransport(consequenceRef,"ACCEPTED",["adapter:receipt-1"],new Date("2026-08-30T12:00:00.000Z"));
+    expect(dispatched.settlement.executionState).toBe("DISPATCHED");expect(dispatched.settlement.realityState).toBe("UNKNOWN");expect(dispatched.settlement.legitimacyState).toBe("VALID");
+    const replay=await first.recordExecutionTransport(consequenceRef,"ACCEPTED",["adapter:receipt-1"],new Date("2026-08-30T12:00:01.000Z"));expect(replay.changed).toBe(false);expect((await first.history(consequenceRef))).toHaveLength(1);
+    const observed=await first.recordRealityObservation(consequenceRef,"OBSERVED_SUCCESS",["ledger:confirmed-1"],"Independent ledger confirmed the consequence.",new Date("2026-08-30T12:01:00.000Z"));
+    expect(observed.settlement.executionState).toBe("COMPLETED");expect(observed.settlement.realityState).toBe("OBSERVED_SUCCESS");expect(observed.settlement.evidenceState).toBe("VERIFIED");await first.close();
+  });
+
+  it("keeps rejected or ambiguous transport at UNKNOWN until independent observation",async()=>{
+    for(const transport of ["REJECTED","UNKNOWN"] as const){
+      const {file,secret}=await store(),consequenceRef=crypto.randomUUID(),first=new CieavConsequenceSettlementStore(file,secret),attempt=await first.recordExecutionTransport(consequenceRef,transport,[`adapter:${transport.toLowerCase()}`]);
+      expect(attempt.settlement.executionState).toBe("INTERRUPTED");expect(attempt.settlement.realityState).toBe("UNKNOWN");expect(attempt.settlement.recoveryState).toBe("UNKNOWN");
+      const observed=await first.recordRealityObservation(consequenceRef,"OBSERVED_FAILURE",[`proof:${transport.toLowerCase()}:no-effect`],"Independent proof established that the intended consequence did not occur.");expect(observed.settlement.realityState).toBe("OBSERVED_FAILURE");await first.close();
+    }
+  });
+
   it("requires trusted reconciliation to settle UNKNOWN after restart",async()=>{
     const {file,secret}=await store(),consequenceRef=crypto.randomUUID(),first=new CieavConsequenceSettlementStore(file,secret);await first.create({consequenceRef,executionState:"DISPATCHED",realityState:"UNKNOWN",evidenceState:"UNAVAILABLE",recoveryState:"UNKNOWN"});await first.close();
     const reopened=new CieavConsequenceSettlementStore(file,secret);await expect(reopened.update(consequenceRef,{executionState:"COMPLETED",realityState:"OBSERVED_FAILURE",evidenceState:"VERIFIED",recoveryState:"NOT_REQUIRED"},"untrusted retry result")).rejects.toThrow("reality_reconciliation_required");
     const result=await reopened.update(consequenceRef,{executionState:"COMPLETED",realityState:"OBSERVED_FAILURE",evidenceState:"VERIFIED",recoveryState:"NOT_REQUIRED",evidenceRefs:["provider:signed-readback"]},"trusted reconciliation",{trustedRealityReconciliation:true});expect(result.settlement.realityState).toBe("OBSERVED_FAILURE");await reopened.close();
+  });
+
+  it("preserves append-order replay even when snapshots share timestamps",async()=>{
+    const {file,secret}=await store(),consequenceRef=crypto.randomUUID(),at=new Date("2026-08-30T12:00:00.000Z"),first=new CieavConsequenceSettlementStore(file,secret);await first.create({consequenceRef,executionState:"DISPATCHED",realityState:"UNKNOWN",evidenceState:"AVAILABLE",recoveryState:"UNKNOWN",at});await first.update(consequenceRef,{legitimacyState:"VALID"},"Authority provenance verified.",{at});await first.close();
+    const reopened=new CieavConsequenceSettlementStore(file,secret);const history=await reopened.history(consequenceRef);expect(history).toHaveLength(2);expect(history[0]?.legitimacyState).toBe("UNKNOWN_VALIDITY");expect(history[1]?.legitimacyState).toBe("VALID");expect((await reopened.transitions(consequenceRef))).toHaveLength(1);await reopened.close();
   });
 
   it("fails closed when authenticated settlement state is tampered",async()=>{
