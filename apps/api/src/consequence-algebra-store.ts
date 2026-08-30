@@ -92,7 +92,7 @@ type PayloadV2={
 type LegacyPayload={version:1;nodes?:unknown[];reservations?:unknown[];proofPlans?:unknown[];fences?:unknown[];aggregation?:unknown[]};
 type PersistedPayload=Payload|PayloadV2|LegacyPayload;
 type Envelope={payload:PersistedPayload;mac:string};
-type StoreAdmissionOptions=Omit<AdmissionOptions,"activeNodes"|"historyNodes"|"aggregationTotals"|"history"|"relationRules"|"invariantRules">&{aggregationWindowKey?:string};
+type StoreAdmissionOptions=Omit<AdmissionOptions,"activeNodes"|"historyNodes"|"aggregationTotals"|"history"|"relationRules"|"invariantRules"|"unknownAggregationTotals"|"unknownAggregationRefs">&{aggregationWindowKey?:string};
 
 const empty=():Payload=>({version:3,policy:DEFAULT_POLICY,relationRules:[],invariantRules:[],nodes:[],reservations:[],proofPlans:[],fences:[],aggregation:[],quarantineClosures:[],audit:[]});
 const terminal=new Set<ActiveConsequenceNode["state"]>(["SETTLED_SUCCESS","SETTLED_FAILURE","CANCELLED"]);
@@ -150,14 +150,20 @@ export class CieavConsequenceAlgebraStore{
     const relevantHistory=p.aggregationScope==="ROOT_INTENT"
       ?history.filter(e=>e.rootIntentRef===m.rootIntentRef)
       :history.filter(e=>e.principalRef===m.principalRef&&e.targetRealityRefs.some(r=>m.semanticIdentity.targetRealityRefs.includes(r)));
-    const totals:Record<string,number>={};
+    const totals:Record<string,number>={},unknownAggregationTotals:Record<string,number>={},unknownAggregationRefs:Record<string,string[]>={};
     for(const entry of relevantHistory)for(const[k,v]of Object.entries(entry.dimensions))totals[k]=(totals[k]??0)+v;
     for(const node of active){
       const sameScope=p.aggregationScope==="ROOT_INTENT"
         ?node.materialization.rootIntentRef===m.rootIntentRef
         :node.materialization.principalRef===m.principalRef&&node.materialization.semanticIdentity.targetRealityRefs.some(r=>m.semanticIdentity.targetRealityRefs.includes(r));
       if(!sameScope)continue;
-      for(const[k,v]of Object.entries(node.materialization.footprint.budgetDeltas))totals[k]=(totals[k]??0)+v;
+      for(const[k,v]of Object.entries(node.materialization.footprint.budgetDeltas)){
+        totals[k]=(totals[k]??0)+v;
+        if(unknownStates.has(node.state)){
+          unknownAggregationTotals[k]=(unknownAggregationTotals[k]??0)+v;
+          unknownAggregationRefs[k]=[...new Set([...(unknownAggregationRefs[k]??[]),node.materialization.id])].sort();
+        }
+      }
     }
     const configuredProviders=p.proofProviderBindings[m.toolId]??p.proofProviderBindings["*"]??[];
     const explicitProviders=opts.proofProviders??configuredProviders.map(ref=>({ref}));
@@ -174,7 +180,9 @@ export class CieavConsequenceAlgebraStore{
       requireProofability,
       reservationTtlSeconds:opts.reservationTtlSeconds??p.reservationTtlSeconds,
       aggregationTotals:totals,
-      aggregationLimits
+      aggregationLimits,
+      unknownAggregationTotals,
+      unknownAggregationRefs
     });
   }
 
