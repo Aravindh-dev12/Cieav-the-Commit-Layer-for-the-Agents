@@ -22,6 +22,7 @@ const effect={kind:"COMMUNICATE" as const,target:"customer@example.com",objectRe
 const normalizedArguments={to:"customer@example.com",subject:"Invoice reminder",template:"approved-v4"};
 const preState=makeRealityWitness([{key:"message.customer-update-42",value:{status:"NOT_SENT"},source:"provider-readback"}],"2026-08-22T17:00:00.000Z");
 const postState=makeRealityWitness([{key:"message.customer-update-42",value:{status:"SENT"},source:"provider-readback"}],"2026-08-22T17:00:01.000Z");
+const consequenceContract={version:"CIEAV_TRUSTED_TOOL_CONSEQUENCE_CONTRACT_V1" as const,effectKinds:["COMMUNICATE" as const],targetBinding:"ROUTE_TARGET" as const,targetPrefixes:["mailto:customer@"],requiredAttributeKeys:["channel"],duplicateSemantics:"RECONCILE_BEFORE_RETRY" as const,canonicalResolverId:"cieav.mail.address.v1",canonicalResolverVersion:"1",authority:false as const};
 const commitment={
   id:"22222222-2222-4222-8222-222222222222",version:1 as const,intentId,owner,actor,authoritySource:"local-human-approval",
   summary:"Send governed update",desiredState:"Update sent",createdAt:"2026-08-22T16:59:00.000Z",state:"AUTHORIZED" as const,risk:"HIGH" as const,
@@ -46,7 +47,7 @@ async function createExecutedTask(){
     version:1,subjectId:actor.id,provider:"test-agent",method:"LOCAL_KEY",keyId:"agent-key-1",
     publicKeyFingerprint:"a".repeat(64),claimsDigest:"b".repeat(64),issuedAt:new Date(now-1_000).toISOString(),expiresAt:new Date(now+600_000).toISOString()
   });
-  await kernel.executionFabric.putTool({id:"gmail.send",displayName:"Gmail Send",protocol:"MCP",operation:"send",downstreamRef:"mcp://gmail/send",credentialMode:"CIEAV_INJECTED",risk:"HIGH",consequenceCapable:true,proofSources:["provider-readback"],enabled:true});
+  await kernel.executionFabric.putTool({id:"gmail.send",displayName:"Gmail Send",protocol:"MCP",operation:"send",downstreamRef:"mcp://gmail/send",credentialMode:"CIEAV_INJECTED",risk:"HIGH",consequenceCapable:true,proofSources:["provider-readback"],enabled:true,consequenceContract});
   const leaseBase={version:1 as const,sessionId,identityAttestationId:attestation.id,scopeDeviceId:deviceId,audience:"tool:gmail.send",allowedIntentIds:[intentId],allowedToolIds:["gmail.send"],allowedOperations:["send"],maxRisk:"HIGH" as const,credentialRefDigest:"c".repeat(64),issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+300_000).toISOString(),maxUses:2};
   const lease=await kernel.executionFabric.issueLease({id:crypto.randomUUID(),...leaseBase,bindingDigest:digest(leaseBase),used:0});
   await kernel.executionFabric.putPermissionGraph({id:crypto.randomUUID(),version:1,scopeDeviceId:deviceId,rootIntentId:intentId,defaultDecision:"DENY",edges:[{id:crypto.randomUUID(),effect:"ALLOW",subjectIds:[actor.id],intentIds:[intentId],toolIds:["gmail.send"],operations:["send"],targetPrefixes:["mailto:customer@"],maxRisk:"HIGH",evidenceRefs:["intent:root","policy:customer-contact"],reason:"Governed customer communication is within root Intent."}],createdAt:new Date(now).toISOString(),updatedAt:new Date(now).toISOString()});
