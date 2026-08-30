@@ -17,6 +17,7 @@ export * from "./reality-quarantine.js";
 export * from "./evidence-quorum.js";
 export * from "./consequence-settlement.js";
 export * from "./causal-recall.js";
+export * from "./data-flow-integrity.js";
 export * from "./continuity.js";
 export * from "./offline-runtime.js";
 export * from "./authority-grade-settlement.js";
