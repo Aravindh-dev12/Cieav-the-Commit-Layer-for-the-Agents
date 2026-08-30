@@ -13,15 +13,28 @@ concurrency:
 
 jobs:
   policy:
-    runs-on: ubuntu-latest
+    name: ml-gpu-policy-linux-x64-self-hosted
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: ${{ github.workspace }}/python:${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: Configure runner system Python
+        shell: bash
+        run: |
+          set -euxo pipefail
+          PYTHON_BIN="$(command -v python3 || command -v python)"
+          "$PYTHON_BIN" --version
+          mkdir -p "$RUNNER_TEMP/cieav-bin"
+          ln -sf "$PYTHON_BIN" "$RUNNER_TEMP/cieav-bin/python"
+          echo "$RUNNER_TEMP/cieav-bin" >> "$GITHUB_PATH"
       - name: Verify ML GPU qualification boundary
         run: node scripts/ml-gpu-workflow-static.mjs
       - name: Verify ML reproducibility contract
