@@ -12,6 +12,8 @@ export * from "./consequence-algebra.js";
 export * from "./consequence-bundle.js";
 export * from "./reality-resolver.js";
 export * from "./resolved-consequence-materialization.js";
+export * from "./reality-quarantine.js";
+export * from "./evidence-quorum.js";
 export * from "./continuity.js";
 export * from "./offline-runtime.js";
 export * from "./authority-grade-settlement.js";
