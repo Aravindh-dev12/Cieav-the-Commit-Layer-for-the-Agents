@@ -21,6 +21,7 @@ const effect={kind:"COMMUNICATE" as const,target:"customer@example.com",objectRe
 const normalizedArguments={to:"customer@example.com",subject:"Invoice reminder",template:"approved-v4"};
 const preState=makeRealityWitness([{key:"message.customer-update-42",value:{status:"NOT_SENT"},source:"provider-readback"}],"2026-08-19T00:01:00.000Z");
 const postState=makeRealityWitness([{key:"message.customer-update-42",value:{status:"SENT"},source:"provider-readback"}],"2026-08-19T00:01:00.000Z");
+const consequenceContract={version:"CIEAV_TRUSTED_TOOL_CONSEQUENCE_CONTRACT_V1" as const,effectKinds:["COMMUNICATE" as const],targetBinding:"ROUTE_TARGET" as const,targetPrefixes:["mailto:customer@"],requiredAttributeKeys:["channel"],duplicateSemantics:"RECONCILE_BEFORE_RETRY" as const,canonicalResolverId:"cieav.mail.address.v1",canonicalResolverVersion:"1",authority:false as const};
 
 async function setup(){
   const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-authority-tx-recovery-"));dirs.push(dir);
@@ -32,7 +33,7 @@ async function setup(){
   await kernel.bindCommitmentTrusted(taskId,commitment);
   const fabric=kernel.executionFabric,now=Date.now();
   const attestation=await fabric.registerAttestation({version:1,subjectId:"agent-1",provider:"openclaw",method:"LOCAL_KEY",keyId:"agent-key-1",publicKeyFingerprint:"a".repeat(64),claimsDigest:"b".repeat(64),issuedAt:new Date(now-1000).toISOString(),expiresAt:new Date(now+600_000).toISOString()});
-  await fabric.putTool({id:"gmail.send",displayName:"Gmail Send",protocol:"MCP",operation:"send",downstreamRef:"mcp://gmail/send",credentialMode:"CIEAV_INJECTED",risk:"HIGH",consequenceCapable:true,proofSources:["provider-readback"],enabled:true});
+  await fabric.putTool({id:"gmail.send",displayName:"Gmail Send",protocol:"MCP",operation:"send",downstreamRef:"mcp://gmail/send",credentialMode:"CIEAV_INJECTED",risk:"HIGH",consequenceCapable:true,proofSources:["provider-readback"],enabled:true,consequenceContract});
   const leaseBase={version:1 as const,sessionId,identityAttestationId:attestation.id,scopeDeviceId:deviceId,audience:"tool:gmail.send",allowedIntentIds:[intentId],allowedToolIds:["gmail.send"],allowedOperations:["send"],maxRisk:"HIGH" as const,credentialRefDigest:"c".repeat(64),issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+300_000).toISOString(),maxUses:2};
   const lease=await fabric.issueLease({id:crypto.randomUUID(),...leaseBase,bindingDigest:digest(leaseBase),used:0});
   await fabric.putPermissionGraph({id:crypto.randomUUID(),version:1,scopeDeviceId:deviceId,rootIntentId:intentId,defaultDecision:"DENY",edges:[{id:crypto.randomUUID(),effect:"ALLOW",subjectIds:["agent-1"],intentIds:[intentId],toolIds:["gmail.send"],operations:["send"],targetPrefixes:["mailto:customer@"],maxRisk:"HIGH",evidenceRefs:["intent:root","policy:customer-contact"],reason:"Governed customer communication is within root Intent."}],createdAt:new Date(now).toISOString(),updatedAt:new Date(now).toISOString()});
@@ -45,9 +46,10 @@ async function setup(){
   return{dir,kernel,fabric,taskId,proposal,realityCommit,lease};
 }
 
-function buildTicket(x:Awaited<ReturnType<typeof setup>>,record:{decision:unknown}){
+function buildTicket(x:Awaited<ReturnType<typeof setup>>,record:NonNullable<Awaited<ReturnType<Awaited<ReturnType<typeof setup>>["fabric"]["getProposalRecord"]>>>){
+  if(!record.trustedToolBinding)throw new Error("missing trusted tool binding");
   const now=Date.now();
-  return {id:crypto.randomUUID(),version:1 as const,proposalId:x.proposal.id,intentId,taskId:x.taskId,toolId:x.proposal.toolId,authorizationDigest:digest(record.decision),realityBoundCommitId:x.realityCommit.id,credentialLeaseId:x.lease.id,routeDigest:digest({toolId:x.proposal.toolId,protocol:x.proposal.protocol,operation:x.proposal.operation,target:x.proposal.target??null,normalizedArgumentsDigest:x.proposal.normalizedArgumentsDigest}),issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+30_000).toISOString(),status:"ISSUED" as const};
+  return {id:crypto.randomUUID(),version:1 as const,proposalId:x.proposal.id,intentId,taskId:x.taskId,toolId:x.proposal.toolId,authorizationDigest:digest(record.decision),realityBoundCommitId:x.realityCommit.id,credentialLeaseId:x.lease.id,routeDigest:digest({toolId:x.proposal.toolId,protocol:x.proposal.protocol,operation:x.proposal.operation,target:x.proposal.target??null,normalizedArgumentsDigest:x.proposal.normalizedArgumentsDigest,trustedToolBindingDigest:record.trustedToolBinding.bindingDigest}),issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+30_000).toISOString(),status:"ISSUED" as const};
 }
 
 async function setupConsumedTicket(){const x=await setup(),ticket=await x.fabric.issueTicket(x.proposal.id,x.realityCommit.id);await x.fabric.consumeTicket(ticket.id,normalizedArguments);return{...x,ticket}}
@@ -55,9 +57,9 @@ async function setupConsumedTicket(){const x=await setup(),ticket=await x.fabric
 describe("CIEAV authority transaction crash recovery",()=>{
   it("recovers a prepared ticket issue exactly once after reopen",async()=>{
     const x=await setup(),record=await x.fabric.getProposalRecord(x.proposal.id);
-    if(!record)throw new Error("missing proposal record");
+    if(!record||!record.trustedToolBinding)throw new Error("missing proposal trusted-tool record");
     const ticket=buildTicket(x,record);
-    await x.fabric.authorityTransactions.begin("ISSUE_TICKET",`issue:${x.proposal.id}:${x.realityCommit.id}`,{ticket,proposalId:x.proposal.id,scopeDeviceId:deviceId,intentId,taskId:x.taskId});
+    await x.fabric.authorityTransactions.begin("ISSUE_TICKET",`issue:${x.proposal.id}:${x.realityCommit.id}`,{ticket,proposalId:x.proposal.id,trustedToolBindingDigest:record.trustedToolBinding.bindingDigest,scopeDeviceId:deviceId,intentId,taskId:x.taskId});
     expect((await x.fabric.authorityTransactions.health()).pending).toBe(1);
     await x.kernel.close();
 
@@ -75,8 +77,10 @@ describe("CIEAV authority transaction crash recovery",()=>{
   });
 
   it("recovers a prepared ticket consumption without double-spending the lease",async()=>{
-    const x=await setup(),ticket=await x.fabric.issueTicket(x.proposal.id,x.realityCommit.id),consumed={...ticket,status:"CONSUMED" as const,consumedAt:new Date().toISOString()};
-    await x.fabric.authorityTransactions.begin("CONSUME_TICKET",`consume:${ticket.id}`,{ticketId:ticket.id,consumed,proposalId:x.proposal.id,leaseId:x.lease.id,leaseUsedBefore:x.lease.used,argumentsDigest:x.proposal.normalizedArgumentsDigest,scopeDeviceId:deviceId,intentId,taskId:x.taskId});
+    const x=await setup(),record=await x.fabric.getProposalRecord(x.proposal.id);
+    if(!record?.trustedToolBinding)throw new Error("missing proposal trusted-tool record");
+    const ticket=await x.fabric.issueTicket(x.proposal.id,x.realityCommit.id),consumed={...ticket,status:"CONSUMED" as const,consumedAt:new Date().toISOString()};
+    await x.fabric.authorityTransactions.begin("CONSUME_TICKET",`consume:${ticket.id}`,{ticketId:ticket.id,consumed,proposalId:x.proposal.id,trustedToolBindingDigest:record.trustedToolBinding.bindingDigest,leaseId:x.lease.id,leaseUsedBefore:x.lease.used,argumentsDigest:x.proposal.normalizedArgumentsDigest,scopeDeviceId:deviceId,intentId,taskId:x.taskId});
     expect((await x.fabric.authorityTransactions.health()).pending).toBe(1);
     await x.kernel.close();
 
