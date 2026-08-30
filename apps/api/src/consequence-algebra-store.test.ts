@@ -112,9 +112,9 @@ describe("CieavConsequenceAlgebraStore",()=>{
 
   it("excludes waiting consequences from cumulative budget authority math",async()=>{
     const x=await store(),rootIntent=crypto.randomUUID(),policy=await x.store.getPolicy();await x.store.putPolicy({...policy,defaultAggregationLimits:{"money:USD":15}});
-    const a=materializeExecutionProposal(proposal("resource://shared",{intentId:rootIntent,semanticEffect:{kind:"UPDATE",target:"resource://shared",amount:{currency:"USD",amount:10},attributes:{value:"a"}}}));
-    const b=materializeExecutionProposal(proposal("resource://shared",{intentId:rootIntent,semanticEffect:{kind:"UPDATE",target:"resource://shared",amount:{currency:"USD",amount:10},attributes:{value:"b"}}}));
-    const c=materializeExecutionProposal(proposal("resource://independent",{intentId:rootIntent,semanticEffect:{kind:"UPDATE",target:"resource://independent",amount:{currency:"USD",amount:5},attributes:{value:"c"}}}));
+    const a=materializeExecutionProposal(proposal("resource://shared",{intentId:rootIntent,semanticEffect:{kind:"UPDATE",target:"resource://shared",amount:{currency:"USD",value:10},attributes:{value:"a"}}}));
+    const b=materializeExecutionProposal(proposal("resource://shared",{intentId:rootIntent,semanticEffect:{kind:"UPDATE",target:"resource://shared",amount:{currency:"USD",value:10},attributes:{value:"b"}}}));
+    const c=materializeExecutionProposal(proposal("resource://independent",{intentId:rootIntent,semanticEffect:{kind:"UPDATE",target:"resource://independent",amount:{currency:"USD",value:5},attributes:{value:"c"}}}));
     expect((await x.store.admit(a,{})).admission.decision).toBe("ADMIT");expect((await x.store.admit(b,{})).admission.decision).toBe("COORDINATE");
     const third=await x.store.admit(c,{});expect(third.admission.decision).toBe("ADMIT");expect(third.node.state).toBe("RESERVED");expect(await x.store.listReservations()).toHaveLength(2);
   });
