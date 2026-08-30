@@ -59,6 +59,13 @@ jobs:
           ln -sf "$PYTHON_BIN" "$RUNNER_TEMP/cieav-bin/python"
           echo "$RUNNER_TEMP/cieav-bin" >> "$GITHUB_PATH"
           PYTHONPATH="$GITHUB_WORKSPACE/python:$GITHUB_WORKSPACE" "$PYTHON_BIN" -m cieav_platform --help >/dev/null
+          PYTHONPATH="$GITHUB_WORKSPACE/python:$GITHUB_WORKSPACE" "$PYTHON_BIN" -m cieav_platform kernel --help >/dev/null
+
+      - name: Reality Kernel CLI qualification
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python -m unittest discover -s python/tests -p 'test_*.py' -v
 
       - name: Install Node dependencies
         run: npm ci
