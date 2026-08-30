@@ -22,7 +22,8 @@ export function materializeResolvedExecutionProposal(proposal:ExecutionProposal,
   const expectedAuthorityDomain=`device:${proposal.scopeDeviceId}`;
   if(resolution.address.authorityDomain!==expectedAuthorityDomain)throw new Error("canonical_reality_resolution_authority_domain_mismatch");
 
-  const base=materializeExecutionProposal(proposal),previousRef=base.realityAddress.digest,nextRef=resolution.canonicalRealityRef;
+  const base=materializeExecutionProposal(proposal),previousRef=base.semanticIdentity.targetRealityRefs[0],nextRef=resolution.canonicalRealityRef;
+  if(!previousRef)throw new Error("canonical_reality_previous_ref_required");
   const footprint=makeConsequenceFootprint({
     version:"CIEAV_CONSEQUENCE_FOOTPRINT_V1",
     realityRead:replaceRef(base.footprint.realityRead,previousRef,nextRef),
