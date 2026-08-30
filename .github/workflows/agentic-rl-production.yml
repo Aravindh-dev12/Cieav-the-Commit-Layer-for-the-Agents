@@ -7,15 +7,17 @@ concurrency:
   cancel-in-progress: true
 jobs:
   boundary:
-    runs-on: [self-hosted, windows, x64]
+    name: agentic-rl-linux-x64-self-hosted
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
       - name: Verify model qualification and agentic RL boundary
         run: node scripts/agentic-rl-production-static.mjs
       - name: Install dependencies

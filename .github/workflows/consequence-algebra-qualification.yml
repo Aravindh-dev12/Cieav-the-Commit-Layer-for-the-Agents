@@ -4,11 +4,17 @@ on:
   push:
     branches:
       - main
+      - tmp-consequence-algebra-build
+      - feat/trusted-tool-consequence-contract
     paths:
       - 'packages/contracts/src/consequence-algebra.ts'
+      - 'packages/contracts/src/evidence-quorum.ts'
       - 'packages/core/src/consequence-algebra.ts'
+      - 'packages/core/src/evidence-quorum.ts'
+      - 'packages/core/src/consequence-algebra-evidence-quorum.test.ts'
       - 'apps/api/src/consequence-algebra-*.ts'
       - 'apps/api/src/execution-fabric.ts'
+      - 'apps/api/src/execution-fabric-evidence-quorum.test.ts'
       - 'apps/api/src/agent-kernel.ts'
       - 'scripts/consequence-algebra-static.mjs'
       - 'scripts/qualify-consequence-algebra.mjs'
@@ -18,9 +24,13 @@ on:
   pull_request:
     paths:
       - 'packages/contracts/src/consequence-algebra.ts'
+      - 'packages/contracts/src/evidence-quorum.ts'
       - 'packages/core/src/consequence-algebra.ts'
+      - 'packages/core/src/evidence-quorum.ts'
+      - 'packages/core/src/consequence-algebra-evidence-quorum.test.ts'
       - 'apps/api/src/consequence-algebra-*.ts'
       - 'apps/api/src/execution-fabric.ts'
+      - 'apps/api/src/execution-fabric-evidence-quorum.test.ts'
       - 'apps/api/src/agent-kernel.ts'
       - 'scripts/consequence-algebra-static.mjs'
       - 'scripts/qualify-consequence-algebra.mjs'
@@ -33,14 +43,68 @@ permissions:
   contents: read
 
 jobs:
-  qualify:
+  qualify-linux:
+    name: qualify-linux-self-hosted
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 45
+    concurrency:
+      group: consequence-algebra-${{ github.ref }}-linux
+      cancel-in-progress: true
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Qualify Consequence Algebra
+        run: node scripts/qualify-consequence-algebra.mjs
+
+      - name: Qualify M6 evidence quorum integration
+        run: |
+          npx vitest run packages/core/src/consequence-algebra-evidence-quorum.test.ts
+          npx vitest run apps/api/src/consequence-algebra-evidence-quorum.test.ts apps/api/src/execution-fabric-evidence-quorum.test.ts
+
+      - name: Verify receipt is exact-head PASS
+        shell: node {0}
+        run: |
+          const fs=require('node:fs');
+          const cp=require('node:child_process');
+          const p='release/reports/latest-consequence-algebra-qualification.json';
+          const r=JSON.parse(fs.readFileSync(p,'utf8'));
+          const head=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+          if(r.verdict!=='PASS') throw new Error('qualification receipt is not PASS');
+          if(r.commit!==head) throw new Error(`receipt commit ${r.commit} != HEAD ${head}`);
+          if(r.platform.os!==process.platform) throw new Error('receipt platform mismatch');
+          if(r.authority!==false||r.mayMintExecutionAuthority!==false) throw new Error('zero-authority receipt invariant failed');
+          console.log(`Qualified ${process.platform}/${process.arch} at ${head}`);
+
+      - name: Upload qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: consequence-algebra-linux-${{ github.sha }}
+          path: |
+            release/reports/latest-consequence-algebra-qualification.json
+            release/reports/latest-consequence-algebra-qualification.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  qualify-native:
     name: qualify-${{ matrix.name }}
+    if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: linux
-            os: ubuntu-latest
           - name: windows
             os: windows-latest
           - name: macos

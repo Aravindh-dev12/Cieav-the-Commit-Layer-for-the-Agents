@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feat/trusted-tool-consequence-contract
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -59,6 +62,13 @@ jobs:
           ln -sf "$PYTHON_BIN" "$RUNNER_TEMP/cieav-bin/python"
           echo "$RUNNER_TEMP/cieav-bin" >> "$GITHUB_PATH"
           PYTHONPATH="$GITHUB_WORKSPACE/python:$GITHUB_WORKSPACE" "$PYTHON_BIN" -m cieav_platform --help >/dev/null
+          PYTHONPATH="$GITHUB_WORKSPACE/python:$GITHUB_WORKSPACE" "$PYTHON_BIN" -m cieav_platform kernel --help >/dev/null
+
+      - name: Reality Kernel CLI qualification
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python -m unittest discover -s python/tests -p 'test_*.py' -v
 
       - name: Install Node dependencies
         run: npm ci
@@ -69,8 +79,22 @@ jobs:
       - name: Typecheck all workspaces
         run: npm run typecheck
 
-      - name: Core and API tests
+      - name: Core qualification
         run: npm run test:core
+
+      - name: M6 evidence quorum qualification
+        run: |
+          npx vitest run packages/core/src/consequence-algebra-evidence-quorum.test.ts
+          npx vitest run apps/api/src/consequence-algebra-evidence-quorum.test.ts apps/api/src/execution-fabric-evidence-quorum.test.ts
+
+      - name: M12 browser commit-point qualification
+        run: node scripts/browser-commit-point-e2e.mjs
+
+      - name: M13 adapter qualification SDK
+        run: npx vitest run packages/core/src/adapter-qualification.test.ts
+
+      - name: M14 heterogeneous Reality Transaction benchmark
+        run: npx vitest run apps/api/src/reality-transaction-benchmark.test.ts
 
       - name: Agent Kernel qualification tests
         run: npm run test:agent-kernel

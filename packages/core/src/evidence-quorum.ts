@@ -1,10 +1,12 @@
 import crypto from "node:crypto";
 import {
   EvidenceProviderBindingSchema,
+  EvidenceQuorumAssessmentSchema,
   EvidenceQuorumPlanSchema,
   EvidenceQuorumRequirementSchema,
   type ConsequenceMaterialization,
   type EvidenceProviderBinding,
+  type EvidenceQuorumAssessment,
   type EvidenceQuorumPlan,
   type EvidenceQuorumRequirement
 } from "@cieav/contracts";
@@ -114,6 +116,39 @@ export function planEvidenceQuorum(
     quorumDigest:evidenceQuorumDigest(planDigestBase(base)),
     issuedAt:at.toISOString(),
     expiresAt:new Date(at.getTime()+ttl*1000).toISOString(),
+    authority:false,
+    mayMintExecutionAuthority:false
+  });
+}
+
+export function assessEvidenceQuorum(
+  materialization:ConsequenceMaterialization,
+  providers:EvidenceProviderBinding[],
+  requirements:EvidenceQuorumRequirement[],
+  ttlSeconds=60,
+  at=new Date()
+):EvidenceQuorumAssessment{
+  const requirement=selectEvidenceQuorumRequirement(materialization,requirements);
+  if(!requirement)return EvidenceQuorumAssessmentSchema.parse({
+    version:"CIEAV_EVIDENCE_QUORUM_ASSESSMENT_V1",
+    consequenceRef:materialization.id,
+    proofObligationDigest:materialization.proofObligationDigest,
+    state:"NO_REQUIREMENT",
+    reasons:["no_matching_evidence_quorum_requirement"],
+    assessedAt:at.toISOString(),
+    authority:false,
+    mayMintExecutionAuthority:false
+  });
+  const plan=planEvidenceQuorum(materialization,providers,requirement,ttlSeconds,at),proofable=plan.availabilityState==="SATISFIABLE";
+  return EvidenceQuorumAssessmentSchema.parse({
+    version:"CIEAV_EVIDENCE_QUORUM_ASSESSMENT_V1",
+    consequenceRef:materialization.id,
+    proofObligationDigest:materialization.proofObligationDigest,
+    state:proofable?"PROOFABLE":"UNPROOFABLE",
+    requirementRef:requirement.id,
+    plan,
+    reasons:proofable?["evidence_quorum_satisfiable"]:plan.unavailableReasons,
+    assessedAt:at.toISOString(),
     authority:false,
     mayMintExecutionAuthority:false
   });

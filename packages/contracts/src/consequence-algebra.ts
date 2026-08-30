@@ -1,5 +1,6 @@
 import {z} from "zod";
 import {SemanticEffectSchema} from "./intent-reality.js";
+import {EvidenceProviderBindingSchema,EvidenceQuorumPlanSchema,EvidenceQuorumRequirementSchema} from "./evidence-quorum.js";
 
 const DigestSchema=z.string().regex(/^[0-9a-f]{64}$/);
 const RefSchema=z.string().min(1).max(1000);
@@ -71,6 +72,8 @@ export const ConsequenceAlgebraPolicySchema=z.object({
   reservationTtlSeconds:z.number().int().min(5).max(3600).default(60),
   proofabilityRisks:z.array(RiskSchema).max(4).default(["CRITICAL"]),
   proofProviderBindings:z.record(z.string().min(1).max(300),z.array(RefSchema).min(1).max(50)).default({}),
+  evidenceProviders:z.array(EvidenceProviderBindingSchema).max(500).default([]),
+  evidenceQuorumRequirements:z.array(EvidenceQuorumRequirementSchema).max(500).default([]),
   defaultAggregationLimits:z.record(z.string().min(1).max(120),z.number().finite()).default({}),
   aggregationWindowSeconds:z.number().int().min(60).max(2592000).default(86400),
   aggregationScope:z.enum(["ROOT_INTENT","PRINCIPAL_TARGET"]).default("ROOT_INTENT"),
@@ -107,7 +110,28 @@ export type InvariantCompatibilityWitness=z.infer<typeof InvariantCompatibilityW
 export const ConsequenceReservationSchema=z.object({id:z.string().uuid(),version:z.literal("CIEAV_CONSEQUENCE_RESERVATION_V1"),consequenceRef:z.string().uuid(),semanticEffectRef:DigestSchema,footprintDigest:DigestSchema,realityVersion:z.string().min(1).max(300),reservationClass:z.enum(["EXCLUSIVE_EFFECT","COMMUTATIVE_EFFECT","READ_STABILITY","BUDGET","SPATIAL_TEMPORAL","CONTINUING_EFFECT"]),ownerPrincipalRef:z.string().min(1).max(300),rootIntentRef:z.string().min(1).max(500),issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),state:z.enum(["RESERVED","DISPATCHED","OBSERVING","RELEASED","QUARANTINED","EXPIRED"]),reason:z.string().min(1).max(1000),authority:z.literal(false).default(false)});
 export type ConsequenceReservation=z.infer<typeof ConsequenceReservationSchema>;
 
-export const ProofPlanReservationSchema=z.object({id:z.string().uuid(),version:z.literal("CIEAV_PROOF_PLAN_RESERVATION_V1"),consequenceRef:z.string().uuid(),proofObligationDigest:DigestSchema,providerBindings:z.array(RefSchema).min(1).max(50),providerVersionDigests:z.array(DigestSchema).max(50).default([]),requiredEvidenceClasses:z.array(z.string().min(1).max(200)).max(50).default([]),freshnessRequirements:z.array(z.string().min(1).max(500)).max(50).default([]),timeoutPolicy:z.string().min(1).max(500),fallbackPolicy:z.string().min(1).max(500),issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),authority:z.literal(false).default(false)});
+export const ProofPlanReservationSchema=z.object({
+  id:z.string().uuid(),
+  version:z.literal("CIEAV_PROOF_PLAN_RESERVATION_V1"),
+  consequenceRef:z.string().uuid(),
+  proofObligationDigest:DigestSchema,
+  providerBindings:z.array(RefSchema).min(1).max(50),
+  providerVersionDigests:z.array(DigestSchema).max(50).default([]),
+  requiredEvidenceClasses:z.array(z.string().min(1).max(200)).max(50).default([]),
+  freshnessRequirements:z.array(z.string().min(1).max(500)).max(50).default([]),
+  timeoutPolicy:z.string().min(1).max(500),
+  fallbackPolicy:z.string().min(1).max(500),
+  evidenceQuorumPlan:EvidenceQuorumPlanSchema.optional(),
+  evidenceQuorumDigest:DigestSchema.optional(),
+  issuedAt:z.string().datetime(),
+  expiresAt:z.string().datetime(),
+  authority:z.literal(false).default(false),
+  mayMintExecutionAuthority:z.literal(false).default(false)
+}).superRefine((value,ctx)=>{
+  if(value.evidenceQuorumPlan&&value.evidenceQuorumDigest!==value.evidenceQuorumPlan.quorumDigest){
+    ctx.addIssue({code:z.ZodIssueCode.custom,path:["evidenceQuorumDigest"],message:"evidenceQuorumDigest must match the embedded evidence quorum plan"});
+  }
+});
 export type ProofPlanReservation=z.infer<typeof ProofPlanReservationSchema>;
 
 export const CausalRealityFenceSchema=z.object({id:z.string().uuid(),version:z.literal("CIEAV_CAUSAL_REALITY_FENCE_V1"),consequenceRef:z.string().uuid(),predecessorConsequenceRefs:z.array(z.string().uuid()).min(1).max(100),requiredOutcomes:z.array(z.enum(["SUCCESS","FAILURE","UNKNOWN"])).min(1).max(3),requiredRealityClaims:z.array(RefSchema).max(100).default([]),minimumEvidenceClass:z.string().min(1).max(200),maxEvidenceAgeMs:z.number().int().positive().max(86_400_000),fenceDigest:DigestSchema,createdAt:z.string().datetime(),authority:z.literal(false).default(false)});

@@ -3,21 +3,16 @@ name: authority-state-qualification
 on:
   push:
     branches:
-      - main
+      - tmp-consequence-algebra-build
     paths:
       - 'apps/api/src/authority-state-deployment.ts'
       - 'apps/api/src/authority-process-lease.ts'
       - 'apps/api/src/authority-state-deployment.test.ts'
       - 'apps/api/src/authority-process-lease.test.ts'
-      - 'apps/api/src/authority-cluster-sqlserver*.ts'
-      - 'apps/api/src/authority-sqlserver-candidate-runtime.ts'
-      - 'apps/api/src/authority-trusted-state-sqlserver*.ts'
       - 'apps/api/src/config.ts'
-      - 'apps/api/package.json'
       - 'scripts/authority-state-deployment-static.mjs'
       - 'scripts/qualify-authority-state.mjs'
       - 'package.json'
-      - 'package-lock.json'
       - '.github/workflows/authority-state-qualification.yml'
   pull_request:
     paths:
@@ -25,15 +20,10 @@ on:
       - 'apps/api/src/authority-process-lease.ts'
       - 'apps/api/src/authority-state-deployment.test.ts'
       - 'apps/api/src/authority-process-lease.test.ts'
-      - 'apps/api/src/authority-cluster-sqlserver*.ts'
-      - 'apps/api/src/authority-sqlserver-candidate-runtime.ts'
-      - 'apps/api/src/authority-trusted-state-sqlserver*.ts'
       - 'apps/api/src/config.ts'
-      - 'apps/api/package.json'
       - 'scripts/authority-state-deployment-static.mjs'
       - 'scripts/qualify-authority-state.mjs'
       - 'package.json'
-      - 'package-lock.json'
       - '.github/workflows/authority-state-qualification.yml'
   workflow_dispatch:
 
