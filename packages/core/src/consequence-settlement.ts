@@ -19,8 +19,6 @@ const canonical=(value:unknown):string=>Array.isArray(value)
 export const consequenceSettlementDigest=(value:unknown)=>crypto.createHash("sha256").update(canonical(value)).digest("hex");
 const uniq=(values:string[])=>[...new Set(values)].sort();
 
-function digestBase(value:Omit<ConsequenceSettlement,"settlementDigest">){return value}
-
 export type CreateConsequenceSettlementInput={
   consequenceRef:string;
   executionState:ConsequenceExecutionState;
@@ -37,15 +35,16 @@ export type CreateConsequenceSettlementInput={
 };
 
 export function createConsequenceSettlement(input:CreateConsequenceSettlementInput):ConsequenceSettlement{
-  const at=input.at??new Date(),now=at.toISOString(),base={
+  const at=input.at??new Date(),now=at.toISOString();
+  const base={
     id:crypto.randomUUID(),
     version:"CIEAV_CONSEQUENCE_SETTLEMENT_V2" as const,
     consequenceRef:input.consequenceRef,
     executionState:input.executionState,
     realityState:input.realityState,
-    legitimacyState:input.legitimacyState??"UNKNOWN_VALIDITY" as const,
-    evidenceState:input.evidenceState??"RESERVED" as const,
-    recoveryState:input.recoveryState??"NOT_REQUIRED" as const,
+    legitimacyState:(input.legitimacyState??"UNKNOWN_VALIDITY") as ConsequenceLegitimacyState,
+    evidenceState:(input.evidenceState??"RESERVED") as ConsequenceEvidenceState,
+    recoveryState:(input.recoveryState??"NOT_REQUIRED") as ConsequenceRecoveryState,
     evidenceRefs:uniq(input.evidenceRefs??[]),
     basisRefs:uniq(input.basisRefs??[]),
     ...(input.observedAt?{observedAt:input.observedAt}:input.realityState!=="UNKNOWN"?{observedAt:now}:{}),
@@ -56,7 +55,7 @@ export function createConsequenceSettlement(input:CreateConsequenceSettlementInp
     authority:false as const,
     mayMintExecutionAuthority:false as const
   };
-  return ConsequenceSettlementSchema.parse({...base,settlementDigest:consequenceSettlementDigest(digestBase(base))});
+  return ConsequenceSettlementSchema.parse({...base,settlementDigest:consequenceSettlementDigest(base)});
 }
 
 export function verifyConsequenceSettlement(value:ConsequenceSettlement){
@@ -67,12 +66,12 @@ export function verifyConsequenceSettlement(value:ConsequenceSettlement){
 const executionRank:Record<ConsequenceExecutionState,number>={NOT_DISPATCHED:0,DISPATCHED:1,INTERRUPTED:2,COMPLETED:3};
 const recoveryAllowed:Record<ConsequenceRecoveryState,Set<ConsequenceRecoveryState>>={
   NOT_REQUIRED:new Set(["NOT_REQUIRED","REQUIRED","UNKNOWN"]),
-  REQUIRED:new Set(["REQUIRED","IN_PROGRESS","PARTIALLY_RECOVERED","RECOVERED","IRREVERSIBLE","UNKNOWN"]),
-  IN_PROGRESS:new Set(["IN_PROGRESS","PARTIALLY_RECOVERED","RECOVERED","IRREVERSIBLE","UNKNOWN"]),
+  REQUIRED:new Set(["REQUIRED","IN_PROGRESS","PARTIALLY_RECOVERED","RECOVERED","IRREVERSIBLE","UNKNOWN","NOT_REQUIRED"]),
+  IN_PROGRESS:new Set(["IN_PROGRESS","PARTIALLY_RECOVERED","RECOVERED","IRREVERSIBLE","UNKNOWN","NOT_REQUIRED"]),
   PARTIALLY_RECOVERED:new Set(["PARTIALLY_RECOVERED","IN_PROGRESS","RECOVERED","IRREVERSIBLE","UNKNOWN"]),
   RECOVERED:new Set(["RECOVERED","REQUIRED"]),
   IRREVERSIBLE:new Set(["IRREVERSIBLE"]),
-  UNKNOWN:new Set(["UNKNOWN","REQUIRED","IN_PROGRESS","PARTIALLY_RECOVERED","RECOVERED","IRREVERSIBLE"])
+  UNKNOWN:new Set(["UNKNOWN","NOT_REQUIRED","REQUIRED","IN_PROGRESS","PARTIALLY_RECOVERED","RECOVERED","IRREVERSIBLE"])
 };
 
 export type ConsequenceSettlementPatch={
