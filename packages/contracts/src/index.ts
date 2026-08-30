@@ -43,6 +43,7 @@ export * from "./consequence-authority-envelope.js";
 export * from "./reality-resolver.js";
 export * from "./reality-quarantine.js";
 export * from "./evidence-quorum.js";
+export * from "./consequence-settlement.js";
 export * from "./continuity.js";
 export * from "./offline-runtime.js";
 export * from "./authority-grade-settlement.js";
