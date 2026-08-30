@@ -37,19 +37,42 @@ const resolution=(routeNativeIdentity:string,namespace:string)=>new CanonicalRea
 });
 
 describe("resolved execution consequence materialization",()=>{
-  it("gives heterogeneous Git routes one semantic consequence identity",()=>{
+  it("gives heterogeneous Git routes one semantic consequence identity and one footprint",()=>{
     const http:ExecutionProposal={...baseProposal,id:"55555555-5555-4555-8555-555555555555",toolId:"github.http",protocol:"HTTP",target:"https://github.com/Acme/Platform.git#refs/heads/main"};
     const cli:ExecutionProposal={...baseProposal,id:"66666666-6666-4666-8666-666666666666",toolId:"git.cli",protocol:"CLI",target:"git@github.com:Acme/Platform.git#main"};
     const httpResolution=resolution(http.target!,"http"),cliResolution=resolution(cli.target!,"cli");
     expect(verifyCanonicalRealityResolution(httpResolution)).toBe(true);
     expect(verifyCanonicalRealityResolution(cliResolution)).toBe(true);
     const httpMaterialization=materializeResolvedExecutionProposal(http,httpResolution),cliMaterialization=materializeResolvedExecutionProposal(cli,cliResolution);
+    const canonicalRef=httpResolution.canonicalRealityRef;
     expect(httpMaterialization.realityAddress.stableId).toBe("git://github.com/Acme/Platform#refs/heads/main");
     expect(cliMaterialization.realityAddress.stableId).toBe(httpMaterialization.realityAddress.stableId);
-    expect(cliMaterialization.semanticIdentity.targetRealityRefs).toEqual(httpMaterialization.semanticIdentity.targetRealityRefs);
+    expect(cliMaterialization.semanticIdentity.targetRealityRefs).toEqual([canonicalRef]);
+    expect(httpMaterialization.semanticIdentity.targetRealityRefs).toEqual([canonicalRef]);
     expect(cliMaterialization.semanticIdentity.transitionShape).toBe(httpMaterialization.semanticIdentity.transitionShape);
     expect(cliMaterialization.semanticIdentity.digest).toBe(httpMaterialization.semanticIdentity.digest);
-    expect(cliMaterialization.footprint.realityWrite).toEqual(httpMaterialization.footprint.realityWrite);
+    expect(cliMaterialization.footprint.realityRead).toEqual([canonicalRef]);
+    expect(cliMaterialization.footprint.realityWrite).toEqual([canonicalRef]);
+    expect(httpMaterialization.footprint.realityRead).toEqual([canonicalRef]);
+    expect(httpMaterialization.footprint.realityWrite).toEqual([canonicalRef]);
+    expect(cliMaterialization.footprint.invariantsTouched).toContain(`resource:${canonicalRef}`);
+    expect(httpMaterialization.footprint.invariantsTouched).toContain(`resource:${canonicalRef}`);
     expect(cliMaterialization.authority).toBe(false);
+  });
+
+  it.each([
+    ["READ","realityRead"],
+    ["UPDATE","realityWrite"],
+    ["DELETE","delete"],
+    ["CREATE","create"],
+    ["GRANT_ACCESS","grant"],
+    ["REVOKE_ACCESS","revoke"]
+  ] as const)("propagates the canonical ref through %s footprints",(kind,field)=>{
+    const proposal:ExecutionProposal={...baseProposal,id:crypto.randomUUID(),toolId:"github.http",protocol:"HTTP",target:"https://github.com/Acme/Platform.git#refs/heads/main",semanticEffect:{kind,attributes:{ref:"refs/heads/main"}}};
+    const r=resolution(proposal.target!,"http"),materialization=materializeResolvedExecutionProposal(proposal,r);
+    expect(materialization.semanticIdentity.targetRealityRefs).toEqual([r.canonicalRealityRef]);
+    expect(materialization.footprint.realityRead).toContain(r.canonicalRealityRef);
+    expect(materialization.footprint[field]).toContain(r.canonicalRealityRef);
+    expect(materialization.footprint.invariantsTouched).toContain(`resource:${r.canonicalRealityRef}`);
   });
 });
