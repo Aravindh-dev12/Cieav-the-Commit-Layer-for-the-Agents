@@ -141,16 +141,29 @@ export class CanonicalRealityResolverRegistry{
   }
 }
 
-export function verifyCanonicalRealityResolution(raw:CanonicalRealityResolution):boolean{
-  const resolution=CanonicalRealityResolutionSchema.parse(raw),{addressDigest,...addressUnsigned}=resolution.address;
-  if(makeRealityAddress(addressUnsigned).addressDigest!==addressDigest)return false;
+export function verifyCanonicalRealityResolution(raw:CanonicalRealityResolution,registry?:CanonicalRealityResolverRegistry):boolean{
+  const resolution=CanonicalRealityResolutionSchema.parse(raw),{digest:addressDigest,...addressUnsigned}=resolution.address;
+  if(makeRealityAddress(addressUnsigned).digest!==addressDigest)return false;
   const expectedRef=realityResolverDigest({version:"CIEAV_CANONICAL_REALITY_REF_V1",authorityDomain:resolution.address.authorityDomain,resourceKind:resolution.address.resourceKind,stableId:resolution.address.stableId});
   if(expectedRef!==resolution.canonicalRealityRef)return false;
   const {resolutionDigest,...unsigned}=resolution;
-  return realityResolverDigest(unsigned)===resolutionDigest&&resolution.authority===false&&resolution.mayMintExecutionAuthority===false;
+  if(realityResolverDigest(unsigned)!==resolutionDigest||resolution.authority!==false||resolution.mayMintExecutionAuthority!==false)return false;
+  if(registry){
+    const current=registry.get(resolution.address.resolverId,resolution.address.resolverVersion);
+    if(current.manifest.manifestDigest!==resolution.resolverManifestDigest)return false;
+  }
+  return true;
 }
 
-const resourceKindFor=(manifest:CanonicalRealityResolverManifest)=>manifest.normalizationClass==="GIT_REF"?"GIT_REF":"RESOURCE";
+const resourceKindFor=(manifest:CanonicalRealityResolverManifest)=>{
+  switch(manifest.normalizationClass){
+    case "EMAIL_ADDRESS":return "EMAIL_ADDRESS";
+    case "HTTP_RESOURCE":return "HTTP_RESOURCE";
+    case "FILESYSTEM_PATH":return "FILE";
+    case "GIT_REF":return "GIT_REF";
+    default:return "RESOURCE";
+  }
+};
 
 export function resolveExecutionProposalReality(
   proposal:ExecutionProposal,
@@ -176,6 +189,19 @@ export function resolveExecutionProposalReality(
     context:{semanticEffectKind:proposal.semanticEffect.kind},
     authority:false
   });
+}
+
+export function assertCurrentCanonicalRealityResolution(
+  proposal:ExecutionProposal,
+  rawBinding:TrustedToolAuthorizationBinding,
+  rawResolution:CanonicalRealityResolution,
+  registry:CanonicalRealityResolverRegistry=defaultCanonicalRealityResolverRegistry()
+):CanonicalRealityResolution{
+  const resolution=CanonicalRealityResolutionSchema.parse(rawResolution);
+  if(!verifyCanonicalRealityResolution(resolution,registry))throw new Error("canonical_reality_resolution_integrity_mismatch");
+  const current=resolveExecutionProposalReality(proposal,rawBinding,registry);
+  if(current.resolutionDigest!==resolution.resolutionDigest)throw new Error("canonical_reality_resolution_drift");
+  return resolution;
 }
 
 export const defaultCanonicalRealityResolverRegistry=()=>new CanonicalRealityResolverRegistry();
