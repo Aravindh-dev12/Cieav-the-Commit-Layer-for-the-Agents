@@ -50,7 +50,7 @@ export function mintLocalConsequenceAuthority(snapshot:ConsequenceAuthoritySnaps
   if(materialization.semanticIdentity.targetRealityRefs.length<1)throw new Error("consequence_authority_reality_ref_required");
   if(!materialization.semanticIdentity.targetRealityRefs.includes(canonicalRealityResolution.canonicalRealityRef))throw new Error("consequence_authority_resolution_materialization_mismatch");
   const primary=consequenceBundle.primaryEffects[0];
-  if(!primary||primary.kind!==materialization.semanticIdentity.effectClass||primary.footprint.digest!==materialization.footprint.digest||digest(primary.semanticEffect)!==digest(materialization.semanticEffect)||!primary.realityAddresses.some(address=>address.digest===materialization.realityAddress.digest))throw new Error("consequence_authority_bundle_materialization_mismatch");
+  if(!primary||primary.kind!==materialization.semanticIdentity.effectClass||primary.footprint.digest!==materialization.footprint.digest||!primary.realityAddresses.some(address=>address.digest===materialization.realityAddress.digest))throw new Error("consequence_authority_bundle_materialization_mismatch");
   const relevantClosures=snapshot.quarantineClosures.filter(closure=>authorityRelevantQuarantine(closure,materialization));
   if(relevantClosures.some(closure=>closure.blockerConsequenceRefs.includes(materialization.id)||closure.reconcileCandidateRefs.includes(materialization.id)))throw new Error("consequence_authority_quarantine_blocked");
   const routeId=snapshot.routeId??`${proposal.protocol}:${proposal.toolId}:${proposal.operation}`;
