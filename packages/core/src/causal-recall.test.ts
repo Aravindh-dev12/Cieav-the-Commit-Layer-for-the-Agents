@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import {describe,expect,it} from "vitest";
-import {createConsequenceSettlement} from "./consequence-settlement.js";
-import {computeConsequenceRecoveryClosure,makeCausalProvenanceLink,makeCausalRecallEvent,verifyConsequenceRecoveryClosureDigest} from "./causal-recall.js";
+import {createConsequenceSettlement,transitionConsequenceSettlement} from "./consequence-settlement.js";
+import {computeConsequenceRecoveryClosure,makeCausalProvenanceLink,makeCausalRecallEvent,settlementPatchForCausalRecall,verifyConsequenceRecoveryClosureDigest} from "./causal-recall.js";
 
 const at=new Date("2026-08-30T17:30:00.000Z");
 
@@ -32,6 +32,11 @@ describe("CIEAV causal recall",()=>{
     expect(closure.proposedRecoveryPrograms.find(value=>value.sourceConsequenceRef===paid)?.requiresFreshAuthority).toBe(true);
     expect(closure.proposedRecoveryPrograms.every(value=>value.authority===false&&value.mayMintExecutionAuthority===false)).toBe(true);
     expect(verifyConsequenceRecoveryClosureDigest(closure)).toBe(true);
+    const paymentSettlement=settlements[0]!,patch=settlementPatchForCausalRecall(event,paymentSettlement),changed=transitionConsequenceSettlement(paymentSettlement,patch,"causal recall invalidated payment evidence",{at});
+    expect(changed.settlement.realityState).toBe("OBSERVED_SUCCESS");
+    expect(changed.settlement.legitimacyState).toBe("EVIDENCE_INVALIDATED");
+    expect(changed.settlement.evidenceState).toBe("CONFLICTING");
+    expect(changed.settlement.recoveryState).toBe("REQUIRED");
   });
 
   it("finds consequences directly dependent on a compromised qualified tool",()=>{
