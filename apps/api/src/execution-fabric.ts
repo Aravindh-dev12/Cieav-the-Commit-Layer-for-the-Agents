@@ -302,14 +302,18 @@ export class CieavExecutionFabricStore{
     if(decision.decision==="ALLOW"){
       canonicalRealityResolution=resolveExecutionProposalReality(proposal,trustedToolBinding,this.realityResolvers);if(!verifyCanonicalRealityResolution(canonicalRealityResolution,this.realityResolvers))throw new Error("canonical_reality_resolution_integrity_mismatch");
       const materialization=materializeResolvedExecutionProposal(proposal,canonicalRealityResolution);consequenceBundle=compileExecutionConsequenceBundle(proposal,trustedToolBinding,materialization);
-      const existing=await this.consequenceAlgebra.getNode(proposal.id);
-      if(existing){await this.consequenceAlgebra.ensureAdmitted(proposal.id)}else{
-        const aggregationLimits=Object.fromEntries((proposal.continuingAuthority?.budgets??[]).map(b=>[b.dimension,b.limit])),proofProviders=(tool.proofSources??[]).map(ref=>({ref})),algebra=await this.consequenceAlgebra.admit(materialization,{aggregationLimits,proofProviders});algebraAdmission=algebra.admission;
+      const existing=await this.consequenceAlgebra.getNode(proposal.id),aggregationLimits=Object.fromEntries((proposal.continuingAuthority?.budgets??[]).map(b=>[b.dimension,b.limit])),proofProviders=(tool.proofSources??[]).map(ref=>({ref})),algebraOptions={aggregationLimits,proofProviders};
+      let algebra;
+      if(!existing)algebra=await this.consequenceAlgebra.admit(materialization,algebraOptions);
+      else if(existing.state==="MATERIALIZED")algebra=await this.consequenceAlgebra.reconsiderWaiting(proposal.id,algebraOptions);
+      else await this.consequenceAlgebra.ensureAdmitted(proposal.id);
+      if(algebra){
+        algebraAdmission=algebra.admission;
         if(algebra.admission.decision!=="ADMIT"){
-          this.appendAudit({scopeDeviceId:proposal.scopeDeviceId,intentId:proposal.intentId,taskId:proposal.taskId,proposalId:proposal.id,phase:"AUTHORIZE",outcome:"BLOCK",summary:`Consequence Algebra ${algebra.admission.decision}: ${algebra.admission.reasons.join(" ")}`.slice(0,1200),detailsDigest:digest({admission:algebra.admission,canonicalRealityResolutionDigest:canonicalRealityResolution.resolutionDigest,consequenceBundleDigest:consequenceBundle.bundleDigest})});await this.persist();throw new Error(`consequence_algebra_${algebra.admission.decision.toLowerCase()}`);
+          this.appendAudit({scopeDeviceId:proposal.scopeDeviceId,intentId:proposal.intentId,taskId:proposal.taskId,proposalId:proposal.id,phase:"AUTHORIZE",outcome:"BLOCK",summary:`Consequence Algebra ${algebra.admission.decision}: ${algebra.admission.reasons.join(" ")}`.slice(0,1200),detailsDigest:digest({admission:algebra.admission,canonicalRealityResolutionDigest:canonicalRealityResolution.resolutionDigest,consequenceBundleDigest:consequenceBundle.bundleDigest,reconsidered:existing?.state==="MATERIALIZED"})});await this.persist();throw new Error(`consequence_algebra_${algebra.admission.decision.toLowerCase()}`);
         }
       }
-      if(!existing||existing.state==="RESERVED")await this.consequenceAlgebra.mark(proposal.id,"AUTHORIZED");
+      if(!existing||existing.state==="RESERVED"||existing.state==="MATERIALIZED")await this.consequenceAlgebra.mark(proposal.id,"AUTHORIZED");
     }
     this.payload.proposals=this.payload.proposals.filter(x=>x.proposal.id!==proposal.id);this.payload.proposals.push({proposal,decision,trustedToolBinding,...(canonicalRealityResolution?{canonicalRealityResolution}:{}),...(consequenceBundle?{consequenceBundle}:{})});
     this.appendAudit({scopeDeviceId:proposal.scopeDeviceId,intentId:proposal.intentId,taskId:proposal.taskId,proposalId:proposal.id,phase:"AUTHORIZE",outcome:decision.decision==="ALLOW"?"PASS":decision.decision==="ASK"?"ASK":"BLOCK",summary:decision.reasons.join(" ").slice(0,1200),detailsDigest:digest({decision,trustedToolBinding,canonicalRealityResolutionDigest:canonicalRealityResolution?.resolutionDigest??null,consequenceBundleDigest:consequenceBundle?.bundleDigest??null,algebraAdmission:algebraAdmission??null})});
