@@ -1,0 +1,111 @@
+name: self-hosted-full-ci
+
+on:
+  push:
+    branches:
+      - feat/trusted-tool-consequence-contract
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-hosted-full-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: CIEAV full Linux qualification
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 180
+    env:
+      CI: "true"
+      CIEAV_PHYSICAL_HARDWARE_QUALIFICATION: ""
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Runner diagnostics
+        shell: bash
+        run: |
+          set -euxo pipefail
+          uname -a
+          id
+          pwd
+          df -h
+          free -h || true
+          node --version || true
+          npm --version || true
+          python3 --version || true
+          google-chrome --version || chromium --version || chromium-browser --version || true
+          git --version
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install CIEAV Python package
+        run: python -m pip install -e .
+
+      - name: Build all workspaces
+        run: npm run build
+
+      - name: Typecheck all workspaces
+        run: npm run typecheck
+
+      - name: Core and API tests
+        run: npm run test:core
+
+      - name: Agent Kernel qualification tests
+        run: npm run test:agent-kernel
+
+      - name: Authority state qualification
+        run: npm run test:authority-state
+
+      - name: Authority transaction qualification
+        run: npm run test:authority-transactions
+
+      - name: AI orchestration qualification
+        run: npm run test:ai-orchestration
+
+      - name: Static and production boundaries
+        run: npm run test:boundaries
+
+      - name: Full CIEAV test suite
+        run: npm test
+
+      - name: Current-platform release qualification
+        run: npm run release:qualify:current
+
+      - name: Repository governance qualification
+        run: npm run release:qualify:governance
+
+      - name: Production qualification
+        run: npm run release:qualify:production
+
+      - name: Release verification plan
+        run: npm run release:verify:plan
+
+      - name: Upload qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cieav-self-hosted-linux-${{ github.sha }}
+          path: |
+            release/reports/**
+            artifacts/**
+          if-no-files-found: ignore
+          retention-days: 30
