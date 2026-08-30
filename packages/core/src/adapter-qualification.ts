@@ -17,7 +17,7 @@ export const adapterQualificationDigest=(value:unknown)=>crypto.createHash("sha2
 export function qualifiedToolManifestDigestBase(manifest:Omit<QualifiedToolManifest,"manifestDigest">){return manifest}
 
 export function makeQualifiedToolManifest(input:Omit<QualifiedToolManifest,"manifestDigest">):QualifiedToolManifest{
-  const base=QualifiedToolManifestSchema.omit({manifestDigest:true}).parse(input);
+  const base=qualifiedToolManifestDigestBase(input);
   return QualifiedToolManifestSchema.parse({...base,manifestDigest:adapterQualificationDigest(base)});
 }
 
