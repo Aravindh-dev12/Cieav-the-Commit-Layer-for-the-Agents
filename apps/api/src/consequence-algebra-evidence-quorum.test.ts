@@ -19,7 +19,7 @@ async function makeStore(){
 
 function proposal(overrides:Partial<ExecutionProposal>={}):ExecutionProposal{return{
   id:crypto.randomUUID(),version:1,taskId:crypto.randomUUID(),intentId:crypto.randomUUID(),scopeDeviceId:"device-0001",subjectId:"agent-1",
-  identityAttestationId:crypto.randomUUID(),credentialLeaseId:crypto.randomUUID(),toolId:"bank-transfer",protocol:"HTTPS",operation:"TRANSFER",target:"acct:beneficiary",risk:"CRITICAL",
+  identityAttestationId:crypto.randomUUID(),credentialLeaseId:crypto.randomUUID(),toolId:"bank-transfer",protocol:"HTTP",operation:"TRANSFER",target:"acct:beneficiary",risk:"CRITICAL",
   normalizedArgumentsDigest:h("a"),semanticEffect:{kind:"TRANSFER_VALUE",target:"acct:beneficiary",amount:{currency:"USD",value:100},attributes:{invoice:"inv-1"}},
   realityWitness:{version:1,observedAt:new Date().toISOString(),facts:[{key:"balance",valueDigest:h("b"),source:"bank-api",observedAt:new Date().toISOString()}],digest:h("c")},
   expectedPostStateDigest:h("d"),proofObligationDigest:h("e"),attenuationWitnessIds:[],createdAt:new Date().toISOString(),...overrides
