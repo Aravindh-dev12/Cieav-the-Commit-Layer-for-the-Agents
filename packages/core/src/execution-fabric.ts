@@ -43,6 +43,20 @@ export function assertTrustedToolConsequenceContract(tool:FederatedTool,proposal
   return{contract,contractDigest:digest(contract),canonicalTarget,productionQualified:true,authority:false,mayMintExecutionAuthority:false};
 }
 
+const trustedToolBindingBase=(binding:TrustedToolAuthorizationBinding)=>({
+  version:binding.version,
+  toolId:binding.toolId,
+  protocol:binding.protocol,
+  operation:binding.operation,
+  contractDigest:binding.contractDigest,
+  canonicalTarget:binding.canonicalTarget,
+  canonicalResolverId:binding.canonicalResolverId,
+  canonicalResolverVersion:binding.canonicalResolverVersion,
+  productionQualified:binding.productionQualified,
+  authority:binding.authority,
+  mayMintExecutionAuthority:binding.mayMintExecutionAuthority
+});
+
 export function trustedToolAuthorizationBinding(tool:FederatedTool,proposal:ExecutionProposal,options:{requireContract?:boolean}={}):TrustedToolAuthorizationBinding{
   const validation=assertTrustedToolConsequenceContract(tool,proposal,options);
   if(!validation.productionQualified)throw new Error("trusted_tool_consequence_not_production_qualified");
@@ -63,6 +77,7 @@ export function trustedToolAuthorizationBinding(tool:FederatedTool,proposal:Exec
 }
 
 export function assertTrustedToolAuthorizationBinding(tool:FederatedTool,proposal:ExecutionProposal,expected:TrustedToolAuthorizationBinding,options:{requireContract?:boolean}={}):TrustedToolAuthorizationBinding{
+  if(digest(trustedToolBindingBase(expected))!==expected.bindingDigest)throw new Error("trusted_tool_authorization_binding_integrity_mismatch");
   const current=trustedToolAuthorizationBinding(tool,proposal,options);
   if(current.bindingDigest!==expected.bindingDigest||current.contractDigest!==expected.contractDigest||current.canonicalTarget!==expected.canonicalTarget)throw new Error("trusted_tool_consequence_contract_drift");
   return current;
