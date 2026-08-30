@@ -116,6 +116,7 @@ export type ExecutionProposal=z.infer<typeof ExecutionProposalSchema>;
 export const ExecutionTicketSchema=z.object({
   id:z.string().uuid(),version:z.literal(1),proposalId:z.string().uuid(),intentId:z.string().uuid(),taskId:z.string().uuid(),toolId:z.string().min(1).max(240),
   authorizationDigest:DigestSchema,realityBoundCommitId:z.string().uuid(),credentialLeaseId:z.string().uuid(),routeDigest:DigestSchema,
+  authorityEnvelopeDigest:DigestSchema.optional(),
   issuedAt:z.string().datetime(),expiresAt:z.string().datetime(),status:z.enum(["ISSUED","CONSUMED","INVALIDATED","EXPIRED"]),consumedAt:z.string().datetime().optional()
 }).strict();
 export type ExecutionTicket=z.infer<typeof ExecutionTicketSchema>;
