@@ -6,9 +6,12 @@ import {
   type CanonicalRealityResolution,
   type CanonicalRealityResolutionRequest,
   type CanonicalRealityResolverManifest,
-  type RealityAddress
+  type ExecutionProposal,
+  type RealityAddress,
+  type TrustedToolAuthorizationBinding
 } from "@cieav/contracts";
 import {makeRealityAddress} from "./consequence-algebra.js";
+import {assertTrustedToolAuthorizationBindingIntegrity} from "./execution-fabric.js";
 
 const canonical=(value:unknown):string=>Array.isArray(value)
   ? `[${value.map(canonical).join(",")}]`
@@ -80,10 +83,22 @@ const normalizeGit=(value:string,context:Record<string,string>)=>{
   return `git://${repository}#${ref}`;
 };
 
+const normalizeMessageCustomer=(value:string)=>{
+  let url:URL;
+  try{url=new URL(value.trim())}catch{throw new Error("canonical_reality_message_customer_invalid")}
+  if(url.protocol.toLowerCase()!=="message:"||url.hostname.toLowerCase()!=="customer")throw new Error("canonical_reality_message_customer_invalid");
+  url.hash="";
+  return `message://customer${url.pathname}${url.search}`;
+};
+
 export const BUILTIN_REALITY_RESOLVERS:CanonicalRealityResolver[]=[
   {
     manifest:manifest({version:"CIEAV_CANONICAL_REALITY_RESOLVER_MANIFEST_V1",id:"cieav.mail.address.v1",resolverVersion:"1",supportedNamespaces:["email","mailto","mcp","http"],supportedResourceKinds:["EMAIL_ADDRESS","RESOURCE"],normalizationClass:"EMAIL_ADDRESS",authority:false,mayMintExecutionAuthority:false}),
     normalize:req=>({namespace:"email",resourceKind:"EMAIL_ADDRESS",stableId:normalizeEmail(req.context.canonicalIdentity??req.routeNativeIdentity),aliases:req.aliases,verificationRefs:[...req.identityEvidenceRefs]})
+  },
+  {
+    manifest:manifest({version:"CIEAV_CANONICAL_REALITY_RESOLVER_MANIFEST_V1",id:"cieav.message.customer.v1",resolverVersion:"1",supportedNamespaces:["mcp","http","browser","sdk","cli"],supportedResourceKinds:["RESOURCE"],normalizationClass:"OPAQUE_RESOURCE",authority:false,mayMintExecutionAuthority:false}),
+    normalize:req=>({namespace:"message",resourceKind:"RESOURCE",stableId:req.context.canonicalIdentity??normalizeMessageCustomer(req.routeNativeIdentity),aliases:req.aliases,verificationRefs:[...req.identityEvidenceRefs]})
   },
   {
     manifest:manifest({version:"CIEAV_CANONICAL_REALITY_RESOLVER_MANIFEST_V1",id:"cieav.http.resource.v1",resolverVersion:"1",supportedNamespaces:["http","https","rest","mcp"],supportedResourceKinds:["HTTP_RESOURCE","RESOURCE"],normalizationClass:"HTTP_RESOURCE",authority:false,mayMintExecutionAuthority:false}),
@@ -98,8 +113,8 @@ export const BUILTIN_REALITY_RESOLVERS:CanonicalRealityResolver[]=[
     normalize:req=>({namespace:"git",resourceKind:"GIT_REF",stableId:req.context.canonicalIdentity??normalizeGit(req.routeNativeIdentity,req.context),aliases:req.aliases,verificationRefs:[...req.identityEvidenceRefs]})
   },
   {
-    manifest:manifest({version:"CIEAV_CANONICAL_REALITY_RESOLVER_MANIFEST_V1",id:"cieav.opaque.resource.v1",resolverVersion:"1",supportedNamespaces:["opaque"],supportedResourceKinds:["RESOURCE"],normalizationClass:"OPAQUE_RESOURCE",authority:false,mayMintExecutionAuthority:false}),
-    normalize:req=>({namespace:req.namespace.toLowerCase(),resourceKind:req.resourceKind,stableId:req.context.canonicalIdentity??req.routeNativeIdentity.trim(),aliases:req.aliases,verificationRefs:[...req.identityEvidenceRefs]})
+    manifest:manifest({version:"CIEAV_CANONICAL_REALITY_RESOLVER_MANIFEST_V1",id:"cieav.opaque.resource.v1",resolverVersion:"1",supportedNamespaces:["opaque","mcp","http","browser","sdk","cli","desktop"],supportedResourceKinds:["RESOURCE"],normalizationClass:"OPAQUE_RESOURCE",authority:false,mayMintExecutionAuthority:false}),
+    normalize:req=>({namespace:"opaque",resourceKind:"RESOURCE",stableId:req.context.canonicalIdentity??req.routeNativeIdentity.trim(),aliases:req.aliases,verificationRefs:[...req.identityEvidenceRefs]})
   }
 ];
 
@@ -124,6 +139,43 @@ export class CanonicalRealityResolverRegistry{
     const unsigned={version:"CIEAV_CANONICAL_REALITY_RESOLUTION_V1" as const,requestDigest,resolverManifestDigest:resolver.manifest.manifestDigest,address,canonicalRealityRef,verificationRefs,authority:false as const,mayMintExecutionAuthority:false as const};
     return CanonicalRealityResolutionSchema.parse({...unsigned,resolutionDigest:realityResolverDigest(unsigned)});
   }
+}
+
+export function verifyCanonicalRealityResolution(raw:CanonicalRealityResolution):boolean{
+  const resolution=CanonicalRealityResolutionSchema.parse(raw),{addressDigest,...addressUnsigned}=resolution.address;
+  if(makeRealityAddress(addressUnsigned).addressDigest!==addressDigest)return false;
+  const expectedRef=realityResolverDigest({version:"CIEAV_CANONICAL_REALITY_REF_V1",authorityDomain:resolution.address.authorityDomain,resourceKind:resolution.address.resourceKind,stableId:resolution.address.stableId});
+  if(expectedRef!==resolution.canonicalRealityRef)return false;
+  const {resolutionDigest,...unsigned}=resolution;
+  return realityResolverDigest(unsigned)===resolutionDigest&&resolution.authority===false&&resolution.mayMintExecutionAuthority===false;
+}
+
+const resourceKindFor=(manifest:CanonicalRealityResolverManifest)=>manifest.normalizationClass==="GIT_REF"?"GIT_REF":"RESOURCE";
+
+export function resolveExecutionProposalReality(
+  proposal:ExecutionProposal,
+  rawBinding:TrustedToolAuthorizationBinding,
+  registry:CanonicalRealityResolverRegistry=defaultCanonicalRealityResolverRegistry()
+):CanonicalRealityResolution{
+  const binding=assertTrustedToolAuthorizationBindingIntegrity(rawBinding);
+  if(binding.toolId!==proposal.toolId||binding.protocol!==proposal.protocol||binding.operation!==proposal.operation)throw new Error("canonical_reality_execution_binding_mismatch");
+  const resolverId=binding.canonicalResolverId??"cieav.opaque.resource.v1",resolverVersion=binding.canonicalResolverVersion??"1",resolver=registry.get(resolverId,resolverVersion);
+  const routeNativeIdentity=binding.canonicalTarget??proposal.target??proposal.semanticEffect.target??proposal.semanticEffect.objectRef;
+  if(!routeNativeIdentity)throw new Error("canonical_reality_route_identity_required");
+  const aliases=[proposal.target,proposal.semanticEffect.target,proposal.semanticEffect.objectRef].filter((value):value is string=>Boolean(value&&value!==routeNativeIdentity));
+  const identityEvidenceRefs=[`reality-witness:${proposal.realityWitness.digest}`,...proposal.realityWitness.facts.map(fact=>`source:${fact.source}`)];
+  return registry.resolve(resolverId,resolverVersion,{
+    version:"CIEAV_CANONICAL_REALITY_RESOLUTION_REQUEST_V1",
+    routeNativeIdentity,
+    namespace:proposal.protocol.toLowerCase(),
+    authorityDomain:`device:${proposal.scopeDeviceId}`,
+    resourceKind:resourceKindFor(resolver.manifest),
+    aliases:[...new Set(aliases)].sort(),
+    parentRefs:[],
+    identityEvidenceRefs:[...new Set(identityEvidenceRefs)].sort(),
+    context:{semanticEffectKind:proposal.semanticEffect.kind},
+    authority:false
+  });
 }
 
 export const defaultCanonicalRealityResolverRegistry=()=>new CanonicalRealityResolverRegistry();
