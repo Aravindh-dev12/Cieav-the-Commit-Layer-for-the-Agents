@@ -9,8 +9,11 @@ import {
   type CausalProvenanceLink,
   type CausalRecallEvent,
   type CausalRecallReason,
+  type ConsequenceEvidenceState,
+  type ConsequenceLegitimacyState,
   type ConsequenceRecoveryCapability,
   type ConsequenceRecoveryClosure,
+  type ConsequenceRecoveryState,
   type ConsequenceSettlement,
   type ProposedRecoveryProgram
 } from "@cieav/contracts";
@@ -153,6 +156,39 @@ export function computeConsequenceRecoveryClosure(
 export function verifyConsequenceRecoveryClosureDigest(closure:ConsequenceRecoveryClosure){
   const parsed=ConsequenceRecoveryClosureSchema.parse(closure),{id:_,closureDigest:__,...base}=parsed;
   return causalRecallDigest(base)===parsed.closureDigest;
+}
+
+export function settlementPatchForCausalRecall(eventRaw:CausalRecallEvent,settlement:ConsequenceSettlement){
+  const event=CausalRecallEventSchema.parse(eventRaw);
+  const legitimacyByReason:Record<CausalRecallReason,ConsequenceLegitimacyState>={
+    EVIDENCE_INVALIDATED:"EVIDENCE_INVALIDATED",
+    AUTHORITY_REVOKED:"AUTHORITY_REVOKED",
+    TOOL_COMPROMISED:"TOOL_COMPROMISED",
+    POLICY_INVALIDATED:"POLICY_INVALIDATED",
+    PREDECESSOR_INVALIDATED:"CAUSALLY_TAINTED",
+    PROOF_PROVIDER_COMPROMISED:"EVIDENCE_INVALIDATED",
+    RESOLVER_COMPROMISED:"CAUSALLY_TAINTED",
+    SEMANTIC_COMPILER_COMPROMISED:"CAUSALLY_TAINTED",
+    ADAPTER_RUNTIME_COMPROMISED:"TOOL_COMPROMISED",
+    MODEL_CONTEXT_INVALIDATED:"CAUSALLY_TAINTED",
+    OTHER:"CAUSALLY_TAINTED"
+  };
+  const evidenceInvalidating=new Set<CausalRecallReason>(["EVIDENCE_INVALIDATED","PROOF_PROVIDER_COMPROMISED","MODEL_CONTEXT_INVALIDATED"]);
+  const evidenceState:ConsequenceEvidenceState=evidenceInvalidating.has(event.reasonClass)?"CONFLICTING":settlement.evidenceState;
+  let recoveryState:ConsequenceRecoveryState=settlement.recoveryState;
+  if(settlement.recoveryState!=="IRREVERSIBLE"){
+    if(settlement.realityState==="OBSERVED_SUCCESS"&&["NOT_REQUIRED","RECOVERED"].includes(settlement.recoveryState))recoveryState="REQUIRED";
+    else if(settlement.realityState==="UNKNOWN"&&settlement.recoveryState==="NOT_REQUIRED")recoveryState="UNKNOWN";
+  }
+  return{
+    legitimacyState:legitimacyByReason[event.reasonClass],
+    evidenceState,
+    recoveryState,
+    evidenceRefs:event.evidenceRefs,
+    basisRefs:[`causal-recall:${event.id}`],
+    legitimacyEvaluatedAt:event.discoveredAt,
+    ...(recoveryState!==settlement.recoveryState?{recoveryUpdatedAt:event.discoveredAt}:{})
+  };
 }
 
 export const CAUSAL_RECALL_AUTHORITY=false as const;
