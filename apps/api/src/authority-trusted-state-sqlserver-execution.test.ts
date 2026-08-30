@@ -28,6 +28,7 @@ const effect={kind:"COMMUNICATE" as const,target:"customer@example.com",objectRe
 const normalizedArguments={to:"customer@example.com",subject:"Invoice reminder",template:"approved-v4"};
 const preState=makeRealityWitness([{key:"message.customer-update-42",value:{status:"NOT_SENT"},source:"provider-readback"}],"2026-08-19T00:01:00.000Z");
 const postState=makeRealityWitness([{key:"message.customer-update-42",value:{status:"SENT"},source:"provider-readback"}],"2026-08-19T00:01:00.000Z");
+const consequenceContract={version:"CIEAV_TRUSTED_TOOL_CONSEQUENCE_CONTRACT_V1" as const,effectKinds:["COMMUNICATE" as const],targetBinding:"ROUTE_TARGET" as const,targetPrefixes:["mailto:customer@"],requiredAttributeKeys:["channel"],duplicateSemantics:"RECONCILE_BEFORE_RETRY" as const,canonicalResolverId:"cieav.mail.address.v1",canonicalResolverVersion:"1",authority:false as const};
 
 async function tempDir(){const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-sql-execution-atomic-"));dirs.push(dir);return dir}
 
@@ -38,7 +39,7 @@ async function setupSqlExecution(){
   await kernel.transition(taskId,"QUEUED");await kernel.transition(taskId,"PLANNING");await kernel.requireCommitment(taskId);await kernel.bindCommitmentTrusted(taskId,commitment);
   const fabric=kernel.executionFabric,now=Date.now();
   const attestation=await fabric.registerAttestation({version:1,subjectId:"agent-1",provider:"sql-atomic-test",method:"LOCAL_KEY",keyId:"agent-key-1",publicKeyFingerprint:"a".repeat(64),claimsDigest:"b".repeat(64),issuedAt:new Date(now-1000).toISOString(),expiresAt:new Date(now+600_000).toISOString()});
-  await fabric.putTool({id:"gmail.send",displayName:"Gmail Send",protocol:"MCP",operation:"send",downstreamRef:"mcp://gmail/send",credentialMode:"CIEAV_INJECTED",risk:"HIGH",consequenceCapable:true,proofSources:["provider-readback"],enabled:true});
+  await fabric.putTool({id:"gmail.send",displayName:"Gmail Send",protocol:"MCP",operation:"send",downstreamRef:"mcp://gmail/send",credentialMode:"CIEAV_INJECTED",risk:"HIGH",consequenceCapable:true,proofSources:["provider-readback"],enabled:true,consequenceContract});
   const leaseBase={version:1 as const,sessionId,identityAttestationId:attestation.id,scopeDeviceId:deviceId,audience:"tool:gmail.send",allowedIntentIds:[intentId],allowedToolIds:["gmail.send"],allowedOperations:["send"],maxRisk:"HIGH" as const,credentialRefDigest:"c".repeat(64),issuedAt:new Date(now).toISOString(),expiresAt:new Date(now+300_000).toISOString(),maxUses:2};
   const lease=await fabric.issueLease({id:crypto.randomUUID(),...leaseBase,bindingDigest:digest(leaseBase),used:0});
   await fabric.putPermissionGraph({id:crypto.randomUUID(),version:1,scopeDeviceId:deviceId,rootIntentId:intentId,defaultDecision:"DENY",edges:[{id:crypto.randomUUID(),effect:"ALLOW",subjectIds:["agent-1"],intentIds:[intentId],toolIds:["gmail.send"],operations:["send"],targetPrefixes:["mailto:customer@"],maxRisk:"HIGH",evidenceRefs:["intent:root","policy:customer-contact"],reason:"Governed customer communication is within root Intent."}],createdAt:new Date(now).toISOString(),updatedAt:new Date(now).toISOString()});
