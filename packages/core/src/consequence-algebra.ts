@@ -13,6 +13,7 @@ const mutating=(f:ConsequenceFootprint)=>uniq([...f.realityWrite,...f.create,...
 const riskRank={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3} as const;
 const matchesPrefix=(refs:string[],prefix?:string)=>!prefix||refs.some(ref=>ref.startsWith(prefix));
 const authorityActiveStates=new Set<ActiveConsequenceNode["state"]>(["RESERVED","AUTHORIZED","COMMITTED","DISPATCHED","OBSERVING","QUARANTINED","SETTLED_UNKNOWN"]);
+const unresolvedRealityStates=new Set<ActiveConsequenceNode["state"]>(["QUARANTINED","SETTLED_UNKNOWN"]);
 
 export function makeRealityAddress(input:Omit<RealityAddress,"digest">):RealityAddress{return RealityAddressSchema.parse({...input,digest:consequenceAlgebraDigest(input)})}
 export function makeConsequenceFootprint(input:Omit<ConsequenceFootprint,"digest">):ConsequenceFootprint{return ConsequenceFootprintSchema.parse({...input,digest:consequenceAlgebraDigest(input)})}
@@ -48,11 +49,21 @@ function selectorMatches(rule:ConsequenceInvariantRule,m:ConsequenceMaterializat
 
 export function evaluateInvariantRules(candidate:ConsequenceMaterialization,active:ActiveConsequenceNode[],history:ConsequenceAggregationEntry[],rules:ConsequenceInvariantRule[]):InvariantCompatibilityWitness[]{
   const witnesses:InvariantCompatibilityWitness[]=[];
-  for(const rule of rules.filter(r=>r.enabled&&selectorMatches(r,candidate))){let result:InvariantCompatibilityWitness["result"]="PRESERVES",basis:Record<string,unknown>={ruleId:rule.id,kind:rule.kind};const matchingActive=active.filter(n=>selectorMatches(rule,n.materialization));
+  for(const rule of rules.filter(r=>r.enabled&&selectorMatches(r,candidate))){
+    let result:InvariantCompatibilityWitness["result"]="PRESERVES",basis:Record<string,unknown>={ruleId:rule.id,kind:rule.kind};
+    const matchingActive=active.filter(n=>selectorMatches(rule,n.materialization));
+    let witnessConsequenceRefs=[candidate.id,...matchingActive.map(n=>n.materialization.id)];
     if(rule.kind==="MAX_ACTIVE_MATCHES"&&matchingActive.length>=Number(rule.maxActive)){result="VIOLATES";basis={...basis,active:matchingActive.length,maxActive:rule.maxActive}}
-    else if(rule.kind==="MAX_CUMULATIVE_DELTA"){const dimension=rule.budgetDimension!,settled=history.reduce((sum,e)=>sum+(e.dimensions[dimension]??0),0),inflight=matchingActive.reduce((sum,n)=>sum+(n.materialization.footprint.budgetDeltas[dimension]??0),0),delta=candidate.footprint.budgetDeltas[dimension]??0,total=settled+inflight+delta;if(total>Number(rule.budgetLimit)){result="VIOLATES";basis={...basis,dimension,settled,inflight,delta,total,limit:rule.budgetLimit}}}
-    else if(rule.kind==="MUTUAL_EXCLUSION"){const classes=new Set(rule.mutuallyExclusiveEffectClasses??[]),other=matchingActive.find(n=>classes.has(n.materialization.semanticIdentity.effectClass)&&n.materialization.semanticIdentity.effectClass!==candidate.semanticIdentity.effectClass);if(other){result="REQUIRES_COORDINATION";basis={...basis,conflictingConsequence:other.materialization.id,classes:[...classes].sort()}}}
-    witnesses.push(InvariantCompatibilityWitnessSchema.parse({version:"CIEAV_INVARIANT_COMPATIBILITY_V1",consequenceRefs:[candidate.id,...matchingActive.map(n=>n.materialization.id)].slice(0,100),invariantRefs:[rule.id],worldVersion:candidate.worldBeforeDigest,compositionClass:`RULE:${rule.kind}`,result,basisDigest:consequenceAlgebraDigest(basis),evidenceRefs:rule.evidenceRefs,resolverId:`cieav-invariant-rule:${rule.id}`,resolverVersion:"1",authority:false}));
+    else if(rule.kind==="MAX_CUMULATIVE_DELTA"){
+      const dimension=rule.budgetDimension!,settled=history.reduce((sum,e)=>sum+(e.dimensions[dimension]??0),0),inflight=matchingActive.reduce((sum,n)=>sum+(n.materialization.footprint.budgetDeltas[dimension]??0),0),delta=candidate.footprint.budgetDeltas[dimension]??0,total=settled+inflight+delta,limit=Number(rule.budgetLimit);
+      if(total>limit){
+        const unresolved=matchingActive.filter(n=>unresolvedRealityStates.has(n.state)),unresolvedInflight=unresolved.reduce((sum,n)=>sum+(n.materialization.footprint.budgetDeltas[dimension]??0),0),unresolvedRefs=uniq(unresolved.map(n=>n.materialization.id));
+        if(unresolvedInflight>0&&unresolvedRefs.length&&total-unresolvedInflight<=limit){result="REQUIRES_COORDINATION";witnessConsequenceRefs=[candidate.id,...unresolvedRefs];basis={...basis,dimension,settled,inflight,delta,total,limit,unresolvedInflight,unresolvedConsequenceRefs:unresolvedRefs,reason:"limit depends on unresolved UNKNOWN contribution"}}
+        else{result="VIOLATES";basis={...basis,dimension,settled,inflight,delta,total,limit}}
+      }
+    }
+    else if(rule.kind==="MUTUAL_EXCLUSION"){const classes=new Set(rule.mutuallyExclusiveEffectClasses??[]),other=matchingActive.find(n=>classes.has(n.materialization.semanticIdentity.effectClass)&&n.materialization.semanticIdentity.effectClass!==candidate.semanticIdentity.effectClass);if(other){result="REQUIRES_COORDINATION";witnessConsequenceRefs=[candidate.id,other.materialization.id];basis={...basis,conflictingConsequence:other.materialization.id,classes:[...classes].sort()}}}
+    witnesses.push(InvariantCompatibilityWitnessSchema.parse({version:"CIEAV_INVARIANT_COMPATIBILITY_V1",consequenceRefs:uniq(witnessConsequenceRefs).slice(0,100),invariantRefs:[rule.id],worldVersion:candidate.worldBeforeDigest,compositionClass:`RULE:${rule.kind}`,result,basisDigest:consequenceAlgebraDigest(basis),evidenceRefs:rule.evidenceRefs,resolverId:`cieav-invariant-rule:${rule.id}`,resolverVersion:"1",authority:false}));
   }
   return witnesses;
 }
@@ -87,7 +98,7 @@ export function admitConsequence(materialization:ConsequenceMaterialization,opti
   const m=ConsequenceMaterializationSchema.parse(materialization),rules=options.relationRules??[];
   const active=options.activeNodes.filter(n=>authorityActiveStates.has(n.state)&&n.materialization.id!==m.id),history=(options.historyNodes??[]).filter(n=>["SETTLED_SUCCESS","SETTLED_FAILURE"].includes(n.state)&&n.materialization.id!==m.id);
   const activeRelations=active.map(n=>relationBetween(m,n.materialization,rules)),historicalRelations=history.map(n=>relationBetween(m,n.materialization,rules)),relations=[...activeRelations,...historicalRelations].slice(0,1000);
-  const activeById=new Map(active.map(n=>[n.materialization.id,n])),historyById=new Map(history.map(n=>[n.materialization.id,n]));
+  const historyById=new Map(history.map(n=>[n.materialization.id,n]));
 
   const activeEquivalent=activeRelations.find(r=>r.relation==="EQUIVALENT"),settledEquivalent=historicalRelations.find(r=>r.relation==="EQUIVALENT"&&historyById.get(r.rightId)?.state==="SETTLED_SUCCESS");
   if(activeEquivalent||settledEquivalent){const equivalent=activeEquivalent??settledEquivalent!,plan=makeConsequenceCoordinationPlan(m.id,relations,[equivalent.rightId]);return AlgebraAdmissionSchema.parse({version:"CIEAV_ALGEBRA_ADMISSION_V1",consequenceRef:m.id,decision:"RECONCILE",relations,invariantWitnesses:[],coordinationPlan:plan,reasons:[`Equivalent consequence ${equivalent.rightId} is active, unsettled, or already observed successful; reconcile instead of redispatch.`],authority:false,executionAuthorityIssued:false})}
