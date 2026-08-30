@@ -39,6 +39,19 @@ const authorityRelevantQuarantine=(closure:RealityQuarantineClosure,materializat
     closure.reconcileCandidateRefs.includes(materialization.id)
   );
 
+const bundleEffects=(bundle:ConsequenceBundle)=>[
+  ...bundle.primaryEffects,
+  ...bundle.secondaryEffects,
+  ...bundle.conditionalEffects,
+  ...bundle.deferredEffects
+];
+
+const aggregateBundleBudgets=(bundle:ConsequenceBundle)=>{
+  const totals:Record<string,number>={};
+  for(const effect of bundleEffects(bundle))for(const[dimension,value]of Object.entries(effect.footprint.budgetDeltas))totals[dimension]=(totals[dimension]??0)+value;
+  return totals;
+};
+
 export function mintLocalConsequenceAuthority(snapshot:ConsequenceAuthoritySnapshot):ConsequenceAuthorityEnvelope{
   const {proposal,materialization,consequenceBundle,canonicalRealityResolution,trustedToolBinding,formalDecision,algebraAdmission,algebraPolicy}=snapshot;
   if(formalDecision.decision!=="ALLOW")throw new Error("consequence_authority_formal_allow_required");
@@ -51,6 +64,11 @@ export function mintLocalConsequenceAuthority(snapshot:ConsequenceAuthoritySnaps
   if(!materialization.semanticIdentity.targetRealityRefs.includes(canonicalRealityResolution.canonicalRealityRef))throw new Error("consequence_authority_resolution_materialization_mismatch");
   const primary=consequenceBundle.primaryEffects[0];
   if(!primary||primary.kind!==materialization.semanticIdentity.effectClass||primary.footprint.digest!==materialization.footprint.digest||!primary.realityAddresses.some(address=>address.digest===materialization.realityAddress.digest))throw new Error("consequence_authority_bundle_materialization_mismatch");
+  const effects=bundleEffects(consequenceBundle);if(!effects.length)throw new Error("consequence_authority_bundle_effect_required");
+  const canonicalRealityRefs=[...new Set(effects.flatMap(effect=>effect.semanticIdentity.targetRealityRefs))].sort();
+  if(!canonicalRealityRefs.includes(canonicalRealityResolution.canonicalRealityRef))throw new Error("consequence_authority_bundle_resolution_mismatch");
+  const permittedEffectClasses=[...new Set(effects.map(effect=>effect.kind))].sort() as ConsequenceAuthorityEnvelope["permittedEffectClasses"];
+  const permittedBudgetDeltas=aggregateBundleBudgets(consequenceBundle);
   const relevantClosures=snapshot.quarantineClosures.filter(closure=>authorityRelevantQuarantine(closure,materialization));
   if(relevantClosures.some(closure=>closure.blockerConsequenceRefs.includes(materialization.id)||closure.reconcileCandidateRefs.includes(materialization.id)))throw new Error("consequence_authority_quarantine_blocked");
   const routeId=snapshot.routeId??`${proposal.protocol}:${proposal.toolId}:${proposal.operation}`;
@@ -73,9 +91,9 @@ export function mintLocalConsequenceAuthority(snapshot:ConsequenceAuthoritySnaps
     consequenceRef:materialization.id,
     semanticIdentityDigest:materialization.semanticIdentity.digest,
     bundleDigest:consequenceBundle.bundleDigest,
-    canonicalRealityRefs:materialization.semanticIdentity.targetRealityRefs,
-    permittedEffectClasses:[proposal.semanticEffect.kind],
-    permittedBudgetDeltas:materialization.footprint.budgetDeltas,
+    canonicalRealityRefs,
+    permittedEffectClasses,
+    permittedBudgetDeltas,
     invariantWitnesses:algebraAdmission.invariantWitnesses,
     reservation:algebraAdmission.reservation,
     proofPlan:algebraAdmission.proofPlanReservation??null,
@@ -100,6 +118,6 @@ export function assertLocalConsequenceAuthorityCurrent(
 ){
   const current=mintLocalConsequenceAuthority({...snapshot,at:new Date(envelope.issuedAt),ttlSeconds:Math.max(5,Math.ceil((Date.parse(envelope.expiresAt)-Date.parse(envelope.issuedAt))/1000))});
   const verified=verifyConsequenceAuthorityEnvelope(envelope,at);
-  if(current.semanticIdentityDigest!==verified.semanticIdentityDigest||current.bundleDigest!==verified.bundleDigest||current.invariantWitnessDigest!==verified.invariantWitnessDigest||current.reservationDigest!==verified.reservationDigest||current.proofPlanDigest!==verified.proofPlanDigest||current.quarantineSnapshotDigest!==verified.quarantineSnapshotDigest||current.authorityPolicyDigest!==verified.authorityPolicyDigest||current.trustedToolBindingDigest!==verified.trustedToolBindingDigest||current.canonicalRealityResolutionDigest!==verified.canonicalRealityResolutionDigest||digest(current.permittedRoutes)!==digest(verified.permittedRoutes))throw new Error("consequence_authority_snapshot_drift");
+  if(current.semanticIdentityDigest!==verified.semanticIdentityDigest||current.bundleDigest!==verified.bundleDigest||current.invariantWitnessDigest!==verified.invariantWitnessDigest||current.reservationDigest!==verified.reservationDigest||current.proofPlanDigest!==verified.proofPlanDigest||current.quarantineSnapshotDigest!==verified.quarantineSnapshotDigest||current.authorityPolicyDigest!==verified.authorityPolicyDigest||current.trustedToolBindingDigest!==verified.trustedToolBindingDigest||current.canonicalRealityResolutionDigest!==verified.canonicalRealityResolutionDigest||digest(current.canonicalRealityRefs)!==digest(verified.canonicalRealityRefs)||digest(current.permittedEffectClasses)!==digest(verified.permittedEffectClasses)||digest(current.permittedBudgetDeltas)!==digest(verified.permittedBudgetDeltas)||digest(current.permittedRoutes)!==digest(verified.permittedRoutes))throw new Error("consequence_authority_snapshot_drift");
   return verified;
 }
