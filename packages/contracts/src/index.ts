@@ -40,6 +40,7 @@ export * from "./consequence-abi.js";
 export * from "./consequence-algebra.js";
 export * from "./consequence-bundle.js";
 export * from "./reality-resolver.js";
+export * from "./reality-quarantine.js";
 export * from "./continuity.js";
 export * from "./offline-runtime.js";
 export * from "./authority-grade-settlement.js";
