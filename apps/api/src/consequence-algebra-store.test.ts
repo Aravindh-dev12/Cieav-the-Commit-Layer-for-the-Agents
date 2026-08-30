@@ -82,6 +82,16 @@ describe("CieavConsequenceAlgebraStore",()=>{
     await x.store.reconcileUnknown(source.id,"FAILURE",["proof:provider-negative"],h("7"));const reconsidered=await x.store.reconsiderWaiting(candidate.id,{});expect(reconsidered.admission.decision).toBe("ADMIT");expect(reconsidered.node.state).toBe("RESERVED");expect(reconsidered.node.reservationId).toBeDefined();
   });
 
+  it("keeps aggregate budget blocked when UNKNOWN reconciles to observed success",async()=>{
+    const x=await store(),rootIntent=crypto.randomUUID(),policy=await x.store.getPolicy();await x.store.putPolicy({...policy,defaultAggregationLimits:{"money:USD":15}});
+    const source=materializeExecutionProposal(proposal("acct:one",{intentId:rootIntent,semanticEffect:{kind:"TRANSFER_VALUE",target:"acct:one",amount:{currency:"USD",value:10},attributes:{invoice:"one"}}}));
+    const candidate=materializeExecutionProposal(proposal("acct:two",{id:crypto.randomUUID(),intentId:rootIntent,semanticEffect:{kind:"TRANSFER_VALUE",target:"acct:two",amount:{currency:"USD",value:6},attributes:{invoice:"two"}}}));
+    expect((await x.store.admit(source,{})).admission.decision).toBe("ADMIT");await x.store.mark(source.id,"COMMITTED");await x.store.mark(source.id,"DISPATCHED");await x.store.mark(source.id,"SETTLED_UNKNOWN");
+    const waiting=await x.store.admit(candidate,{});expect(waiting.admission.decision).toBe("COORDINATE");expect(waiting.node.state).toBe("MATERIALIZED");
+    await x.store.reconcileUnknown(source.id,"SUCCESS",["proof:provider-readback"],h("6"));expect((await x.store.listAggregation()).filter(entry=>entry.consequenceRef===source.id)).toHaveLength(1);
+    const reconsidered=await x.store.reconsiderWaiting(candidate.id,{});expect(reconsidered.admission.decision).toBe("BLOCK");expect(reconsidered.node.state).toBe("CANCELLED");expect(reconsidered.node.reservationId).toBeUndefined();expect((await x.store.getQuarantineClosure(source.id))?.resolution).toBe("SUCCESS");
+  });
+
   it("enforces a causal fence until predecessor proof closes",async()=>{
     const x=await store(),a=materializeExecutionProposal(proposal("resource://a")),b=materializeExecutionProposal(proposal("resource://b"));
     await x.store.admit(a,{});await x.store.mark(a.id,"OBSERVING");await x.store.admit(b,{});await x.store.addFence(b,[a.id],["SUCCESS"]);
