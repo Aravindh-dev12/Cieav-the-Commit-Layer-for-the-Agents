@@ -82,6 +82,7 @@ jobs:
 
   qualify-native:
     name: qualify-${{ matrix.name }}
+    if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
     strategy:
       fail-fast: false
       matrix:
