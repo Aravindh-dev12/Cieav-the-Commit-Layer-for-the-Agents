@@ -9,17 +9,35 @@ async function nodeFor(session,selector){const document=await session.send("DOM.
 function centerFromBox(box){for(const name of ["content","padding","border","margin"]){const quad=box?.model?.[name];if(Array.isArray(quad)&&quad.length===8&&quad.every(Number.isFinite)){let x=0,y=0;for(let i=0;i<8;i+=2){x+=quad[i];y+=quad[i+1]}return{x:x/4,y:y/4}}}throw new Error("browser_commit_element_box_unavailable")}
 function effectUnknown(error){const message=String(error?.message??error).slice(0,400);const wrapped=new Error(`browser_commit_effect_unknown:${message}`);wrapped.cause=error;return wrapped}
 
-export async function commitBrowserActionFromSessions(sessions,raw={}){
+export async function prepareBrowserActionFromSessions(sessions,raw={}){
   const operation=String(raw.operation??"").toUpperCase();if(!["CLICK","TYPE"].includes(operation))throw new Error("browser_commit_operation_invalid");
-  const selector=selectorValue(raw.selector),{session,pageUrl}=await pageFor(sessions,raw.pageUrl),nodeId=await nodeFor(session,selector);
+  const selector=selectorValue(raw.selector),{session,pageUrl}=await pageFor(sessions,raw.pageUrl),nodeId=await nodeFor(session,selector),selectorBytes=Buffer.byteLength(selector,"utf8");
   if(operation==="CLICK"){
-    const box=await session.send("DOM.getBoxModel",{nodeId}),point=centerFromBox(box);let effectStarted=false;
-    try{for(const type of ["mousePressed","mouseReleased"]){effectStarted=true;await session.send("Input.dispatchMouseEvent",{type,x:point.x,y:point.y,button:"left",clickCount:1,modifiers:0})}}catch(error){if(effectStarted)throw effectUnknown(error);throw error}
-    return{operation,pageUrl,selectorBytes:Buffer.byteLength(selector,"utf8"),textBytes:0,authority:false};
+    const box=await session.send("DOM.getBoxModel",{nodeId}),point=centerFromBox(box);
+    return{version:1,operation:"CLICK",session,pageUrl,selector,nodeId,point,selectorBytes,textBytes:0,authority:false};
   }
-  const text=textValue(raw.text);let effectStarted=false;
-  try{effectStarted=true;await session.send("DOM.focus",{nodeId});await session.send("Input.insertText",{text})}catch(error){if(effectStarted)throw effectUnknown(error);throw error}
-  return{operation,pageUrl,selectorBytes:Buffer.byteLength(selector,"utf8"),textBytes:Buffer.byteLength(text,"utf8"),authority:false};
+  const text=textValue(raw.text);
+  return{version:1,operation:"TYPE",session,pageUrl,selector,nodeId,text,selectorBytes,textBytes:Buffer.byteLength(text,"utf8"),authority:false};
+}
+
+export async function executePreparedBrowserAction(prepared){
+  if(!prepared||prepared.version!==1||!prepared.session||typeof prepared.session.send!=="function")throw new Error("browser_commit_prepared_action_invalid");
+  if(prepared.operation==="CLICK"){
+    let effectStarted=false;
+    try{for(const type of ["mousePressed","mouseReleased"]){effectStarted=true;await prepared.session.send("Input.dispatchMouseEvent",{type,x:prepared.point.x,y:prepared.point.y,button:"left",clickCount:1,modifiers:0})}}catch(error){if(effectStarted)throw effectUnknown(error);throw error}
+    return{operation:"CLICK",pageUrl:prepared.pageUrl,selectorBytes:prepared.selectorBytes,textBytes:0,authority:false};
+  }
+  if(prepared.operation==="TYPE"){
+    let effectStarted=false;
+    try{effectStarted=true;await prepared.session.send("DOM.focus",{nodeId:prepared.nodeId});await prepared.session.send("Input.insertText",{text:prepared.text})}catch(error){if(effectStarted)throw effectUnknown(error);throw error}
+    return{operation:"TYPE",pageUrl:prepared.pageUrl,selectorBytes:prepared.selectorBytes,textBytes:prepared.textBytes,authority:false};
+  }
+  throw new Error("browser_commit_prepared_action_invalid");
+}
+
+export async function commitBrowserActionFromSessions(sessions,raw={}){
+  const prepared=await prepareBrowserActionFromSessions(sessions,raw);
+  return executePreparedBrowserAction(prepared);
 }
 
 export const BrowserCommitConstants={MAX_SELECTOR_BYTES,MAX_TEXT_BYTES};
