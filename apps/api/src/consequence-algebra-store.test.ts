@@ -72,6 +72,16 @@ describe("CieavConsequenceAlgebraStore",()=>{
     await expect(x.store.mark(source.id,"SETTLED_SUCCESS")).rejects.toThrow(/requires_reconciliation/);const settled=await x.store.reconcileUnknown(source.id,"FAILURE",["proof:provider-negative"],h("8"));expect(settled.state).toBe("SETTLED_FAILURE");const closed=await x.store.getQuarantineClosure(source.id);expect(closed?.status).toBe("CLOSED");expect(closed?.resolution).toBe("FAILURE");expect(closed?.closedAt).toBeDefined();expect((await x.store.stats()).openQuarantineClosures).toBe(0);const reconsidered=await x.store.reconsiderWaiting(waiter.id,{});expect(reconsidered.admission.decision).toBe("ADMIT");expect(reconsidered.node.state).toBe("RESERVED");
   });
 
+  it("keeps UNKNOWN aggregate budget overage as a durable waiter until reconciliation",async()=>{
+    const x=await store(),rootIntent=crypto.randomUUID(),policy=await x.store.getPolicy();await x.store.putPolicy({...policy,defaultAggregationLimits:{"money:USD":15}});
+    const source=materializeExecutionProposal(proposal("acct:one",{intentId:rootIntent,semanticEffect:{kind:"TRANSFER_VALUE",target:"acct:one",amount:{currency:"USD",value:10},attributes:{invoice:"one"}}}));
+    const candidate=materializeExecutionProposal(proposal("acct:two",{id:crypto.randomUUID(),intentId:rootIntent,semanticEffect:{kind:"TRANSFER_VALUE",target:"acct:two",amount:{currency:"USD",value:6},attributes:{invoice:"two"}}}));
+    expect((await x.store.admit(source,{})).admission.decision).toBe("ADMIT");await x.store.mark(source.id,"COMMITTED");await x.store.mark(source.id,"DISPATCHED");await x.store.mark(source.id,"SETTLED_UNKNOWN");
+    const waiting=await x.store.admit(candidate,{});expect(waiting.admission.decision).toBe("COORDINATE");expect(waiting.node.state).toBe("MATERIALIZED");expect(waiting.node.reservationId).toBeUndefined();expect(waiting.admission.coordinationPlan?.blockerConsequenceRefs).toContain(source.id);expect(waiting.admission.coordinationPlan?.aggregationConsequenceRefs).toContain(source.id);
+    const closure=await x.store.getQuarantineClosure(source.id);expect(closure?.status).toBe("OPEN");expect(closure?.affectedConsequenceRefs).toContain(candidate.id);expect(closure?.waiterConsequenceRefs).toContain(candidate.id);expect(closure?.relationSnapshot.find(entry=>entry.consequenceRef===candidate.id)?.disposition).toBe("AGGREGATE");
+    await x.store.reconcileUnknown(source.id,"FAILURE",["proof:provider-negative"],h("7"));const reconsidered=await x.store.reconsiderWaiting(candidate.id,{});expect(reconsidered.admission.decision).toBe("ADMIT");expect(reconsidered.node.state).toBe("RESERVED");expect(reconsidered.node.reservationId).toBeDefined();
+  });
+
   it("enforces a causal fence until predecessor proof closes",async()=>{
     const x=await store(),a=materializeExecutionProposal(proposal("resource://a")),b=materializeExecutionProposal(proposal("resource://b"));
     await x.store.admit(a,{});await x.store.mark(a.id,"OBSERVING");await x.store.admit(b,{});await x.store.addFence(b,[a.id],["SUCCESS"]);
