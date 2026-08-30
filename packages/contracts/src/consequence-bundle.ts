@@ -7,7 +7,7 @@ const DigestSchema=z.string().regex(/^[0-9a-f]{64}$/);
 const RefSchema=z.string().min(1).max(2000);
 const EffectRoleSchema=z.enum(["PRIMARY","SECONDARY","CONDITIONAL","DEFERRED"]);
 
-export const ConsequenceBundleEffectSchema=z.object({
+const ConsequenceBundleEffectObjectSchema=z.object({
   id:z.string().min(1).max(240),
   role:EffectRoleSchema,
   kind:ConsequenceKindSchema,
@@ -19,10 +19,19 @@ export const ConsequenceBundleEffectSchema=z.object({
   dependsOn:z.array(z.string().min(1).max(240)).max(100).default([]),
   atomicityGroup:z.string().min(1).max(240).optional(),
   authority:z.literal(false).default(false)
-}).strict().superRefine((effect,ctx)=>{
+}).strict();
+
+export const ConsequenceBundleEffectSchema=ConsequenceBundleEffectObjectSchema.superRefine((effect,ctx)=>{
   if(effect.role==="CONDITIONAL"&&!effect.conditionRef)ctx.addIssue({code:z.ZodIssueCode.custom,path:["conditionRef"],message:"conditional consequence requires conditionRef"});
 });
 export type ConsequenceBundleEffect=z.infer<typeof ConsequenceBundleEffectSchema>;
+
+const PrimaryConsequenceBundleEffectSchema=ConsequenceBundleEffectObjectSchema.extend({role:z.literal("PRIMARY")}).strict();
+const SecondaryConsequenceBundleEffectSchema=ConsequenceBundleEffectObjectSchema.extend({role:z.literal("SECONDARY")}).strict();
+const ConditionalConsequenceBundleEffectSchema=ConsequenceBundleEffectObjectSchema.extend({role:z.literal("CONDITIONAL")}).strict().superRefine((effect,ctx)=>{
+  if(!effect.conditionRef)ctx.addIssue({code:z.ZodIssueCode.custom,path:["conditionRef"],message:"conditional consequence requires conditionRef"});
+});
+const DeferredConsequenceBundleEffectSchema=ConsequenceBundleEffectObjectSchema.extend({role:z.literal("DEFERRED")}).strict();
 
 export const ConsequencePrivacyExternalitySchema=z.object({
   sourceRef:RefSchema,
@@ -55,10 +64,10 @@ export const ConsequenceBundleSchema=z.object({
   compilerId:z.string().min(1).max(240),
   compilerVersion:z.string().min(1).max(120),
   compilerDigest:DigestSchema,
-  primaryEffects:z.array(ConsequenceBundleEffectSchema.extend({role:z.literal("PRIMARY")})).min(1).max(100),
-  secondaryEffects:z.array(ConsequenceBundleEffectSchema.extend({role:z.literal("SECONDARY")})).max(100).default([]),
-  conditionalEffects:z.array(ConsequenceBundleEffectSchema.extend({role:z.literal("CONDITIONAL")})).max(100).default([]),
-  deferredEffects:z.array(ConsequenceBundleEffectSchema.extend({role:z.literal("DEFERRED")})).max(100).default([]),
+  primaryEffects:z.array(PrimaryConsequenceBundleEffectSchema).min(1).max(100),
+  secondaryEffects:z.array(SecondaryConsequenceBundleEffectSchema).max(100).default([]),
+  conditionalEffects:z.array(ConditionalConsequenceBundleEffectSchema).max(100).default([]),
+  deferredEffects:z.array(DeferredConsequenceBundleEffectSchema).max(100).default([]),
   privacyExternalities:z.array(ConsequencePrivacyExternalitySchema).max(200).default([]),
   budgetDeltas:z.array(ConsequenceBudgetDeltaSchema).max(200).default([]),
   authorityUses:z.array(ConsequenceAuthorityUseSchema).max(200).default([]),
