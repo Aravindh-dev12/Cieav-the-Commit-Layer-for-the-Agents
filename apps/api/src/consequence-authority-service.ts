@@ -46,9 +46,18 @@ const bundleEffects=(bundle:ConsequenceBundle)=>[
   ...bundle.deferredEffects
 ];
 
+const effectRealityRefs=(effect:ReturnType<typeof bundleEffects>[number])=>[
+  ...effect.footprint.realityRead,
+  ...effect.footprint.realityWrite,
+  ...effect.footprint.create,
+  ...effect.footprint.delete,
+  ...effect.footprint.grant,
+  ...effect.footprint.revoke
+];
+
 const aggregateBundleBudgets=(bundle:ConsequenceBundle)=>{
   const totals:Record<string,number>={};
-  for(const effect of bundleEffects(bundle))for(const[dimension,value]of Object.entries(effect.footprint.budgetDeltas))totals[dimension]=(totals[dimension]??0)+value;
+  for(const entry of bundle.budgetDeltas)totals[entry.dimension]=(totals[entry.dimension]??0)+entry.delta;
   return totals;
 };
 
@@ -65,7 +74,7 @@ export function mintLocalConsequenceAuthority(snapshot:ConsequenceAuthoritySnaps
   const primary=consequenceBundle.primaryEffects[0];
   if(!primary||primary.kind!==materialization.semanticIdentity.effectClass||primary.footprint.digest!==materialization.footprint.digest||!primary.realityAddresses.some(address=>address.digest===materialization.realityAddress.digest))throw new Error("consequence_authority_bundle_materialization_mismatch");
   const effects=bundleEffects(consequenceBundle);if(!effects.length)throw new Error("consequence_authority_bundle_effect_required");
-  const canonicalRealityRefs=[...new Set(effects.flatMap(effect=>effect.semanticIdentity.targetRealityRefs))].sort();
+  const canonicalRealityRefs=[...new Set(effects.flatMap(effectRealityRefs))].sort();
   if(!canonicalRealityRefs.includes(canonicalRealityResolution.canonicalRealityRef))throw new Error("consequence_authority_bundle_resolution_mismatch");
   const permittedEffectClasses=[...new Set(effects.map(effect=>effect.kind))].sort() as ConsequenceAuthorityEnvelope["permittedEffectClasses"];
   const permittedBudgetDeltas=aggregateBundleBudgets(consequenceBundle);
