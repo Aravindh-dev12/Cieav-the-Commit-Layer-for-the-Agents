@@ -84,6 +84,23 @@ export type ConsequenceAlgebraPolicy=z.infer<typeof ConsequenceAlgebraPolicySche
 export const ConsequenceRelationResultSchema=z.object({version:z.literal("CIEAV_CONSEQUENCE_RELATION_V1"),leftId:z.string().uuid(),rightId:z.string().uuid(),relation:ConsequenceRelationSchema,basisDigest:DigestSchema,evidenceRefs:z.array(RefSchema).max(100).default([]),resolverId:z.string().min(1).max(200),resolverVersion:z.string().min(1).max(100),worldVersion:z.string().max(300).optional(),authority:z.literal(false).default(false)});
 export type ConsequenceRelationResult=z.infer<typeof ConsequenceRelationResultSchema>;
 
+export const ConsequenceCoordinationPlanSchema=z.object({
+  version:z.literal("CIEAV_CONSEQUENCE_COORDINATION_PLAN_V1"),
+  consequenceRef:z.string().uuid(),
+  blockerConsequenceRefs:z.array(z.string().uuid()).max(1000).default([]),
+  reconciliationConsequenceRefs:z.array(z.string().uuid()).max(1000).default([]),
+  requiredPredecessorRefs:z.array(z.string().uuid()).max(1000).default([]),
+  invalidatingConsequenceRefs:z.array(z.string().uuid()).max(1000).default([]),
+  supersedingConsequenceRefs:z.array(z.string().uuid()).max(1000).default([]),
+  compensationTargetRefs:z.array(z.string().uuid()).max(1000).default([]),
+  commutativeConsequenceRefs:z.array(z.string().uuid()).max(1000).default([]),
+  aggregationConsequenceRefs:z.array(z.string().uuid()).max(1000).default([]),
+  unknownRelationRefs:z.array(z.string().uuid()).max(1000).default([]),
+  planDigest:DigestSchema,
+  authority:z.literal(false).default(false)
+});
+export type ConsequenceCoordinationPlan=z.infer<typeof ConsequenceCoordinationPlanSchema>;
+
 export const InvariantCompatibilityWitnessSchema=z.object({version:z.literal("CIEAV_INVARIANT_COMPATIBILITY_V1"),consequenceRefs:z.array(z.string().uuid()).min(1).max(100),invariantRefs:z.array(RefSchema).max(100),worldVersion:z.string().min(1).max(300),compositionClass:z.string().min(1).max(200),result:z.enum(["PRESERVES","REQUIRES_COORDINATION","VIOLATES","UNKNOWN"]),basisDigest:DigestSchema,evidenceRefs:z.array(RefSchema).max(100).default([]),resolverId:z.string().min(1).max(200),resolverVersion:z.string().min(1).max(100),authority:z.literal(false).default(false)});
 export type InvariantCompatibilityWitness=z.infer<typeof InvariantCompatibilityWitnessSchema>;
 
@@ -99,7 +116,7 @@ export type CausalRealityFence=z.infer<typeof CausalRealityFenceSchema>;
 export const ConsequenceAggregationEntrySchema=z.object({id:z.string().uuid(),version:z.literal("CIEAV_CONSEQUENCE_AGGREGATION_V1"),principalRef:z.string().min(1).max(300),rootIntentRef:z.string().min(1).max(500),effectClass:z.string().min(1).max(200),targetRealityRefs:z.array(RefSchema).min(1).max(100),windowKey:z.string().min(1).max(300),dimensions:z.record(z.string().max(120),z.number().finite()),consequenceRef:z.string().uuid(),recordedAt:z.string().datetime(),authority:z.literal(false).default(false)});
 export type ConsequenceAggregationEntry=z.infer<typeof ConsequenceAggregationEntrySchema>;
 
-export const ActiveConsequenceNodeSchema=z.object({version:z.literal("CIEAV_ACTIVE_CONSEQUENCE_NODE_V1"),materialization:ConsequenceMaterializationSchema,state:z.enum(["MATERIALIZED","RESERVED","AUTHORIZED","COMMITTED","DISPATCHED","OBSERVING","QUARANTINED","SETTLED_SUCCESS","SETTLED_FAILURE","SETTLED_UNKNOWN","CANCELLED"]),reservationId:z.string().uuid().optional(),proofPlanReservationId:z.string().uuid().optional(),createdAt:z.string().datetime(),updatedAt:z.string().datetime(),settledAt:z.string().datetime().optional(),authority:z.literal(false).default(false)});
+export const ActiveConsequenceNodeSchema=z.object({version:z.literal("CIEAV_ACTIVE_CONSEQUENCE_NODE_V1"),materialization:ConsequenceMaterializationSchema,state:z.enum(["MATERIALIZED","RESERVED","AUTHORIZED","COMMITTED","DISPATCHED","OBSERVING","QUARANTINED","SETTLED_SUCCESS","SETTLED_FAILURE","SETTLED_UNKNOWN","CANCELLED"]),reservationId:z.string().uuid().optional(),proofPlanReservationId:z.string().uuid().optional(),relationSnapshot:z.array(ConsequenceRelationResultSchema).max(1000).default([]),coordinationPlan:ConsequenceCoordinationPlanSchema.optional(),createdAt:z.string().datetime(),updatedAt:z.string().datetime(),settledAt:z.string().datetime().optional(),authority:z.literal(false).default(false)});
 export type ActiveConsequenceNode=z.infer<typeof ActiveConsequenceNodeSchema>;
 
 export const ConsequenceAlgebraAuditEventSchema=z.object({
@@ -117,5 +134,5 @@ export const ConsequenceAlgebraAuditEventSchema=z.object({
 });
 export type ConsequenceAlgebraAuditEvent=z.infer<typeof ConsequenceAlgebraAuditEventSchema>;
 
-export const AlgebraAdmissionSchema=z.object({version:z.literal("CIEAV_ALGEBRA_ADMISSION_V1"),consequenceRef:z.string().uuid(),decision:z.enum(["ADMIT","COORDINATE","BLOCK","RECONCILE"]),relations:z.array(ConsequenceRelationResultSchema).max(1000),invariantWitnesses:z.array(InvariantCompatibilityWitnessSchema).max(100),reservation:ConsequenceReservationSchema.optional(),proofPlanReservation:ProofPlanReservationSchema.optional(),reasons:z.array(z.string().min(1).max(1000)).min(1).max(100),authority:z.literal(false).default(false),executionAuthorityIssued:z.literal(false).default(false)});
+export const AlgebraAdmissionSchema=z.object({version:z.literal("CIEAV_ALGEBRA_ADMISSION_V1"),consequenceRef:z.string().uuid(),decision:z.enum(["ADMIT","COORDINATE","BLOCK","RECONCILE"]),relations:z.array(ConsequenceRelationResultSchema).max(1000),invariantWitnesses:z.array(InvariantCompatibilityWitnessSchema).max(100),coordinationPlan:ConsequenceCoordinationPlanSchema.optional(),reservation:ConsequenceReservationSchema.optional(),proofPlanReservation:ProofPlanReservationSchema.optional(),reasons:z.array(z.string().min(1).max(1000)).min(1).max(100),authority:z.literal(false).default(false),executionAuthorityIssued:z.literal(false).default(false)});
 export type AlgebraAdmission=z.infer<typeof AlgebraAdmissionSchema>;
