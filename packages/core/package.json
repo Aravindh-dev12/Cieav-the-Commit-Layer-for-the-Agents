@@ -21,6 +21,7 @@
     "./consequence-algebra": {"types": "./dist/consequence-algebra.d.ts", "import": "./dist/consequence-algebra.js"},
     "./consequence-bundle": {"types": "./dist/consequence-bundle.d.ts", "import": "./dist/consequence-bundle.js"},
     "./reality-resolver": {"types": "./dist/reality-resolver.d.ts", "import": "./dist/reality-resolver.js"},
+    "./reality-quarantine": {"types": "./dist/reality-quarantine.d.ts", "import": "./dist/reality-quarantine.js"},
     "./continuity": {"types": "./dist/continuity.d.ts", "import": "./dist/continuity.js"},
     "./offline-runtime": {"types": "./dist/offline-runtime.d.ts", "import": "./dist/offline-runtime.js"},
     "./epistemic-state": {"types": "./dist/epistemic-state.d.ts", "import": "./dist/epistemic-state.js"},
