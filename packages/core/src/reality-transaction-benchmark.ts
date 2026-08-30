@@ -16,6 +16,7 @@ export const realityTransactionBenchmarkDigest=(value:unknown)=>crypto.createHas
 const uniq=(values:string[])=>[...new Set(values)].sort();
 
 export const REQUIRED_REALITY_TRANSACTION_BENCHMARK_SCENARIOS:RealityTransactionBenchmarkScenarioKind[]=[
+  "EXECUTION_FABRIC_LIVE",
   "HETEROGENEOUS_EQUIVALENCE",
   "CROSS_ROUTE_CONFLICT",
   "UNKNOWN_QUARANTINE",
@@ -71,7 +72,7 @@ export function buildRealityTransactionBenchmarkReport(input:{
   const unresolvedBlockers=uniq([...(input.unresolvedBlockers??[]),...scenarios.flatMap(scenario=>scenario.unresolvedBlockers)]);
   const liveOnly=scenarios.every(scenario=>scenario.runtimeClass!=="SIMULATED");
   const liveExecutionEvidence=scenarios.filter(scenario=>scenario.routeEvidence.length>0).every(scenario=>scenario.routeEvidence.some(route=>route.liveSideEffectObserved));
-  const productionQualified=allRequiredScenariosPassed&&routeProtocols.length>=2&&liveOnly&&liveExecutionEvidence&&unresolvedBlockers.length===0;
+  const productionQualified=allRequiredScenariosPassed&&requiredScenarioKinds.includes("EXECUTION_FABRIC_LIVE")&&routeProtocols.length>=2&&liveOnly&&liveExecutionEvidence&&unresolvedBlockers.length===0;
   const unsigned={
     version:"CIEAV_REALITY_TRANSACTION_BENCHMARK_REPORT_V1" as const,
     benchmarkId:crypto.randomUUID(),
