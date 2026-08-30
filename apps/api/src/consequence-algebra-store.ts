@@ -32,6 +32,7 @@ import {
   makeCausalFence,
   type AdmissionOptions
 } from "@cieav/core/consequence-algebra";
+import {assertEvidenceQuorumPlanValid,selectEvidenceQuorumRequirement} from "@cieav/core/evidence-quorum";
 import {closeRealityQuarantineClosure,computeRealityQuarantineClosure,verifyRealityQuarantineClosureDigest} from "@cieav/core/reality-quarantine";
 
 const canonical=(value:unknown):string=>Array.isArray(value)
@@ -55,6 +56,8 @@ const DEFAULT_POLICY:ConsequenceAlgebraPolicy=ConsequenceAlgebraPolicySchema.par
   reservationTtlSeconds:60,
   proofabilityRisks:["CRITICAL"],
   proofProviderBindings:{},
+  evidenceProviders:[],
+  evidenceQuorumRequirements:[],
   defaultAggregationLimits:{},
   aggregationWindowSeconds:86400,
   aggregationScope:"ROOT_INTENT",
@@ -167,6 +170,8 @@ export class CieavConsequenceAlgebraStore{
     }
     const configuredProviders=p.proofProviderBindings[m.toolId]??p.proofProviderBindings["*"]??[];
     const explicitProviders=opts.proofProviders??configuredProviders.map(ref=>({ref}));
+    const evidenceProviders=opts.evidenceProviders??p.evidenceProviders;
+    const evidenceQuorumRequirements=opts.evidenceQuorumRequirements??p.evidenceQuorumRequirements;
     const requireProofability=opts.requireProofability??p.proofabilityRisks.includes(m.risk);
     const aggregationLimits={...p.defaultAggregationLimits,...(opts.aggregationLimits??{})};
     return admitConsequence(m,{
@@ -177,6 +182,8 @@ export class CieavConsequenceAlgebraStore{
       invariantRules:this.payload.invariantRules,
       failClosedUnknown:p.failClosedUnknown,
       proofProviders:explicitProviders,
+      evidenceProviders,
+      evidenceQuorumRequirements,
       requireProofability,
       reservationTtlSeconds:opts.reservationTtlSeconds??p.reservationTtlSeconds,
       aggregationTotals:totals,
@@ -219,7 +226,7 @@ export class CieavConsequenceAlgebraStore{
   listQuarantineClosures(){return this.enqueue(async()=>{await this.load();this.verifyClosures(this.payload.quarantineClosures);return this.payload.quarantineClosures.slice().reverse()})}
   getQuarantineClosure(sourceConsequenceRef:string){return this.enqueue(async()=>{await this.load();this.verifyClosures(this.payload.quarantineClosures);return this.payload.quarantineClosures.findLast(closure=>closure.sourceConsequenceRef===sourceConsequenceRef)??null})}
   listAudit(){return this.enqueue(async()=>{await this.load();this.verifyAudit(this.payload.audit);return this.payload.audit.slice().reverse()})}
-  stats(){return this.enqueue(async()=>{await this.load();return{policyEnabled:this.payload.policy.enabled,nodes:this.payload.nodes.length,active:this.payload.nodes.filter(x=>!terminal.has(x.state)).length,waiting:this.payload.nodes.filter(x=>x.state===waitingState).length,authorityRelevant:this.payload.nodes.filter(x=>authorityRelevant.has(x.state)).length,quarantined:this.payload.nodes.filter(x=>x.state==="QUARANTINED"||x.state==="SETTLED_UNKNOWN").length,openQuarantineClosures:this.payload.quarantineClosures.filter(x=>x.status==="OPEN").length,reservations:this.payload.reservations.filter(x=>!["RELEASED","EXPIRED"].includes(x.state)).length,proofPlans:this.payload.proofPlans.length,fences:this.payload.fences.length,aggregation:this.payload.aggregation.length,relationRules:this.payload.relationRules.length,invariantRules:this.payload.invariantRules.length,auditEvents:this.payload.audit.length}})}
+  stats(){return this.enqueue(async()=>{await this.load();return{policyEnabled:this.payload.policy.enabled,nodes:this.payload.nodes.length,active:this.payload.nodes.filter(x=>!terminal.has(x.state)).length,waiting:this.payload.nodes.filter(x=>x.state===waitingState).length,authorityRelevant:this.payload.nodes.filter(x=>authorityRelevant.has(x.state)).length,quarantined:this.payload.nodes.filter(x=>x.state==="QUARANTINED"||x.state==="SETTLED_UNKNOWN").length,openQuarantineClosures:this.payload.quarantineClosures.filter(x=>x.status==="OPEN").length,reservations:this.payload.reservations.filter(x=>!["RELEASED","EXPIRED"].includes(x.state)).length,proofPlans:this.payload.proofPlans.length,evidenceProviders:this.payload.policy.evidenceProviders.length,evidenceQuorumRequirements:this.payload.policy.evidenceQuorumRequirements.length,fences:this.payload.fences.length,aggregation:this.payload.aggregation.length,relationRules:this.payload.relationRules.length,invariantRules:this.payload.invariantRules.length,auditEvents:this.payload.audit.length}})}
 
   admit(raw:ConsequenceMaterialization,opts:StoreAdmissionOptions={}){return this.enqueue(async()=>{
     await this.load();
@@ -259,7 +266,27 @@ export class CieavConsequenceAlgebraStore{
   })}
 
   ensureAdmitted(consequenceRef:string){return this.enqueue(async()=>{await this.load();const changed=this.expireSafeReservations();if(changed){this.recomputeQuarantineClosures();await this.persist()}const n=this.payload.nodes.find(x=>x.materialization.id===consequenceRef);if(!n)throw new Error("consequence_not_materialized");if(!["RESERVED","AUTHORIZED","COMMITTED"].includes(n.state))throw new Error(`consequence_not_admitted:${n.state}`);const r=n.reservationId?this.payload.reservations.find(x=>x.id===n.reservationId):undefined;if(!r||!["RESERVED","DISPATCHED","OBSERVING"].includes(r.state))throw new Error("active_consequence_reservation_required");if(r.state==="RESERVED"&&Date.parse(r.expiresAt)<=Date.now())throw new Error("consequence_reservation_expired");return n})}
-  assertProofPlanValid(consequenceRef:string){return this.enqueue(async()=>{await this.load();const n=this.payload.nodes.find(x=>x.materialization.id===consequenceRef);if(!n)throw new Error("consequence_not_materialized");const required=this.payload.policy.proofabilityRisks.includes(n.materialization.risk);if(!required&&!n.proofPlanReservationId)return true;if(!n.proofPlanReservationId)throw new Error("proof_plan_reservation_required");const plan=this.payload.proofPlans.find(x=>x.id===n.proofPlanReservationId);if(!plan||plan.consequenceRef!==consequenceRef)throw new Error("proof_plan_reservation_invalid");if(Date.parse(plan.expiresAt)<=Date.now())throw new Error("proof_plan_reservation_expired");if(!plan.providerBindings.length)throw new Error("proof_provider_binding_required");return true})}
+  assertProofPlanValid(consequenceRef:string){return this.enqueue(async()=>{
+    await this.load();
+    const n=this.payload.nodes.find(x=>x.materialization.id===consequenceRef);if(!n)throw new Error("consequence_not_materialized");
+    const required=this.payload.policy.proofabilityRisks.includes(n.materialization.risk);if(!required&&!n.proofPlanReservationId)return true;
+    if(!n.proofPlanReservationId)throw new Error("proof_plan_reservation_required");
+    const plan=this.payload.proofPlans.find(x=>x.id===n.proofPlanReservationId);if(!plan||plan.consequenceRef!==consequenceRef)throw new Error("proof_plan_reservation_invalid");
+    if(Date.parse(plan.expiresAt)<=Date.now())throw new Error("proof_plan_reservation_expired");
+    if(!plan.providerBindings.length)throw new Error("proof_provider_binding_required");
+    if(plan.evidenceQuorumPlan){
+      if(plan.evidenceQuorumDigest!==plan.evidenceQuorumPlan.quorumDigest)throw new Error("evidence_quorum_bridge_digest_mismatch");
+      if(canonical(plan.providerBindings)!==canonical(plan.evidenceQuorumPlan.selectedProviderRefs))throw new Error("evidence_quorum_provider_binding_mismatch");
+      const selectedRequirement=selectEvidenceQuorumRequirement(n.materialization,this.payload.policy.evidenceQuorumRequirements);
+      if(!selectedRequirement||selectedRequirement.id!==plan.evidenceQuorumPlan.requirementRef)throw new Error("evidence_quorum_requirement_drift");
+      if(selectedRequirement.minimumProviders!==plan.evidenceQuorumPlan.minimumProviders||selectedRequirement.minimumIndependenceDomains!==plan.evidenceQuorumPlan.minimumIndependenceDomains||selectedRequirement.maxEvidenceAgeMs!==plan.evidenceQuorumPlan.maxEvidenceAgeMs||canonical([...selectedRequirement.requiredEvidenceClasses].sort())!==canonical(plan.evidenceQuorumPlan.requiredEvidenceClasses))throw new Error("evidence_quorum_requirement_drift");
+      assertEvidenceQuorumPlanValid(plan.evidenceQuorumPlan,this.payload.policy.evidenceProviders);
+      return true;
+    }
+    const richConfigured=this.payload.policy.evidenceProviders.length>0||this.payload.policy.evidenceQuorumRequirements.length>0;
+    if(required&&richConfigured)throw new Error("evidence_quorum_plan_required");
+    return true;
+  })}
   mark(consequenceRef:string,state:ActiveConsequenceNode["state"]){return this.enqueue(async()=>{await this.load();const i=this.payload.nodes.findIndex(x=>x.materialization.id===consequenceRef);if(i<0)throw new Error("consequence_not_materialized");const current=this.payload.nodes[i]!,now=new Date().toISOString();if(current.state===waitingState&&state!==waitingState)throw new Error("waiting_consequence_requires_reconsideration");if(terminal.has(current.state)&&current.state!==state)throw new Error("terminal_consequence_state_is_immutable");if(["SETTLED_UNKNOWN","QUARANTINED"].includes(current.state)&&!["SETTLED_UNKNOWN","QUARANTINED"].includes(state))throw new Error("unknown_consequence_requires_reconciliation");const next=ActiveConsequenceNodeSchema.parse({...current,state,updatedAt:now,...(state.startsWith("SETTLED_")?{settledAt:now}:{})});this.payload.nodes[i]=next;if(state==="SETTLED_SUCCESS"&&Object.keys(current.materialization.footprint.budgetDeltas).length&&!this.payload.aggregation.some(x=>x.consequenceRef===consequenceRef))this.payload.aggregation.push(aggregationEntry(current.materialization,current.materialization.footprint.budgetDeltas,current.materialization.rootIntentRef));if(next.reservationId){const ri=this.payload.reservations.findIndex(x=>x.id===next.reservationId);if(ri>=0){const r=this.payload.reservations[ri]!;let rs=r.state;if(state==="DISPATCHED")rs="DISPATCHED";else if(state==="OBSERVING")rs="OBSERVING";else if(state==="SETTLED_UNKNOWN"||state==="QUARANTINED")rs="QUARANTINED";else if(terminal.has(state))rs="RELEASED";this.payload.reservations[ri]=ConsequenceReservationSchema.parse({...r,state:rs})}}this.appendAudit("STATE_CHANGED",`Consequence state changed ${current.state} -> ${state}.`,{from:current.state,to:state},consequenceRef);this.recomputeQuarantineClosures(new Date(now));await this.persist();return next})}
   reconcileUnknown(consequenceRef:string,outcome:"SUCCESS"|"FAILURE",evidenceRefs:string[],realityDigest:string){return this.enqueue(async()=>{await this.load();if(!/^[0-9a-f]{64}$/.test(realityDigest))throw new Error("reconciliation_reality_digest_required");if(!evidenceRefs.length||evidenceRefs.some(x=>!x.trim()))throw new Error("reconciliation_evidence_required");const i=this.payload.nodes.findIndex(x=>x.materialization.id===consequenceRef);if(i<0)throw new Error("consequence_not_materialized");const current=this.payload.nodes[i]!;if(!["SETTLED_UNKNOWN","QUARANTINED"].includes(current.state))throw new Error("consequence_not_reconcilable");this.recomputeQuarantineClosures();this.closeQuarantineClosure(consequenceRef,outcome);const state:ActiveConsequenceNode["state"]=outcome==="SUCCESS"?"SETTLED_SUCCESS":"SETTLED_FAILURE",now=new Date().toISOString(),next=ActiveConsequenceNodeSchema.parse({...current,state,updatedAt:now,settledAt:now});this.payload.nodes[i]=next;if(outcome==="SUCCESS"&&Object.keys(current.materialization.footprint.budgetDeltas).length&&!this.payload.aggregation.some(x=>x.consequenceRef===consequenceRef))this.payload.aggregation.push(aggregationEntry(current.materialization,current.materialization.footprint.budgetDeltas,current.materialization.rootIntentRef));if(next.reservationId){const ri=this.payload.reservations.findIndex(x=>x.id===next.reservationId);if(ri>=0)this.payload.reservations[ri]=ConsequenceReservationSchema.parse({...this.payload.reservations[ri]!,state:"RELEASED"})}this.appendAudit("RECOVERY",`Trusted reconciliation settled UNKNOWN consequence as ${outcome}.`,{outcome,evidenceRefs:[...new Set(evidenceRefs)].sort(),realityDigest},consequenceRef);this.recomputeQuarantineClosures(new Date(now));await this.persist();return next})}
   markTask(taskId:string,state:ActiveConsequenceNode["state"]){return this.enqueue(async()=>{await this.load();const refs=this.payload.nodes.filter(x=>x.materialization.taskId===taskId&&authorityRelevant.has(x.state)).map(x=>x.materialization.id),changed:ActiveConsequenceNode[]=[];for(const ref of refs){const i=this.payload.nodes.findIndex(x=>x.materialization.id===ref),current=this.payload.nodes[i]!;if(["SETTLED_UNKNOWN","QUARANTINED"].includes(current.state)&&!["SETTLED_UNKNOWN","QUARANTINED"].includes(state))continue;const now=new Date().toISOString(),next=ActiveConsequenceNodeSchema.parse({...current,state,updatedAt:now,...(state.startsWith("SETTLED_")?{settledAt:now}:{})});this.payload.nodes[i]=next;if(state==="SETTLED_SUCCESS"&&Object.keys(current.materialization.footprint.budgetDeltas).length&&!this.payload.aggregation.some(x=>x.consequenceRef===ref))this.payload.aggregation.push(aggregationEntry(current.materialization,current.materialization.footprint.budgetDeltas,current.materialization.rootIntentRef));if(next.reservationId){const ri=this.payload.reservations.findIndex(x=>x.id===next.reservationId);if(ri>=0){const r=this.payload.reservations[ri]!,rs=state==="SETTLED_UNKNOWN"||state==="QUARANTINED"?"QUARANTINED":terminal.has(state)?"RELEASED":r.state;this.payload.reservations[ri]=ConsequenceReservationSchema.parse({...r,state:rs})}}this.appendAudit("STATE_CHANGED",`Task settlement changed consequence ${current.state} -> ${state}.`,{taskId,from:current.state,to:state},ref);changed.push(next)}if(changed.length){this.recomputeQuarantineClosures();await this.persist()}return changed})}
