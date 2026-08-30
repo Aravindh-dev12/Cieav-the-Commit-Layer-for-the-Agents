@@ -54,6 +54,24 @@ describe("CieavConsequenceAlgebraStore",()=>{
     const settled=await x.store.reconcileUnknown(m.id,"SUCCESS",["proof:readback"],h("9"));expect(settled.state).toBe("SETTLED_SUCCESS");expect((await x.store.listReservations())[0]?.state).toBe("RELEASED");
   });
 
+  it("persists relation-aware Reality Quarantine Closure topology across restart",async()=>{
+    const x=await store(),rootIntent=crypto.randomUUID();
+    const source=materializeExecutionProposal(proposal("resource://shared",{intentId:rootIntent,semanticEffect:{kind:"UPDATE",target:"resource://shared",attributes:{value:"source"}}}));
+    await x.store.admit(source,{});await x.store.mark(source.id,"COMMITTED");await x.store.mark(source.id,"DISPATCHED");await x.store.mark(source.id,"SETTLED_UNKNOWN");
+    const equivalent=materializeExecutionProposal(proposal("resource://shared",{id:crypto.randomUUID(),intentId:rootIntent,protocol:"BROWSER",toolId:"browser",operation:"CLICK",semanticEffect:{kind:"UPDATE",target:"resource://shared",attributes:{value:"source"}}}));
+    const conflicting=materializeExecutionProposal(proposal("resource://shared",{id:crypto.randomUUID(),intentId:rootIntent,semanticEffect:{kind:"UPDATE",target:"resource://shared",attributes:{value:"different"}}}));
+    const independent=materializeExecutionProposal(proposal("resource://independent",{id:crypto.randomUUID(),intentId:rootIntent,semanticEffect:{kind:"UPDATE",target:"resource://independent",attributes:{value:"independent"}}}));
+    expect((await x.store.admit(equivalent,{})).admission.decision).toBe("RECONCILE");expect((await x.store.admit(conflicting,{})).admission.decision).toBe("COORDINATE");expect((await x.store.admit(independent,{})).admission.decision).toBe("ADMIT");
+    const closure=await x.store.getQuarantineClosure(source.id);expect(closure?.status).toBe("OPEN");expect(closure?.sourceState).toBe("SETTLED_UNKNOWN");expect(closure?.reconcileCandidateRefs).toContain(equivalent.id);expect(closure?.blockerConsequenceRefs).toContain(conflicting.id);expect(closure?.allowedIndependentConsequenceRefs).toContain(independent.id);expect(closure?.affectedConsequenceRefs).not.toContain(independent.id);expect(closure?.waiterConsequenceRefs).toEqual(expect.arrayContaining([equivalent.id,conflicting.id]));expect(closure?.authority).toBe(false);expect(closure?.mayMintExecutionAuthority).toBe(false);const digest=closure!.closureDigest;
+    await x.store.close();const reopened=new CieavConsequenceAlgebraStore(x.file,"s".repeat(64));const recovered=await reopened.recoverOnStartup();expect(recovered.stats.openQuarantineClosures).toBe(1);const persisted=await reopened.getQuarantineClosure(source.id);expect(persisted?.status).toBe("OPEN");expect(persisted?.closureDigest).toBe(digest);expect((await reopened.stats()).openQuarantineClosures).toBe(1);
+  });
+
+  it("closes Reality Quarantine Closure only through trusted UNKNOWN reconciliation",async()=>{
+    const x=await store(),source=materializeExecutionProposal(proposal("resource://shared"));await x.store.admit(source,{});await x.store.mark(source.id,"QUARANTINED");
+    const waiter=materializeExecutionProposal(proposal("resource://shared",{id:crypto.randomUUID(),semanticEffect:{kind:"UPDATE",target:"resource://shared",attributes:{value:"different"}}}));expect((await x.store.admit(waiter,{})).admission.decision).toBe("COORDINATE");const opened=await x.store.getQuarantineClosure(source.id);expect(opened?.status).toBe("OPEN");expect(opened?.affectedConsequenceRefs).toContain(waiter.id);
+    await expect(x.store.mark(source.id,"SETTLED_SUCCESS")).rejects.toThrow(/requires_reconciliation/);const settled=await x.store.reconcileUnknown(source.id,"FAILURE",["proof:provider-negative"],h("8"));expect(settled.state).toBe("SETTLED_FAILURE");const closed=await x.store.getQuarantineClosure(source.id);expect(closed?.status).toBe("CLOSED");expect(closed?.resolution).toBe("FAILURE");expect(closed?.closedAt).toBeDefined();expect((await x.store.stats()).openQuarantineClosures).toBe(0);const reconsidered=await x.store.reconsiderWaiting(waiter.id,{});expect(reconsidered.admission.decision).toBe("ADMIT");expect(reconsidered.node.state).toBe("RESERVED");
+  });
+
   it("enforces a causal fence until predecessor proof closes",async()=>{
     const x=await store(),a=materializeExecutionProposal(proposal("resource://a")),b=materializeExecutionProposal(proposal("resource://b"));
     await x.store.admit(a,{});await x.store.mark(a.id,"OBSERVING");await x.store.admit(b,{});await x.store.addFence(b,[a.id],["SUCCESS"]);
