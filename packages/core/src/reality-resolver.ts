@@ -65,7 +65,15 @@ const normalizeGit=(value:string,context:Record<string,string>)=>{
     const hash=value.indexOf("#");repository=(hash>=0?value.slice(0,hash):value).trim();ref=ref||(hash>=0?value.slice(hash+1).trim():"");
   }
   if(!repository||!ref)throw new Error("canonical_reality_git_repository_and_ref_required");
-  repository=repository.replace(/^git\+?/i,"").replace(/^https?:\/\//i,"").replace(/^ssh:\/\//i,"").replace(/^git@([^:]+):/i,"$1/").replace(/\.git$/i,"").replace(/\/$/,"");
+  repository=repository
+    .replace(/^git@([^:]+):/i,"$1/")
+    .replace(/^ssh:\/\/git@/i,"")
+    .replace(/^git\+https?:\/\//i,"")
+    .replace(/^https?:\/\//i,"")
+    .replace(/^ssh:\/\//i,"")
+    .replace(/^git:\/\//i,"")
+    .replace(/\.git$/i,"")
+    .replace(/\/$/,"");
   const slash=repository.indexOf("/");if(slash<=0)throw new Error("canonical_reality_git_repository_invalid");
   repository=`${repository.slice(0,slash).toLowerCase()}/${repository.slice(slash)}`;
   if(!ref.startsWith("refs/"))ref=`refs/heads/${ref}`;
@@ -99,16 +107,16 @@ export class CanonicalRealityResolverRegistry{
   private readonly byId=new Map<string,CanonicalRealityResolver>();
   constructor(resolvers:CanonicalRealityResolver[]=BUILTIN_REALITY_RESOLVERS){for(const resolver of resolvers)this.register(resolver)}
   register(resolver:CanonicalRealityResolver){
-    const parsed=CanonicalRealityResolverManifestSchema.parse(resolver.manifest),expected=realityResolverDigest({...parsed,manifestDigest:undefined});
-    const {manifestDigest,...unsigned}=parsed;if(realityResolverDigest(unsigned)!==manifestDigest)throw new Error("canonical_reality_resolver_manifest_integrity_mismatch");
+    const parsed=CanonicalRealityResolverManifestSchema.parse(resolver.manifest),{manifestDigest,...unsigned}=parsed;
+    if(realityResolverDigest(unsigned)!==manifestDigest)throw new Error("canonical_reality_resolver_manifest_integrity_mismatch");
     if(this.byId.has(parsed.id))throw new Error(`canonical_reality_resolver_duplicate:${parsed.id}`);
     this.byId.set(parsed.id,{manifest:parsed,normalize:resolver.normalize});return parsed;
   }
   list(){return [...this.byId.values()].map(x=>x.manifest).sort((a,b)=>a.id.localeCompare(b.id))}
   get(id:string,version?:string){const resolver=this.byId.get(id);if(!resolver)throw new Error(`canonical_reality_resolver_not_found:${id}`);if(version&&resolver.manifest.resolverVersion!==version)throw new Error(`canonical_reality_resolver_version_mismatch:${id}:${version}`);return resolver}
   resolve(id:string,version:string,raw:unknown):CanonicalRealityResolution{
-    const resolver=this.get(id,version),request=CanonicalRealityResolutionRequestSchema.parse(raw);
-    if(!resolver.manifest.supportedNamespaces.includes(request.namespace.toLowerCase())&&!resolver.manifest.supportedNamespaces.includes(request.namespace))throw new Error(`canonical_reality_resolver_namespace_unsupported:${request.namespace}`);
+    const resolver=this.get(id,version),request=CanonicalRealityResolutionRequestSchema.parse(raw),namespace=request.namespace.toLowerCase();
+    if(!resolver.manifest.supportedNamespaces.includes(namespace))throw new Error(`canonical_reality_resolver_namespace_unsupported:${request.namespace}`);
     if(!resolver.manifest.supportedResourceKinds.includes(request.resourceKind))throw new Error(`canonical_reality_resolver_resource_kind_unsupported:${request.resourceKind}`);
     const normalized=resolver.normalize(request),aliases=[...new Set([request.routeNativeIdentity,...request.aliases,...(normalized.aliases??[])].filter(Boolean))].sort();
     const address:RealityAddress=makeRealityAddress({version:"CIEAV_REALITY_ADDRESS_V1",namespace:normalized.namespace,authorityDomain:request.authorityDomain,resourceKind:normalized.resourceKind,stableId:normalized.stableId,aliases,parentRefs:normalized.parentRefs??request.parentRefs,identityEvidenceRefs:[...new Set([...(normalized.verificationRefs??[]),...request.identityEvidenceRefs])].sort(),resolverId:resolver.manifest.id,resolverVersion:resolver.manifest.resolverVersion});
