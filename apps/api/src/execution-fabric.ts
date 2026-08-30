@@ -303,6 +303,7 @@ export class CieavExecutionFabricStore{
       canonicalRealityResolution=resolveExecutionProposalReality(proposal,trustedToolBinding,this.realityResolvers);if(!verifyCanonicalRealityResolution(canonicalRealityResolution,this.realityResolvers))throw new Error("canonical_reality_resolution_integrity_mismatch");
       const materialization=materializeResolvedExecutionProposal(proposal,canonicalRealityResolution);consequenceBundle=compileExecutionConsequenceBundle(proposal,trustedToolBinding,materialization);
       const existing=await this.consequenceAlgebra.getNode(proposal.id),aggregationLimits=Object.fromEntries((proposal.continuingAuthority?.budgets??[]).map(b=>[b.dimension,b.limit])),proofProviders=(tool.proofSources??[]).map(ref=>({ref})),algebraOptions={aggregationLimits,proofProviders};
+      if(existing&&canonical(existing.materialization)!==canonical(materialization))throw new Error("consequence_algebra_materialization_changed_after_first_admission");
       let algebra;
       if(!existing)algebra=await this.consequenceAlgebra.admit(materialization,algebraOptions);
       else if(existing.state==="MATERIALIZED")algebra=await this.consequenceAlgebra.reconsiderWaiting(proposal.id,algebraOptions);
