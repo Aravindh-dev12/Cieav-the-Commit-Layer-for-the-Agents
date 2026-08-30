@@ -10,6 +10,7 @@ export * from "./consequence-graph.js";
 export * from "./consequence-abi.js";
 export * from "./consequence-algebra.js";
 export * from "./consequence-bundle.js";
+export * from "./consequence-authority-envelope.js";
 export * from "./reality-resolver.js";
 export * from "./resolved-consequence-materialization.js";
 export * from "./reality-quarantine.js";
