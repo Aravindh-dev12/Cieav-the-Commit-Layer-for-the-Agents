@@ -39,6 +39,7 @@ export * from "./universal-runtime.js";
 export * from "./consequence-abi.js";
 export * from "./consequence-algebra.js";
 export * from "./consequence-bundle.js";
+export * from "./consequence-authority-envelope.js";
 export * from "./reality-resolver.js";
 export * from "./reality-quarantine.js";
 export * from "./evidence-quorum.js";
