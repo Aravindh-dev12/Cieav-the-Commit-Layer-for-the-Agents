@@ -1,4 +1,5 @@
 import {z} from "zod";
+import {ConsequenceKindSchema} from "./commitment.js";
 import {SemanticEffectSchema,RealityWitnessSchema} from "./intent-reality.js";
 
 const DigestSchema=z.string().regex(/^[0-9a-f]{64}$/);
@@ -16,12 +17,49 @@ export type AgentIdentityAttestation=z.infer<typeof AgentIdentityAttestationSche
 export const ToolProtocolSchema=z.enum(["MCP","A2A","HTTP","BROWSER","DESKTOP","CLI","GIT","KUBERNETES","AWS","AZURE","GCP","FILESYSTEM","DATABASE","CLOUD_API","ROS2","MQTT"]);
 export const ToolExecutionModeSchema=z.enum(["ONESHOT","CONTINUING"]);
 export const CredentialModeSchema=z.enum(["NONE","CIEAV_INJECTED","DOWNSTREAM_OAUTH","MTLS","SIGNED_REQUEST"]);
+export const ToolTargetBindingSchema=z.enum(["ROUTE_TARGET","SEMANTIC_TARGET","ROUTE_AND_SEMANTIC_TARGET"]);
+export const ToolDuplicateSemanticsSchema=z.enum(["SEMANTIC_IDEMPOTENT","RECONCILE_BEFORE_RETRY","NON_IDEMPOTENT"]);
+export const TrustedToolConsequenceContractSchema=z.object({
+  version:z.literal("CIEAV_TRUSTED_TOOL_CONSEQUENCE_CONTRACT_V1"),
+  effectKinds:z.array(ConsequenceKindSchema).min(1).max(32),
+  targetBinding:ToolTargetBindingSchema,
+  targetPrefixes:z.array(z.string().min(1).max(1000)).max(100).default([]),
+  requiredAttributeKeys:z.array(z.string().min(1).max(160)).max(100).default([]),
+  duplicateSemantics:ToolDuplicateSemanticsSchema,
+  canonicalResolverId:z.string().min(1).max(240),
+  canonicalResolverVersion:z.string().min(1).max(120),
+  authority:z.literal(false)
+}).strict().superRefine((value,ctx)=>{
+  if(new Set(value.effectKinds).size!==value.effectKinds.length)ctx.addIssue({code:z.ZodIssueCode.custom,message:"duplicate tool consequence effect kind"});
+  if(new Set(value.requiredAttributeKeys).size!==value.requiredAttributeKeys.length)ctx.addIssue({code:z.ZodIssueCode.custom,message:"duplicate required semantic attribute key"});
+});
+export type TrustedToolConsequenceContract=z.infer<typeof TrustedToolConsequenceContractSchema>;
+
+export const TrustedToolAuthorizationBindingSchema=z.object({
+  version:z.literal("CIEAV_TRUSTED_TOOL_AUTHORIZATION_BINDING_V1"),
+  toolId:z.string().min(1).max(240),
+  protocol:ToolProtocolSchema,
+  operation:z.string().min(1).max(240),
+  contractDigest:DigestSchema.nullable(),
+  canonicalTarget:z.string().max(2000).nullable(),
+  canonicalResolverId:z.string().min(1).max(240).nullable(),
+  canonicalResolverVersion:z.string().min(1).max(120).nullable(),
+  productionQualified:z.literal(true),
+  bindingDigest:DigestSchema,
+  authority:z.literal(false),
+  mayMintExecutionAuthority:z.literal(false)
+}).strict();
+export type TrustedToolAuthorizationBinding=z.infer<typeof TrustedToolAuthorizationBindingSchema>;
+
 export const FederatedToolSchema=z.object({
   id:z.string().min(1).max(240),displayName:z.string().min(1).max(240),protocol:ToolProtocolSchema,operation:z.string().min(1).max(240),
   downstreamRef:z.string().min(1).max(2000),credentialMode:CredentialModeSchema,risk:RiskSchema,
   consequenceCapable:z.boolean().default(true),proofSources:z.array(z.string().min(1).max(240)).max(30).default([]),enabled:z.boolean().default(true),
-  executionMode:ToolExecutionModeSchema.optional(),requiredReflexPolicyId:z.string().min(1).max(240).optional()
-}).strict();
+  executionMode:ToolExecutionModeSchema.optional(),requiredReflexPolicyId:z.string().min(1).max(240).optional(),
+  consequenceContract:TrustedToolConsequenceContractSchema.optional()
+}).strict().superRefine((value,ctx)=>{
+  if(!value.consequenceCapable&&value.consequenceContract)ctx.addIssue({code:z.ZodIssueCode.custom,message:"non-consequence-capable tool cannot declare consequence contract"});
+});
 export type FederatedTool=z.infer<typeof FederatedToolSchema>;
 
 export const ScopedCredentialLeaseSchema=z.object({

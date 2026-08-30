@@ -1,184 +1,234 @@
 # CIEAV Architecture
 
-## Consequence Intelligence Framework and Autonomous Computing Substrate
+## Reality Transaction Kernel for Autonomous Systems
 
-> **Models think. Agents plan. CIEAV commits.**
+> **Models think. Agents plan. CIEAV commits consequences.**
 >
-> **CIEAV turns intelligence into provable, governable, and learnable state transitions in the real world.**
+> **Applications are execution routes. Consequences are the unit of coordination. Authority remains local.**
+>
+> **Routes propose transitions. CIEAV owns trusted consequence identity. Reality settles consequences.**
 
-This is the canonical target architecture for CIEAV.
+This document is the canonical target architecture for CIEAV.
 
-Research/provider snapshot: **2026-08-27**. Model catalogs, model IDs, preview status, pricing, regions, SDKs, managed-training features and cloud availability change faster than this architecture. CIEAV must discover, pin, qualify and record exact provider/model/framework versions at deployment time. Names in this document are routing recommendations, not permanent protocol constants.
+A component appearing here is not automatically implemented or production-qualified. Production claims require exact executable evidence, deterministic/qualified semantic evidence, and external infrastructure evidence where applicable.
 
-A component appearing here is **not automatically implemented or production-qualified**. Production claims require executable and external qualification evidence.
+This document describes the intended technical architecture. It is not a claim of legal novelty or patentability.
 
 ---
 
-## 1. Product thesis
+# 1. Product thesis
 
-CIEAV is not a chatbot, a single foundation model, a browser wrapper, an agent framework, a model router, a workflow scheduler, an AI Foundry clone, or an ML platform.
+CIEAV is not a chatbot, browser wrapper, model router, agent framework, workflow engine, MCP server, AI Foundry clone, integration marketplace, approval proxy, or ordinary agent guardrail.
 
-CIEAV is the **Commit Layer for autonomous computing**: a model- and agent-independent consequence-native runtime that converts probabilistic machine intention into governed, observable, durable and learnable changes in reality.
+CIEAV is intended to become a **Reality Transaction Kernel for autonomous computing**: a model- and agent-independent consequence-native runtime that converts probabilistic machine intention into trusted, coordinated, observable, durable, and recoverable changes in reality.
 
-The fundamental transaction is not a token, prompt, tool call, workflow step or agent handoff. It is a **real-world state transition**:
+The fundamental transaction is not a prompt, token, tool call, click, API request, workflow step, agent handoff, or provider invocation.
+
+It is a **real-world consequence**.
 
 ```text
 WORLD BEFORE
     +
 objective / intent
     +
-principal / user identity
+principal identity
     +
-agent + model identity
+agent/model identity
     +
 delegated authority
     +
-exact proposed operation
+exact proposed operation/arguments
     +
-current reality
+qualified tool semantics
+    +
+current canonical reality
+    +
+active/unsettled consequences
+    +
+proofability
     +
 policy
     ↓
+TRUSTED CONSEQUENCE MATERIALIZATION
+    ↓
+CONSEQUENCE BUNDLE
+    ↓
+CANONICAL REALITY RESOLUTION
+    ↓
 CONSEQUENCE ALGEBRA
+    ↓
+ACTIVE CONSEQUENCE GRAPH
+    ↓
+REALITY QUARANTINE / PROOFABILITY
+    ↓
+CONSEQUENCE-BOUND LOCAL AUTHORITY
+    ↓
+QUALIFIED ROUTE SELECTION
     ↓
 REALITY-BOUND COMMIT
     ↓
 ONE-USE EXECUTION AUTHORITY
     ↓
-REAL EXECUTION
+QUALIFIED EXECUTION
     ↓
 INDEPENDENT PERCEPTION / PROOF
     ↓
-WORLD AFTER
+MULTI-AXIS SETTLEMENT
     ↓
-SUCCESS / FAILURE / UNKNOWN
+WORLD AFTER
 ```
 
-Frontier APIs, open-weight models, local models, coding models, multimodal models, enterprise agents, proprietary training services and CIEAV-trained checkpoints are replaceable cognitive engines inside this larger transaction boundary.
+Frontier APIs, local models, coding agents, enterprise agents, MCP/A2A servers, SaaS connectors, computer-use systems, cloud APIs, desktop software, robots, and devices are replaceable capabilities around this boundary.
 
 ---
 
-## 2. Constitutional invariants
+# 2. Constitutional invariants
 
-These are architectural invariants, not preferences.
+1. No model can mint authority.
+2. No agent can mint authority.
+3. No application agent can mint authority.
+4. No MCP/A2A server or client can mint authority.
+5. No model/provider SDK can mint authority.
+6. No external tool description or annotation is trusted consequence truth.
+7. Tool discovery is not tool qualification.
+8. No learned component can qualify its own semantic output.
+9. Model output is never observed reality.
+10. Tool output is never automatically observed reality.
+11. `COMMITTED` is not success.
+12. Missing proof remains `UNKNOWN` where reality cannot be established.
+13. Exact authority is bound to exact consequence, exact execution constraints, and exact qualified semantics.
+14. Execution authority is scoped, short-lived, and preferably one-use.
+15. Recovery, compensation, and undo are new governed consequences.
+16. Equivalent real-world consequences must not execute twice merely because their routes differ.
+17. Unsettled/UNKNOWN effects create relation-aware quarantine, not merely retry suppression.
+18. Consequence policy must resist fragmentation across agents, sessions, tools, routes, and time windows.
+19. Native/local execution does not bypass policy, Algebra, proofability, settlement, or recovery.
+20. Only the Authority / Commit Plane may issue execution authority.
+21. Tool/compiler/resolver/adapter/runtime identity drift invalidates existing authority.
+22. Authority-bearing semantics must come from deterministic or explicitly qualified logic.
+23. A route may realize an admitted consequence; a route does not define that consequence.
+24. Failover after an uncertain commit boundary must not produce a second equivalent consequence.
+25. Physical/remote reality status and causal/institutional legitimacy are separate settlement dimensions.
+26. Later invalidation of evidence, policy, authority, or provenance never rewrites physical history.
+27. Causal recall and recovery are governed transitions, not privileged corrections.
 
-1. **No model can mint authority.**
-2. **No agent can mint authority.**
-3. **No MCP server/client can mint authority.**
-4. **No model provider SDK can mint authority.**
-5. **No reward model, learned policy, router, planner, critic or scheduler can mint authority.**
-6. **No Python, C#, C++ or C intelligence/native component gains authority merely because it runs locally.**
-7. **No learned checkpoint can promote itself.**
-8. **Learning may improve proposals; learning never becomes execution authority.**
-9. **`COMMITTED` is not success.** Dispatch and settlement are different facts.
-10. **Unknown remains `UNKNOWN`.** Missing proof is never silently converted into success.
-11. **Exact authority is bound to exact execution.** Broad intent is not a capability.
-12. **Execution authority is scoped, short-lived and preferably one-use.**
-13. **Reality is checked before and after consequential execution when semantics require it.**
-14. **Recovery, compensation and undo are new governed consequences, not privileged bypasses.**
-15. **Training data is provenance-bearing and authority-free.**
-16. **Production promotion is deterministic and external to model/training code.**
-17. **Human approval never implies hidden auto-approval.**
-18. **Native acceleration never bypasses policy, Algebra, proof or settlement.**
-19. **Provider/API compatibility does not imply semantic or security equivalence.**
-20. **Only the Authority / Commit Plane may issue execution authority.**
-21. **Hosted AI, managed RL and fine-tuning services are Learning/Intelligence Providers, never Authority Providers.**
-22. **An open-weight model is not trusted merely because its weights are inspectable or local.**
-23. **A proprietary model is not trusted merely because the provider operates the infrastructure.**
-24. **Latest aliases are allowed for discovery/evaluation; production consequential paths must pin qualified model identity or record the resolved exact version.**
-
-Critical dependency direction:
+Critical direction:
 
 ```text
-cieav.intelligence / cieav.learning / native providers
-                  │
-                  │ proposals / observations / evidence
-                  ▼
-          cieav.consequence-algebra
-                  │
-                  │ admission constraint
-                  ▼
-             cieav.authority
-                  │
-                  │ scoped capability
-                  ▼
-             cieav.execution
-                  │
-                  ▼
-               reality
-                  │
-                  ▼
-              cieav.proof
+intelligence / agents / tool discovery
+          │
+          │ proposals / descriptions / observations
+          ▼
+      TOOL TRUST KERNEL
+          │
+          │ qualified materialization
+          ▼
+   CONSEQUENCE BUNDLE
+          │
+          ▼
+   CANONICAL REALITY
+          │
+          ▼
+   CONSEQUENCE ALGEBRA
+          │
+          ▼
+ ACTIVE CONSEQUENCE GRAPH
+          │
+          ▼
+ QUARANTINE + PROOFABILITY
+          │
+          ▼
+  CONSEQUENCE AUTHORITY
+          │
+          ▼
+ QUALIFIED ROUTE / COMMIT
+          │
+          ▼
+       REALITY
+          │
+          ▼
+        PROOF
+          │
+          ▼
+      SETTLEMENT
 ```
 
 Never:
 
 ```text
-model / agent / RL policy / native worker / hosted trainer
-        ──► signer / permit minting / credential issuance / promotion authority
+model / agent / tool provider / MCP server / computer-use controller
+        ──► signer / ticket minting / credential issuance / settlement authority
 ```
 
 ---
 
-## 3. User experience: installed, not opened
-
-The normal product is ambient infrastructure.
+# 3. User experience
 
 ```text
 install CIEAV once
       ↓
-starts with the operating system
+runs as background infrastructure
       ↓
-runs as a background substrate
+AI / agents / automation / applications operate normally
       ↓
-AI / agents / automations work normally
-      ↓
-CIEAV appears only when authority,
-uncertainty, failure, recovery or policy requires attention
+CIEAV becomes visible only when
+approval, uncertainty, conflict, quarantine, recovery, or policy requires attention
 ```
 
-Developer and forensic surfaces may exist as authenticated commands, receipts, logs and diagnostics. They are not authority.
+Developer and forensic surfaces may expose state, receipts, causality, quarantine, route decisions, and diagnostics. Those surfaces are not authority.
 
 ---
 
-## 4. Top-level planes
+# 4. Top-level architecture
 
 ```text
 ╔══════════════════════════════════════════════════════════════════════╗
 ║                              CIEAV                                  ║
-║                    Autonomous Commit Substrate                      ║
+║                     Reality Transaction Kernel                     ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║ INTELLIGENCE PLANE                                                   ║
-║ provider APIs · local/open models · CIEAV models · research         ║
-║ Intelligence State · Epistemic State · Cognitive Scheduler          ║
+║ models · agents · planners · retrievers · simulators · memory       ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║ AGENT / INTEROP PLANE                                                ║
-║ CIEAV Agent Kernel · MCP · A2A · provider agents · enterprise agents║
+║ INTEROP / DISCOVERY PLANE                                            ║
+║ MCP · A2A · OpenAPI · connectors · computer use · native software   ║
+║ external descriptions/annotations are UNTRUSTED DISCOVERY DATA      ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║ CONSEQUENCE COMPILER                                                 ║
-║ objective → typed consequence program · exact proposal              ║
+║ TOOL TRUST KERNEL                                                    ║
+║ Qualified Tool Manifest · argument schema · semantic compiler        ║
+║ bundle compiler · canonical resolver · proof/recovery contract       ║
+║ artifact/runtime identity · data-flow semantics                      ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║ CONSEQUENCE ALGEBRA                                                  ║
-║ semantic identity · relations · invariants · reservations            ║
-║ proofability · causal fences · anti-fragmentation · UNKNOWN barrier ║
+║ CONSEQUENCE MATERIALIZATION                                          ║
+║ invocation → Consequence Bundle → canonical identities               ║
+║ semantic identities · footprints · dependencies · privacy effects    ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ REALITY COORDINATION PLANE                                           ║
+║ Consequence Algebra · Active Consequence Graph                       ║
+║ equivalence · conflict · causality · invariants · aggregation        ║
+║ reservations · quarantine closure · causal fences                    ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ PROOFABILITY / ROUTE PLANE                                           ║
+║ Proof Plan Reservation · Evidence Quorum · qualified route set       ║
+║ least-consequence routing · consequence-preserving failover          ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║ AUTHORITY / COMMIT PLANE                                             ║
 ║ identity · delegation · policy · credential lease · reality witness ║
-║ Reality-Bound Commit · one-use execution ticket                     ║
+║ Consequence Authority Envelope · Reality-Bound Commit                ║
+║ one-use execution ticket                                             ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║ EXECUTION PLANE                                                      ║
-║ browser · HTTP · MCP · A2A · cloud · DB · filesystem · Git · native ║
-║ Windows/.NET · ROS2/C++ · embedded/C                                ║
+║ browser · HTTP · MCP/A2A · cloud · DB · filesystem · Git · native   ║
+║ enterprise SaaS · desktop · Windows/.NET · ROS2 · embedded           ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║ PERCEPTION / PROOF PLANE                                             ║
-║ API · browser · DB · filesystem · cloud · sensor · hardware evidence║
-║ SUCCESS · FAILURE · UNKNOWN                                          ║
+║ PERCEPTION / SETTLEMENT PLANE                                        ║
+║ independent evidence · reconciliation · multi-axis settlement        ║
+║ reality · legitimacy · evidence · recovery                           ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║ LEARNING PLANE                                                       ║
-║ SFT · DPO · KTO · GRPO/RLVR · offline RL · critics · distillation  ║
+║ CAUSAL RECOVERY PLANE                                                 ║
+║ causal provenance · recall · recovery closure · compensation         ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║ QUALIFICATION / PROMOTION PLANE                                      ║
-║ held-out eval · adversarial tests · deterministic hard gates         ║
+║ LEARNING / QUALIFICATION PLANE                                       ║
+║ verified trajectories · evals · adapter qualification · promotion    ║
 ╚══════════════════════════════════════════════════════════════════════╝
 ```
 
@@ -186,548 +236,433 @@ Authority is not transitive across planes.
 
 ---
 
-## 5. Five-language architecture
+# 5. Tool is a universal execution capability, not the unit of authority
 
-CIEAV deliberately uses five languages with **non-overlapping primary ownership**. This is not permission to reimplement the trust kernel five times.
-
-| Language/runtime | Primary ownership | Target baseline |
-| --- | --- | --- |
-| **TypeScript / Node.js** | canonical online contracts, Agent Kernel, MCP/A2A, API, Consequence Algebra integration, Authority/Execution orchestration, deep research and provider adapters | Node.js 22+, TypeScript 5.x |
-| **Python** | datasets, PyTorch ML, SFT/DPO/KTO/GRPO/RLVR, offline/general RL, evals, learned retrieval/reranking, experiment orchestration and model-serving processes | Python 3.11+ |
-| **C# / .NET** | Windows-native services/hosts, Microsoft/Azure/enterprise adapters, .NET MCP/agent integrations, portable .NET inference | .NET 10 LTS, C# 14 |
-| **C++** | native/GPU inference, robotics/ROS2, vision/audio, high-rate sensor/device adapters, performance-critical kernels | C++20 baseline |
-| **C** | stable ABI, FFI, embedded/MCU/driver boundary and minimal native portability layer | C17 baseline |
-
-### 5.1 TypeScript stays canonical for trusted online logic
-
-The repository already places contracts, core deterministic logic, API, Agent Kernel, MCP/A2A and Consequence Algebra in TypeScript/Node. Rewriting qualified authority/consequence logic merely for language symmetry would increase attack surface and semantic drift.
-
-### 5.2 Python owns training and ML research
-
-Modern ML/RL research and production tooling remains Python-first. CIEAV's local training entrypoint already uses Python for SFT, DPO, KTO, GRPO and RLVR while a zero-authority Node verifier owns canonical scoring semantics.
-
-### 5.3 .NET exists for Windows and enterprise integration
-
-.NET is a first-class enterprise/Windows integration runtime, not a second Authority implementation. Use it for Windows services, Microsoft identity/cloud integrations, enterprise agents, MCP and portable inference.
-
-### 5.4 C++ exists for native performance and physical systems
-
-Use C++ only where native performance/hardware matters: inference, GPU runtimes, robotics, vision/audio and high-rate devices. Complex C++ workers should normally be isolated behind authenticated local IPC.
-
-### 5.5 C is the ABI waist
-
-C is the narrow cross-runtime native ABI. Export C++ functionality through a versioned `extern "C"` interface instead of coupling Node, Python and .NET directly to a C++ ABI.
+A CIEAV tool may represent any capability capable of observing or changing software, cloud, device, or physical state:
 
 ```text
-TypeScript/Node ── Node-API / IPC ──┐
-Python          ── C ABI / IPC ─────┼── CIEAV Native ABI ── C++ implementation
-.NET            ── LibraryImport ───┤                       └─ C/embedded
-                                     └──────────────────────── hardware
+browser
+email/calendar/chat
+Word/Excel/desktop applications
+CRM/ERP/SaaS
+banking/payment/e-commerce
+filesystem/database
+Git/developer tools
+cloud/infrastructure
+operating-system actions
+IoT / smart devices
+industrial systems
+robots / vehicles
+future application protocols
 ```
 
-No C ABI call creates CIEAV authority.
+The actual execution route may be:
+
+```text
+native API
+MCP
+A2A
+OpenAPI
+HTTP/gRPC
+CLI
+browser automation
+desktop automation
+enterprise RPA/connector platform
+ROS2
+MQTT
+custom local IPC
+```
+
+CIEAV coordinates **what reality changes**, not which route was used.
+
+Example:
+
+```text
+Windows Explorer Delete
+CLI rm
+Python os.remove
+Desktop automation Delete
+      ↓
+DELETE file://device/documents/report.pdf
+```
+
+Different execution mechanics may correspond to one semantic consequence.
+
+The long-term authority model is therefore:
+
+```text
+Consequence E
+    ↓ admitted
+Consequence Authority Envelope
+    ↓
+Qualified route chosen
+    ↓
+Route realizes E
+```
+
+not:
+
+```text
+Tool X receives broad permission
+    ↓
+Tool X decides what consequence occurs
+```
 
 ---
 
-## 6. Intelligence State and Epistemic State
+# 6. Discovery plane vs Tool Trust Kernel
 
-A reasoning episode operates over explicit state, not merely chat history.
+External systems may advertise:
 
 ```text
-IntelligenceState {
-    objective
-    epistemic_state
-    current_reality
-    available_models
-    model_competence_profiles
-    available_agents
-    available_tools
-    available_skills
-    available_proof_providers
-    authority_envelope
-    credential_constraints
-    active_hypotheses
-    uncertainty
-    consequence_graph_context
-    candidate_plans
-    proof_obligations
-    recovery_requirements
-    privacy_constraints
-    compute_budget
-    latency_budget
-    cost_budget
-    risk_budget
+tool name
+description
+input schema
+readOnly/destructive hints
+idempotency hints
+provider risk labels
+protocol metadata
+```
+
+These are useful for discovery and candidate generation. They are **not trusted authority inputs**.
+
+```text
+ExternalToolDescription {
+    source
+    provider
+    externalToolId
+    operation
+    description
+    externalSchema
+    externalAnnotations
+    observedVersion?
+    trust: UNTRUSTED_DISCOVERY
+    authority: false
 }
 ```
 
-Claims carry provenance, freshness and contradiction state:
+A malicious or compromised provider must not redefine a destructive operation as `READ`, `SAFE`, `IDEMPOTENT`, or `REVERSIBLE` by changing metadata.
+
+Tool lifecycle:
 
 ```text
-EpistemicClaim {
-    claim
-    scope
-    supporting_evidence[]
-    contradicting_evidence[]
-    observed_at
-    reality_version
-    confidence
-    freshness
-    invalidation_conditions[]
-    status: SUPPORTED | CONTRADICTED | STALE | UNKNOWN
+DISCOVERED
+   ↓
+UNTRUSTED
+   ↓
+VERIFIED
+   ↓
+QUALIFIED
+   ↓
+ACTIVE
+   ↓
+SUSPENDED / REVOKED / SUPERSEDED
+```
+
+A semantic/executable change can require requalification.
+
+---
+
+# 7. Qualified Tool Manifest
+
+```text
+QualifiedToolManifestV1 {
+    manifestId
+    manifestVersion
+
+    toolId
+    providerId
+    applicationId
+    adapterId
+    operationId
+
+    argumentSchema
+    resultSchema?
+
+    readOnly
+    consequenceCapable
+    allowedEffectClasses[]
+
+    semanticCompilerId
+    semanticCompilerVersion
+    semanticCompilerDigest
+
+    canonicalResolverId
+    canonicalResolverVersion
+    canonicalResolverDigest
+
+    consequenceBundleCompilerId
+    consequenceBundleCompilerVersion
+    consequenceBundleCompilerDigest
+
+    duplicateSemantics
+    idempotencyContract
+
+    proofContract
+    reconciliationContract
+    recoveryContract
+    compensationContract?
+
+    dataCategories[]
+    privacyBoundary
+    dataFlowPolicy
+
+    riskPolicy
+    permissionRequirements
+    approvalPolicy
+
+    adapterArtifactDigest
+    provenanceRefs[]
+    runtimeIdentityRequirements[]
+    routeCapabilities[]
+    routeRiskProfile?
+
+    validFrom
+    validUntil?
+    supersedes?
+    revokedAt?
+
+    authority: false
+    mayMintExecutionAuthority: false
 }
 ```
 
-A model call mutates cognitive state. Observation mutates epistemic state. Only authorized execution may mutate reality.
+The manifest itself has zero authority. It is trusted semantic material used by the Authority plane.
 
 ---
 
-## 7. Cognitive Scheduler
+# 8. Tool proposal and trusted materialization
 
-The scheduler chooses a computation strategy, not just a model brand.
-
-It may select:
+A model/agent may propose:
 
 ```text
-one model
-parallel independent models
-sequential critique
-local/private model
-frontier reasoning model
-specialist coding/vision/audio model
-retrieval
-simulation
-proof provider
-Verified Skill
-managed deep-research agent
-human escalation
-stop because evidence is insufficient
-```
-
-Routing inputs include capability, risk, privacy, latency, cost, modality, proofability, historical calibration, provider availability and known consequence semantics.
-
-The scheduler has `authority = false`.
-
----
-
-## 8. Provider and model adapter architecture
-
-All provider-specific code lives behind CIEAV-owned contracts.
-
-```text
-provider SDK / API
-       ↓
-CIEAV ModelProvider / AgentProvider adapter
-       ↓
-normalized model response / agent proposal
-       ↓
-CIEAV-owned schemas
-       ↓
-Consequence Compiler
-```
-
-Provider SDKs must not be imported into Consequence Algebra, Authority, ticket issuance, proof settlement or trusted stores.
-
-A provider adapter records at least:
-
-```text
-provider
-provider_account/project identity
-model_id requested
-model_id/version resolved
-model snapshot when available
-endpoint class
-region / residency class when relevant
-request digest
-response digest
-usage/cost metadata
-latency
-reasoning/tool capability flags
-provider request/correlation ID
-SDK/API version
-provider safety/fallback metadata where exposed
-```
-
-### 8.1 Latest aliases versus production pins
-
-`latest` aliases may be used in research and model discovery. Consequential production use should either pin an exact model snapshot/version or record the exact resolved model identity returned by the provider and prove that it is in the currently qualified set.
-
-### 8.2 Provider capability is not authority
-
-A provider may expose tool calling, computer use, web search, MCP, agents, code execution or long-running workflows. Those features remain zero-authority proposal mechanisms until converted into CIEAV-owned consequence semantics.
-
----
-
-## 9. Current frontier/API model routing snapshot
-
-These are **2026-08-27 routing candidates**, not permanent allow-lists.
-
-### 9.1 OpenAI / GPT API
-
-Current frontier API family:
-
-```text
-GPT-5.6 Sol   → gpt-5.6-sol / gpt-5.6
-GPT-5.6 Terra → gpt-5.6-terra
-GPT-5.6 Luna  → gpt-5.6-luna
-```
-
-Current documented characteristics include a 1.05M-token context class, up to 128K output, text/image input, configurable reasoning effort, tool calling and Responses API support.
-
-Recommended CIEAV roles:
-
-```text
-Sol   → hardest reasoning, coding, consequence planning, deep-research synthesis
-Terra → balanced production reasoning / cost / agent workloads
-Luna  → high-volume extraction, routing, classification and economical subagents
-```
-
-Prefer the **OpenAI Responses API** for new reasoning/tool workflows. OpenAI Agents SDK may be used only in the zero-authority intelligence plane.
-
-For enterprise deployments, CIEAV may route supported GPT models through:
-
-```text
-OpenAI first-party API     → fastest access to OpenAI-native capabilities
-Microsoft Foundry          → Azure enterprise governance/residency where available
-Amazon Bedrock             → AWS-governed OpenAI model access where available
-```
-
-Provider-hosting changes do not make model outputs equivalent. Each host/model combination is separately qualified.
-
-GPT-5.6 inference availability does not imply GPT-5.6 fine-tuning/RFT availability. Fine-tuning support is discovered separately from inference support.
-
-### 9.2 Moonshot AI / Kimi K3
-
-Kimi K3 is a current CIEAV frontier candidate:
-
-```text
-Kimi K3
-2.8T total parameters
-104B activated parameters
-Mixture-of-Experts
-native vision / multimodal capability
-1M-token context window
-Kimi Delta Attention + Attention Residuals
-open-weight release
-long-horizon coding / knowledge work / reasoning / agentic research
-```
-
-Moonshot announced Kimi K3 in July 2026 and makes it available through Kimi products and the Kimi API. Full/open weights are also part of the K3 release.
-
-Kimi's API is OpenAI-compatible at the transport level. CIEAV may use an OpenAI-compatible client against the Moonshot/Kimi endpoint, but it must normalize Kimi-specific reasoning/tool semantics before producing CIEAV proposals.
-
-Important production rule: documentation pages and model-list pages can lag launches. Do not blindly hard-code a model slug from marketing material. At startup or qualification time:
-
-```text
-provider model discovery
-      ↓
-resolve available Kimi model identity
-      ↓
-compare with CIEAV qualified model registry
-      ↓
-pin/record exact model
-```
-
-Current Kimi material documents `kimi-k3` as the API flagship and Kimi Code also exposes K3 model variants. Qualified K2.x models may remain fallbacks where appropriate.
-
-For self-hosting, K3's extreme size means local deployment is a specialized multi-accelerator concern. Do not assume a workstation can host it merely because weights are open. Exact inference engine, quantization, tensor-parallel layout, hardware and weight digest must be qualified.
-
-### 9.3 Anthropic / Claude
-
-Current 2026 candidate classes include:
-
-```text
-Claude Fable 5   → highest-end general knowledge/coding/research tier
-Claude Opus 5    → long-running agents, coding and professional work
-Claude Sonnet 5  → balanced agent/coding/professional workloads
-```
-
-Recommended CIEAV roles:
-
-```text
-Fable 5  → hardest independent reasoning / research / difficult synthesis
-Opus 5   → long-horizon agent and software engineering workloads
-Sonnet 5 → balanced production agents and cross-checking
-```
-
-Claude output remains a proposal. Availability/safety routing can change independently of model identity, so CIEAV records provider-side fallback/safety metadata when exposed.
-
-### 9.4 Google Gemini
-
-Current candidates include:
-
-```text
-Gemini 3.1 Pro preview   → high-end reasoning / multimodal work
-Gemini 3.7 Flash         → current capable Flash model for coding/agent workflows
-Gemini 3.6 Flash         → previous stable Flash generation
-Gemini 3.5 Flash         → stable general/high-throughput tier
-Gemini 3.5 Flash-Lite    → low-cost high-throughput tier
-```
-
-Use Gemini API directly for developer use and Vertex AI / Google Cloud for enterprise deployment, residency, IAM, managed tuning and platform integration.
-
-Preview models/services require explicit fallback, deprecation monitoring and exact-version qualification.
-
-### 9.5 xAI / Grok
-
-Current xAI documentation recommends **Grok 4.6** for general, coding, agentic and knowledge-work workloads. It supports text/image input, reasoning, tool use and Responses/Chat Completions APIs with a 500K context window.
-
-Candidate routing:
-
-```text
-Grok 4.6 → coding, agentic work, independent reasoning/cross-checking
-```
-
-CIEAV must pin exact model identity rather than relying on mutable latest aliases for consequential production.
-
-### 9.6 Cloud model aggregators / enterprise hosts
-
-CIEAV supports host adapters independently from model adapters:
-
-```text
-Microsoft Foundry / Azure-hosted models
-Amazon Bedrock
-Google Vertex AI / Model Garden
-Databricks Mosaic AI / Model Serving
-Hugging Face Inference Endpoints
-Together AI
-Fireworks AI
-Groq
-Cerebras
-other qualified OpenAI-compatible services
-```
-
-Examples from the current snapshot:
-
-- Microsoft Foundry documentation lists GPT-5.6 Sol/Terra/Luna support where regionally available.
-- Amazon Bedrock exposes GPT-5.6 Sol/Terra/Luna and supports Responses, Chat Completions and Converse on its Bedrock endpoints.
-- Amazon Bedrock also supports a broad multi-provider catalog; model availability must be queried rather than assumed.
-- Grok 4.6 is available through Microsoft Foundry as of August 26, 2026.
-
-### 9.7 Other useful provider/model families
-
-Adapters may be added where evaluation justifies them:
-
-```text
-Mistral
-Qwen
-DeepSeek
-MiniMax
-Cohere
-NVIDIA Nemotron
-Meta Llama family
-OpenAI open-weight models when applicable
-specialist embedding/reranking/vision/audio models
-```
-
-Provider/model inclusion means **available for evaluation**, not automatically approved for consequential production.
-
-### 9.8 Recommended frontier service portfolio for CIEAV
-
-For broad capability and vendor independence, a strong default portfolio is:
-
-```text
-PRIMARY FRONTIER REASONER     OpenAI GPT-5.6 Sol
-PRIMARY BALANCED REASONER     GPT-5.6 Terra
-PRIMARY ECONOMICAL SUBAGENT   GPT-5.6 Luna
-OPEN-WEIGHT FRONTIER PEER     Kimi K3
-INDEPENDENT REASONING PEER    Claude Fable 5 / Opus 5
-GOOGLE MULTIMODAL PEER        Gemini 3.1 Pro / 3.7 Flash
-ADDITIONAL DIVERSE PEER       Grok 4.6
-LOCAL SPECIALISTS             qualified open-weight models
-```
-
-The Cognitive Scheduler should choose from measured competence profiles rather than brand preference.
-
----
-
-## 10. Deep Research subsystem
-
-Deep Research is a CIEAV cognitive program, not a direct execution mode.
-
-```text
-research objective
-      ↓
-query/task decomposition
-      ↓
-parallel web / MCP / retrieval / repository workers
-      ↓
-source ingestion
-      ↓
-claim-evidence graph
-      ↓
-freshness + contradiction analysis
-      ↓
-source-quality scoring
-      ↓
-cross-model critique when useful
-      ↓
-citation construction
-      ↓
-synthesis
-      ↓
-research result
-      ↓
-optional consequential proposal
-      ↓
-Consequence Compiler / Algebra / Authority
-```
-
-### 10.1 Research provider portfolio
-
-CIEAV may use:
-
-```text
-GPT-5.6 Sol / Terra reasoning + hosted tools
-Kimi K3 long-context/open-weight frontier reasoning
-Claude Fable 5 / Opus 5 research and critique
-Gemini 3.1 Pro / 3.7 Flash multimodal research
-Grok 4.6 as an additional independent reasoning/search path
-local/open-weight research workers
-specialist search/retrieval services
-```
-
-Managed research output is an **evidence candidate**, not authoritative truth. Preserve source URLs/IDs, dates, extracted claims, contradictions and provider provenance.
-
-### 10.2 Deep Research roles
-
-```text
-ResearchPlanner
-QueryDecomposer
-SourceRetriever
-SourceExtractor
-ClaimBuilder
-ContradictionDetector
-FreshnessEvaluator
-CitationVerifier
-CrossModelCritic
-SynthesisAgent
-ResearchAuditor
-```
-
-Every role has zero authority.
-
-### 10.3 Language ownership
-
-TypeScript orchestrates research state, provider routing, MCP, citations and evidence graphs. Python supplies learned retrieval, embeddings, rerankers, classifiers, scientific tooling and experimental multimodal processing where useful. C++ may accelerate local inference/indexing only when profiling justifies it.
-
----
-
-## 11. MCP and agent architecture
-
-### 11.1 MCP
-
-Primary implementation is the official MCP TypeScript SDK v2. Use:
-
-```text
-Streamable HTTP → remote production integrations
-stdio           → qualified local child processes
-```
-
-C# and Python MCP SDKs may be used for .NET and ML integrations. C/C++ should normally expose native/process interfaces rather than creating an additional MCP implementation.
-
-Every MCP tool call capable of a consequence becomes a typed CIEAV proposal before authority.
-
-### 11.2 Agent frameworks
-
-CIEAV Agent Kernel is the canonical orchestration/state boundary. Optional zero-authority adapters include:
-
-```text
-OpenAI Agents SDK
-Google Agent Development Kit
-Microsoft Agent Framework
-LangGraph / LangChain
-Semantic Kernel
-AutoGen where integration requirements justify it
-provider-managed agent runtimes
-custom enterprise agents
-```
-
-A third-party agent framework may schedule, reason and propose. It may not settle, authorize or mint tickets.
-
-### 11.3 Framework containment rule
-
-Do not stack multiple agent frameworks in the same path without a concrete capability requirement. Every framework adds its own memory, retry, tool, state and error semantics. CIEAV must remain the durable source of consequence and authority state.
-
----
-
-## 12. CIEAV model family
-
-CIEAV builds logical roles rather than one monolithic model:
-
-- **Router** — selects computation strategy and providers.
-- **Core Reasoner** — objective decomposition and consequence-aware planning.
-- **Consequence Model** — predicts possible world transitions and uncertainty.
-- **Proof Planner** — proposes witness strategies.
-- **Authority Advisor** — proposes minimum likely permissions only.
-- **Recovery Model** — proposes reconciliation/compensation/recovery.
-- **Critic / Reward Models** — score trajectories for training.
-- **Skill Compiler** — proposes deterministic skill candidates.
-
-None has authority.
-
----
-
-## 13. Consequence Program and Compiler
-
-A Consequence Program expresses the intended real transition, not just tool syntax.
-
-```text
-ConsequenceProgram {
-    objective
-    expected_world_change
-    preconditions
-    authority_requirements
-    candidate_execution_paths
-    proof_obligations
-    recovery_semantics
-    uncertainty_policy
-    duplicate/idempotency_policy
+ToolProposal {
+    toolId
+    operation
+    target?
+    arguments
+    normalizedArgumentsDigest
+    requestedOutcome
+    modelSuggestedSemantics?
+    authority: false
 }
 ```
 
-The compiler transforms probabilistic planning into deterministic typed material suitable for Algebra and Authority:
+Trusted path:
+
+```text
+ToolProposal
+     ↓
+qualified tool lookup
+     ↓
+argument schema validation
+     ↓
+trusted semantic compiler
+     ↓
+Consequence Bundle compiler
+     ↓
+Canonical Reality Resolver
+     ↓
+Consequence materialization
+```
+
+If model-suggested semantics disagree with qualified semantics for a protected effect, the protected path fails closed.
+
+The model may help discover intent. It does not define authority-bearing consequence truth.
+
+---
+
+# 9. Consequence Bundle
+
+One software action may create multiple consequences. A single semantic effect is a compatibility primitive, not the universal abstraction.
+
+Example checkout:
+
+```text
+PURCHASE item
+TRANSFER_VALUE money
+CREATE order
+SHARE shipping address
+UPDATE inventory
+CREATE shipment obligation
+COMMUNICATE confirmation
+```
+
+```text
+ConsequenceBundleV1 {
+    bundleId
+    invocationDigest
+    manifestDigest
+
+    primaryEffects[]
+    secondaryEffects[]
+    conditionalEffects[]
+    deferredEffects[]
+
+    dependencies[]
+    atomicityGroups[]
+    privacyExternalities[]
+    budgetDeltas{}
+    proofDependencies[]
+    recoveryEdges[]
+
+    bundleDigest
+    authority: false
+}
+```
+
+A legacy one-effect operation maps to a one-effect bundle.
+
+Bundle semantics are necessary for payments, communications, shopping, CRM/ERP transitions, permission changes, cloud operations, UI workflows, and physical systems.
+
+---
+
+# 10. Canonical Reality Address and Resolver Registry
+
+Route-independent consequence coordination requires route-native identities to converge on one reality object.
+
+```text
+CanonicalRealityResolver {
+    id
+    version
+    digest
+    supportedNamespaces[]
+    resolve(routeNativeIdentity, context)
+    verify(resolution, evidence)
+    authority: false
+}
+```
+
+A `RealityResolution` contains:
+
+```text
+canonicalRealityAddress
+routeAliases[]
+identityEvidenceRefs[]
+ambiguityState
+confidenceClass
+resolverId/version/digest
+```
+
+Example:
+
+```text
+Git CLI remote/ref
+GitHub REST ref resource
+GitHub browser branch URL
+Desktop Git client repository ID
+         ↓
+cieav://git/organization/project/ref/main
+```
+
+A protected operation must not silently proceed when canonical identity is ambiguous.
+
+Canonicalization evidence must be stored and auditable. Alias poisoning/collision is a security problem.
+
+The long-term protocol-level primitive is a **Canonical Reality Address**: an address for the real object/economic/physical state affected by a consequence, independent of how software exposes it.
+
+---
+
+# 11. Semantic/compiler supply-chain and runtime binding
+
+Authority is valid only for the exact qualified semantics and execution implementation.
+
+Bind, as applicable:
+
+```text
+toolManifestDigest
+semanticCompilerDigest
+consequenceBundleCompilerDigest
+canonicalResolverDigest
+adapterArtifactDigest
+runtimeIdentityDigest
+proofContractDigest
+recoveryContractDigest
+routeQualificationDigest
+```
+
+If any binding changes after authorization:
+
+```text
+invalidate commit/ticket
+→ rematerialize
+→ rerun Algebra
+→ rerun quarantine/proofability
+→ rerun policy/approval/authority
+```
+
+Possible artifact/runtime evidence:
+
+```text
+package integrity
+signed executable
+signed manifest
+container/image digest
+SLSA/Sigstore-class provenance
+mTLS workload identity
+SPIFFE-like workload identity
+TPM
+Secure Enclave
+remote provider attestation
+```
+
+The architecture requires verifiable identity; it does not mandate one external vendor.
+
+---
+
+# 12. Consequence Program vs Consequence Bundle
+
+`ConsequenceProgram` expresses an objective and candidate ways to achieve it:
 
 ```text
 objective
-   ↓
-agent/model plan
-   ↓
-Consequence Compiler
-   ↓
-canonical resource identity
-exact operation + normalized arguments
-expected semantic effect
+expected/desired world change
 preconditions
+candidate execution paths
+required authority
 proof obligations
 recovery semantics
-risk / reversibility
-   ↓
-Consequence Algebra
+UNKNOWN policy
+duplicate policy
 ```
+
+`ConsequenceBundle` expresses what one concrete qualified invocation may cause.
+
+```text
+Consequence Program
+      ↓ selects candidate outcome/path
+Tool Invocation
+      ↓
+Consequence Bundle
+      ↓
+Reality Transaction Kernel
+```
+
+Planning and concrete effect materialization remain separate.
 
 ---
 
-## 14. Consequence Algebra
+# 13. Consequence Algebra
 
-The Consequence Algebra answers:
+The Algebra answers:
 
-> When multiple agents, models, tools, protocols or devices may act on the same reality, are their proposed consequences equivalent, composable, conflicting, causally dependent, invalidating, compensating, superseding or cumulatively dangerous before authority is issued?
+> When multiple agents, tools, applications, protocols, or devices may act on the same reality, how are their proposed consequences related before authority is issued?
 
 Primary primitives:
 
 ```text
 Canonical Reality Address
-Consequence Footprint
+Consequence Bundle
 Semantic Effect Identity
+Consequence Footprint
 Relation Algebra
 Invariant Compatibility Witness
 Active Consequence Graph
 Consequence Reservation
 Proof Plan Reservation
 Causal Reality Fence
-Semantic idempotency / reconciliation
+Semantic idempotency/reconciliation
 Cumulative anti-fragmentation policy
-UNKNOWN quarantine
 ```
 
 Relation vocabulary:
@@ -745,20 +680,559 @@ AGGREGATES_WITH
 UNKNOWN_RELATION
 ```
 
-Algebra decisions constrain authority but never create it:
+Admission decisions constrain authority but do not create it:
 
 ```text
-ADMIT       → may continue to Authority
-BLOCK       → do not continue
-COORDINATE  → resolve relation/invariant first
-RECONCILE   → do not redispatch equivalent unsettled consequence
+ADMIT
+BLOCK
+COORDINATE
+RECONCILE
 ```
 
-The Algebra must fail closed where configured, persist active/unsettled state, preserve UNKNOWN, enforce proofability for protected consequences and recover integrity on startup.
+Protected `UNKNOWN_RELATION` follows fail-closed policy.
 
 ---
 
-## 15. Authority / Commit Plane
+# 14. Active Consequence Graph
+
+This graph is production coordination state.
+
+Node classes may include:
+
+```text
+TRUSTED_MATERIALIZED
+RESERVED
+AUTHORIZED
+COMMITTED
+DISPATCHED
+OBSERVING
+OBSERVED_SUCCESS
+OBSERVED_FAILURE
+UNKNOWN
+LEGITIMACY_INVALIDATED
+RECOVERY_REQUIRED
+RECOVERY_IN_PROGRESS
+```
+
+Edges include relation results plus causal/proof/recovery dependencies.
+
+The graph persists:
+
+```text
+active reservations
+unsettled outcomes
+proof obligations
+causal predecessors
+aggregate/cumulative state
+quarantine state
+route realization state
+recovery dependencies
+```
+
+Authority admission must read and mutate the graph transactionally enough to prevent two callers from independently acquiring incompatible authority.
+
+---
+
+# 15. Consequence Footprint
+
+A consequence is not only a target resource.
+
+Footprints may contain:
+
+```text
+realityRead[]
+realityWrite[]
+create[]
+delete[]
+grant[]
+revoke[]
+authorityUse[]
+credentialUse[]
+budgetDeltas{}
+privacyExternalities[]
+proofDependencies[]
+invariantsTouched[]
+spatialRegion?
+temporalWindow?
+```
+
+Bundle-level footprint composition must preserve secondary, conditional, deferred, privacy, monetary, and physical effects.
+
+---
+
+# 16. Reality Quarantine Closure
+
+UNKNOWN/unsettled state has a semantic blast radius.
+
+CIEAV computes the relation closure that depends on resolving a source consequence:
+
+```text
+RealityQuarantineClosure {
+    sourceConsequenceId
+    sourceState
+    relationRuleSetDigest
+    affectedConsequences[]
+    affectedRealityAddresses[]
+    blockers[]
+    waiters[]
+    reconcileCandidates[]
+    allowedIndependentConsequences[]
+    closureDigest
+    computedAt
+    authority: false
+}
+```
+
+Example:
+
+```text
+A = TRANSFER_VALUE $50k = UNKNOWN
+
+B = same transfer through another route
+    EQUIVALENT → BLOCK / RECONCILE
+
+C = mark invoice paid
+    REQUIRES proof(A success) → WAIT
+
+D = send “payment completed”
+    REQUIRES proof(A success) → WAIT
+
+E = unrelated utility payment
+    INDEPENDENT → may continue
+```
+
+Properties:
+
+- relation-aware, not simple resource locking;
+- deterministic/qualified graph rules;
+- persistent across restart;
+- recomputed after evidence/relation changes;
+- independent work does not freeze unnecessarily;
+- quarantine never mints authority.
+
+---
+
+# 17. Proofability Reservation and Evidence Quorum
+
+A successful transport response is not the same as observed remote success.
+
+```text
+ToolProofContract {
+    providerBindings[]
+    successClaims[]
+    failureClaims[]
+    unknownConditions[]
+    evidenceClasses[]
+    independenceRequirements
+    freshnessRequirements
+    timeoutPolicy
+    reconciliationProcedure
+    negativeProofCapability
+    authority: false
+}
+```
+
+High-risk consequences may require:
+
+```text
+EvidenceQuorumPlan {
+    consequenceClass
+    requiredProviders[]
+    alternativeProviderSets[]
+    independencePolicy
+    freshnessWindow
+    availabilityState
+    quorumDigest
+    authority: false
+}
+```
+
+Rules:
+
+- HTTP success does not automatically settle a consequence;
+- model/tool text is not proof by itself;
+- timeout does not imply failure;
+- proof providers remain zero-authority;
+- proofability may be reserved before execution;
+- unavailable required proof topology may prevent authority;
+- non-idempotent UNKNOWN effects reconcile before retry.
+
+---
+
+# 18. Consequence Authority Envelope
+
+Authority progressively binds to an admitted consequence rather than merely a tool invocation.
+
+```text
+ConsequenceAuthorityEnvelope {
+    consequenceIdentity
+    bundleDigest
+    canonicalRealityRefs[]
+    permittedEffectClasses[]
+    permittedDeltas
+    invariantWitnessDigest
+    reservationDigest
+    proofPlanDigest
+    quarantineSnapshotDigest
+    authorityPolicyDigest
+    permittedRouteSet[]
+    routeConstraints
+    expiresAt
+    oneUse
+}
+```
+
+Only the Authority / Commit Plane may mint this envelope.
+
+A route may realize only the bound consequence and may not expand its effect surface.
+
+This is the basis for safe route substitution and failover without granting generic broad tool permission.
+
+---
+
+# 19. Least-Consequence Routing
+
+When multiple qualified routes can realize the same consequence, route selection should minimize execution risk and consequence uncertainty.
+
+Candidate dimensions:
+
+```text
+proofability
+idempotency strength
+reversibility/compensation quality
+adapter qualification
+runtime identity strength
+credential scope
+privacy exposure
+uncertainty risk
+latency
+financial cost
+availability
+provider concentration
+```
+
+```text
+ConsequenceRouteDecision {
+    consequenceIdentity
+    candidateRoutes[]
+    disqualifiedRoutes[]
+    selectedRoute
+    routeScoreInputs
+    policyDigest
+    decisionDigest
+    authority: false
+}
+```
+
+Learned components may propose route scores. Protected eligibility and hard constraints remain deterministic/qualified.
+
+---
+
+# 20. Consequence-Preserving Failover
+
+Traditional failover retries requests/providers. CIEAV must fail over an intended consequence without duplicating reality.
+
+```text
+ROUTE A SELECTED
+    ↓
+PROVEN PRE-COMMIT FAILURE
+    → alternate qualified route may be selected
+
+COMMIT BOUNDARY MAY HAVE BEEN CROSSED
+    ↓
+UNKNOWN
+    → quarantine equivalent routes
+    → reconcile
+    → no blind failover
+
+OBSERVED_SUCCESS
+    → equivalent route requests reconcile to existing success
+
+OBSERVED_FAILURE + qualified negative evidence
+    → alternate route may receive fresh authority
+```
+
+```text
+ConsequenceFailoverPlan {
+    consequenceIdentity
+    orderedQualifiedRoutes[]
+    routeCommitBoundaries[]
+    safePreCommitFailureStates[]
+    reconciliationRequiredStates[]
+    failoverPolicyDigest
+    authority: false
+}
+```
+
+Qualification must inject failures before and after commit boundaries and prove duplicate consequences cannot be created by failover.
+
+---
+
+# 21. Multi-Axis Settlement
+
+A single action status cannot represent production reality.
+
+```text
+ConsequenceSettlementV2 {
+    executionState
+    realityState
+    legitimacyState
+    evidenceState
+    recoveryState
+    observedAt?
+    legitimacyEvaluatedAt?
+    settlementDigest
+}
+```
+
+Suggested state families:
+
+```text
+executionState:
+  NOT_DISPATCHED | DISPATCHED | COMPLETED | INTERRUPTED
+
+realityState:
+  OBSERVED_SUCCESS | OBSERVED_FAILURE | UNKNOWN
+
+legitimacyState:
+  VALID | AUTHORITY_REVOKED | EVIDENCE_INVALIDATED |
+  TOOL_COMPROMISED | POLICY_INVALIDATED | CAUSALLY_TAINTED |
+  UNKNOWN_VALIDITY
+
+evidenceState:
+  RESERVED | AVAILABLE | VERIFIED | CONFLICTING | STALE | UNAVAILABLE
+
+recoveryState:
+  NOT_REQUIRED | REQUIRED | IN_PROGRESS | RECOVERED |
+  PARTIALLY_RECOVERED | IRREVERSIBLE | UNKNOWN
+```
+
+Critical rule:
+
+```text
+physical/remote truth and legitimacy are independent.
+```
+
+Example:
+
+```text
+realityState = OBSERVED_SUCCESS
+legitimacyState = CAUSALLY_TAINTED
+recoveryState = REQUIRED
+```
+
+The transfer happened. CIEAV must preserve that fact while initiating recovery.
+
+---
+
+# 22. Causal Recall and Consequence Recovery Closure
+
+A physically successful consequence can later become causally illegitimate because the evidence, identity, policy, tool, or predecessor that justified it is later invalidated.
+
+```text
+CausalRecallEvent {
+    invalidatedEvidenceRef?
+    invalidatedAuthorityRef?
+    compromisedToolRef?
+    invalidatedPolicyRef?
+    reasonClass
+    discoveredAt
+    evidenceRefs[]
+}
+```
+
+CIEAV computes:
+
+```text
+ConsequenceRecoveryClosure {
+    recallEventId
+    directlyAffectedConsequences[]
+    transitivelyAffectedConsequences[]
+    futureConsequencesToBlock[]
+    recoverableConsequences[]
+    compensableConsequences[]
+    irreversibleConsequences[]
+    proposedRecoveryPrograms[]
+    closureDigest
+    authority: false
+}
+```
+
+Flow:
+
+```text
+later invalidation
+    ↓
+causal provenance lookup
+    ↓
+descendant traversal
+    ↓
+legitimacy/evidence state update
+    ↓
+quarantine affected future consequences
+    ↓
+compute recovery closure
+    ↓
+propose recovery/compensation
+    ↓
+normal Tool Trust + Algebra + Authority path
+```
+
+Causal recall never rewrites physical history.
+
+---
+
+# 23. Recovery and compensation
+
+Reversibility classes:
+
+```text
+REVERSIBLE
+COMPENSABLE
+IRREVERSIBLE
+UNKNOWN_REVERSIBILITY
+```
+
+Recovery path:
+
+```text
+observed prerequisite reality
+       ↓
+new recovery/compensation proposal
+       ↓
+qualified tool materialization
+       ↓
+Canonical Reality + Algebra + Quarantine + Proofability
+       ↓
+Authority / Commit
+       ↓
+execution
+       ↓
+proof / settlement
+```
+
+Undo is never a privileged bypass.
+
+---
+
+# 24. Data-flow / instruction-taint architecture
+
+Tool results can contain hostile instructions and sensitive data. Prompt filtering alone is insufficient.
+
+Authority-relevant data carries:
+
+```text
+source identity
+origin trust
+observed/model-generated status
+data category
+privacy class
+instruction trust
+allowed sinks
+retention/redaction policy
+provenance chain
+```
+
+Example rule:
+
+```text
+EXTERNAL_UNTRUSTED content
+cannot independently authorize
+CONFIDENTIAL/CREDENTIAL data → EXTERNAL sink
+```
+
+Taint/provenance must survive model/tool hops when necessary to evaluate consequence and privacy policy.
+
+Data movement itself may create consequence footprints and privacy externalities.
+
+---
+
+# 25. Browser/Desktop Commit Point Interceptor
+
+Computer-use systems operate on clicks, keyboard input, selectors, DOM/accessibility nodes, and visual state. Those mechanics are not the consequence.
+
+```text
+screen / DOM / accessibility / app state
+            ↓
+semantic state extractor
+            ↓
+commit-point detector
+            ↓
+qualified Tool Invocation / Consequence Bundle
+            ↓
+Canonical Reality
+            ↓
+Algebra + Quarantine + Proofability + Authority
+            ↓
+release exactly the bound effectful transition
+            ↓
+post-state observation / settlement
+```
+
+Commit-point examples:
+
+```text
+Send
+Submit
+Purchase
+Transfer
+Delete
+Publish
+Share
+Grant
+Deploy
+Save/Overwrite
+Sign/Accept
+Start motion
+```
+
+Coordinates/selectors may change without changing semantic identity. Conversely, the same geometry can represent a radically different consequence.
+
+---
+
+# 26. Execution Fabric
+
+Execution providers may include:
+
+```text
+browser/CDP
+HTTP/REST/gRPC
+MCP/A2A
+filesystem
+Git/code
+cloud/infrastructure
+SaaS/enterprise systems
+database
+Windows/.NET native services
+desktop application automation
+ROS2/C++ robotics
+C/embedded devices
+external connector/RPA platforms
+```
+
+Execution adapters should implement, where possible:
+
+```text
+operation identity
+argument canonicalization
+qualified manifest lookup
+credential scope
+idempotency semantics
+precondition checks
+ticket consumption
+runtime identity verification
+route commit-boundary reporting
+execution correlation ID
+post-state witness hooks
+reconciliation hooks
+recovery hooks
+```
+
+No adapter bypasses ticket consumption because it is native, local, signed, vendor-provided, or externally annotated “read-only.”
+
+---
+
+# 27. Authority / Commit Plane
 
 Target inputs:
 
@@ -769,34 +1243,47 @@ model/checkpoint identity
 delegated authority
 credential lease
 permission graph
-exact operation
-exact arguments/resource scope
+exact operation/arguments digest
+qualified Tool Manifest digest
+semantic/bundle compiler digests
+canonical resolver digest
+adapter/runtime identity binding
+canonical reality identity
 fresh reality witness
-Algebra admission/reservation
+Consequence Algebra admission/reservation
+Active Consequence Graph snapshot/revision
+Reality Quarantine Closure digest
+Proof Plan / Evidence Quorum digest
 policy
-risk
-reversibility
-proof obligation
+risk/reversibility
+route constraints
+proof/recovery obligations
 ```
 
 Output:
 
 ```text
+Consequence Authority Envelope
+       ↓
 Reality-Bound Commit
-        ↓
+       ↓
 short-lived / one-use Execution Ticket
 ```
 
-The ticket authorizes only its exact bound consequence.
+A ticket authorizes only its exact bound consequence under exact trusted semantics and exact permitted route constraints.
 
 ---
 
-## 16. Durable consequence lifecycle
+# 28. Durable consequence lifecycle
 
 ```text
 PROPOSED
    ↓
-ANALYZED / ALGEBRA-ADMITTED
+TRUSTED_MATERIALIZED
+   ↓
+ALGEBRA_ADMITTED / COORDINATED
+   ↓
+PROOFABILITY_RESERVED
    ↓
 AUTHORIZED
    ↓
@@ -806,1047 +1293,384 @@ DISPATCHED
    ↓
 OBSERVING
    ↓
-┌───────────────┬───────────────┬───────────────┐
-SETTLED_SUCCESS SETTLED_FAILURE SETTLED_UNKNOWN
-                                  │
-                                  ▼
-                         QUARANTINE / RECONCILE
+┌──────────────────┬──────────────────┬──────────────────┐
+OBSERVED_SUCCESS   OBSERVED_FAILURE   UNKNOWN
+        │                 │                │
+        │                 │                ▼
+        │                 │       REALITY QUARANTINE
+        │                 │            / RECONCILE
+        │                 │
+        └──────────────┬──┘
+                       ▼
+               LEGITIMACY / EVIDENCE
+                    EVALUATION
+                       │
+         ┌─────────────┴─────────────┐
+         VALID               INVALIDATED/TAINTED
+                                     │
+                                     ▼
+                                CAUSAL RECALL
+                                     │
+                                     ▼
+                              RECOVERY CLOSURE
 ```
 
-Retry semantics are consequence-specific. Ambiguous non-idempotent operations reconcile before retry.
+`COMMITTED` means an exact consequence was committed/authorized under the constitution. It does not prove the remote world changed.
 
 ---
 
-## 17. Execution Fabric
+# 29. Persistence architecture
 
-Execution providers may include:
+Production trusted state must not rely on process memory.
 
-```text
-browser / CDP
-HTTP / REST / gRPC
-MCP / A2A
-filesystem
-Git / code
-cloud / infrastructure
-SaaS / enterprise systems
-database
-Windows/.NET native services
-C++ robotics / ROS2
-C / embedded devices
-```
-
-Execution adapters should implement, where possible:
+Required stores include:
 
 ```text
-operation identity
-argument canonicalization
-credential scope
-idempotency semantics
-precondition check
-ticket consumption
-execution correlation ID
-post-state witness hooks
-recovery hooks
+Identity Store
+Receipt / Multi-Axis Settlement Store
+Epistemic Store
+Historical Consequence Graph Store
+Active Consequence Graph Store
+Canonical Reality Registry
+Resolver Registry
+Semantic Compiler Registry
+Qualified Tool Manifest Registry
+Tool Qualification Evidence Store
+Tool Revocation / Supersession Store
+Runtime Identity / Attestation State
+Consequence Relation Registry
+Invariant Registry
+Consequence Reservation Store
+Reality Quarantine Store
+Proof Plan Reservation Store
+Evidence Quorum Store
+Aggregation Ledger
+Consequence Authority Envelope Store
+Route Qualification Store
+Route Decision Store
+Failover / Reconciliation Store
+Causal Provenance Store
+Causal Recall Store
+Recovery Closure Store
+Context and Data-flow Provenance Store
+Provider / Domain Agent / Skill / Model Registries
+Self Model / Workspace Store
+Audit Chain
 ```
 
-No adapter bypasses ticket consumption because it is “native” or “local.”
+An ambiguous dispatched consequence must not become executable again because a process restarted.
+
+Secrets are referenced, not stored in semantic registries.
 
 ---
 
-## 18. Native / .NET / physical execution
+# 30. Qualification modes and Adapter Qualification SDK
 
-### 18.1 .NET 10 LTS / C# 14
-
-Use .NET for:
+Operational modes where feasible:
 
 ```text
-Windows service/host
-native notification/approval surfaces
-Microsoft identity/Azure enterprise integration
-C# MCP adapters
-Microsoft Agent Framework / Microsoft.Extensions.AI adapters
-ONNX Runtime .NET inference
-ML.NET conventional local models when appropriate
+OBSERVE_ONLY
+    materialize/log only; no execution authority
+
+SHADOW
+    evaluate what would be admitted/blocked/quarantined/routed
+    without controlling execution
+
+ENFORCE
+    protected effectful execution requires valid CIEAV authority
 ```
 
-Do not create a parallel .NET Authority/Algebra implementation without a dedicated equivalence/qualification project.
+Promotion to `ENFORCE` is version-specific and evidence-bound.
 
-### 18.2 C++
-
-Use C++ for:
+The Adapter Qualification SDK must execute deterministic fixtures/fault scenarios for:
 
 ```text
-ONNX Runtime native inference
-NVIDIA TensorRT / TensorRT-LLM inference
-llama.cpp/ggml local inference
-ROS2 rclcpp robotics
-computer vision/audio
-high-rate sensor processing
-native hardware SDKs
+argument validation
+semantic under-description
+bundle completeness
+canonical alias resolution
+false equivalence
+false independence
+privacy/data-flow effects
+duplicate/idempotency behavior
+UNKNOWN reconciliation
+quarantine closure
+proof availability/freshness/evidence quorum
+route eligibility
+pre/post-commit failover
+recovery/compensation
+multi-axis settlement
+causal recall propagation
+manifest/compiler/resolver drift
+adapter artifact substitution
+runtime identity mismatch
+crash/restart behavior
+commit-point bypass
 ```
 
-Complex C++ components should normally run as isolated workers. Crashing an inference worker must not corrupt Authority, reservation, ticket or proof state.
-
-### 18.3 C / embedded
-
-Target versioned native ABI:
+Output target:
 
 ```text
-native/include/cieav_native.h
+CIEAV_TOOL_ADAPTER_QUALIFICATION_V1
 ```
 
-Use C for stable ABI, constrained embedded devices, driver-facing shims and small portability surfaces. Define explicit struct versions, sizes, ownership and error contracts.
-
-Embedded physical executors receive attenuated capabilities and emit evidence; they do not contain AI-derived authority.
+A community/vendor adapter remains unqualified until its exact version/profile passes required gates.
 
 ---
 
-## 19. Perception and Proof Plane
+# 31. Qualification reports
 
-Evidence sources include:
-
-```text
-browser/runtime
-DOM/app state
-network/API
-database
-filesystem
-Git
-cloud control plane
-metrics/logs
-Windows/native state
-ROS2/sensor observations
-hardware attestation
-external proof providers
-```
-
-Settlement is deterministic where the proof contract allows it:
+Target machine-readable evidence includes:
 
 ```text
-SUCCESS
-FAILURE
-UNKNOWN
+CIEAV_TOOL_LAYER_QUALIFICATION_V1
+CIEAV_CANONICAL_REALITY_QUALIFICATION_V1
+CIEAV_CONSEQUENCE_ALGEBRA_QUALIFICATION_V1
+CIEAV_REALITY_QUARANTINE_QUALIFICATION_V1
+CIEAV_PROOFABILITY_QUALIFICATION_V1
+CIEAV_CONSEQUENCE_FAILOVER_QUALIFICATION_V1
+CIEAV_MULTI_AXIS_SETTLEMENT_QUALIFICATION_V1
+CIEAV_CAUSAL_RECALL_QUALIFICATION_V1
+CIEAV_COMPUTER_USE_COMMIT_POINT_QUALIFICATION_V1
+CIEAV_DATA_FLOW_QUALIFICATION_V1
+CIEAV_SQLSERVER_LIVE_QUALIFICATION_V1
 ```
 
-UNKNOWN is epistemic debt, not an error to hide.
+A PASS binds, as applicable:
+
+```text
+git commit
+schema version
+fixture corpus digest
+qualified manifest set digest
+semantic/bundle compiler set digest
+resolver set digest
+relation/invariant rule-set digest
+adapter artifact identities
+proof/recovery contract digests
+route qualification digests
+negative/fault results
+explicit untested fields
+```
+
+Static token checks alone cannot establish production qualification.
 
 ---
 
-## 20. Authorized Outcome Trajectory
+# 32. SQL Server authority topology
 
-The strategic learning object binds authority and reality:
+The Reality Transaction Kernel does not weaken authority-state database requirements.
+
+For production horizontal authority, SQL Server must own trusted shared state where configured, including atomic multi-key trusted-state transitions, DB-clock leases, and fencing.
+
+Offline evidence and live topology evidence remain distinct.
+
+Live production/HA claims require real:
 
 ```text
-WHO requested
-WHICH agent/model participated
-WHAT authority existed
-WHAT exact consequence was proposed
-WHAT reality existed before
-WHICH Algebra/Policy decisions applied
-WHICH commit/ticket was consumed
-WHAT actually executed
-WHAT evidence was observed
-WHAT world existed afterward
-SUCCESS / FAILURE / UNKNOWN
-WHAT recovery/reconciliation occurred
+listener connectivity
+writer lease behavior
+connection-loss handling
+DB restart
+stale-writer fencing
+deadlock/retry behavior
+process restart/recovery
+backup/restore/migration
+Always On failover
+network partition testing
 ```
 
-A receipt proving outcome is useful evidence but does not automatically imply the full authority-grade trajectory. Missing bindings must never be inferred.
+Until that evidence exists:
+
+```text
+clusterHaQualified = false
+authority = false
+mayMintExecutionAuthority = false
+executionAuthorityIssued = false
+```
+
+for external/live qualification reports.
 
 ---
 
-## 21. Learning Plane
+# 33. Security model
 
-Learning is offline from production authority:
+Threats include:
 
 ```text
-FINALIZED VERIFIED EVIDENCE
-        ↓
-provenance / consent / redaction
-        ↓
-Authorized Outcome Trajectories
-        ↓
-SFT / DPO / KTO / reward models / GRPO-RLVR / offline RL / distillation
-        ↓
-CANDIDATE CHECKPOINT
-        ↓
-held-out deterministic qualification
-        ↓
-QUALIFIED CHECKPOINT
+tool poisoning
+post-approval metadata rug-pull
+manifest substitution
+semantic under-description
+READ-for-write deception
+missing secondary effects
+alias poisoning/collision
+resolver/compiler downgrade
+adapter artifact substitution
+runtime workload substitution
+argument smuggling
+schema confusion
+prompt injection from tool output
+cross-tool toxic data flows
+privacy/credential exfiltration
+fake/stale/colluding proof providers
+blind UNKNOWN retry
+cross-route duplicate bypass
+fragmentation/salami slicing
+quarantine-closure bypass
+causal-fence bypass
+route-score manipulation
+unsafe failover after commit boundary
+route/provider substitution
+settlement-state rewriting
+causal-recall suppression
+recovery bypass
+UI commit-point bypass
+selector/coordinate drift
+```
 
+Protected ambiguity fails closed or requires explicit coordination/reconciliation.
+
+Hostile retrieved text may propose data or instructions. It may not forge canonical identity, trusted semantics, proof, relation results, quarantine state, route eligibility, approval, or authority.
+
+---
+
+# 34. Definition of production-qualified operation
+
+A protected effectful operation is production-qualified only when:
+
+```text
+exact tool/provider/application identity known
+external description separated from trusted manifest
+arguments schema validated
+trusted semantic compiler qualified
+Consequence Bundle sufficiently complete
+canonical resolver qualified or ambiguity explicit
+privacy/data-flow externalities represented
+manifest/compiler/resolver/adapter/runtime identities authority-bound where required
+relation/invariant behavior qualified
+Active Consequence Graph enforcement active
+Reality Quarantine behavior qualified
+proofability/reconciliation path available
+Evidence Quorum satisfiable where configured
+route eligibility/failover behavior qualified
+recovery/reversibility classified
+UNKNOWN preserved safely
+multi-axis settlement enabled for required profile
+fault/negative tests pass
+observability/audit complete
+machine-readable qualification evidence exists
+```
+
+A connected tool is not automatically a trusted tool.
+
+A trusted tool is not automatically a complete Reality Transaction path.
+
+---
+
+# 35. Immediate architectural milestones
+
+```text
+M0  Reality Transaction architecture/document boundary lock
+M1  TrustedToolConsequenceContract wired into Execution Fabric authority/ticket/recovery path
+M2  ConsequenceBundleV1
+M3  Canonical Reality Resolver Registry with genuine heterogeneous fixtures
+M4  production Active Consequence Graph enforcement
+M5  Reality Quarantine Closure
+M6  Proofability Reservation + Evidence Quorum
+M7  Consequence Authority Envelope + semantic supply-chain/runtime binding
+M8  Least-Consequence Routing + Consequence-Preserving Failover
+M9  Multi-Axis Settlement
+M10 Causal Recall + Consequence Recovery Closure
+M11 cross-tool data-flow / taint / privacy consequence semantics
+M12 browser/desktop Commit Point Interceptor
+M13 Adapter Qualification SDK
+M14 first real heterogeneous Reality Transaction benchmark
+M15 Tool/Reality/Algebra/Quarantine/Proof/Failover/Settlement/Recall release gates
+M16 live SQL authority / failover / partition qualification
+M17 broad application/tool scaling through native + external ecosystems
+```
+
+Broad adapter count is deliberately after the semantic/coordination/authority substrate.
+
+---
+
+# 36. Long-term system
+
+```text
+LIVE REALITY
+      ↓
+DETERMINISTIC DOMAIN / SYSTEM SERVICES
+      ↓
+PERMISSION-BOUND CONTEXT
+      ↓
+CIEAV APPLICATION AGENT / CORTEX
+      ↓
+MODEL / AGENT REASONING
+      ↓
+UNTRUSTED TOOL DISCOVERY
+      ↓
+QUALIFIED TOOL TRUST KERNEL
+      ↓
+CONSEQUENCE BUNDLE
+      ↓
+CANONICAL REALITY
+      ↓
+CONSEQUENCE ALGEBRA
+  equivalence · conflict · causality · invariants · aggregation
+      ↓
+ACTIVE CONSEQUENCE GRAPH
+  reservations · cumulative state · proof dependencies
+      ↓
+REALITY QUARANTINE
+  relation-aware uncertainty propagation
+      ↓
+PROOFABILITY / EVIDENCE QUORUM
+      ↓
+CONSEQUENCE AUTHORITY ENVELOPE
+      ↓
+LEAST-CONSEQUENCE QUALIFIED ROUTE
+      ↓
+REALITY-BOUND COMMIT
+      ↓
+ONE-USE EXECUTION TICKET
+      ↓
+QUALIFIED EXECUTION
+      ↓
+CONSEQUENCE-PRESERVING FAILOVER / RECONCILIATION
+      ↓
+INDEPENDENT PROOF
+      ↓
+MULTI-AXIS SETTLEMENT
+  reality · legitimacy · evidence · recovery
+      ↓
+CAUSAL RECALL / RECOVERY CLOSURE WHEN REQUIRED
+      ↓
+VERIFIED AUDIT / LEARNING
+```
+
+while always preserving:
+
+```text
 MODEL AUTHORITY = 0
+AGENT AUTHORITY = 0
+APPLICATION AGENT AUTHORITY = 0
+MODEL PROVIDER AUTHORITY = 0
+TOOL DESCRIPTION AUTHORITY = 0
+TOOL PROPOSAL AUTHORITY = 0
+TOOL MANIFEST AUTHORITY = 0
+ROUTE DECISION AUTHORITY = 0
+CONSEQUENCE ALGEBRA AUTHORITY = 0
+QUARANTINE AUTHORITY = 0
+PROOF PROVIDER AUTHORITY = 0
+RECOVERY PLANNER AUTHORITY = 0
+LEARNING AUTHORITY = 0
 ```
 
-Production is not an online RL exploration environment.
+The defining architecture is:
 
----
+> **CIEAV changes the unit of autonomous execution from a tool call to a globally coordinated real-world consequence.**
 
-## 22. Open ML / RL framework stack
+The production target is:
 
-CIEAV does not require every framework below. This is the approved evaluation universe. Add a dependency only when it supplies a capability absent from the current stack.
-
-### 22.1 Core deep-learning frameworks
-
-```text
-PyTorch           → default CIEAV training/tensor/autograd framework
-JAX               → optional XLA/TPU/research path when specifically justified
-TensorFlow/Keras  → compatibility path for existing TF/Keras models, not default new work
-```
-
-### 22.2 Foundation-model / transformer ecosystem
-
-```text
-Hugging Face Transformers
-Hugging Face Datasets
-Accelerate
-PEFT / LoRA / QLoRA
-bitsandbytes
-safetensors
-Tokenizers
-Sentence Transformers where appropriate
-```
-
-### 22.3 Training and distributed optimization
-
-```text
-PyTorch DDP
-FSDP / FSDP2
-DeepSpeed
-Megatron Core
-Liger Kernel
-FlashAttention-compatible paths when qualified
-NCCL / accelerator collective layer indirectly through frameworks
-```
-
-### 22.4 LLM post-training and preference optimization
-
-```text
-TRL              → CIEAV baseline SFT/DPO/KTO/GRPO/RLVR path
-Axolotl          → configuration-driven fine-tuning where useful
-Unsloth          → memory/throughput-efficient fine-tuning when qualified
-torchtune        → PyTorch-native tuning option
-OpenRLHF         → distributed RLHF/post-training candidate
-verl             → scalable LLM RL/post-training candidate
-NVIDIA NeMo RL   → large NVIDIA-oriented LLM/VLM RL candidate
-```
-
-CIEAV's existing Python trainer remains the local baseline for SFT/DPO/KTO/GRPO/RLVR.
-
-### 22.5 General reinforcement learning
-
-```text
-TorchRL                → default PyTorch-native general RL
-Gymnasium              → environment API/ecosystem
-PettingZoo             → multi-agent environment interface
-Stable-Baselines3      → mature baseline implementations and experiments
-CleanRL                → compact reference implementations / research validation
-Ray RLlib              → distributed/general/multi-agent RL at scale
-Tianshou               → optional PyTorch RL research library
-Acme                   → optional research environment when a specific algorithm requires it
-```
-
-### 22.6 Agentic / verifiable RL
-
-For CIEAV, the highest-value RL class is environment/verifier-driven agentic training:
-
-```text
-fresh model rollout
-      ↓
-sandboxed CIEAV environment
-      ↓
-mechanically verifiable task result
-      ↓
-zero-authority verifier
-      ↓
-reward / trajectory labels
-      ↓
-TRL / verl / OpenRLHF / NeMo RL / RLlib as appropriate
-```
-
-Prefer mechanically verified rewards to LLM-as-judge whenever the environment can prove the outcome.
-
-### 22.7 Classical ML and structured models
-
-```text
-scikit-learn
-XGBoost
-LightGBM
-CatBoost
-statsmodels where statistical inference is required
-ML.NET for .NET-local conventional inference when appropriate
-```
-
-Use these for calibration, anomaly detection, routing, outcome prediction, risk estimation, ranking and conventional supervised problems where deep learning is unnecessary.
-
-### 22.8 Graph learning
-
-```text
-PyTorch Geometric
-DGL where specifically justified
-```
-
-Use graph learning only when deterministic Consequence Graph semantics and verified data quality justify learned graph models. The learned model never replaces the canonical Consequence Algebra.
-
-### 22.9 Experiment tracking and evaluation
-
-Possible integrations:
-
-```text
-Weights & Biases
-MLflow
-Databricks MLflow
-OpenTelemetry for runtime traces
-provider-native evaluation systems
-CIEAV deterministic eval/qualification receipts
-```
-
-External tracking systems never receive CIEAV signing keys or unrestricted secrets.
-
----
-
-## 23. Managed / proprietary ML and RL providers
-
-Managed platforms are **Learning Providers**, never Authority Providers.
-
-CIEAV owns:
-
-```text
-dataset eligibility
-provenance / consent / redaction
-reward semantics
-verifier semantics
-candidate status
-held-out qualification
-promotion decision
-checkpoint identity
-production allow-list
-```
-
-The vendor supplies model access, compute, managed training or training mechanics.
-
-### 23.1 OpenAI managed fine-tuning / reinforcement fine-tuning
-
-OpenAI's fine-tuning API exposes supervised, DPO and reinforcement methods where supported by the selected model/account.
-
-RFT is a useful CIEAV candidate when a hosted OpenAI reasoning model is materially better than a locally trainable model and the reward can be expressed through a qualified grader.
-
-Rules:
-
-```text
-OpenAI RFT grader != CIEAV authority
-fine-tuned model   = CANDIDATE
-provider job PASS  != production qualification
-GPT-5.6 inference support != GPT-5.6 fine-tuning support
-```
-
-CIEAV must dynamically discover supported fine-tuning/RFT models and keep training-provider capability separate from inference-provider capability.
-
-### 23.2 Microsoft Foundry / Azure OpenAI / Azure Machine Learning
-
-Candidate services:
-
-```text
-GPT / multi-provider inference through Microsoft Foundry
-supervised fine-tuning where supported
-DPO where supported
-reinforcement fine-tuning where supported
-Azure Machine Learning custom PyTorch/DeepSpeed/FSDP jobs
-managed endpoints / registries / MLOps
-enterprise identity / private networking / data residency
-```
-
-Microsoft currently documents reinforcement fine-tuning for selected models including `o4-mini` and gated `gpt-5`. Do not extrapolate that support to GPT-5.6 without the service reporting it.
-
-Use Azure ML when CIEAV must own the training container/code while using Azure-managed compute. Use Foundry-managed tuning only when its method/model/region/data terms satisfy CIEAV governance.
-
-### 23.3 Google Vertex AI / Gemini Enterprise Agent Platform
-
-Candidate services:
-
-```text
-Gemini inference
-Vertex AI custom training
-managed accelerators / TPU/GPU
-supervised/preference tuning where supported
-reinforcement learning fine-tuning where supported
-managed evaluation / model registry / deployment
-Gemini enterprise/agent services
-```
-
-Google documents a reinforcement-learning fine-tuning path for Gemini with reward functions including string matching, Gemini-based autoraters, code execution, custom Cloud Run reward services and composite rewards. The current documented offering is **Pre-GA**, so CIEAV treats it as evaluation-only unless its service lifecycle/status changes and explicit production qualification is completed.
-
-A custom reward service is a useful place to expose a CIEAV zero-authority verifier, but it must not receive Authority credentials.
-
-### 23.4 Amazon Bedrock / SageMaker AI / HyperPod
-
-Candidate services:
-
-```text
-Bedrock managed foundation-model inference
-Bedrock model customization/distillation features where supported
-SageMaker AI custom training
-SageMaker HyperPod large-scale PyTorch training
-Ray on HyperPod for distributed Python/RL workloads
-managed model registry/deployment/observability
-```
-
-HyperPod can run standard Ray and PyTorch workloads rather than forcing CIEAV to rewrite training semantics into an AWS-specific framework. This is the preferred AWS strategy for CIEAV-owned RL loops.
-
-Do not assume every Bedrock inference model is customizable or supports RL. Inference, fine-tuning, distillation and reinforcement capability are separate provider capabilities.
-
-### 23.5 Databricks / Mosaic AI
-
-Use where lakehouse governance, data lineage, MLflow and managed GPU training fit the deployment.
-
-Current useful classes include:
-
-```text
-Databricks Serverless GPU / AI Runtime
-PyTorch distributed training
-DeepSpeed + TRL
-Axolotl
-Unsloth
-LLM Foundry
-MLflow experiment/model lifecycle
-Mosaic AI Model Serving / Gateway where qualified
-```
-
-CIEAV still owns reward semantics, candidate state and deterministic promotion.
-
-### 23.6 NVIDIA commercial / enterprise stack
-
-```text
-NVIDIA NeMo RL
-Megatron Core
-TensorRT / TensorRT-LLM
-NIM
-DGX / cluster deployment options
-CUDA ecosystem
-```
-
-NeMo RL currently supports scalable post-training algorithms including GRPO, PPO, SFT, DPO, reward modeling and on-policy distillation, with PyTorch DTensor and Megatron Core training backends. NVIDIA components accelerate training and serving; they do not alter CIEAV's authority model.
-
-### 23.7 Hugging Face managed services
-
-Candidate uses:
-
-```text
-Inference Endpoints
-AutoTrain where method/control is sufficient
-Hub model/dataset registry
-Spaces for non-authority research tooling
-managed accelerator partners
-```
-
-CIEAV must independently verify license, model digest/revision, remote-code requirements and provider data handling.
-
-### 23.8 Specialized hosted inference / fine-tuning providers
-
-Possible adapters include:
-
-```text
-Together AI
-Fireworks AI
-Groq
-Cerebras
-Baseten
-Replicate
-Modal
-RunPod
-Lambda cloud
-CoreWeave
-other qualified GPU clouds
-```
-
-These are infrastructure/inference/training options, not trust endorsements. A provider is added only if its API, security posture, model identity, data handling, failure behavior and reproducibility can be qualified.
-
-### 23.9 Proprietary model providers without general weight access
-
-CIEAV should support hosted inference adapters for:
-
-```text
-OpenAI
-Anthropic
-Google
-xAI
-other proprietary frontier providers
-```
-
-If the provider does not expose weight-level training, use its documented customization surface only. Do not build CIEAV architecture around private undocumented capabilities.
-
-### 23.10 Managed RL selection rule
-
-Select the managed RL service by control needs:
-
-```text
-Need full control of algorithm/reward/runtime   → own Python RL on qualified GPU cloud
-Need OpenAI reasoning-model RFT               → OpenAI RFT or qualified Foundry equivalent
-Need Gemini managed reinforcement tuning      → Google RL fine-tuning only when lifecycle status permits
-Need NVIDIA-scale open-weight post-training   → NeMo RL / Megatron on qualified NVIDIA infrastructure
-Need distributed generic RL                  → Ray RLlib on qualified cluster/HyperPod/etc.
-Need CIEAV current local baseline             → Python TRL + Node verifier
-```
-
-Do not choose a proprietary platform merely because it offers an “agent” or “RL” label.
-
----
-
-## 24. Learning Provider interface
-
-Conceptually:
-
-```text
-CIEAV Learning Provider
-    ├── cieav-local-trl
-    ├── cieav-torchrl
-    ├── cieav-verl
-    ├── cieav-openrlhf
-    ├── cieav-nemo-rl
-    ├── cieav-rllib
-    ├── cieav-openai-rft
-    ├── cieav-azure-foundry
-    ├── cieav-azure-ml
-    ├── cieav-vertex
-    ├── cieav-bedrock-sagemaker
-    ├── cieav-databricks
-    └── custom GPU cluster
-```
-
-Every provider output remains `CANDIDATE` until deterministic promotion.
-
-A Learning Provider contract records at least:
-
-```text
-provider + region
-training code/container digest
-base model identity/revision
-training method
-training dataset digest
-validation dataset digest
-reward/verifier identity
-hyperparameters
-seed(s)
-hardware/runtime metadata
-framework versions
-checkpoint digest
-provider job ID
-training metrics
-qualification state
-```
-
----
-
-## 25. Reward semantics
-
-Do not optimize only task success.
-
-```text
-R = {
-  outcome_correctness,
-  proof_completeness,
-  uncertainty_calibration,
-  authority_minimization,
-  privilege_minimization,
-  duplicate_consequence_avoidance,
-  reversibility,
-  recovery_quality,
-  policy_compliance,
-  cost,
-  latency
-}
-```
-
-Hard penalties include false success, unsafe duplicate consequence, stale-world action, unnecessary irreversible action, missing proof and blind retry after ambiguous dispatch.
-
-Whenever reality is mechanically verifiable, prefer deterministic environment/verifier reward over an LLM judge.
-
-LLM judges may be used for subjective dimensions but should be calibrated against human/mechanical references and never control promotion alone for safety-critical behavior.
-
----
-
-## 26. Agentic training environments
-
-Maintain isolated environments such as:
-
-```text
-CieavGitEnv
-CieavBrowserEnv
-CieavCloudEnv
-CieavDatabaseEnv
-CieavFilesystemEnv
-CieavSaaSEnv
-CieavPermissionEnv
-CieavCredentialEnv
-CieavFailureEnv
-CieavRecoveryEnv
-CieavUnknownOutcomeEnv
-CieavStaleRealityEnv
-CieavDuplicateExecutionEnv
-CieavConsequenceAlgebraEnv
-CieavRoboticsSimEnv
-```
-
-A production consequence is evidence for offline learning, not an invitation for online exploration.
-
-Environment versions, seeds, simulator versions and verifier versions are part of training provenance.
-
----
-
-## 27. Inference and serving matrix
-
-Use the runtime that fits deployment:
-
-```text
-provider API       → managed frontier inference
-vLLM               → high-throughput GPU LLM serving
-SGLang             → high-performance alternative serving/runtime
-TensorRT-LLM       → optimized NVIDIA LLM inference
-ONNX Runtime       → portable CPU/GPU inference across Python/C++/.NET
-TensorRT           → NVIDIA-specific optimized general inference
-llama.cpp / ggml   → portable/local quantized LLM/VLM inference
-KTransformers      → specialist large-MoE local inference candidate
-Triton Inference   → multi-model NVIDIA serving where justified
-```
-
-A loopback/local model server is still an untrusted intelligence provider.
-
-### 27.1 Serving qualification
-
-Pin and record:
-
-```text
-weight/checkpoint digest
-quantization format
-inference engine version
-CUDA/driver/runtime versions
-GPU/CPU architecture
-parallelism layout
-context limits
-sampling/reasoning defaults
-tool-call output contract
-OOM/restart behavior
-```
-
-OpenAI-compatible wire format is not proof of semantic equivalence.
-
----
-
-## 28. Consequence Graph and Verified Skills
-
-Verified transitions populate an empirical Consequence Graph with:
-
-```text
-preconditions
-required authority
-success/failure/UNKNOWN frequencies
-proof reliability
-latency
-reversibility
-failure modes
-recovery behavior
-semantic relation patterns
-```
-
-Planning ranks paths by success probability, minimum authority, proofability, reversibility, blast radius, cost, latency and uncertainty.
-
-Repeated sufficiently understood behavior can be compiled into candidate deterministic Verified Skills. The Skill Compiler proposes; deterministic qualification installs/promotes.
-
----
-
-## 29. Qualification and promotion
-
-Every model, skill, provider adapter, native binary and consequential execution path crosses qualification appropriate to its class.
-
-### 29.1 Model metrics
-
-```text
-outcome prediction accuracy
-false-success rate
-UNKNOWN calibration
-authority efficiency
-privilege minimization
-proof quality
-recovery correctness
-duplicate-consequence risk
-reversibility preference
-policy violations
-tool/operation accuracy
-latency / cost
-```
-
-Hard gate examples:
-
-```text
-model tries to mint authority      → FAIL
-candidate self-promotes            → FAIL
-critical duplicate action unsafe   → FAIL
-critical false-success claim       → FAIL
-```
-
-### 29.2 Provider-model qualification tuple
-
-Do not qualify only a model name. Qualify a tuple:
-
-```text
-provider
-endpoint/region
-model ID + snapshot/resolved version
-SDK/API version
-system prompt/tool schema version
-reasoning/sampling configuration
-safety/fallback configuration when observable
-```
-
-### 29.3 Native/provider qualification
-
-Require exact OS/arch/hardware/provider/model versions, failure injection, timeout/retry behavior, process crash behavior, ABI compatibility, network failure behavior and supply-chain provenance as appropriate.
-
-### 29.4 Cross-provider comparison
-
-Before promoting a frontier model for a role, compare it against at least one materially independent provider on representative CIEAV tasks. This reduces single-provider blind spots and identifies regressions hidden by generic benchmarks.
-
----
-
-## 30. Security isolation
-
-Recommended dependency direction:
-
-```text
-cieav.intelligence
-cieav.providers
-cieav.research
-cieav.learning
-native workers
-       │
-       │ proposal/evidence only
-       ▼
-cieav.consequence-algebra
-       ▼
-cieav.authority / cieav.credentials / cieav.commit
-       ▼
-cieav.execution
-       ▼
-cieav.proof
-```
-
-Training/inference providers must not receive:
-
-```text
-commit/permit signing keys
-raw reusable credential leases
-Gateway admin bearer tokens
-promotion signing authority
-unrestricted browser/device-control capabilities
-```
-
-Complex native inference code should not share memory with Authority unless a measured latency requirement and dedicated audit justify it.
-
-Provider API keys are scoped to the provider adapter process/service and are not included in model prompts or training examples.
-
----
-
-## 31. Target package/process layout
-
-```text
-packages/
-  contracts/               # canonical trusted domain/wire contracts
-  core/                    # deterministic core + Consequence Algebra
-  ai-runtime/              # TS model/agent/provider adapters, zero authority
-  ai-mcp/                  # optional reusable MCP integration helpers
-  research/                # TS research state/claim/evidence orchestration
-apps/
-  api/                     # Agent Kernel / trusted API / Execution Fabric
-  mcp/                     # external MCP surface
-ml/
-  ...                      # Python datasets/evals/training/RL
-python/
-  cieav_platform/          # Python platform/model/process integrations
-dotnet/
-  Cieav.Platform/          # target .NET enterprise/Windows host
-native/
-  include/cieav_native.h   # target versioned C ABI
-  cpp/                     # target C++ inference/robotics workers
-  c/                       # target C/embedded shims
-```
-
-`dotnet/` and `native/` are target architecture until corresponding code and qualification evidence exist.
-
-### 31.1 Dependency rule
-
-Trusted authority/execution packages must not depend on provider adapters in a way that allows provider code to issue authority. Provider and ML packages depend inward only through CIEAV-owned proposal/evidence contracts.
-
----
-
-## 32. Current implementation and qualification state
-
-The repository already contains substantial implementation in TypeScript/Node and Python, including:
-
-```text
-Agent Kernel
-Execution Fabric
-MCP/A2A workspaces
-Consequence Algebra contracts/core/store/tool integration
-proof/settlement machinery
-learning dataset/training scaffolding
-Python SFT/DPO/KTO/GRPO/RLVR entrypoint
-local qualification/release tooling
-```
-
-The Consequence Algebra executable subsystem was locally qualified on Windows at commit:
-
-```text
-64e9b26f560f7ace2e7abfa5f822e5b29b992643
-```
-
-That exact run passed the static gate, API build, contracts/core/API typechecks, 8 core Algebra tests and 17 API/Fabric Algebra tests.
-
-Subsequent architecture/documentation commits do not create a new executable qualification receipt. C#/.NET, C++ and C sections in this document are target architecture until implemented and independently qualified.
-
-Provider/model names in this document are researched targets; an adapter is not implemented merely because the provider is listed.
-
----
-
-## 33. Production-readiness definition
-
-A feature is not production-ready because it appears in this document or compiles.
-
-### Deterministic local features
-
-Require unit/integration tests, fail-closed tests, crash/recovery tests, corruption tests and secret-handling checks.
-
-### OS/runtime features
-
-Require real supported OS runners, install/package tests and exact runtime versions.
-
-### Hardware/native features
-
-Require claimed hardware/driver/accelerator paths to be exercised on physical hardware, including ABI/process crash/fault behavior.
-
-### ML/model features
-
-Require dataset provenance, held-out qualification, calibration, adversarial evaluation, regression gates and candidate-until-promoted semantics.
-
-### External-provider features
-
-Require real provider integration, pinned/resolved model/API versions, network failure tests, retry/idempotency behavior, quotas/rate-limit handling, privacy/residency review and operational monitoring.
-
-### Managed-training features
-
-Require exact training service, region, base model, method, container/framework version, dataset/reward/verifier digests, checkpoint digest and export/deployment path.
-
-### Release security
-
-Require signing/notarization where applicable, software supply-chain verification and published release metadata.
-
----
-
-## 34. Privacy and learning governance
-
-Training/research/provider eligibility requires explicit controls for:
-
-```text
-provenance
-consent / organizational policy
-purpose limitation
-redaction
-secret exclusion
-credential removal
-retention
-jurisdiction/residency
-provider data-use terms
-human data handling
-model-license restrictions
-export/import restrictions where applicable
-```
-
-Prefer typed semantic evidence and digests/references over unnecessary raw content or reusable secrets.
-
-For frontier providers, record whether requests are first-party, cloud-marketplace hosted or routed through an intermediary because data handling and contractual terms may differ.
-
----
-
-## 35. Provider philosophy
-
-CIEAV integrates mature specialist systems instead of cloning every model server, GPU scheduler, ML framework, research engine or agent ecosystem.
-
-CIEAV owns the hard boundary:
-
-```text
-intention
-→ consequence semantics
-→ trusted current reality
-→ governed authority
-→ exact execution
-→ independently proven consequence
-→ qualified learning
-```
-
-Providers own replaceable mechanisms behind explicit contracts.
-
-A good provider adapter can be removed without changing the meaning of CIEAV authority, proof or settlement.
-
----
-
-## 36. Complete closed loop
-
-```text
-                         OBJECTIVE
-                            │
-                            ▼
-                    INTELLIGENCE STATE
-                            │
-                            ▼
-                   COGNITIVE SCHEDULER
-                            │
-       ┌────────────────────┼────────────────────┐
-       ▼                    ▼                    ▼
- frontier APIs         CIEAV models       Verified Skills
- GPT/Kimi/Claude/...    local/open ML       deterministic
-       │                    │                    │
-       └────────────────────┼────────────────────┘
-                            ▼
-                     CONSEQUENCE PLAN
-                            │
-                            ▼
-                   CONSEQUENCE COMPILER
-                            │
-                            ▼
-                  ╔════════════════════╗
-                  ║ CONSEQUENCE ALGEBRA║
-                  ╚═════════╤══════════╝
-                            │ admission only
-                            ▼
-                  ╔════════════════════╗
-                  ║ AUTHORITY / COMMIT ║
-                  ║ identity · policy  ║
-                  ║ exact reality-bound║
-                  ║ one-use capability ║
-                  ╚═════════╤══════════╝
-                            │
-                            ▼
-                     EXECUTION FABRIC
-                  ┌─────────┼─────────┐
-                  ▼         ▼         ▼
-                Node       .NET      C++/C
-                  │         │         │
-                  └─────────┼─────────┘
-                            ▼
-                           REALITY
-                            │
-                            ▼
-                      PERCEPTION/PROOF
-                            │
-                 SUCCESS / FAILURE / UNKNOWN
-                            │
-       ┌────────────────────┼────────────────────┐
-       ▼                    ▼                    ▼
-   CIEAV MODELS       CONSEQUENCE GRAPH     VERIFIED SKILLS
-       │                    │                    │
-       └────────────────────┼────────────────────┘
-                            ▼
-                    BETTER INTELLIGENCE
-                            │
-                            ▼
-                    CANDIDATE VERSIONS
-                            │
-                            ▼
-                DETERMINISTIC QUALIFICATION
-                            │
-                            └────────────────────↺
-```
-
-At every iteration:
-
-```text
-MODEL AUTHORITY       = 0
-AGENT AUTHORITY       = 0
-MCP AUTHORITY         = 0
-LEARNING AUTHORITY    = 0
-HOSTED-RL AUTHORITY   = 0
-NATIVE AI AUTHORITY   = 0
-
-ONLY THE AUTHORITY / COMMIT PLANE ISSUES EXECUTION AUTHORITY.
-```
-
----
-
-## 37. Engineering rule for all future work
-
-Every new feature/provider/model/framework/native component must answer:
-
-1. What exact state transition can it enable or observe?
-2. Which principal/identity is responsible?
-3. Is it intelligence, evidence, policy, authority or execution?
-4. What prevents it from minting authority?
-5. What exact model/provider/framework/runtime version is pinned or resolved?
-6. What minimum credential scope exists?
-7. What current reality must be fresh?
-8. What exact arguments/resource identity are bound?
-9. Which Consequence Algebra relations/invariants apply?
-10. What prevents duplicate or fragmented execution?
-11. What proof plan exists before dispatch?
-12. What proves success?
-13. What proves failure?
-14. When must the result remain UNKNOWN?
-15. What recovery/reconciliation path exists?
-16. What evidence may safely become learning data?
-17. What provider/privacy/residency/license constraints apply?
-18. What process/ABI/native failure boundary exists?
-19. What deterministic qualification proves readiness?
-20. What external OS/hardware/provider evidence is still required?
-21. How is model/provider deprecation detected?
-22. What fallback is safe if a provider model disappears or changes?
-23. If managed training is used, what proves the exact checkpoint lineage?
-24. If a provider uses an alias, how is the resolved model identity recorded?
-
-If those questions do not have explicit answers, the feature is not complete.
-
----
-
-## 38. Research-backed provider freshness policy
-
-The current snapshot was cross-checked against official/current provider documentation and current release material for:
-
-```text
-OpenAI model catalog / GPT-5.6 guidance
-Kimi/Moonshot K3 release and Kimi API platform
-Anthropic current Claude releases
-Google Gemini API model/deprecation catalog
-xAI/Grok model catalog
-Microsoft Foundry model/tuning documentation
-Google managed reinforcement-tuning documentation
-Amazon Bedrock/SageMaker/HyperPod documentation
-Databricks GPU/LLM training documentation
-NVIDIA NeMo RL documentation
-```
-
-For automated production use, architecture text is not the source of truth for availability. Provider discovery must query the provider API/catalog and compare the result with CIEAV's qualified provider registry.
-
-Recommended registry shape:
-
-```text
-QualifiedModel {
-    provider
-    host
-    region
-    model_id
-    model_version_or_snapshot
-    capabilities
-    context_limit
-    modality_set
-    tool_protocols
-    qualification_receipt_digest
-    qualified_at
-    expires_or_recheck_at
-    fallback_model_refs[]
-    authority: false
-}
-```
-
----
-
-## 39. Canonical architecture principle
-
-> **Intelligence proposes. Consequence Algebra constrains. Authority permits. Execution changes reality. Proof settles reality. Learning improves future proposals.**
-
-> **No language, framework, model, provider, agent, reward function, managed trainer or native accelerator is allowed to collapse those boundaries.**
+> **A Reality Transaction Kernel that canonicalizes consequences across heterogeneous routes, coordinates equivalent/conflicting/dependent/unresolved effects before commitment, grants minimum local authority to the admitted consequence rather than the model, selects and fails over between qualified routes without duplicating reality, and preserves truthful settlement even when causal legitimacy changes after the action has physically succeeded.**

@@ -1,39 +1,32 @@
 # CIEAV Production Execution Plan
 
-## Universal Intelligence Substrate
+## Reality Transaction Kernel + Universal Tool Trust + Consequence Coordination
 
-This plan is the canonical engineering roadmap for taking CIEAV from its current production-oriented foundations to a complete, testable universal intelligence substrate.
+This document is the canonical production roadmap for CIEAV.
 
-It is intentionally implementation-oriented. Every phase below has concrete deliverables, runtime contracts, failure semantics, tests, and production exit criteria.
-
-CIEAV must not be reduced to only one of these categories:
-
-- model router
-- agent framework
-- MCP server
-- approval gateway
-- consequence verifier
-- browser guardrail
-- workflow engine
-- robot safety layer
-- memory system
-- AI operating system
-- application-agent wrapper
-- tool-calling proxy
-
-The target is broader:
-
-> **CIEAV is a persistent, model-independent intelligence substrate that can absorb models, agents, tools, software, sensors, devices and robots as capabilities of one adaptive system while keeping real-world authority outside learned intelligence.**
+CIEAV is not a tool-calling proxy, agent framework, model router, browser wrapper, MCP server, approval gateway, workflow engine, integration marketplace, or ordinary agent guardrail. CIEAV is intended to become a **Reality Transaction Kernel for autonomous computing**: a persistent, model-independent substrate that converts proposed actions from humans, models, agents, software, cloud systems, desktop applications, browsers, devices, and robots into trusted, coordinated, observable, durable, and provable real-world state transitions.
 
 The product experience remains:
 
 > **Installed, not opened. Visible only when reality requires attention.**
 
+The central architectural rule is:
+
+> **Applications and protocols are execution routes. Consequences are the unit of coordination. Authority remains local and deterministic.**
+
+The deeper production rule is:
+
+> **Routes propose transitions. CIEAV owns trusted consequence identity. Reality settles consequences.**
+
+The goal is not merely to connect tools. The goal is to build a production runtime in which an effectful action cannot become a real consequence unless its semantics, canonical reality identity, relation to active consequences, proofability, authority, execution route, and settlement obligations have been qualified.
+
+This roadmap is a technical target, not a claim of legal novelty or patentability.
+
 ---
 
-# 1. Non-negotiable invariants
+# 1. Constitutional invariants
 
-These are release blockers, not design preferences.
+These are release blockers.
 
 ```text
 NO MODEL CAN MINT AUTHORITY.
@@ -41,970 +34,488 @@ NO AGENT CAN MINT AUTHORITY.
 NO ROUTER CAN MINT AUTHORITY.
 NO APPLICATION AGENT CAN MINT AUTHORITY.
 NO MODEL PROVIDER CAN MINT AUTHORITY.
+NO TOOL DESCRIPTION CAN MINT AUTHORITY.
 NO TOOL PROPOSAL CAN MINT AUTHORITY.
+NO TOOL MANIFEST CAN MINT AUTHORITY.
+NO EXTERNAL TOOL ANNOTATION CAN DEFINE TRUSTED CONSEQUENCE SEMANTICS.
+NO DISCOVERED MCP / A2A / OPENAPI / CONNECTOR TOOL IS QUALIFIED BY DISCOVERY ALONE.
 NO MEMORY SYSTEM CAN MINT AUTHORITY.
 NO TRAINING JOB CAN MINT AUTHORITY.
 NO CANDIDATE MODEL CAN PROMOTE ITSELF.
 NO SKILL COMPILER CAN QUALIFY ITS OWN OUTPUT.
 MODEL OUTPUT IS NEVER OBSERVED REALITY.
-A TOOL DESCRIPTION IS NOT EXECUTION AUTHORITY.
-REMOTE MODEL ACCESS MUST RESPECT THE DATA PRIVACY BOUNDARY.
-EFFECTFUL TOOL CALLS MUST CROSS THE CONSEQUENCE / AUTHORITY BOUNDARY.
+TOOL OUTPUT IS NOT AUTOMATICALLY OBSERVED REALITY.
+COMMITTED IS NOT SUCCESS.
+UNKNOWN MUST NEVER BE SILENTLY MAPPED TO SUCCESS OR FAILURE.
+RECOVERY / UNDO / COMPENSATION ARE NEW GOVERNED CONSEQUENCES.
+EFFECTFUL EXECUTION MUST CROSS TRUSTED MATERIALIZATION + CONSEQUENCE ALGEBRA + AUTHORITY + COMMIT.
 EQUIVALENT REAL-WORLD CONSEQUENCES MUST NOT EXECUTE TWICE THROUGH DIFFERENT ROUTES.
-AN UNSETTLED CONSEQUENCE MUST BLOCK OR RECONCILE EQUIVALENT / CONFLICTING FOLLOW-ON EFFECTS.
-MODELS MAY SUGGEST CONSEQUENCE RELATIONS; ONLY DETERMINISTIC / QUALIFIED LOGIC MAY ADMIT THEM FOR EXECUTION.
-POLICY MUST BE ABLE TO EVALUATE COMPOSED / CUMULATIVE CONSEQUENCES, NOT ONLY INDIVIDUAL TOOL CALLS.
-UNKNOWN MUST NEVER BE SILENTLY MAPPED TO SUCCESS.
-COMMITTED MUST NEVER MEAN VERIFIED SUCCESS.
+UNSETTLED / UNKNOWN CONSEQUENCES MUST BLOCK OR COORDINATE ALL SEMANTICALLY DEPENDENT FOLLOW-ON EFFECTS.
+POLICY MUST EVALUATE COMPOSED AND CUMULATIVE CONSEQUENCES, NOT ONLY INDIVIDUAL TOOL CALLS.
+A CHANGE IN QUALIFIED TOOL SEMANTICS OR EXECUTABLE IDENTITY INVALIDATES PREVIOUS AUTHORITY.
+A ROUTE MAY REALIZE AN AUTHORIZED CONSEQUENCE; A ROUTE DOES NOT DEFINE THE CONSEQUENCE.
+PROTECTED ROUTE FAILOVER MUST NEVER BLINDLY REDISPATCH AN UNKNOWN CONSEQUENCE.
+PHYSICAL/REMOTE SUCCESS AND CAUSAL/INSTITUTIONAL LEGITIMACY ARE DISTINCT STATES.
+A LATER INVALIDATION OF EVIDENCE MUST NEVER REWRITE PHYSICAL HISTORY.
 ```
 
-Every execution-capable integration must cross the deterministic Authority / Commit boundary.
-
-Every learning path must remain authority-free.
-
-Every model-facing tool surface must be a controlled capability description. Model output may request or propose a tool operation, but it must never contain a hidden authority path to the underlying database, cloud account, shell, browser, device or actuator.
-
-Provider credentials and vendor-specific transports must remain outside the trust kernel. `@cieav/core` must not depend on OpenAI, Anthropic, cloud-provider or other vendor credential implementations.
+External tool metadata may help discovery and UX. It does not establish trusted effect class, risk, idempotency, proof semantics, privacy externality, canonical identity, reversibility, recovery semantics, or authority.
 
 ---
 
-# 2. Target system anatomy
+# 2. Product target — full production Reality Transaction Kernel
 
-CIEAV is designed like a distributed intelligence organism.
-
-## 2.1 Universal intelligence anatomy
+The target production path is:
 
 ```text
-SELF MODEL
-  ↓
-GLOBAL INTELLIGENCE WORKSPACE
-  ↓
-CORTEX / COGNITIVE SCHEDULER
-  ↓
-COGNITIVE CELLS
-  ├─ frontier models
-  ├─ local models
-  ├─ CIEAV models
-  ├─ agents
-  ├─ deterministic skills
-  ├─ retrievers
-  ├─ simulators
-  └─ proof providers
-  ↓
-INTELLIGENCE MESH
-  ↓
-APPLICATION / DOMAIN AGENT ORCHESTRATION
-  ↓
-CONSEQUENCE ABI / MATERIALIZATION
-  ↓
-CONSEQUENCE ALGEBRA / ACTIVE CONSEQUENCE GRAPH
-  ↓
-CONSEQUENCE / AUTHORITY / EXECUTION
-  ↓
-SOFTWARE + CLOUD + DEVICES + ROBOTS
-  ↓
-PERCEPTION MESH
-  ↓
-EPISTEMIC STATE
-  ↓
-INTELLIGENCE METABOLISM
-  ├─ memory
-  ├─ Consequence Graph
-  ├─ model learning
-  └─ Verified Skills
-  ↓
-BETTER CIEAV
-```
-
-The consequence subsystem is one critical organ of CIEAV, not the entire identity of CIEAV.
-
-## 2.2 Application / domain-agent anatomy
-
-CIEAV must also support the application architecture used by serious AI-native products: deterministic domain systems remain the source of truth, while models perform interpretation, routing, reasoning, drafting and tool selection above them.
-
-```text
-USER / AGENT OBJECTIVE
+USER / AGENT / AUTOMATION OBJECTIVE
         ↓
-APPLICATION / DOMAIN SERVICE
+INTELLIGENCE / DOMAIN ORCHESTRATION
         ↓
-SOURCE-OF-TRUTH DATA + BUSINESS RULES
+ZERO-AUTHORITY ACTION / TOOL PROPOSAL
         ↓
-CONTEXT BUILDER
-  ├─ permissions
-  ├─ privacy reduction
-  ├─ source references
-  ├─ evidence / reality digests
-  └─ domain constraints
+UNTRUSTED TOOL DISCOVERY PLANE
+  MCP · A2A · OpenAPI · SaaS connectors · computer use · native apps
         ↓
-APPLICATION AGENT
-  ├─ intent / workflow routing
-  ├─ context orchestration
-  ├─ agent selection
-  ├─ tool selection
-  └─ model selection
+CIEAV TOOL TRUST KERNEL
+  qualified manifest
+  exact argument schema
+  trusted semantic compiler
+  consequence-bundle compiler
+  canonical reality resolver
+  privacy/data-flow contract
+  duplicate/idempotency contract
+  proof/reconciliation contract
+  recovery/compensation contract
+  artifact/runtime identity binding
         ↓
-MODEL GATEWAY
-  ├─ external provider adapters
-  ├─ local inference adapters
-  └─ CIEAV-qualified models
+CONSEQUENCE BUNDLE
         ↓
-ANSWER / STRUCTURED PROPOSAL / TOOL PROPOSAL
-        ↓
-TOOL REGISTRY + CONSEQUENCE NORMALIZATION
+CANONICAL REALITY ADDRESS / RESOLUTION
         ↓
 CONSEQUENCE ALGEBRA
-  ├─ canonical reality identity
-  ├─ semantic effect identity
-  ├─ footprints + invariants
-  ├─ equivalence / conflict / causality
-  ├─ active consequence graph
-  ├─ reservations / unsettled barriers
-  ├─ proofability / causal fences
-  └─ cumulative consequence policy
         ↓
-POLICY + PERMISSIONS + AUTHORITY + APPROVAL
+ACTIVE CONSEQUENCE GRAPH
+  equivalence · conflict · dependency · aggregation · causality
         ↓
-TRUSTED EXECUTION ADAPTER
+REALITY QUARANTINE CLOSURE
+  relation-aware propagation of unresolved/invalidated state
         ↓
-REALITY
+PROOFABILITY RESERVATION / EVIDENCE QUORUM
         ↓
-PROOF / SETTLEMENT / AUDIT / LEARNING
+POLICY + PERMISSIONS + LOCAL AUTHORITY
+        ↓
+CONSEQUENCE AUTHORITY ENVELOPE
+        ↓
+LEAST-CONSEQUENCE ROUTE SELECTION
+        ↓
+REALITY-BOUND COMMIT
+        ↓
+ONE-USE EXECUTION TICKET
+        ↓
+QUALIFIED TRUSTED ADAPTER
+        ↓
+REAL SOFTWARE / CLOUD / DEVICE / ROBOT
+        ↓
+CONSEQUENCE-PRESERVING FAILOVER / RECONCILIATION
+        ↓
+INDEPENDENT PERCEPTION / PROOF
+        ↓
+MULTI-AXIS SETTLEMENT
+  reality · legitimacy · evidence · recovery
+        ↓
+CAUSAL RECALL / RECOVERY CLOSURE WHEN REQUIRED
+        ↓
+AUDIT / LEARNING
 ```
 
-The application-agent pattern is one layer inside CIEAV, not the product identity. The model is a reasoning component inside a larger deterministic product and control system.
+CIEAV should sit beneath native integrations, MCP/A2A, OpenAPI, external connector platforms, browser/computer-use systems, desktop automation, CLI, databases, cloud APIs, ROS2/MQTT, and future execution ecosystems.
 
-### Source-of-truth rule
-
-```text
-MODEL = reasoning / language / planning / proposal
-DOMAIN SERVICE = deterministic business logic
-DATA SYSTEM = source of truth
-CIEAV = consequence, authority, execution, proof and audit boundary
-```
-
-The model must not become the database, ledger, permission system, policy engine or execution authority.
+CIEAV should not attempt to win primarily by manually owning every integration. It should own the **trusted semantic, coordination, authority, and settlement boundary beneath integrations**.
 
 ---
 
-# 3. Current status
+# 3. Current engineering truth
 
-## 3.1 Implemented or partially implemented foundations
+## 3.1 Proven foundations inherited by this branch
 
-The repository currently contains working or partially working foundations for:
+The branch `feat/trusted-tool-consequence-contract` is based on authority-state hardening head `08ef7b5b41b618703e526ac4023116bbb09ff057`.
 
-- always-on local Gateway lifecycle
-- Windows startup integration
-- private Chromium CDP transport
-- protected browser execution path
-- deterministic browser action classification
-- Action Receipts
-- Ed25519 signed receipt verification
-- SUCCESS / FAILURE / UNKNOWN handling
-- SQLite and XAMPP/MariaDB receipt storage
-- deterministic commitment and execution-fabric contracts
-- scoped execution tickets
-- credential authority contracts
-- hardware signer and TPM-related implementation/test coverage
-- MCP and A2A interoperability foundations
-- model-provider routing foundations
-- consequence-learning dataset generation
-- SFT/DPO/KTO/GRPO data preparation
-- candidate-model `authority=false` / unqualified invariants
-- consequence-intelligence contracts
-- deterministic Cognitive Scheduler baseline
-- Epistemic State v1
-- Consequence Graph v1
-- Proof/Learning Provider runtime boundaries
-- Universal Intelligence runtime foundations
-- Cognitive Cell contracts and registration foundations
-- Global Intelligence Workspace foundations
-- qualified-model cognitive overlays
-- background notification-only mode
-- fail-closed hidden-browser approval behavior
-- local production-readiness/static qualification tooling
-- application-agent / tool-orchestration contracts and runtime work in active implementation
-- semantic effect, effect key, Reality-Bound Commit, reversibility escrow, effect quarantine and continuing-authority foundations that can support future Consequence Algebra work
+At that base head, user-local evidence established:
 
-No item in this list should be interpreted as final external production qualification.
+```text
+build:api                                      PASS
+static authority deployment gate              PASS
+test:authority-state                           9 files / 51 tests PASS
+release:qualify:authority-state                PASS
+mssql 12.7.0 packaging/integrity               PASS
+singleTransactionCrossStoreCommitTested        true
+ISSUE_TICKET single SQL transaction            true
+CONSUME_TICKET single SQL transaction          true
+UNKNOWN five-store SQL transaction             true
+SQL atomic rollback test                       true
+```
 
-## 3.2 Known production gaps
+These are **offline/local exact-head qualification facts**. They are not evidence of production SQL listener activation, Always On failover, network-partition qualification, production authority, or execution-authority issuance.
 
-Current known gaps include:
+Production truth remains fail closed:
 
-- secure actionable native OS approval flow
-- full authority-grade Authorized Outcome Trajectory export
-- production-grade persistent Epistemic State indexing
-- production-grade persistent Consequence Graph indexing
-- live Intelligence Mesh orchestration across heterogeneous providers
-- full model competence profiling
-- production Application Agent API
-- production Model Gateway adapters
-- Domain Agent Registry
-- Context Builder Registry
-- Tool Registry with typed arguments and consequence metadata
-- provider credential isolation and secret-store integration
-- effectful tool-proposal to Consequence ABI bridge
-- application-agent audit/model-call telemetry
-- Canonical Reality Address / cross-adapter resource identity
-- semantic effect identity independent of execution route
-- multi-dimensional Consequence Footprint
-- deterministic Consequence Relation Resolver
-- Invariant Compatibility / confluence admission
-- persistent Active Consequence Graph
-- semantic Consequence Reservations
-- generalized Unsettled Consequence Barrier
-- proofability admission / Proof Plan Reservation
-- Causal Reality Fences
-- cross-route semantic idempotency and reconciliation
-- cumulative / anti-fragmentation consequence policy
-- domain-service integration examples beyond infrastructure primitives
-- CIEAV Core/Proof/Recovery owned adapters
-- isolated RL environments
-- Verified Skill compiler and qualification pipeline
-- robot/ROS adapter
-- edge/wearable runtime
-- device trust/onboarding integration
-- continuing-authority / live-revocation semantics
-- production installer/signing/notarization
-- physical TPM/Secure Enclave/Linux TPM2 qualification
-- independent security assessment
-- DR / backup / incident exercise
+```text
+productionSqlServerRuntimeActivated = false
+externalClusterFailoverTested       = false
+networkPartitionTested              = false
+clusterHaQualified                  = false
+authority                           = false
+mayMintExecutionAuthority           = false
+executionAuthorityIssued            = false
+```
+
+## 3.2 Tool-trust implementation present on this branch
+
+The branch contains the initial trusted tool consequence contract and deterministic validation:
+
+```text
+7058f12  Add trusted tool consequence contracts
+a9d0bc9  Enforce trusted tool consequence contracts
+f6fc121  Test trusted tool consequence contract enforcement
+```
+
+The current validator can constrain declared effect classes, target binding/prefixes, required semantic attributes, duplicate semantics, and canonical resolver identity/version while preserving `authority=false`.
+
+This is **not yet a completed production Tool Trust Kernel**. In particular:
+
+- `CieavExecutionFabricStore.authorize()` is not yet required to bind and persist the trusted tool-contract result;
+- ticket issuance/consumption does not yet bind the complete manifest/compiler/resolver/adapter/proof/recovery identity set;
+- one `ExecutionProposal.semanticEffect` still cannot faithfully represent all multi-effect application actions;
+- canonicalization still needs qualified cross-adapter resolver implementations;
+- relation-aware UNKNOWN quarantine is not yet a complete graph-closure subsystem;
+- consequence-aware route selection/failover is not yet implemented;
+- settlement does not yet separate physical reality from legitimacy/evidence/recovery dimensions;
+- causal recall/recovery closure is not yet implemented;
+- this branch has not yet received a new full local authority/tool qualification run after all Tool Trust changes.
+
+## 3.3 Existing Consequence Algebra foundations
+
+Current contracts/core/store already provide substantial foundations for:
+
+```text
+RealityAddress
+SemanticEffectIdentity
+ConsequenceFootprint
+ConsequenceMaterialization
+relation vocabulary
+trusted relation rules
+Invariant Compatibility Witness
+Active Consequence Graph
+Consequence Reservation
+Proof Plan Reservation
+Causal Reality Fence
+aggregation ledger/policy
+UNKNOWN quarantine/reconciliation primitives
+persistent authenticated state
+startup recovery
+```
+
+Existing tests cover route-independent semantic comparison after normalization, same-reality conflicts, trusted advanced relation classes, independent concurrency, reconciliation, cumulative budgets, proofability, invariants, persistent reservations, tamper rejection, UNKNOWN reconciliation, and causal fences.
+
+The remaining hard problem is not merely more relation enums. It is **trusted universal materialization, coordination, execution, uncertainty propagation, failover, and settlement across arbitrary real software**.
 
 ---
 
-# 4. Production implementation phases
+# 4. P0 — Universal Tool Trust Kernel
 
-## Phase A — Stabilize the Trust Kernel
+The Tool Trust Kernel is the trusted ingress into the Reality Transaction Kernel. It is a prerequisite for broad adapter expansion.
 
-### Deliverables
+## 4.1 Separate discovery from qualification
 
-1. Complete Authority / Commit invariants.
-2. Bind identity, principal, agent, exact operation, exact argument digest, policy, pre-state witness and delegated authority.
-3. Ensure execution tickets are scoped, short-lived and one-use.
-4. Add duplicate-execution/idempotency semantics to every execution adapter.
-5. Ensure recovery/undo is itself a governed consequence.
-6. Add static dependency rules preventing intelligence/training/application-agent packages from importing signer/credential/ticket minting internals.
-
-### Required tests
-
-- permit/ticket replay rejection
-- expired authority rejection
-- wrong-principal rejection
-- wrong-agent rejection
-- wrong-arguments rejection
-- stale-reality rejection
-- credential-scope rejection
-- ticket double-consumption rejection
-- recovery authority tests
-- process-crash / restart persistence tests
-
-### Exit criteria
-
-`AuthorityKernelQualification = PASS` on all deterministic local tests.
-
-External hardware/signing claims remain blocked until physical qualification.
-
----
-
-## Phase B — Native Background Interaction
-
-The normal user must not need to open CIEAV.
-
-### Deliverables
-
-1. Windows actionable notification using an authenticated activation channel.
-2. macOS actionable native notification.
-3. Linux desktop notification/action path where supported.
-4. Request-bound approval challenge:
+Two distinct representations are required:
 
 ```text
-approvalChallengeId
-requestId
-manifestDigest
-principal
-origin/resource
-risk
-expiry
-nonce
+ExternalToolDescription
+  source = MCP | A2A | OPENAPI | CONNECTOR | COMPUTER_USE | NATIVE | OTHER
+  provider metadata
+  display description
+  provider annotations
+  provider schemas
+  trust = UNTRUSTED_DISCOVERY
+  authority = false
 ```
 
-5. `Allow` / `Block` response consumed once.
-6. Approval timeout = fail closed.
-7. Approval action may only authorize the exact bound consequence.
-
-### Required tests
-
-- forged activation callback
-- expired challenge
-- reused challenge
-- wrong manifest digest
-- wrong process/user session
-- notification dismissed/no response
-- reboot during challenge
-- duplicate activation
-
-### Exit criteria
-
-No hidden browser modal is required for production use.
-
----
-
-## Phase C — Universal Cognitive Cell Contract
-
-Every model, agent, tool, sensor or device must be normalized as a CIEAV capability.
-
-### Deliverable contract
+and:
 
 ```text
-CognitiveCell {
-    id
-    type
-    provider
-    identity
-    capabilities
-    inputModalities
-    outputModalities
-    locality
-    latencyProfile
-    costProfile
-    privacyBoundary
-    trustProfile
-    health
-    competenceProfile
-    proofCapabilities
-    authority: false
-}
+QualifiedToolManifestV1
+  CIEAV-owned / verified semantics
+  trustState
+  exact version identities
+  authority = false
+  mayMintExecutionAuthority = false
 ```
 
-### Supported initial cell types
+External descriptions may never silently become qualified manifests.
+
+Tool lifecycle:
 
 ```text
-MODEL
-AGENT
-TOOL
-SKILL
-RETRIEVER
-SIMULATOR
-SENSOR
-DEVICE
-ROBOT
-PROOF_PROVIDER
-HUMAN
+DISCOVERED
+  ↓
+UNTRUSTED
+  ↓
+VERIFIED
+  ↓
+QUALIFIED
+  ↓
+ACTIVE
+  ↓
+SUSPENDED / REVOKED / SUPERSEDED
 ```
 
-### Required runtime features
+Any material semantic or executable change returns the tool to an unqualified/superseded state until requalification succeeds.
 
-- registration
-- health check
-- capability discovery
-- revocation/removal
-- versioning
-- provider isolation
-- local/remote classification
-- privacy compatibility check
-- competence telemetry
+## 4.2 `QualifiedToolManifestV1`
 
-### Exit criteria
-
-CIEAV can dynamically register and use multiple heterogeneous cells without hard-coding a single provider.
-
----
-
-## Phase D — Self Model
-
-CIEAV needs a machine-readable model of its own current capabilities and limitations.
-
-### Runtime state
+Minimum target contract:
 
 ```text
-SelfModel {
-    connectedCells
-    availableModels
-    availableAgents
-    availableTools
-    availableSensors
-    availableDevices
-    availableRobots
-    verifiedSkills
-    currentCompute
-    health
-    activeObjectives
-    activeCommitments
-    authorityEnvelopeRefs
-    privacyConstraints
-    costBudget
-    energyBudget
-    uncertainty
-}
-```
+QualifiedToolManifestV1 {
+    manifestId
+    manifestVersion
 
-### Requirements
-
-- persistent versioned state
-- no execution authority
-- stale capability invalidation
-- deterministic merge rules
-- health-aware routing
-- device disconnect handling
-
-### Exit criteria
-
-The scheduler can answer `what can CIEAV currently do?` from live evidence rather than static configuration.
-
----
-
-## Phase E — Global Intelligence Workspace
-
-The workspace is the shared temporary cognitive state used by multiple cells.
-
-### Data model
-
-```text
-objective
-relevant reality
-active beliefs
-contradictions
-important memories
-active hypotheses
-candidate plans
-uncertainty
-proof obligations
-available capabilities
-constraints
-```
-
-### Requirements
-
-- bounded context projection per cell
-- privacy-aware projection
-- evidence references rather than uncontrolled raw copying
-- contradiction preservation
-- provenance on every contribution
-- stale-state invalidation
-- model output never treated as observed reality
-
-### Exit criteria
-
-Two or more independent models/tools can collaborate through one workspace without sharing unrestricted global context.
-
----
-
-## Phase F — CIEAV Cortex
-
-The Cortex decides what computation should exist for an objective.
-
-### Responsibilities
-
-- model routing
-- multi-model decomposition
-- parallel hypotheses
-- critique/verifier selection
-- retrieval
-- simulation
-- skill selection
-- proof selection
-- human escalation
-- stop/no-op when evidence is insufficient
-
-### Initial implementation
-
-Deterministic scheduler + competence statistics.
-
-### Later implementation
-
-Learned router/contextual bandit trained only from verified performance.
-
-### Hard constraint
-
-```text
-CORTEX AUTHORITY = 0
-```
-
-### Exit criteria
-
-Routing quality is measurable against a deterministic baseline and never bypasses authority.
-
----
-
-## Phase F2 — Application / Domain Agent and Tool Orchestration Layer
-
-This phase makes CIEAV usable as the trust substrate inside AI-native applications. It generalizes the architecture used by products where foundation models sit above live domain data and deterministic business logic.
-
-The application-agent layer is intelligence orchestration, not execution authority.
-
-### F2.1 Model Gateway
-
-Provide one provider-neutral invocation boundary:
-
-```text
-ApplicationModelProvider {
-    descriptor
-    health()
-    invoke(request)
-}
-```
-
-Initial provider classes:
-
-```text
-EXTERNAL_API
-LOCAL_RUNTIME
-QUALIFIED_CIEAV
-```
-
-Expected adapters over time:
-
-```text
-OpenAI-compatible provider
-Anthropic-compatible provider
-local model runtime
-Hugging Face / inference endpoint
-CIEAV-qualified model registry
-enterprise/private model gateway
-```
-
-The gateway must support:
-
-- provider health
-- model identity/version pinning
-- purpose-based routing
-- latency/cost budgets
-- privacy compatibility
-- structured output validation
-- bounded retries
-- request correlation
-- model-call telemetry
-- provider isolation
-- zero authority
-
-Provider credentials must be loaded by the adapter/runtime boundary through the CIEAV secret/credential infrastructure. Credentials must never be exposed to a model, workspace contribution or persisted prompt trace.
-
-### F2.2 Context Builder Registry
-
-Models must receive the smallest sufficient verified context, not unrestricted source databases.
-
-```text
-ContextDatum {
-    kind
-    sourceRef
-    summary
-    digest?
-    privacy
-    verified
-}
-```
-
-Required context classes:
-
-```text
-USER_INPUT
-FACT
-RECORD
-POLICY
-PERMISSION
-HISTORY
-TOOL_RESULT
-PROOF
-```
-
-Context builders must:
-
-- query authoritative domain services
-- enforce principal/session permissions before retrieval
-- redact/minimize sensitive data
-- classify local-only vs remote-allowed data
-- preserve source references
-- attach current reality/proof digests where applicable
-- mark model-generated context separately from observed facts
-- reject stale authority-relevant context
-- provide deterministic size limits
-
-### F2.3 Domain Agent Registry
-
-A domain agent packages domain-specific workflow knowledge without receiving authority.
-
-```text
-DomainAgent {
-    id
-    domain
-    capabilities
-    contextBuilders
-    allowedTools
-    preferredModelPurposes
-    policies
-    proofRequirements
-    authority: false
-}
-```
-
-Initial reference domains should include:
-
-```text
-software / Git
-cloud / DevOps
-filesystem
-browser / SaaS
-accounting-style financial workflow reference
-operations / support
-robot/device workflow later
-```
-
-The accounting-style reference exists to prove the architecture pattern:
-
-```text
-live domain records
-→ deterministic domain calculations
-→ bounded model context
-→ explanation or draft/proposal
-→ deterministic validation
-→ human approval when effectful
-→ authoritative write
-→ proof + audit
-```
-
-It must not create a second authority system inside the domain agent.
-
-### F2.4 Tool Registry
-
-The LLM must never receive direct database, shell, cloud or device credentials. It receives typed tool descriptions.
-
-```text
-ToolDescriptor {
-    id
-    operations
-    argumentSchema
-    readOnly
-    consequenceClass
-    dataCategories
-    privacyBoundary
-    permissionRequirements
-    proofProvider
-    duplicateSemantics
-    approvalPolicy
-    authority: false
-}
-```
-
-A model may emit only a `ToolProposal`:
-
-```text
-ToolProposal {
     toolId
-    operation
-    target
-    normalizedArgumentsDigest
-    summary
-    confidence
+    providerId
+    applicationId
+    adapterId
+    operationId
+
+    argumentSchema
+    resultSchema?
+
+    readOnly
+    consequenceCapable
+    allowedEffectClasses[]
+
+    semanticCompilerId
+    semanticCompilerVersion
+    semanticCompilerDigest
+
+    canonicalResolverId
+    canonicalResolverVersion
+    canonicalResolverDigest
+
+    consequenceBundleCompilerId
+    consequenceBundleCompilerVersion
+    consequenceBundleCompilerDigest
+
+    duplicateSemantics
+    idempotencyContract
+
+    proofContract
+    reconciliationContract
+    recoveryContract
+    compensationContract?
+
+    dataCategories[]
+    privacyBoundary
+    dataFlowPolicy
+
+    riskPolicy
+    permissionRequirements
+    approvalPolicy
+
+    adapterArtifactDigest
+    provenanceRefs[]
+    runtimeIdentityRequirements[]
+
+    routeCapabilities[]
+    routeRiskProfile?
+
+    validFrom
+    validUntil?
+    supersedes?
+    revokedAt?
+
     authority: false
     mayMintExecutionAuthority: false
 }
 ```
 
-The runtime must reject undeclared tools/operations, malformed or out-of-schema arguments, hidden raw escape hatches, privacy-incompatible requests and provider/model attempts to claim authority.
+Models/providers may propose candidate values but cannot qualify them.
 
-### F2.5 Read-only tool execution
+## 4.3 Invocation semantics must be derived, not trusted from the agent
 
-Read-only does not mean unrestricted.
-
-Read-only tools still require authenticated principal, permission checks, data minimization, privacy classification, audit correlation and bounded result size.
-
-### F2.6 Effectful tool proposal bridge
-
-Every effectful proposal must cross the existing CIEAV execution constitution:
+The model/agent may propose:
 
 ```text
-MODEL TOOL PROPOSAL
-      ↓
-normalize to Consequence ABI
-      ↓
-current reality / pre-state witness
-      ↓
-Consequence Algebra when applicable
-      ↓
-policy + permissions
-      ↓
-commitment required?
-      ↓
-human approval / delegated authority
-      ↓
-one-use execution ticket
-      ↓
-trusted adapter
-      ↓
-post-state proof
-      ↓
-SUCCESS / FAILURE / UNKNOWN
-```
-
-The application agent must never call an effectful trusted adapter directly.
-
-### F2.7 Propose-and-approve workflow
-
-```text
-user objective
-→ domain agent
-→ verified context
-→ model reasoning
-→ structured proposal
-→ deterministic domain validation
-→ CIEAV consequence classification
-→ approval when required
-→ execution
-→ proof
-→ receipt/audit
-```
-
-### F2.8 Model selection
-
-Routing may use purpose, competence, privacy, latency and cost:
-
-```text
-ROUTE
-CLASSIFY
-REASON
-EXPLAIN
-EXTRACT
-CRITIQUE
-DRAFT
-PLAN
-```
-
-Model routing remains advisory and authority-free.
-
-### F2.9 Audit and telemetry
-
-Every application-agent run must correlate principal/session, domain agent, context refs/digests, privacy decision, model identity, usage, tool proposals, consequence ids, authority/approval refs, execution refs, proof refs and settlement.
-
-### F2.10 Required workflow modes
-
-```text
-Query/explain:
-question → authorized context → deterministic calculation where possible → explanation + evidence
-
-Draft/propose:
-objective → context → model proposal → validation → preview / approval
-
-Execute:
-approved proposal → Consequence ABI → Authority / Commit → execution → proof → settlement
-
-UNKNOWN recovery:
-UNKNOWN → stop blind retry → reconcile reality → governed recovery proposal
-```
-
-Each effectful step in a multi-step plan must independently bind to current reality and authority.
-
-### F2.11 Required tests
-
-- provider/result authority rejection
-- remote provider receives `LOCAL_ONLY` context
-- undeclared tool/operation rejection
-- malformed argument rejection
-- read-only permission bypass
-- direct-adapter bypass
-- fake approval/proof refs
-- stale context action
-- cross-session context leak
-- prompt-injection tool escalation
-- provider credential leakage
-- budget exhaustion
-- provider timeout/failure
-- duplicate effect proposal
-- UNKNOWN blind retry prevention
-- audit correlation completeness
-
-### F2.12 Exit criteria
-
-`ApplicationAgentLayerQualification = PASS` only when provider neutrality, privacy boundaries, context provenance, safe typed reads, zero-authority effect proposals, Consequence ABI + Authority/Commit crossing, request-bound approval, proof/settlement and correlated telemetry are all enforced.
-
----
-
-## Phase G — Epistemic State Persistence
-
-Persist claim, scope, status, confidence, supporting/contradicting evidence, observed time, reality version and invalidation rules.
-
-Statuses:
-
-```text
-SUPPORTED
-CONTRADICTED
-STALE
-UNKNOWN
-```
-
-Required providers include browser/runtime, HTTP/API, filesystem, Git, database, Cloud and later device/robot telemetry.
-
-### Exit criteria
-
-CIEAV never substitutes stale remembered text for current authority-relevant reality.
-
----
-
-## Phase H — Consequence Graph Persistence
-
-### V1
-
-Deterministic empirical graph over operation class, preconditions, world-before/after classes, SUCCESS/FAILURE/UNKNOWN counts, proofability, authority-grade coverage, latency, reversibility and recovery behavior.
-
-### V2
-
-Calibrated transition estimates.
-
-### V3
-
-Learned representations / graph models only after evidence scale justifies them.
-
-### Exit criteria
-
-Planner can compare execution paths using observed outcomes rather than documentation alone.
-
----
-
-## Phase H2 — CIEAV Consequence Algebra and Multi-Agent Reality Coordination
-
-CIEAV already governs individual consequences through semantic effects, reality witnesses, commitments, authority, execution tickets, proof and settlement. This phase solves a different problem:
-
-> **When many agents, models, tools, protocols and devices can act on the same reality, determine whether proposed consequences are equivalent, safely composable, conflicting, causally dependent, invalidating, compensating, superseding or cumulatively dangerous before authority is issued.**
-
-This layer coordinates **real-world consequences**, not tool names.
-
-### H2.0 Prior-art-aware research boundary
-
-Do not claim novelty from any one of these ideas alone:
-
-```text
-semantic / commutativity-based concurrency control
-intent locks
-escrow / reservation transactions
-Try-Confirm/Cancel
-sagas / compensation
-idempotency keys
-causal consistency
-invariant confluence
-per-action agent authorization
-session / temporal authorization policy
-proof-of-execution / action certificates
-```
-
-These have substantial prior art in database systems, distributed systems, capability security, runtime verification and modern agent-security platforms.
-
-Research anchors include:
-
-- commutativity- and semantics-based concurrency control for abstract data types;
-- escrow transaction methods for safe concurrent consumption of bounded resources;
-- Sagas and compensating transactions for long-lived distributed workflows;
-- invariant-confluence / coordination-avoidance work that asks when invariants permit safe concurrent execution without coordination;
-- modern execution-time authorization and proof-of-execution work for AI agents;
-- modern temporal agent policies that already enforce ordering, freshness and cumulative limits within a session.
-
-Therefore the CIEAV research target is the **cross-system composition** enabled by the existing architecture:
-
-```text
-transport-independent reality identity
-+ semantic effect identity across execution routes
-+ multi-dimensional consequence footprints
-+ invariant-aware composition
-+ state-dependent consequence relations
-+ live in-flight consequence graph
-+ cross-route semantic idempotency
-+ authority-bound semantic reservations
-+ proofability admission
-+ proof-closed causal progression
-+ cumulative / anti-fragmentation policy across agents and sessions
-+ one model spanning digital and physical effects
-```
-
-This is an engineering research thesis, not a legal novelty or patentability conclusion.
-
-### H2.1 Canonical Reality Address
-
-API identifiers, browser pages, CLI paths, database keys and device addresses that refer to the same real resource must be resolvable into one evidence-backed identity.
-
-```text
-RealityAddress {
-    version
-    namespace
-    authorityDomain
-    resourceKind
-    stableId
-    aliases[]
-    parentRefs[]
-    identityEvidenceRefs[]
-    resolverId
-    resolverVersion
+ToolProposal {
+    toolId
+    operation
+    target?
+    arguments
+    normalizedArgumentsDigest
+    requestedOutcome
+    modelSuggestedSemantics?
+    authority: false
 }
 ```
 
-Rules:
-
-- alias/equivalence mapping must be deterministic or independently qualified;
-- a model may propose an alias but cannot establish authoritative resource identity;
-- ambiguous aliases remain unresolved rather than guessed;
-- identity evidence and resolver version are auditable;
-- stale identity evidence invalidates dependent mappings.
-
-### H2.2 Multi-dimensional Consequence Footprint
-
-A consequence must describe what it may touch beyond a single target string.
+Production authority uses semantics derived by qualified code:
 
 ```text
-ConsequenceFootprint {
-    realityRead[]
-    realityWrite[]
-    create[]
-    delete[]
-    grant[]
-    revoke[]
+ToolProposal
+   ↓
+argument validation
+   ↓
+QualifiedToolManifest
+   ↓
+trusted semantic/bundle compiler
+   ↓
+canonical resolver
+   ↓
+CIEAV consequence materialization
+```
 
-    authorityUse[]
-    credentialUse[]
-    budgetDeltas[]
+A model-provided `semanticEffect` is an assertion to compare against trusted materialization, not the authority-bearing source of truth.
+
+Mismatch for a protected/effectful operation → `BLOCK`.
+
+## 4.4 Tool semantics are versioned supply-chain material
+
+Authority must eventually bind:
+
+```text
+toolManifestDigest
+semanticCompilerDigest
+bundleCompilerDigest
+canonicalResolverDigest
+adapterArtifactDigest
+runtimeIdentityDigest / attestation when required
+proofContractDigest
+recoveryContractDigest
+routeQualificationDigest
+```
+
+If any bound digest changes before dispatch:
+
+```text
+INVALIDATE TICKET / COMMIT
+→ rematerialize
+→ rerun Algebra
+→ rerun policy/approval/authority
+```
+
+Where appropriate, provenance may use package integrity, signed manifests/binaries, image digests, SLSA/Sigstore-class evidence, OS signing, TPM/Secure Enclave, mTLS, SPIFFE-like workload identity, or equivalent cryptographically verifiable evidence.
+
+---
+
+# 5. P0 — Consequence Bundle
+
+One software action may cause multiple consequences. A single `semanticEffect` is a compatibility primitive, not the final universal abstraction.
+
+Example purchase:
+
+```text
+PURCHASE item
+TRANSFER_VALUE money
+CREATE order
+SHARE shipping address
+UPDATE inventory
+CREATE shipment obligation
+COMMUNICATE confirmation
+```
+
+Target:
+
+```text
+ConsequenceBundleV1 {
+    bundleId
+    invocationDigest
+    manifestDigest
+
+    primaryEffects[]
+    secondaryEffects[]
+    conditionalEffects[]
+    deferredEffects[]
+
+    dependencies[]
+    atomicityGroups[]
     privacyExternalities[]
+    budgetDeltas{}
     proofDependencies[]
+    recoveryEdges[]
 
-    invariantsTouched[]
-    spatialRegion?
-    temporalWindow?
-
-    digest
+    bundleDigest
+    authority: false
 }
 ```
 
-Two actions may touch different resources yet still conflict because they consume the same authority budget, privacy budget, externality budget, credential quota, proof channel or physical space/time envelope.
+Each effect receives canonical reality identity, semantic identity, and footprint. Algebra evaluates individual effects and bundle-level invariants.
 
-### H2.3 Semantic Effect Identity and Consequence Equivalence Classes
+Legacy one-effect proposals may map to one-effect bundles but do not qualify arbitrary external tools for production.
 
-`normalizedArgumentsDigest` identifies invocation arguments. It does not establish whether different routes produce the same real-world effect.
+---
+
+# 6. P0 — Canonical Reality Address and Resolver Registry
+
+The system must evolve from hashing an already-normalized target into resolving genuinely different route-native identities to one real-world object.
+
+Required interface:
 
 ```text
-SemanticEffectIdentity {
+CanonicalRealityResolver {
+    id
     version
-    effectClass
-    targetRealityRefs[]
-    transitionShape
-    normalizedDeltaDigest
-    invariantContextDigest
-    equivalenceScope
-    resolverId
-    resolverVersion
+    digest
+    supportedNamespaces[]
+    resolve(routeNativeIdentity, context) -> RealityResolution
+    verify(resolution, evidence) -> boolean
+    authority: false
 }
 ```
 
-Example:
+Resolution output:
 
 ```text
-provider API operation
-browser operation
-MCP operation
-CLI operation
+canonicalRealityAddress
+routeAliases[]
+identityEvidenceRefs[]
+confidenceClass
+ambiguityState
+resolverId/version/digest
 ```
 
-may belong to the same **Consequence Equivalence Class** when a qualified resolver establishes the same real transition.
+Protected operations fail closed on unresolved ambiguity.
 
-This is the foundation for **cross-route semantic idempotency**.
+Qualification must prove convergence such as:
 
-### H2.4 Consequence Relation Algebra
+```text
+browser URL
+REST resource ID
+MCP object ID
+desktop application object
+CLI path
+vendor-specific opaque ID
+        ↓
+ONE canonical reality address
+```
 
-For materialized consequences `A` and `B`, define a versioned relation against current reality:
+Do not call a test “cross-route canonicalization” when all routes were given the same pre-normalized target string.
+
+Long-term protocol direction:
+
+```text
+CIEAV Canonical Reality Address
+= route-independent address of the thing in reality that a consequence can change.
+```
+
+Resolver evidence must be versioned, auditable, and protected against alias poisoning/collision.
+
+---
+
+# 7. P0 — Active Consequence Graph as a production coordination kernel
+
+The Active Consequence Graph must become an authority-relevant coordination structure, not merely a history/index.
+
+Nodes represent materialized or unsettled consequences. Edges represent qualified relations:
 
 ```text
 EQUIVALENT
@@ -1019,834 +530,592 @@ AGGREGATES_WITH
 UNKNOWN_RELATION
 ```
 
-Relations may be directional and state-dependent.
+The graph must persist:
 
 ```text
-A EQUIVALENT B
-    different routes intend the same real-world transition
-
-A COMMUTES B
-    either admissible order preserves required invariants and equivalent settled state
-
-A CONFLICTS B
-    concurrent execution may violate an invariant or invalidate one transition
-
-A REQUIRES B
-    A may materialize only after B reaches a required proof-closed state
-
-A INVALIDATES B
-    A makes B's pre-state, proof plan, authority binding or expected effect stale
-
-A SUPERSEDES B
-    B is unnecessary / obsolete if A is proved
-
-A COMPENSATES B
-    A semantically compensates B but remains a separately governed consequence
-
-A AGGREGATES_WITH B
-    policy evaluates cumulative effect rather than each action independently
+active reservations
+unsettled outcomes
+proof obligations
+causal predecessors
+cumulative/aggregate state
+quarantine state
+route realization state
+recovery dependencies
 ```
 
-Hard rule:
+Authority admission reads the active graph transactionally enough to prevent two independent callers from separately minting incompatible authority.
+
+---
+
+# 8. P0 — Reality Quarantine Closure
+
+This becomes a first-class CIEAV primitive.
+
+An `UNKNOWN`, invalidated, or otherwise unsettled consequence does not merely block retry of the same tool call. CIEAV computes the semantic region of reality whose safe behavior depends on resolving that consequence.
+
+Target object:
 
 ```text
-Potentially effectful overlap + UNKNOWN_RELATION
-    → never assume independence
-    → block, re-observe, resolve or escalate according to policy
-```
-
-Models may suggest candidate relations, but only deterministic or qualified relation results may participate in authority decisions.
-
-### H2.5 Invariant Compatibility Witness
-
-CIEAV should not serialize every overlapping consequence. It should coordinate only when required to preserve declared invariants.
-
-Borrow the useful principle from invariant-confluence research and generalize it beyond database state.
-
-```text
-InvariantCompatibilityWitness {
-    version
-    consequenceRefs[]
-    invariantRefs[]
-    worldVersion
-    compositionClass
-    result: PRESERVES | REQUIRES_COORDINATION | VIOLATES | UNKNOWN
-    basisDigest
-    evidenceRefs[]
-    resolverId
-    resolverVersion
+RealityQuarantineClosure {
+    sourceConsequenceId
+    sourceState
+    relationRuleSetDigest
+    affectedConsequences[]
+    affectedRealityAddresses[]
+    blockers[]
+    waiters[]
+    reconcileCandidates[]
+    allowedIndependentConsequences[]
+    closureDigest
+    computedAt
     authority: false
 }
 ```
 
-Possible invariants include:
+Example:
 
 ```text
-one active production revision
-minimum remaining quota
-maximum aggregate authority exposure
-privacy disclosure limit
-one exclusive lease-holder
-robot separation distance
-force / velocity envelope
-geofence
-proof-provider independence requirement
-resource uniqueness
+A = TRANSFER_VALUE $50k
+A = UNKNOWN
+
+B = same transfer via another route       → EQUIVALENT → BLOCK/RECONCILE
+C = mark invoice paid                     → REQUIRES   → WAIT
+D = communicate "payment completed"       → REQUIRES   → WAIT
+E = unrelated utility payment             → INDEPENDENT→ MAY CONTINUE
+```
+
+Required properties:
+
+- relation-aware, not resource-lock-only;
+- deterministic/qualified relation rules;
+- persistent across restart;
+- closure recomputed when evidence/relations change;
+- no global freeze when unrelated effects are provably independent;
+- quarantine state itself has zero authority.
+
+Machine-readable report target:
+
+```text
+CIEAV_REALITY_QUARANTINE_QUALIFICATION_V1
+```
+
+---
+
+# 9. P0 — Proofability Reservation and Evidence Quorum
+
+For protected consequences, proofability is an admission precondition, not merely post-execution logging.
+
+Every protected operation declares a `ToolProofContract`:
+
+```text
+ToolProofContract {
+    providerBindings[]
+    successClaims[]
+    failureClaims[]
+    unknownConditions[]
+    evidenceClasses[]
+    independenceRequirements
+    freshnessRequirements
+    timeoutPolicy
+    reconciliationProcedure
+    negativeProofCapability
+    authority: false
+}
+```
+
+Introduce:
+
+```text
+EvidenceQuorumPlan {
+    consequenceClass
+    requiredProviders[]
+    alternativeProviderSets[]
+    independencePolicy
+    freshnessWindow
+    availabilityState
+    quorumDigest
+    authority: false
+}
 ```
 
 Rules:
 
-- `PRESERVES` may permit safe parallelism subject to normal authority;
-- `REQUIRES_COORDINATION` requires reservation/ordering;
-- `VIOLATES` blocks;
-- `UNKNOWN` fails closed for protected classes;
-- models may propose candidate invariant reasoning but cannot issue the witness used for execution.
+- transport `200 OK` is not automatically `OBSERVED_SUCCESS`;
+- tool-returned text is not automatically proof;
+- timeout does not imply failure;
+- missing trustworthy proof → `UNKNOWN` where reality cannot be established;
+- UNKNOWN non-idempotent execution never blind retries;
+- high-risk consequence classes may require multiple independent evidence sources;
+- if required proof topology is unavailable before execution, policy may deny authority.
 
-This makes the algebra more than a lock manager: it becomes **invariant-aware consequence composition**.
-
-### H2.6 Algebraic composition operators
-
-The term Consequence Algebra must correspond to executable composition semantics.
-
-Initial operators:
+Target report:
 
 ```text
-SEQUENCE(A, B)
-    B waits for required proof-closed state of A.
-
-PARALLEL(A, B)
-    allowed only when relation + invariant rules establish admissible independence/commutativity.
-
-ALTERNATIVE(A, B)
-    alternative routes may satisfy one semantic consequence; settlement of one suppresses unnecessary alternatives.
-
-COMPENSATE(A, B)
-    B is a new governed consequence intended to compensate A.
-
-RECONCILE(A)
-    observe current reality for an unsettled consequence before any unsafe redispatch/alternate route.
+CIEAV_PROOFABILITY_QUALIFICATION_V1
 ```
 
-Future formal work may define stronger partial-order and composition laws, but implementation starts with explicit deterministic contracts and qualification fixtures rather than decorative mathematics.
+---
 
-### H2.7 Active Consequence Graph
+# 10. P0 — Consequence Authority Envelope
 
-The historical Consequence Graph learns how reality tends to behave. CIEAV also needs a live control graph for what is happening now.
+The final architecture must progressively move authority away from “permission to call this tool” toward “permission to realize this exact admitted consequence.”
+
+Target object:
 
 ```text
-ActiveConsequenceGraph {
-    nodes[]
-    relationEdges[]
-    invariantWitnessRefs[]
-    reservations[]
-    causalFences[]
-    unresolvedBarriers[]
-    updatedAt
+ConsequenceAuthorityEnvelope {
+    consequenceIdentity
+    bundleDigest
+    canonicalRealityRefs[]
+    permittedEffectClasses[]
+    permittedDeltas
+    invariantWitnessDigest
+    reservationDigest
+    proofPlanDigest
+    quarantineSnapshotDigest
+    authorityPolicyDigest
+    permittedRouteSet[]
+    routeConstraints
+    expiresAt
+    oneUse
 }
 ```
 
-Node states may include:
+The envelope is minted only by the local Authority / Commit Plane after all admission checks.
+
+A route is a qualified realization mechanism. A route may not expand the consequence beyond the envelope.
+
+This enables safe route choice/failover without granting a generic “call any equivalent tool” capability.
+
+---
+
+# 11. P0 — Least-Consequence Routing
+
+When multiple qualified routes can realize the same admitted consequence, CIEAV should choose the route that minimizes consequence risk rather than allowing arbitrary model/tool choice.
+
+Candidate route score inputs may include:
 
 ```text
-MATERIALIZED
-RESERVED
-AUTHORIZED
-COMMITTED
-DISPATCHED
-OBSERVING
-QUARANTINED
-SETTLED_SUCCESS
-SETTLED_FAILURE
-SETTLED_UNKNOWN
-CANCELLED
+proofability
+idempotency strength
+reversibility / compensation quality
+adapter qualification level
+runtime identity strength
+credential scope
+privacy exposure
+uncertainty risk
+latency
+financial cost
+availability
+provider concentration
 ```
 
-The graph must persist where restart could otherwise permit duplicate or conflicting execution.
-
-### H2.8 Consequence Reservation
-
-Before a protected consequence receives authority, CIEAV may reserve its semantic footprint.
-
-A reservation is not execution authority.
+Target object:
 
 ```text
-ConsequenceReservation {
-    id
-    consequenceRef
-    semanticEffectRef
-    footprintDigest
-    invariantRefs[]
-    realityVersion
-    reservationClass
-    ownerPrincipalRef
-    rootIntentRef
-    issuedAt
-    expiresAt
-    state
-}
-```
-
-Candidate classes:
-
-```text
-EXCLUSIVE_EFFECT
-COMMUTATIVE_EFFECT
-READ_STABILITY
-BUDGET
-SPATIAL_TEMPORAL
-CONTINUING_EFFECT
-```
-
-If dispatch may have occurred and settlement is `UNKNOWN`, reservation expiry must not silently reopen the semantic effect for duplicate execution. The state becomes an unresolved barrier/quarantine until reconciliation.
-
-### H2.9 Generalized Unsettled Consequence Barrier
-
-Existing `EffectQuarantine` is the foundation. Generalize it into relation-aware coordination.
-
-When consequence `A` is unsettled:
-
-```text
-new B EQUIVALENT A
-    → attach to reconciliation / observation of A
-    → do not redispatch through another route
-
-new B CONFLICTS A
-    → block or escalate
-
-new B INVALIDATES A
-    → reconcile and rematerialize
-
-new B REQUIRES A
-    → hold behind a causal fence
-
-new B INDEPENDENT / proven COMMUTES A
-    → may proceed if all other gates pass
-
-relation UNKNOWN
-    → fail closed for protected classes
-```
-
-The barrier spans agents, sessions, models, MCP, A2A, API, browser, CLI, cloud adapters, devices and robots.
-
-### H2.10 Proofability Admission and Proof Plan Reservation
-
-Proof obligations already exist. The new admission question is whether the required proof path is credibly available before a protected action is authorized.
-
-```text
-consequence
-    ↓
-proof obligations
-    ↓
-proof-provider capability / health / permission / freshness check
-    ↓
-Proof Plan Reservation
-    ↓
-Authority / Commit
-```
-
-```text
-ProofPlanReservation {
-    id
-    consequenceRef
-    proofObligationDigest
-    providerBindings[]
-    providerVersionDigests[]
-    requiredEvidenceClasses[]
-    freshnessRequirements[]
-    timeoutPolicy
-    fallbackPolicy
-    issuedAt
-    expiresAt
+ConsequenceRouteDecision {
+    consequenceIdentity
+    candidateRoutes[]
+    disqualifiedRoutes[]
+    selectedRoute
+    routeScoreInputs
+    policyDigest
+    decisionDigest
     authority: false
 }
 ```
 
-This is not proof of success. If the proof path fails after dispatch, settlement remains `UNKNOWN`.
+Route scoring may use learned components for suggestions, but protected route eligibility and hard constraints remain deterministic/qualified.
 
-### H2.11 Causal Reality Fence
+The model requests the outcome. It does not gain authority to select a weaker route that violates the envelope.
 
-A dependent plan step must not advance merely because the previous tool call returned.
+---
+
+# 12. P0 — Consequence-Preserving Failover
+
+Traditional failover retries requests/providers. CIEAV must fail over **the intended consequence** without duplicating reality.
+
+State machine:
 
 ```text
-CausalRealityFence {
-    predecessorConsequenceRefs[]
-    requiredOutcomes[]
-    requiredRealityClaims[]
-    minimumEvidenceClass
-    maxEvidenceAgeMs
-    fenceDigest
+ROUTE A SELECTED
+    ↓
+PRE-COMMIT PROVEN FAILURE
+    → alternate qualified route MAY be selected
+
+DISPATCHED / COMMIT BOUNDARY CROSSED
+    ↓
+OUTCOME UNKNOWN
+    → quarantine equivalent routes
+    → reconcile
+    → NO blind route failover
+
+OBSERVED_SUCCESS
+    → equivalent route requests reconcile to existing success
+
+OBSERVED_FAILURE with qualified negative evidence
+    → alternate qualified route MAY receive fresh execution authority
+```
+
+Target contract:
+
+```text
+ConsequenceFailoverPlan {
+    consequenceIdentity
+    orderedQualifiedRoutes[]
+    routeCommitBoundaries[]
+    safePreCommitFailureStates[]
+    reconciliationRequiredStates[]
+    failoverPolicyDigest
+    authority: false
 }
 ```
 
-A dependent consequence crosses the fence only when required predecessor settlement and fresh reality claims exist and no unresolved contradicting consequence invalidates them.
+Qualification must inject failures before and after commit boundaries and prove there is no duplicate consequence.
 
-### H2.12 Cross-route semantic idempotency
-
-Distinguish request idempotency from semantic idempotency.
+Target report:
 
 ```text
-request idempotency
-    same transport request should not duplicate
-
-semantic idempotency
-    same real-world effect should not duplicate even through a different route
-```
-
-If API dispatch becomes `UNKNOWN` and a model attempts the same effect through browser, CLI or MCP, CIEAV must recognize the semantic match and reconcile before redispatch.
-
-### H2.13 Cumulative consequence / anti-fragmentation policy
-
-Per-call policy is insufficient because a model can decompose one prohibited/high-risk outcome into many individually admissible actions.
-
-CIEAV must support policy over a composed consequence window.
-
-Examples:
-
-```text
-many transfers below one approval threshold
-    → one cumulative financial consequence
-
-many small exports
-    → cumulative disclosure/privacy consequence
-
-multiple grants
-    → aggregate privilege expansion
-
-repeated infrastructure mutations
-    → aggregate blast radius
-
-staged robot motions
-    → one path crossing a prohibited spatial boundary
-```
-
-Aggregation dimensions may include:
-
-```text
-principal / delegated authority root
-root intent / objective
-semantic effect class
-target reality set
-organization / tenant
-time window
-privacy / financial / authority / externality budget
-```
-
-Starting a new session, switching model/agent, changing tool protocol or splitting arguments must not reset cumulative policy when the same authority/principal/objective scope applies.
-
-This goes beyond session-only temporal policy.
-
-### H2.14 Relation Resolver architecture
-
-Do not put an LLM in the final relation-admission path.
-
-Initial resolver stack:
-
-```text
-canonical resource resolver
-+ tool/domain-declared effect semantics
-+ deterministic footprint overlap
-+ declared invariants
-+ static relation rules
-+ state-dependent rule evaluation against fresh reality
-+ qualified adapter-specific relation plugins
-```
-
-Learned components may later propose likely aliases, effect classes, relations, invariant risks or aggregation groups, but their output remains advisory until deterministic/qualified evidence establishes the decision used for authority.
-
-Requirements:
-
-- deterministic for identical versioned inputs;
-- versioned and auditable;
-- fail closed on protected ambiguity;
-- distinguish `UNKNOWN_RELATION` from `INDEPENDENT`;
-- support state-dependent commutativity;
-- support hierarchical resources and physical/spatiotemporal footprints over time.
-
-### H2.15 Scaling strategy
-
-V1:
-
-```text
-single CIEAV node
-persistent Active Consequence Graph
-canonical resource ids for Git/filesystem/browser/cloud reference adapters
-static + state-aware relation rules
-declared invariants
-semantic reservations
-barriers / reconciliation
-```
-
-V2:
-
-```text
-multi-process / crash-recovery coordination
-hierarchical resource selectors
-relation indexes
-Invariant Compatibility Witnesses
-cumulative consequence aggregation
-proofability admission
-```
-
-V3:
-
-```text
-federated / multi-node consequence coordination
-physical spatiotemporal footprints
-qualified learned relation suggestions
-cross-device Active Consequence Graph replication
-```
-
-Do not introduce distributed consensus into V1 unless the deployment actually requires a multi-writer authority domain.
-
-### H2.16 Required tests
-
-- API/browser routes to same effect resolve `EQUIVALENT`
-- different argument encodings of same effect deduplicate
-- same tool against different canonical targets does not falsely deduplicate
-- independent resources execute concurrently
-- state-dependent commutative effects are admitted only in valid states
-- conflicting effects from different agents are blocked
-- parent-resource conflict with incompatible child mutation
-- invariant-preserving concurrent composition succeeds
-- invariant-breaking composition coordinates or blocks
-- invariant `UNKNOWN` does not allow protected parallelism
-- unresolved UNKNOWN blocks equivalent alternate route
-- unresolved UNKNOWN blocks conflicting mutation
-- safe independent action proceeds while unrelated effect is UNKNOWN
-- `UNKNOWN_RELATION` never silently becomes `INDEPENDENT`
-- stale RealityAddress evidence invalidates relation result
-- malicious model cannot forge canonical identity or trusted relation
-- reservation survives restart
-- reservation expiry before dispatch releases safely
-- reservation expiry after ambiguous dispatch does not enable duplicate effect
-- reservation deadlock/livelock stress
-- proof-required protected effect rejected when proof providers unavailable
-- Proof Plan Reservation cannot be presented as outcome proof
-- causal fence blocks dependent action after dispatch but before proof
-- causal fence opens after qualified predecessor settlement
-- compensation receives new authority
-- sub-threshold actions aggregate into policy-relevant cumulative consequence
-- session/agent/tool switching does not evade cumulative policy
-- physical/spatiotemporal overlap simulation blocks unsafe concurrent actions
-- Active Consequence Graph restores correctly after crash
-- tampered relation/reservation/aggregation records are detected
-
-### H2.17 Qualification metrics and hard gates
-
-Track:
-
-```text
-critical false-equivalence violations
-critical false-independence / missed-conflict violations
-over-block / unnecessary serialization rate
-semantic dedup precision / recall
-relation resolution latency
-UNKNOWN_RELATION rate
-reservation contention / recovery
-cross-route duplicate attempts suppressed
-cross-route duplicate effects materialized
-invariant-compatibility correctness
-causal-fence correctness
-proofability-admission correctness
-fragmentation-evasion detection rate
-active-graph crash recovery correctness
-```
-
-Hard gates:
-
-```text
-critical false-equivalence > 0 in protected qualification corpus
-    → FAIL
-
-critical false-independence / missed conflict > 0
-    → FAIL
-
-protected semantic duplicate materializes through alternate route
-    → FAIL
-
-UNKNOWN_RELATION silently treated as independent
-    → FAIL
-
-model output directly controls trusted relation/invariant witness
-    → FAIL
-
-cumulative policy bypass succeeds by session / agent / route switching
-    → FAIL
-
-causal fence opens without required proof
-    → FAIL
-```
-
-### H2.18 Exit criteria
-
-`ConsequenceAlgebraQualification = PASS` only when:
-
-```text
-canonical resources resolve across at least two heterogeneous execution routes
-semantic equivalent effects are recognized independently of tool/protocol identity
-relation decisions are deterministic / qualified and auditable
-invariant-aware composition allows safe concurrency without weakening correctness
-Active Consequence Graph persists in-flight state
-conflicting effects are blocked before independent authority is issued
-UNKNOWN consequences create relation-aware barriers
-cross-route duplicates reconcile instead of blind redispatch
-proofability admission is enforced for configured consequence classes
-causal fences require proof-closed predecessor reality
-cumulative policy detects fragmentation across sessions/agents/routes
-crash/restart cannot erase protected reservations or unsettled barriers
-models remain authority-free throughout relation/composition planning
-```
-
-This phase is not complete merely because a conflict graph, lock manager or temporal policy exists. The target is cross-system semantic consequence coordination under CIEAV's authority/proof semantics.
-
----
-
-## Phase I — Universal Consequence ABI
-
-Normalize actions from all ecosystems into one consequence descriptor.
-
-### Input adapters
-
-```text
-MCP
-A2A
-Application Agent ToolProposal
-HTTP/gRPC
-CLI
-filesystem
-Git
-browser
-Cloud/SaaS
-desktop automation
-ROS 2
-MQTT / device adapters
-future vehicle/industrial adapters
-```
-
-### Consequence descriptor
-
-```text
-principal
-agent/model
-resource
-objective
-worldBefore
-expectedWorldChange
-exactOperation
-exactArgumentsDigest
-authorityRequired
-safetyConstraints
-proofObligations
-duplicateSemantics
-reversibility
-uncertaintyPolicy
-continuationConditions
-recoveryContract
-```
-
-The ABI must expose enough normalized semantics for later Canonical Reality Address, Semantic Effect Identity and Consequence Footprint materialization. The ABI itself does not decide relation or authority.
-
-### Exit criteria
-
-Heterogeneous clients can all reach the same CIEAV consequence boundary.
-
----
-
-## Phase J — Proof Provider Runtime
-
-Providers:
-
-```text
-cieav-browser
-cieav-http
-cieav-filesystem
-cieav-git
-cieav-database
-cieav-cloud
-cieav-tpm
-cieav-ros
-custom MCP/A2A proof providers
-```
-
-Requirements include pre/post-state witnesses, evidence provenance, digest/signature where applicable, timeout/failure semantics, provider health, proofability/capability advertisement and zero authority.
-
-### Exit criteria
-
-Outcome settlement can be independently reproduced from provider evidence, and configured high-risk consequences can determine before execution whether a qualified proof path is presently available.
-
----
-
-## Phase K — Authorized Outcome Trajectory
-
-Build the full authority-grade settlement object with principal/agent/model identity, delegated authority, credential lease, permission graph, pre-state witness, exact operation/arguments, policy decision, Reality-Bound Commit, one-use ticket, execution correlation, post-state witness, SUCCESS/FAILURE/UNKNOWN, recovery evidence, consent/redaction/provenance and, where applicable, canonical reality / semantic effect / relation / reservation references.
-
-Only explicitly qualified evidence classes may become agentic-RL data.
-
-### Exit criteria
-
-`AUTHORITY_BOUND_SETTLEMENT` trajectories pass cryptographic and semantic verification.
-
----
-
-## Phase L — Intelligence Metabolism
-
-Verified experience is routed into:
-
-```text
-memory
-epistemic update
-Consequence Graph
-consequence-relation statistics
-semantic-effect / route reliability
-SFT
-DPO/KTO
-GRPO/RLVR
-offline RL
-distillation
-skill candidate
-```
-
-Not every experience becomes training data. Model assertions of equivalence/conflict/invariant compatibility are not training truth by themselves.
-
-### Exit criteria
-
-Learning eligibility is deterministic, provenance-aware and consent/redaction-aware.
-
----
-
-## Phase M — CIEAV Model Family
-
-Do not train a foundation model from scratch initially.
-
-Roles:
-
-```text
-CIEAV Router
-CIEAV Core Reasoner
-CIEAV Proof Planner
-CIEAV Recovery Model
-CIEAV Consequence Model
-CIEAV Critic / Reward Models
-```
-
-CIEAV-owned models use the same Application Model Gateway and do not receive privileged authority.
-
-The Consequence Model may eventually suggest effect identities, footprints, relations or invariant risks, but those suggestions remain advisory until accepted by deterministic / qualified Consequence Algebra logic.
-
-Initial approach: shared open-weight backbone + PEFT/LoRA where practical.
-
-Framework stack may include PyTorch, Transformers, PEFT, TRL, isolated agent environments, TorchRL/RLlib, verl/Ray/FSDP2, vLLM/SGLang and graph tooling when evidence scale justifies it.
-
-Every checkpoint begins `TRAINED_UNQUALIFIED`, `authority=false`, `productionAuthority=false`, `promotionExecuted=false`.
-
-### Exit criteria
-
-CIEAV-owned models beat deterministic/provider baselines on held-out consequence-quality tasks without violating hard gates.
-
----
-
-## Phase N — Agentic RL Environments
-
-Required environments include Git, Browser, Filesystem, Database, Cloud, Permission, Credential, UnknownOutcome, DuplicateExecution, Recovery, StaleReality, ApplicationTool, ContextPrivacy, ApprovalBoundary, EquivalentEffect, ConsequenceConflict, CrossRouteUnknown, Reservation, CausalFence, FragmentationEvasion, InvariantCompatibility and ProofabilityAdmission environments.
-
-Rewards include verified success, proof completeness, calibration, minimum authority, reversibility, recovery correctness, policy compliance, correct tool/effect/relation reasoning, context minimization, cost and latency.
-
-Strong penalties include false success, duplicate consequence, excess privilege, blind UNKNOWN retry, stale-world action, tool escalation, privacy violation, approval bypass, false independence/equivalence, invariant-unsafe parallelism, fragmentation evasion and causal-fence bypass.
-
-### Exit criteria
-
-Training is reproducible in isolated environments and cannot touch production credentials or authority.
-
----
-
-## Phase O — Verified Skills
-
-Lifecycle:
-
-```text
-verified trajectories
-→ pattern candidate
-→ Skill Compiler
-→ typed candidate skill
-→ sandbox
-→ failure injection
-→ authority validation
-→ consequence-relation / invariant validation
-→ proof validation
-→ recovery validation
-→ deterministic qualification
-→ VERIFIED SKILL
-```
-
-Verified Skills must declare semantic effect / footprint metadata sufficient for Consequence Algebra and cannot bypass active reservations/barriers/fences.
-
-The compiler cannot promote or install its own skill.
-
----
-
-## Phase P — Reflex Layer
-
-Critical reflexes remain local, deterministic, low latency, fail-safe, auditable and separately qualified.
-
-Examples include robot proximity stop, credential exfiltration block, protected filesystem deny, critical policy deny and critical active-consequence conflict deny.
-
----
-
-## Phase Q — Continuing Authority
-
-```text
-authorize
-→ reserve/register active consequence where required
-→ begin execution
-→ continuously observe required conditions
-→ continue while valid
-→ revoke/stop/safe-state when invalid
-→ settle / release or quarantine active consequence state
-```
-
-Continuing effects expose temporal/spatial footprints when needed so Consequence Algebra can coordinate them against other active effects.
-
-### Exit criteria
-
-Long-running execution stops safely when authority-relevant reality changes.
-
----
-
-## Phase R — Autonomy Budgets
-
-Generalize permissions into measurable capacity:
-
-```text
-financial
-privacy
-authority
-irreversibility
-energy
-force
-spatial
-time
-uncertainty
-externality
-model-call
-tool-call
-```
-
-Budgets must aggregate across semantically related consequences so decomposition or route/session switching cannot evade cumulative limits.
-
----
-
-## Phase S — ROS / Robot Adapter
-
-Requirements include robot/device identity, Consequence ABI normalization, canonical physical resource identity, spatial/temporal footprint, active-conflict detection, cancellable tracking, telemetry, reflex stop, continuing authority, safe-state transition and watchdog compatibility.
-
-### Exit criteria
-
-A simulated robot can receive a CIEAV-governed action, prove completion/UNKNOWN, stop on violated continuation conditions, and prevent incompatible concurrent actions from independently receiving authority.
-
-Physical claims require separate hardware qualification.
-
----
-
-## Phase T — CIEAV Edge
-
-Edge responsibilities include device identity, local policy, authority verification, attestation evidence, privacy, local reflexes, offline envelope, signed consequence journal, active consequence/reservation summary where required and safe degradation.
-
-### Exit criteria
-
-Edge node can safely operate under network loss without obtaining new authority beyond its predelegated envelope.
-
----
-
-## Phase U — Device Trust / Onboarding
-
-Evaluate TPM 2.0, Secure Enclave, Windows TPM, FIDO Device Onboard, Matter device attestation and platform-specific providers.
-
-### Exit criteria
-
-Device identity and attestation claims are explicit, verifiable and platform-specific rather than simulated.
-
----
-
-## Phase V — Cognitive Morphogenesis
-
-```text
-experience
-→ recurring cognitive architecture
-→ candidate adapter/model/skill/agent/relation rule
-→ sandbox
-→ qualification
-→ optional promotion
-```
-
-No self-modification path bypasses deterministic qualification. Learned relation rules remain candidates until explicitly qualified and promoted.
-
----
-
-# 5. Product integrations
-
-## AI-native applications
-
-```text
-product UI/API
-→ domain service
-→ CIEAV Application Agent
-→ Context Builder
-→ Model Gateway
-→ controlled ToolProposal
-→ Consequence ABI
-→ Consequence Algebra / active checks
-→ Authority / Approval
-→ trusted adapter
-→ proof + audit
-```
-
-## Coding tools / agents
-
-```text
-coding agent
-→ MCP / CLI / local adapter
-→ CIEAV
-→ Consequence ABI / Algebra
-→ filesystem / Git / shell / Cloud
-```
-
-Different agents/routes targeting the same repository state should converge on the same canonical reality/effect rules where qualified.
-
-## General agents
-
-```text
-A2A / MCP / remote agent
-→ CIEAV adapter
-→ Consequence ABI
-→ Consequence Algebra
-```
-
-## Robots
-
-```text
-robot planner
-→ ROS 2
-→ CIEAV ROS adapter
-→ Consequence Algebra / reservation
-→ Authority / Continuing Authority
-→ actuator path
-```
-
-## Wearables / IoT
-
-```text
-device
-→ CIEAV Edge
-→ CIEAV Core when available
+CIEAV_CONSEQUENCE_FAILOVER_QUALIFICATION_V1
 ```
 
 ---
 
-# 6. Persistence architecture
+# 13. P0 — Multi-Axis Settlement
 
-Production state must not rely on process memory.
+A single `success/failure/unknown` field is insufficient for long-lived autonomous systems.
 
-Required stores:
+CIEAV must separate physical/remote truth from institutional/causal legitimacy.
+
+Target:
+
+```text
+ConsequenceSettlementV2 {
+    executionState
+    realityState
+    legitimacyState
+    evidenceState
+    recoveryState
+    observedAt?
+    legitimacyEvaluatedAt?
+    settlementDigest
+}
+```
+
+Suggested dimensions:
+
+```text
+executionState:
+  NOT_DISPATCHED | DISPATCHED | COMPLETED | INTERRUPTED
+
+realityState:
+  OBSERVED_SUCCESS | OBSERVED_FAILURE | UNKNOWN
+
+legitimacyState:
+  VALID | AUTHORITY_REVOKED | EVIDENCE_INVALIDATED |
+  TOOL_COMPROMISED | POLICY_INVALIDATED | CAUSALLY_TAINTED |
+  UNKNOWN_VALIDITY
+
+evidenceState:
+  RESERVED | AVAILABLE | VERIFIED | CONFLICTING | STALE | UNAVAILABLE
+
+recoveryState:
+  NOT_REQUIRED | REQUIRED | IN_PROGRESS | RECOVERED |
+  PARTIALLY_RECOVERED | IRREVERSIBLE | UNKNOWN
+```
+
+Critical invariant:
+
+```text
+OBSERVED_SUCCESS is never rewritten to OBSERVED_FAILURE
+merely because later legitimacy/evidence becomes invalid.
+```
+
+Reality history remains truthful while recovery obligations change.
+
+---
+
+# 14. P0 — Causal Recall and Consequence Recovery Closure
+
+A consequence can be physically successful and later become causally illegitimate because the evidence, identity, tool, policy, or predecessor that justified it is later invalidated.
+
+CIEAV must support **Causal Recall**:
+
+```text
+later invalidation event
+    ↓
+identify affected provenance/causal node
+    ↓
+traverse consequence descendants
+    ↓
+mark legitimacy/evidence state
+    ↓
+compute Recovery Closure
+    ↓
+freeze/coordinate affected future consequences
+    ↓
+propose recovery/compensation consequences
+    ↓
+run those recovery actions through normal Tool Trust + Algebra + Authority
+```
+
+Target objects:
+
+```text
+CausalRecallEvent {
+    invalidatedEvidenceRef?
+    invalidatedAuthorityRef?
+    compromisedToolRef?
+    invalidatedPolicyRef?
+    reasonClass
+    discoveredAt
+    evidenceRefs[]
+}
+```
+
+```text
+ConsequenceRecoveryClosure {
+    recallEventId
+    directlyAffectedConsequences[]
+    transitivelyAffectedConsequences[]
+    futureConsequencesToBlock[]
+    recoverableConsequences[]
+    compensableConsequences[]
+    irreversibleConsequences[]
+    proposedRecoveryPrograms[]
+    closureDigest
+    authority: false
+}
+```
+
+Recovery is never a privileged bypass. Every compensation/undo is a new governed consequence.
+
+Target report:
+
+```text
+CIEAV_CAUSAL_RECALL_QUALIFICATION_V1
+```
+
+---
+
+# 15. Data-flow and instruction-taint semantics
+
+Tool results can carry hostile instructions, sensitive data, or untrusted external content. CIEAV needs a data-flow trust model independent of prompt filtering.
+
+Required labels include:
+
+```text
+source identity
+origin trust
+observed vs model-generated
+data category
+privacy class
+instruction trust
+allowed sinks
+retention/redaction policy
+provenance chain
+```
+
+Example invariant:
+
+```text
+EXTERNAL_UNTRUSTED content
+must not independently cause
+CONFIDENTIAL / CREDENTIAL data → EXTERNAL sink
+without a separately authorized policy path.
+```
+
+Taint/provenance must survive model summarization and multi-tool hops when authority-relevant.
+
+Data disclosure, publication, access grant, and retention changes are consequences and belong in the bundle/footprint.
+
+---
+
+# 16. Browser/Desktop Commit Point Interceptor
+
+UI automation cannot treat `click(x,y)` as the consequence.
+
+Target path:
+
+```text
+UI observation
+  ↓
+application semantic state extraction
+  ↓
+commit-point detection
+  ↓
+qualified Tool Invocation / Consequence Bundle
+  ↓
+Canonical Reality + Algebra + Quarantine + Proofability + Authority
+  ↓
+release exactly the bound effectful UI transition
+  ↓
+post-state observation
+```
+
+Commit points include:
+
+```text
+Send
+Submit
+Purchase
+Transfer
+Delete
+Publish
+Share
+Grant
+Deploy
+Save/Overwrite
+Sign/Accept
+Start physical motion
+```
+
+Selectors/coordinates are execution mechanics, not consequence identity.
+
+The interceptor should allow benign navigation/observation under policy while preventing protected state transitions from bypassing CIEAV.
+
+---
+
+# 17. Adapter Qualification SDK
+
+Do not hand-qualify every integration with ad hoc logic.
+
+Build a CIEAV Adapter Qualification SDK that accepts deterministic fixtures and fault-injection scenarios and emits machine-readable evidence for:
+
+```text
+argument schema correctness
+semantic under-description attempts
+bundle completeness
+canonical alias resolution
+false equivalence
+false independence
+privacy/data-flow externalities
+duplicate/idempotency behavior
+UNKNOWN reconciliation
+quarantine closure correctness
+proof availability/freshness/evidence quorum
+route eligibility
+pre/post-commit failover safety
+recovery/compensation
+multi-axis settlement
+causal recall propagation
+manifest drift
+compiler/resolver drift
+adapter artifact drift
+runtime identity mismatch
+restart/crash behavior
+UI commit-point bypass
+```
+
+Community/vendor adapters remain `UNTRUSTED` until their exact version/profile passes the required qualification profile.
+
+Operational modes:
+
+```text
+OBSERVE_ONLY
+  discover/materialize/log; never issue execution authority
+
+SHADOW
+  evaluate what CIEAV would admit/block/reconcile without controlling execution
+
+ENFORCE
+  protected effectful execution must present valid CIEAV authority
+```
+
+Promotion to `ENFORCE` is exact-version and evidence-bound.
+
+---
+
+# 18. Consequence Algebra completion program
+
+Consequence Algebra remains the semantic coordination core after trusted materialization.
+
+Required primitives:
+
+```text
+Canonical Reality Address
+Semantic Effect Identity
+Consequence Bundle
+Consequence Footprint
+Consequence Relation Result
+Invariant Compatibility Witness
+Active Consequence Graph
+Consequence Reservation
+Reality Quarantine Closure
+Proof Plan Reservation
+Evidence Quorum Plan
+Causal Reality Fence
+Aggregation Ledger
+Consequence Authority Envelope
+Consequence Route Decision
+Consequence Failover Plan
+Multi-Axis Settlement
+Causal Recall
+Recovery Closure
+```
+
+Required production semantics:
+
+- canonical resources resolve across at least two genuinely heterogeneous execution routes;
+- semantic equivalence is independent of tool/protocol identity;
+- relation decisions are deterministic/qualified, versioned, and auditable;
+- false-equivalence and false-independence fixtures are hard gates;
+- invariant-aware composition permits safe concurrency without weakening correctness;
+- Active Consequence Graph persists in-flight/unsettled state across restart;
+- conflicts are blocked before independent authority is issued;
+- UNKNOWN creates relation-aware quarantine closure;
+- equivalent cross-route duplicates reconcile instead of blind redispatch;
+- proofability admission is enforced for configured consequence classes;
+- evidence quorum is enforceable for high-risk classes;
+- causal fences require proof-closed predecessor reality, not merely previous dispatch;
+- cumulative policy resists fragmentation across sessions, agents, tools, routes, and time windows;
+- bundle-level invariants account for secondary/conditional/privacy effects;
+- failover cannot duplicate a consequence across routes;
+- settlement preserves physical truth independently from later legitimacy changes;
+- causal recall can compute recovery closure without silently rewriting history;
+- relation/invariant/resolver/compiler rule changes replay the qualification corpus before promotion.
+
+---
+
+# 19. Authority / SQL Server production program
+
+The Reality Transaction Kernel does not replace the existing authority/HA program.
+
+Next SQL production work remains:
+
+```text
+real SQL Server listener activation
+managed candidate startup against real SQL
+schema initialization
+writer lease acquire / renew / release
+real multi-key transaction readback
+idempotent replay
+idempotency conflict rejection
+stale writer fencing
+connection-loss qualification
+DB restart qualification
+deadlock / retry exhaustion qualification
+process restart / pending-journal recovery
+backup/restore + schema migration qualification
+Always On AG listener failover
+network partition / stale-writer proof
+```
+
+Use a separate live report:
+
+```text
+CIEAV_SQLSERVER_LIVE_QUALIFICATION_V1
+```
+
+Do not make offline authority qualification depend on a live SQL listener. Do not set production/HA authority flags from mocks or offline tests.
+
+---
+
+# 20. Persistence requirements
+
+Production state must survive process restart and must not rely on model memory.
+
+Required stores include:
 
 ```text
 Identity Store
@@ -1854,398 +1123,711 @@ Receipt / Settlement Store
 Epistemic Store
 Historical Consequence Graph Store
 Active Consequence Graph Store
-Canonical Reality Address Registry
-Semantic Effect / Equivalence Registry
+Canonical Reality Registry
+Resolver Registry
+Semantic Compiler Registry
+Qualified Tool Manifest Registry
+Tool Qualification Evidence Store
+Tool Revocation / Supersession Store
+Runtime Identity / Attestation State
 Consequence Relation Registry
 Invariant Registry
 Consequence Reservation Store
+Reality Quarantine Store
 Proof Plan Reservation Store
+Evidence Quorum Store
 Consequence Aggregation Ledger
-Skill Registry
-Model Registry
-Competence Registry
+Consequence Authority Envelope Store
+Route Qualification / Route Decision Store
+Failover / Reconciliation Store
+Causal Provenance Store
+Causal Recall Store
+Recovery Closure Store
+Context / Data-flow Provenance Store
+Model / Skill / Provider Registries
 Self Model Store
-Objective / Workspace Store
-Provider Registry
+Workspace / Objective Store
 Domain Agent Registry
-Tool Registry
 Application Agent Run Store
-Context Provenance Store
 Audit Chain
 ```
 
-Persist enough trusted state to prevent restart/process failure from erasing coordination. An ambiguous dispatched consequence must not become executable again because an in-memory reservation disappeared.
-
-Do not persist provider secrets. Raw prompt/response retention requires explicit classification, encryption where needed and retention policy.
-
-General requirements: versioned schemas, migrations, crash consistency, corruption detection, backup/restore, retention and protected secret handling.
+Secrets are referenced, not persisted into semantic registries.
 
 ---
 
-# 7. Observability
+# 21. Observability requirements
 
-Required metrics include gateway/provider/model/cell/application/domain/tool health; context/privacy failures; model latency/cost; tool proposals; canonical-reality resolution failures; relation latency; `UNKNOWN_RELATION`; semantic equivalent detections; cross-route duplicate attempts suppressed; active graph size; unresolved/quarantined count; reservation contention; invariant-compatibility results; causal-fence waits; proofability rejects; fragmentation/cumulative-policy blocks; proof/settlement latency; UNKNOWN rate; authority rejections; ticket replay; credential lease failures; recovery outcomes; historical graph coverage; epistemic stale/contradiction counts; and model/skill qualification status.
+Required metrics/events include:
 
-Logs must be secret-redacted and provenance-bearing.
+```text
+tool discovery count by source
+untrusted → verified → qualified transitions
+manifest qualification failures
+manifest drift / supersession / revocation
+semantic compiler mismatch
+proposal-vs-trusted-semantic mismatch
+canonical resolution success / ambiguity / collision
+bundle effect counts / missing-effect failures
+relation latency / UNKNOWN_RELATION
+active graph size
+reservation contention
+quarantine closure size / duration
+UNKNOWN consequences
+cross-route duplicate attempts suppressed
+proof-provider availability/freshness
+proofability admission blocks
+evidence quorum availability/failure
+causal-fence waits
+fragmentation/cumulative-policy blocks
+route candidates / route disqualifications
+least-consequence route decisions
+failover attempts by boundary state
+failover blocked because predecessor UNKNOWN
+runtime identity mismatches
+adapter artifact mismatches
+ticket invalidations from tool drift
+commit-point interceptions
+reality settlement latency
+legitimacy-state changes
+causal recall events
+recovery closure size/outcome
+OBSERVED_SUCCESS / OBSERVED_FAILURE / UNKNOWN rates
+```
+
+Logs/reports must be secret-redacted and provenance-bearing.
 
 ---
 
-# 8. Security validation
+# 22. Security validation
 
-Required before final production qualification:
+The Tool Trust Kernel, Canonical Reality Resolver, Active Consequence Graph, route-selection/failover logic, settlement, and Authority Kernel are security boundaries.
 
-- threat model
-- privilege-boundary review
-- dependency/SBOM review
-- secret scanning
-- parser/protocol fuzzing
-- replay/forgery testing
-- local privilege escalation review
-- notification activation spoofing
-- MCP/A2A trust-boundary tests
-- provider sandbox / prompt-injection isolation
-- malicious tool/provider tests
-- application-agent tool escalation
-- provider credential isolation
-- cross-session/context leakage
-- remote-model privacy boundary
-- model spoofing of proof/approval/authority refs
-- Canonical Reality Address alias poisoning/collision
-- semantic effect identity spoofing
-- relation/invariant resolver manipulation
-- `UNKNOWN_RELATION` fail-closed behavior
-- cross-route duplicate bypass
-- reservation deadlock/livelock/starvation
-- ambiguous-dispatch reservation expiry
-- Active Consequence Graph tamper/crash recovery
-- Proof Plan Reservation spoof/stale provider
-- causal-fence bypass
-- fragmentation/salami-slicing policy evasion
-- agent/session/tool switching cumulative-budget bypass
-- multi-agent conflicting consequence tests
-- physical spatiotemporal conflict tests before robot qualification
-- compromised device/cell revocation
-- supply-chain/release signing review
-- independent security assessment
+Required adversarial tests include:
 
-Hostile retrieved text must not be able to forge semantic equivalence, suppress conflict, bypass invariant checks, bypass causal fences, fragment effects below thresholds, weaken approval or reinterpret UNKNOWN as success.
+```text
+tool poisoning / malicious descriptions
+post-approval metadata rug-pull
+manifest substitution
+semantic under-description
+READ claim for mutating operation
+missing secondary effects
+canonical alias poisoning
+canonical collision
+resolver downgrade
+compiler downgrade
+adapter artifact substitution
+runtime workload substitution
+schema confusion
+argument smuggling
+prompt injection from tool results
+cross-tool toxic data flow
+credential/data exfiltration
+fake proof provider
+stale proof provider
+colluding proof providers
+blind UNKNOWN retry
+idempotency-key collision
+cross-session duplicate bypass
+cross-route duplicate bypass
+fragmentation / salami slicing
+quarantine-closure bypass
+causal-fence bypass
+route-score manipulation
+unsafe failover after commit boundary
+failover provider substitution
+settlement-state rewriting
+causal-recall suppression
+recovery bypass
+UI commit-point bypass
+coordinate/selector drift in computer use
+```
+
+For protected effects, ambiguity fails closed or requires explicit reconciliation/coordination.
 
 ---
 
-# 9. Release engineering
+# 23. Production milestones
 
-A production release requires signed installers/packages as applicable, reproducible build evidence where practical, SBOM, signed release metadata, migration/upgrade/rollback/uninstall/startup/clean-machine tests, application-agent qualification, Consequence Algebra qualification, model-provider compatibility and privacy/tool-boundary negative tests.
+The following sequence supersedes broad “build more adapters” as the immediate priority.
 
-No final production claim until real signing identities and supported-platform installer tests exist.
+## M0 — Architecture and boundary lock
+
+Deliverables:
+
+- PLAN.md and ARCHITECTURE.md define the Reality Transaction Kernel;
+- Tool Trust Kernel is ingress, not the whole product;
+- discovery metadata is explicitly untrusted;
+- consequence authority, quarantine, proofability, failover, settlement, and recall are explicit target boundaries;
+- current implementation vs target remains clear.
+
+Exit:
+
+```text
+RealityTransactionArchitectureReview = PASS
+```
+
+No production authority claim.
+
+## M1 — Wire trusted tool contract into real authority path
+
+Deliverables:
+
+- `assertTrustedToolConsequenceContract()` before Algebra admission for effectful tools;
+- production mode requires trusted consequence contract;
+- authorization audit records contract digest and qualification state;
+- `issueTicket`, `inspectTicket`, `consumeTicket`, dispatch verification, and crash recovery revalidate the current contract;
+- contract drift invalidates execution eligibility;
+- legacy effectful tools remain explicitly unqualified.
+
+Tests:
+
+```text
+agent claims READ for destructive tool → reject
+route target != semantic target → reject
+target outside qualified namespace → reject
+required semantic attribute missing → reject
+contract removed after authorization → reject
+contract changed after authorization → reject
+contract changed during crash/recovery window → reject
+non-consequence tool attempts mutation → reject
+```
+
+Exit:
+
+```text
+TrustedToolAuthorizationBindingQualification = PASS
+```
+
+## M2 — ConsequenceBundleV1
+
+Deliverables:
+
+- multi-effect bundle contracts;
+- one-effect compatibility bridge;
+- bundle digest in audit/authority context;
+- dependency/atomicity/privacy/recovery edges;
+- Algebra admission over bundle members and bundle invariants.
+
+Qualification fixtures:
+
+```text
+purchase
+send/accept legal communication
+cloud deployment
+file overwrite + external share
+account permission grant
+robot motion + spatial occupancy
+```
+
+Exit:
+
+```text
+ConsequenceBundleQualification = PASS
+```
+
+## M3 — Canonical Reality Resolver Registry
+
+Deliverables:
+
+- resolver registry and version/digest semantics;
+- ambiguity model;
+- evidence-backed aliases;
+- resolver qualification fixtures;
+- protected ambiguity fail closed.
+
+First heterogeneous targets:
+
+```text
+Git CLI ↔ GitHub/HTTP representation
+browser/SaaS UI ↔ HTTP/API object
+filesystem path ↔ desktop/file URI
+```
+
+Exit:
+
+```text
+CanonicalRealityResolverQualification = PASS
+```
+
+At least two route pairs must use genuinely different route-native identifiers.
+
+## M4 — Production Active Consequence Graph enforcement
+
+Deliverables:
+
+- transactional enough admission against current active graph;
+- persistent relation edges/reservations;
+- duplicate/conflict/require/aggregate enforcement before authority;
+- restart-safe unsettled state;
+- rule-version binding.
+
+Exit:
+
+```text
+ActiveConsequenceGraphQualification = PASS
+```
+
+## M5 — Reality Quarantine Closure
+
+Deliverables:
+
+- graph closure from UNKNOWN/unsettled/invalidated source;
+- relation-aware BLOCK/WAIT/RECONCILE/ALLOW classification;
+- restart persistence;
+- closure recomputation after evidence changes;
+- no unnecessary global freeze of independent consequences.
+
+Hard fixture:
+
+```text
+UNKNOWN payment
+→ equivalent route blocked
+→ invoice-paid transition waits
+→ payment-complete communication waits
+→ unrelated utility payment remains admissible
+```
+
+Exit:
+
+```text
+CIEAV_REALITY_QUARANTINE_QUALIFICATION_V1 = PASS
+```
+
+## M6 — Proofability Reservation + Evidence Quorum
+
+Deliverables:
+
+- explicit proof contract per protected operation;
+- proof-provider identity/health/freshness binding;
+- proof plan reserved before authority;
+- optional evidence quorum for high-risk consequence classes;
+- success/failure/UNKNOWN claim definitions;
+- duplicate/retry state machine;
+- negative-proof capability where supported.
+
+Hard gate:
+
+```text
+UNKNOWN non-idempotent operation can never blind retry.
+```
+
+Exit:
+
+```text
+CIEAV_PROOFABILITY_QUALIFICATION_V1 = PASS
+```
+
+## M7 — Consequence authority envelope + semantic supply-chain binding
+
+Deliverables:
+
+```text
+toolManifestDigest
+semanticCompilerDigest
+bundleCompilerDigest
+canonicalResolverDigest
+adapterArtifactDigest
+runtimeIdentityDigest where required
+proofContractDigest
+recoveryContractDigest
+reservationDigest
+quarantineSnapshotDigest
+```
+
+bound into the exact consequence authority context.
+
+A route can only realize the consequence permitted by the envelope.
+
+Exit:
+
+```text
+ConsequenceAuthorityEnvelopeQualification = PASS
+```
+
+## M8 — Least-Consequence Routing + Consequence-Preserving Failover
+
+Deliverables:
+
+- qualified equivalent-route registry;
+- deterministic hard eligibility constraints;
+- route risk/proof/idempotency/privacy/recovery scoring;
+- failover state machine aware of route commit boundaries;
+- no alternate route while equivalent predecessor is UNKNOWN;
+- fresh authority after qualified negative proof where required.
+
+Fault fixtures:
+
+```text
+route fails before commit boundary → safe alternate route
+route times out after possible commit → quarantine + reconcile
+route succeeds but response is lost → no duplicate through alternate route
+route artifact changes → route becomes ineligible
+```
+
+Exit:
+
+```text
+CIEAV_CONSEQUENCE_FAILOVER_QUALIFICATION_V1 = PASS
+```
+
+## M9 — Multi-Axis Settlement
+
+Deliverables:
+
+- execution, reality, legitimacy, evidence, and recovery dimensions;
+- migration/compatibility from existing receipt states;
+- physical success cannot be rewritten because legitimacy later changes;
+- audit/replay semantics.
+
+Exit:
+
+```text
+MultiAxisSettlementQualification = PASS
+```
+
+## M10 — Causal Recall + Recovery Closure
+
+Deliverables:
+
+- causal provenance graph linked to consequences;
+- invalidation events for evidence/authority/tool/policy;
+- descendant legitimacy propagation;
+- recovery closure computation;
+- affected future consequences quarantined/blocked;
+- compensation/undo re-enter normal consequence path.
+
+Hard fixture:
+
+```text
+external instruction causes account change
+→ payment succeeds
+→ source later proven compromised
+→ payment remains OBSERVED_SUCCESS
+→ legitimacy becomes CAUSALLY_TAINTED
+→ dependent accounting/communications identified
+→ recovery closure generated
+```
+
+Exit:
+
+```text
+CIEAV_CAUSAL_RECALL_QUALIFICATION_V1 = PASS
+```
+
+## M11 — Cross-tool data-flow / taint / privacy
+
+Deliverables:
+
+- source trust and data-category labels;
+- provenance propagation across model/tool hops;
+- privacy externalities emitted into bundles/footprints;
+- sink policy;
+- untrusted-instruction boundary.
+
+Hard fixtures:
+
+```text
+malicious email → CRM → external send
+malicious web page → filesystem/cloud secret read
+untrusted MCP result → credential/tool escalation
+```
+
+Exit:
+
+```text
+CrossToolDataFlowQualification = PASS
+```
+
+## M12 — Browser/Desktop Commit Point Interceptor
+
+Deliverables:
+
+- semantic commit-point detector boundary;
+- protected UI transition pauses before effect;
+- proposal materialized from current UI/app state;
+- consequence authority releases only the bound transition;
+- post-transition proof hooks.
+
+Reference scenarios:
+
+```text
+email Send
+file Save/Overwrite/Delete
+purchase/checkout
+permission/share dialog
+```
+
+Exit:
+
+```text
+ComputerUseCommitPointQualification = PASS
+```
+
+## M13 — Adapter Qualification SDK
+
+Deliverables:
+
+- fixture format;
+- fault-injection runner;
+- risk profiles;
+- qualification reports;
+- regression corpus;
+- adapter promotion/revocation workflow;
+- qualification support for quarantine/failover/settlement/recall semantics.
+
+Exit:
+
+```text
+CIEAV_TOOL_ADAPTER_QUALIFICATION_V1 = PASS
+```
+
+for reference adapters.
+
+## M14 — First real heterogeneous Reality Transaction benchmark
+
+Demonstrate one consequence reachable through at least two genuinely different routes.
+
+Required proof:
+
+```text
+same canonical reality
+equivalent/conflicting relation as expected
+one active reservation domain
+cross-route duplicate suppression
+UNKNOWN fault injection
+reality quarantine closure
+proof settlement
+safe pre-commit route failover
+blocked post-commit UNKNOWN failover
+restart persistence
+multi-axis settlement
+```
+
+Recommended first domain: Git or filesystem/browser-backed SaaS for deterministic identity/proof, followed by a sandbox payment-like domain for high-risk UNKNOWN/failover tests.
+
+Exit:
+
+```text
+HeterogeneousRealityTransactionQualification = PASS
+```
+
+## M15 — Dedicated release gates
+
+Add/upgrade:
+
+```text
+CIEAV_TOOL_LAYER_QUALIFICATION_V1
+CIEAV_CANONICAL_REALITY_QUALIFICATION_V1
+CIEAV_CONSEQUENCE_ALGEBRA_QUALIFICATION_V1
+CIEAV_REALITY_QUARANTINE_QUALIFICATION_V1
+CIEAV_PROOFABILITY_QUALIFICATION_V1
+CIEAV_CONSEQUENCE_FAILOVER_QUALIFICATION_V1
+CIEAV_MULTI_AXIS_SETTLEMENT_QUALIFICATION_V1
+CIEAV_CAUSAL_RECALL_QUALIFICATION_V1
+CIEAV_COMPUTER_USE_COMMIT_POINT_QUALIFICATION_V1
+CIEAV_DATA_FLOW_QUALIFICATION_V1
+```
+
+Reports bind exact git commit and exact manifest/resolver/compiler/rule/fixture digests.
+
+Release tooling must refuse production claims without the reports required by the enabled feature profile.
+
+## M16 — Live SQL authority qualification
+
+Continue the separate SQL production program:
+
+- real listener;
+- managed candidate startup;
+- lease/fencing/fault tests;
+- restart/recovery;
+- backup/migration;
+- AG failover;
+- partition qualification.
+
+Authority/HA flags remain false until external evidence.
+
+## M17 — Scale application coverage
+
+Only after the semantic/coordination/authority substrate is qualified, scale integrations through:
+
+```text
+native CIEAV adapters
+MCP/A2A
+OpenAPI
+external connector platforms
+browser/computer use
+desktop/native OS
+enterprise automation platforms
+cloud APIs
+databases/filesystems
+ROS2/MQTT/edge
+```
+
+The product metric is not “N tools connected.” The production metric is:
+
+```text
+% of protected operations with
+qualified manifest
++ trusted consequence bundle
++ canonical reality identity
++ active-graph relation coverage
++ quarantine behavior
++ proofability/reconciliation
++ route/failover qualification
++ recovery classification
++ multi-axis settlement
++ enforceable authority binding
+```
 
 ---
 
-# 10. Qualification matrix
+# 24. Definition of Done
 
-## Deterministic local qualification
+A subsystem is not done because types, mocks, demos, static tokens, or one successful tool call exist.
 
-```text
-unit
-integration
-typecheck
-static invariants
-negative/fail-closed tests
-crash/restart
-storage tamper
-protocol misuse
-replay
-migration
-```
+## Production-qualified tool operation
 
-## Application-agent / tool-layer qualification
-
-Must include provider identity/health, privacy compatibility, context provenance/minimization/isolation, structured output validation, tool/operation/schema enforcement, read permission, effect→Consequence ABI, approval binding, credential isolation, timeout/budget behavior, prompt-injection escalation, fake proof/approval rejection, UNKNOWN recovery and audit correlation.
-
-## Consequence Algebra qualification
-
-Must include:
+An effectful operation is production-qualified only when:
 
 ```text
-canonical identity across heterogeneous routes
-alias ambiguity rejection
-semantic effect equivalence / non-equivalence
-multi-dimensional footprint derivation
-relation determinism / versioning
-state-dependent commutativity
-conflict / dependency / invalidation
-Invariant Compatibility Witness correctness
-Active Consequence Graph crash recovery
-reservation compatibility / expiry / restart
-unsettled barriers
-cross-route semantic idempotency
-proofability admission
-causal reality fences
-cumulative / anti-fragmentation policy
-physical/spatiotemporal conflict simulation
-relation-result tamper detection
-model inability to authorize relation/invariant decisions
+exact tool/application/provider identity is known
+external discovery metadata is separated from trusted manifest
+arguments are schema validated
+trusted semantic/bundle compiler is qualified
+canonical resolver is qualified or ambiguity is explicit
+all material consequences are represented sufficiently for policy
+privacy/data-flow externalities are represented
+manifest/compiler/resolver/artifact/runtime digests are authority-bound where required
+duplicate/idempotency behavior is explicit
+proofability/reconciliation path is available where required
+high-risk evidence quorum is satisfiable where configured
+recovery/reversibility is classified
+UNKNOWN is preserved and relation-aware quarantine is enforced
+route failover cannot duplicate the consequence
+settlement preserves physical truth separately from legitimacy
+negative/fault tests pass
+observability/audit correlation is complete
+machine-readable qualification evidence exists
 ```
 
-Hard gates:
+## Reality Transaction Kernel Done
+
+Requires:
 
 ```text
-critical false-equivalence
-critical false-independence / missed conflict
-protected cross-route duplicate materializes
-UNKNOWN_RELATION silently becomes independent
-ambiguous dispatched consequence loses barrier after restart
-invariant-unsafe parallelism is admitted
-causal fence opens without required proof
-fragmentation bypasses cumulative policy
-model output becomes trusted relation/invariant result without qualification
+genuine heterogeneous canonicalization
+semantic equivalence independent of route
+false-equivalence hard gates
+false-independence/missed-conflict hard gates
+persistent active consequence state
+relation-aware uncertainty quarantine
+cross-route duplicate reconciliation
+invariant-safe concurrency
+proofability admission / evidence quorum where configured
+proof-closed causal fences
+anti-fragmentation across sessions/agents/routes
+bundle-aware composition
+consequence-bound authority envelope
+safe route selection
+consequence-preserving failover
+multi-axis settlement
+causal recall + recovery closure
+crash/restart/tamper qualification
 ```
 
-Any protected hard-gate violation → `FAIL`.
+## Authority Done
 
-## Model qualification
-
-Must include held-out tasks, false-success, UNKNOWN calibration, authority efficiency, proof/recovery quality, duplicate-effect rate, semantic-effect/relation reasoning as advisory intelligence, policy violations, privacy compliance, cost and latency.
-
-## Hardware / robot / edge qualification
-
-Hardware-backed claims require physical runners. Robot qualification proceeds simulation → hardware-in-loop → constrained physical tests and includes concurrent/conflicting action tests. Edge qualification includes battery/network-loss/offline/fault tests on real devices.
+Requires real production backend/fault/HA evidence for claims that depend on external infrastructure. Offline atomicity qualification is not HA qualification.
 
 ---
 
-# 11. GitHub engineering workflow
+# 25. Immediate execution order
+
+The engineering order is now:
 
 ```text
-issue
-→ implementation
-→ tests
-→ static invariant
-→ local qualification evidence
-→ pull request
-→ code review
-→ security review when boundary-changing
-→ merge only after explicit approval
+1.  wire TrustedToolConsequenceContract into Execution Fabric authorization
+2.  bind trusted contract digest into authorization/audit and revalidate through ticket + crash-recovery lifecycle
+3.  add contract-drift invalidation tests
+4.  introduce ConsequenceBundleV1 + one-effect compatibility bridge
+5.  build Canonical Reality Resolver Registry
+6.  add genuine heterogeneous canonicalization fixtures
+7.  harden Active Consequence Graph as authority-relevant coordination state
+8.  implement Reality Quarantine Closure
+9.  implement proofability reservation + evidence quorum contracts
+10. introduce Consequence Authority Envelope
+11. bind compiler/resolver/adapter/runtime/proof/recovery identity into authority
+12. implement Least-Consequence Routing
+13. implement Consequence-Preserving Failover
+14. introduce Multi-Axis Settlement
+15. implement Causal Recall + Recovery Closure
+16. implement cross-tool data-flow / instruction-taint semantics
+17. implement browser/desktop Commit Point Interceptor
+18. build Adapter Qualification SDK + fault corpus
+19. add machine-readable Tool/Reality/Algebra/Quarantine/Proof/Failover/Settlement/Recall release gates
+20. run first real heterogeneous end-to-end Reality Transaction benchmark
+21. continue live SQL Server authority/fault/HA qualification separately
+22. only then scale broad application/tool adapter coverage
+23. continue native approval / Epistemic / historical graph / Cortex / model / skill / edge programs
 ```
 
-Issues must identify problem, trust boundary, runtime contract, failure semantics, acceptance criteria, tests and external blockers.
-
-Changes to Application Agent, Model Gateway, Tool Registry, Consequence ABI, Consequence Algebra, Canonical Reality resolver, relation/invariant rules, Active Consequence Graph, Authority Kernel, trusted adapters, proof semantics or credential boundary are security-boundary changes.
-
-Relation/invariant rule changes require regression replay over qualification fixtures because additional concurrency may introduce false-independence risk.
-
-No issue is complete merely because a scaffold/interface exists.
+Do not start with a learned relation/semantic model as authority. Learned components may propose aliases, bundles, effects, relations, routes, or recovery plans, but deterministic/qualified logic establishes the authority-relevant result.
 
 ---
 
-# 12. Definition of Done
+# 26. Long-term target
 
-A subsystem is not done when only types, placeholders, mocks, documentation, demos or one successful model/tool call exist.
-
-Done requires runtime implementation, real data, failure handling, persistence where needed, negative tests, enforced security boundaries, observability, migration/upgrade behavior and qualification evidence.
-
-For application-agent/domain integrations, Done also requires authoritative source-of-truth identification, context provenance/privacy, replaceable provider, zero model authority, explicit tool surface, read permission, effectful Consequence ABI crossing, bound approval where required, trusted execution, SUCCESS/FAILURE/UNKNOWN proof and complete audit correlation.
-
-For Consequence Algebra integrations, Done additionally requires:
-
-```text
-canonical resources or explicit ambiguity
-materialized footprint
-versioned semantic effect identity
-deterministic / qualified relations
-declared invariants and compatibility semantics where relevant
-persistent active state
-fail-closed equivalence/conflict/unknown behavior
-reservation/barrier behavior
-proofability behavior for protected effects
-causal fences for dependent effects
-cumulative policy resistant to session/route switching
-false-equivalence / false-independence / invariant-negative qualification
-```
-
-External claims additionally require real external evidence.
-
----
-
-# 13. Immediate execution order
-
-```text
-1. native actionable approval
-2. production-grade Epistemic Store/indexing
-3. production-grade historical Consequence Graph Store/indexing
-4. complete Cognitive Cell registry/health/competence runtime
-5. complete Self Model runtime
-6. complete Global Intelligence Workspace
-7. Cortex runtime over registered cells
-8. Application Model Gateway registry + provider-neutral runtime
-9. OpenAI-compatible / Anthropic-compatible / local / qualified-CIEAV provider adapters
-10. Context Builder Registry + provenance/privacy enforcement
-11. Domain Agent Registry
-12. typed Tool Registry
-13. read-only tool execution boundary
-14. ToolProposal → Consequence ABI bridge
-15. Canonical Reality Address registry + qualified resolver foundation
-16. Semantic Effect Identity + Consequence Footprint contracts
-17. deterministic Consequence Relation Resolver
-18. invariant registry + Invariant Compatibility Witness
-19. persistent Active Consequence Graph
-20. Consequence Reservations + generalized Unsettled Consequence Barrier
-21. Proof Provider implementations / capability-health contracts
-22. Proofability Admission + Proof Plan Reservations
-23. Causal Reality Fences + cross-route semantic idempotency
-24. cumulative consequence / anti-fragmentation policy
-25. Application Agent API + propose-and-approve workflow
-26. application-agent + consequence-algebra audit/telemetry
-27. full authority-grade Authorized Outcome Trajectory
-28. MCP/A2A universal Consequence ABI adapters
-29. Intelligence Metabolism pipeline
-30. CIEAV model-family training environments
-31. Verified Skill compiler + deterministic qualification
-32. Reflex Layer
-33. Continuing Authority
-34. Autonomy Budgets
-35. ROS 2 adapter + physical consequence footprints
-36. CIEAV Edge runtime
-37. device onboarding/attestation integrations
-38. installer/release/security qualification
-```
-
-### Application-agent dependency order
-
-```text
-contracts
-→ provider registry
-→ privacy checks
-→ context builders
-→ domain agents
-→ tool registry
-→ structured proposals
-→ read-only runtime
-→ Consequence ABI bridge
-→ approval bridge
-→ trusted execution
-→ proof/settlement correlation
-→ telemetry/audit
-→ provider adapters
-→ domain reference workflows
-→ qualification
-```
-
-### Consequence Algebra dependency order
-
-```text
-Canonical Reality Address
-→ evidence-backed alias resolver
-→ Semantic Effect Identity
-→ Consequence Footprint
-→ relation enums / versioned relation result
-→ deterministic relation rules
-→ invariant registry / compatibility witnesses
-→ held-out relation/invariant fixtures
-→ persistent Active Consequence Graph
-→ semantic reservations
-→ unsettled barriers
-→ cross-route semantic idempotency
-→ proofability admission
-→ Proof Plan Reservation
-→ Causal Reality Fence
-→ cumulative aggregation ledger
-→ anti-fragmentation policy
-→ multi-agent / crash / race qualification
-→ physical spatiotemporal extensions
-```
-
-Do not start with a learned relation model. Establish deterministic semantics and a held-out qualification corpus first.
-
-Each phase must preserve the constitutional authority boundary.
-
----
-
-# 14. Long-term target
-
-The finished CIEAV experience should allow a user or organization to provide an objective while CIEAV dynamically assembles intelligence and embodiment:
+A mature CIEAV should allow arbitrary intelligence and arbitrary software to participate without giving either one authority to define reality:
 
 ```text
 objective
-→ select domain/application agent when appropriate
-→ choose/compose cognition
-→ retrieve permission-bounded live context
-→ inspect live reality / memory / simulation
-→ select model/provider under privacy/cost/latency constraints
-→ choose controlled tools / Verified Skills
-→ produce answer or zero-authority proposal
-→ normalize effectful proposals into consequences
-→ resolve canonical reality identity
-→ materialize semantic effect + multi-dimensional footprint
-→ compare against active consequences
-→ evaluate equivalence / conflict / causality / invariants / aggregation
-→ reserve consequence footprint where required
-→ establish proofability / causal fences where required
-→ acquire minimum delegated authority
-→ obtain human approval when required
-→ commit exact action
-→ execute through trusted software/device/robot adapter
-→ continuously validate required conditions
-→ prove what happened
-→ release reservation or quarantine unresolved consequence
-→ recover/reconcile when needed
-→ update memory/world knowledge/skills/models
+→ choose cognition
+→ retrieve permission-bounded reality/context
+→ discover/select candidate capabilities
+→ treat external tool metadata as untrusted
+→ select exact qualified tool manifest
+→ validate exact arguments
+→ compile complete consequence bundle
+→ resolve canonical reality across routes
+→ compare with active/history consequence state
+→ evaluate equivalence/conflict/causality/invariants/aggregation
+→ compute relation-aware quarantine around unsettled state
+→ reserve effects + proofability/evidence quorum + causal fences
+→ mint minimum consequence-bound local authority
+→ choose least-consequence qualified route
+→ bind exact manifest/compiler/resolver/adapter/runtime identity
+→ issue one-use execution authority
+→ execute through qualified adapter
+→ fail over only when consequence-preserving state permits
+→ independently observe reality
+→ settle reality + legitimacy + evidence + recovery dimensions
+→ perform causal recall when later invalidation occurs
+→ recover/reconcile through new governed consequences
+→ update provenance-bearing audit/memory/learning
 ```
 
-while always preserving:
+while preserving:
 
 ```text
 MODEL AUTHORITY = 0
 AGENT AUTHORITY = 0
 APPLICATION AGENT AUTHORITY = 0
 MODEL PROVIDER AUTHORITY = 0
+TOOL DESCRIPTION AUTHORITY = 0
 TOOL PROPOSAL AUTHORITY = 0
-CONSEQUENCE RELATION MODEL AUTHORITY = 0
+TOOL MANIFEST AUTHORITY = 0
+ROUTE DECISION AUTHORITY = 0
+CONSEQUENCE ALGEBRA AUTHORITY = 0
+QUARANTINE COMPUTATION AUTHORITY = 0
+PROOF PROVIDER AUTHORITY = 0
 LEARNING AUTHORITY = 0
 ```
 
-The long-term architecture is not:
+The defining direction is:
 
-```text
-LLM + prompt + direct database/tool credentials
-```
+> **CIEAV changes the unit of autonomous execution from a tool call to a globally coordinated real-world consequence.**
 
-It is:
+And the production thesis is:
 
-```text
-LIVE REALITY
-      ↓
-DETERMINISTIC DOMAIN / SYSTEM SERVICES
-      ↓
-PERMISSION-BOUND CONTEXT
-      ↓
-CIEAV APPLICATION AGENT / CORTEX
-      ↓
-MODEL GATEWAY
-      ↓
-REASONING + CONTROLLED TOOL PROPOSALS
-      ↓
-CONSEQUENCE ABI / MATERIALIZATION
-      ↓
-CANONICAL REALITY + SEMANTIC EFFECT IDENTITY
-      ↓
-CONSEQUENCE ALGEBRA
-  equivalence · conflict · causality · invariants · aggregation
-      ↓
-ACTIVE CONSEQUENCE GRAPH
-  reservation · barrier · proofability · causal fence
-      ↓
-CONSEQUENCE / AUTHORITY / APPROVAL
-      ↓
-TRUSTED EXECUTION
-      ↓
-PROOF / SETTLEMENT / AUDIT
-      ↓
-VERIFIED LEARNING
-```
-
-The defining research direction is:
-
-> **CIEAV coordinates autonomous systems by the real-world consequences they can create, not merely by the tool calls they issue.**
-
-A mature CIEAV should recognize when different agents using different protocols attempt the same consequence, when separate-looking actions conflict or aggregate into one dangerous outcome, when independent effects may safely proceed without unnecessary serialization, and when dependent actions must wait for proof of reality rather than trust prior tool responses.
-
-That is the production target for CIEAV.
+> **CIEAV is a Reality Transaction Kernel that canonicalizes real-world consequences across heterogeneous execution routes, coordinates equivalent/conflicting/dependent/unresolved effects before commitment, grants minimum local authority to the consequence rather than the model, preserves exactly-once semantics across route failure where provable, and maintains truthful settlement even when causal legitimacy changes later.**
