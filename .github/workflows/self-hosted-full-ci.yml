@@ -49,10 +49,16 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: Use runner system Python
+        shell: bash
+        run: |
+          set -euxo pipefail
+          PYTHON_BIN="$(command -v python3 || command -v python)"
+          "$PYTHON_BIN" --version
+          "$PYTHON_BIN" -m pip --version
+          mkdir -p "$RUNNER_TEMP/cieav-bin"
+          ln -sf "$PYTHON_BIN" "$RUNNER_TEMP/cieav-bin/python"
+          echo "$RUNNER_TEMP/cieav-bin" >> "$GITHUB_PATH"
 
       - name: Install Node dependencies
         run: npm ci
