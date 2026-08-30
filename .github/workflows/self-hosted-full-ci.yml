@@ -93,6 +93,9 @@ jobs:
       - name: M13 adapter qualification SDK
         run: npx vitest run packages/core/src/adapter-qualification.test.ts
 
+      - name: M14 heterogeneous Reality Transaction benchmark
+        run: npx vitest run apps/api/src/reality-transaction-benchmark.test.ts
+
       - name: Agent Kernel qualification tests
         run: npm run test:agent-kernel
 
