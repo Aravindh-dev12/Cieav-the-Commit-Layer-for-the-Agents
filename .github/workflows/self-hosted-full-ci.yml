@@ -90,6 +90,9 @@ jobs:
       - name: M12 browser commit-point qualification
         run: node scripts/browser-commit-point-e2e.mjs
 
+      - name: M13 adapter qualification SDK
+        run: npx vitest run packages/core/src/adapter-qualification.test.ts
+
       - name: Agent Kernel qualification tests
         run: npm run test:agent-kernel
 
