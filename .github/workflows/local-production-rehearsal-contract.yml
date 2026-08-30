@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feat/local-production-rehearsal
+      - feat/trusted-tool-consequence-contract
   pull_request:
 
 permissions:
@@ -14,9 +15,14 @@ concurrency:
 
 jobs:
   fail-closed-contract:
-    runs-on: ubuntu-latest
+    name: local-rehearsal-contract-linux-x64-self-hosted
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
           node-version: 22
