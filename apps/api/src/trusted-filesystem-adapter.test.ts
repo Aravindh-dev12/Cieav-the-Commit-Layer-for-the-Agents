@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import {mkdtemp,readFile,symlink,writeFile} from "node:fs/promises";
+import {mkdir,mkdtemp,readFile,symlink,writeFile} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {describe,expect,it} from "vitest";
@@ -13,6 +13,6 @@ describe("TrustedFilesystemAdapter",()=>{
   it("rejects stale pre-state without mutating the file",async()=>{const{root,target}=await fixture(),cfg=config(root,target),adapter=new TrustedFilesystemAdapter([cfg]),result=await adapter.execute(context(cfg,{expectedCurrentSha256:sha("different"),contentBase64:Buffer.from("after").toString("base64")}));expect(result.transport).toBe("REJECTED");expect(await readFile(target,"utf8")).toBe("before")});
   it("supports explicit ABSENT pre-state for fixed-target creation",async()=>{const root=await mkdtemp(path.join(os.tmpdir(),"cieav-fs-")),target=path.join(root,"new.txt"),cfg=config(root,target),adapter=new TrustedFilesystemAdapter([cfg]),result=await adapter.execute(context(cfg,{expectedCurrentSha256:"ABSENT",contentBase64:Buffer.from("created").toString("base64")}));expect(result.transport).toBe("ACCEPTED");expect(await readFile(target,"utf8")).toBe("created")});
   it("deletes only the fixed target with exact current digest",async()=>{const{root,target}=await fixture(),cfg=config(root,target,"DELETE_FILE"),adapter=new TrustedFilesystemAdapter([cfg]),result=await adapter.execute(context(cfg,{expectedCurrentSha256:sha("before")}));expect(result.transport).toBe("ACCEPTED");await expect(readFile(target)).rejects.toMatchObject({code:"ENOENT"})});
-  it("rejects symlink targets at trusted configuration load",async()=>{const{root,target}=await fixture(),link=path.join(root,"link.txt");await symlink(target,link);expect(()=>new TrustedFilesystemAdapter([config(root,link)])).toThrow("execution_filesystem_symlink_target_forbidden")});
+  it("rejects symlink targets at trusted configuration load",async()=>{const{root,target}=await fixture();if(process.platform==="win32"){const actual=path.join(root,"actual"),link=path.join(root,"link");await mkdir(actual);await writeFile(path.join(actual,"item.txt"),"before");await symlink(actual,link,"junction");expect(()=>new TrustedFilesystemAdapter([config(root,path.join(link,"item.txt"))])).toThrow("execution_filesystem_symlink_target_forbidden");return}const link=path.join(root,"link.txt");await symlink(target,link);expect(()=>new TrustedFilesystemAdapter([config(root,link)])).toThrow("execution_filesystem_symlink_target_forbidden")});
   it("refuses continuing filesystem operations without checkpoint/cancellation semantics",async()=>{const{root,target}=await fixture(),cfg=config(root,target),adapter=new TrustedFilesystemAdapter([cfg]),ctx=context(cfg,{expectedCurrentSha256:sha("before"),contentBase64:""});ctx.tool.executionMode="CONTINUING";expect(()=>adapter.preflight(ctx)).toThrow("execution_filesystem_continuing_not_supported")});
 });

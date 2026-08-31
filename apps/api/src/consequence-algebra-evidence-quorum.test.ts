@@ -25,8 +25,8 @@ function proposal(overrides:Partial<ExecutionProposal>={}):ExecutionProposal{ret
   expectedPostStateDigest:h("d"),proofObligationDigest:h("e"),attenuationWitnessIds:[],createdAt:new Date().toISOString(),...overrides
 };}
 
-function provider(ref:string,domain:string,evidenceClasses:string[],digestChar:string,overrides:Partial<EvidenceProviderBinding>={}):EvidenceProviderBinding{return{
-  version:"CIEAV_EVIDENCE_PROVIDER_BINDING_V1",ref,enabled:true,versionDigest:h(digestChar),independenceDomain:domain,evidenceClasses,sourceClass:"REMOTE_API",health:"AVAILABLE",evidenceRefs:[`qualification:${ref}`],authority:false,mayMintExecutionAuthority:false,...overrides
+function provider(ref:string,domain:string,evidenceClasses:string|string[],digestChar:string,overrides:Partial<EvidenceProviderBinding>={}):EvidenceProviderBinding{return{
+  version:"CIEAV_EVIDENCE_PROVIDER_BINDING_V1",ref,enabled:true,versionDigest:h(digestChar),independenceDomain:domain,evidenceClasses:Array.isArray(evidenceClasses)?evidenceClasses:[evidenceClasses],sourceClass:"REMOTE_API",health:"AVAILABLE",evidenceRefs:[`qualification:${ref}`],authority:false,mayMintExecutionAuthority:false,...overrides
 };}
 
 function requirement(id=crypto.randomUUID(),overrides:Partial<EvidenceQuorumRequirement>={}):EvidenceQuorumRequirement{return{

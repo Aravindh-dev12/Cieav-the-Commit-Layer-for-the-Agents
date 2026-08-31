@@ -6,6 +6,10 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from _repo_python import bootstrap_repo_pythonpath
+
+bootstrap_repo_pythonpath()
+
 from latch_platform.config import Settings
 from latch_platform.secret_store import SecretStore, SecretStoreError, _Backend
 

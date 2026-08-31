@@ -95,7 +95,7 @@ export class CieavCausalRecallStore{
   listLinks(){return this.enqueue(async()=>{await this.load();this.verifyAll();return this.payload.links.slice().reverse()})}
   listEvents(){return this.enqueue(async()=>{await this.load();this.verifyAll();return this.payload.events.slice().reverse()})}
   listClosures(){return this.enqueue(async()=>{await this.load();this.verifyAll();return this.payload.closures.slice().reverse()})}
-  getClosure(recallEventRef:string){return this.enqueue(async()=>{await this.load();this.verifyAll();return this.payload.closures.findLast(value=>value.recallEventRef===recallEventRef)??null})}
+  getClosure(recallEventRef:string){return this.enqueue(async()=>{await this.load();this.verifyAll();const closures=this.payload.closures.filter(value=>value.recallEventRef===recallEventRef);return closures.length?closures[closures.length-1]??null:null})}
 
   recordRecall(rawEvent:unknown,rawSettlements:unknown[]=[],rawCapabilities:unknown[]=[],at=new Date()){return this.enqueue(async()=>{
     await this.load();const event=CausalRecallEventSchema.parse(rawEvent);this.verifyEvent(event);

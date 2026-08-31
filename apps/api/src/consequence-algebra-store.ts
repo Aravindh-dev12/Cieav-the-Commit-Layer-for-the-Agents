@@ -36,9 +36,9 @@ import {assertEvidenceQuorumPlanValid,selectEvidenceQuorumRequirement} from "@ci
 import {closeRealityQuarantineClosure,computeRealityQuarantineClosure,verifyRealityQuarantineClosureDigest} from "@cieav/core/reality-quarantine";
 
 const canonical=(value:unknown):string=>Array.isArray(value)
-  ?`[${value.map(canonical).join(",")}]`
+  ?`[${value.map(item=>item===undefined?"null":canonical(item)).join(",")}]`
   :value&&typeof value==="object"
-    ?`{${Object.keys(value as Record<string,unknown>).sort().map(k=>`${JSON.stringify(k)}:${canonical((value as Record<string,unknown>)[k])}`).join(",")}}`
+    ?`{${Object.keys(value as Record<string,unknown>).filter(k=>(value as Record<string,unknown>)[k]!==undefined).sort().map(k=>`${JSON.stringify(k)}:${canonical((value as Record<string,unknown>)[k])}`).join(",")}}`
     :JSON.stringify(value)??"undefined";
 
 async function durableReplace(file:string,contents:string){
@@ -224,7 +224,7 @@ export class CieavConsequenceAlgebraStore{
   listFences(){return this.enqueue(async()=>{await this.load();return this.payload.fences.slice().reverse()})}
   listAggregation(){return this.enqueue(async()=>{await this.load();return this.payload.aggregation.slice().reverse()})}
   listQuarantineClosures(){return this.enqueue(async()=>{await this.load();this.verifyClosures(this.payload.quarantineClosures);return this.payload.quarantineClosures.slice().reverse()})}
-  getQuarantineClosure(sourceConsequenceRef:string){return this.enqueue(async()=>{await this.load();this.verifyClosures(this.payload.quarantineClosures);return this.payload.quarantineClosures.findLast(closure=>closure.sourceConsequenceRef===sourceConsequenceRef)??null})}
+  getQuarantineClosure(sourceConsequenceRef:string){return this.enqueue(async()=>{await this.load();this.verifyClosures(this.payload.quarantineClosures);const closures=this.payload.quarantineClosures.filter(closure=>closure.sourceConsequenceRef===sourceConsequenceRef);return closures.length?closures[closures.length-1]??null:null})}
   listAudit(){return this.enqueue(async()=>{await this.load();this.verifyAudit(this.payload.audit);return this.payload.audit.slice().reverse()})}
   stats(){return this.enqueue(async()=>{await this.load();return{policyEnabled:this.payload.policy.enabled,nodes:this.payload.nodes.length,active:this.payload.nodes.filter(x=>!terminal.has(x.state)).length,waiting:this.payload.nodes.filter(x=>x.state===waitingState).length,authorityRelevant:this.payload.nodes.filter(x=>authorityRelevant.has(x.state)).length,quarantined:this.payload.nodes.filter(x=>x.state==="QUARANTINED"||x.state==="SETTLED_UNKNOWN").length,openQuarantineClosures:this.payload.quarantineClosures.filter(x=>x.status==="OPEN").length,reservations:this.payload.reservations.filter(x=>!["RELEASED","EXPIRED"].includes(x.state)).length,proofPlans:this.payload.proofPlans.length,evidenceProviders:this.payload.policy.evidenceProviders.length,evidenceQuorumRequirements:this.payload.policy.evidenceQuorumRequirements.length,fences:this.payload.fences.length,aggregation:this.payload.aggregation.length,relationRules:this.payload.relationRules.length,invariantRules:this.payload.invariantRules.length,auditEvents:this.payload.audit.length}})}
 

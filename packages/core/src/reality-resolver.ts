@@ -78,7 +78,7 @@ const normalizeGit=(value:string,context:Record<string,string>)=>{
     .replace(/\.git$/i,"")
     .replace(/\/$/,"");
   const slash=repository.indexOf("/");if(slash<=0)throw new Error("canonical_reality_git_repository_invalid");
-  repository=`${repository.slice(0,slash).toLowerCase()}/${repository.slice(slash)}`;
+  repository=`${repository.slice(0,slash).toLowerCase()}/${repository.slice(slash+1)}`;
   if(!ref.startsWith("refs/"))ref=`refs/heads/${ref}`;
   return `git://${repository}#${ref}`;
 };

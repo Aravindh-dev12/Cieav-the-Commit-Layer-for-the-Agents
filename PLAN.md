@@ -133,6 +133,20 @@ CIEAV should sit beneath native integrations, MCP/A2A, OpenAPI, external connect
 
 CIEAV should not attempt to win primarily by manually owning every integration. It should own the **trusted semantic, coordination, authority, and settlement boundary beneath integrations**.
 
+## 2.1 Universal Intelligence Substrate
+
+The Reality Transaction Kernel accepts proposals from a **Universal Intelligence Substrate** that is useful across models, agents, applications, devices, and offline runtimes without inheriting authority from any of them:
+
+- a **Cognitive Cell** wraps one bounded model, agent, deterministic service, or qualified skill with declared privacy, cost, latency, capability, and locality constraints;
+- the **Self Model** represents current runtime capability and limits without allowing self-description to become trusted evidence;
+- a **Global Intelligence Workspace** carries privacy-scoped claims and contributions while preventing `LOCAL_ONLY` data from reaching remote cells;
+- the **CIEAV Cortex** schedules admissible cells and emits a non-authoritative cognitive program;
+- the **Universal Consequence ABI** normalizes framework proposals from MCP, A2A, agents, and native software without issuing execution authority;
+- **Continuing Authority** constrains long-running control to explicit checkpoints, cancellation, reflex policy, duration, and safe-state behavior;
+- **CIEAV Edge** preserves local policy, state, proof, and reconciliation boundaries during intermittent connectivity and requires fresh authority after reconnect.
+
+Every output from this substrate remains a proposal. Trusted materialization, Consequence Algebra, proofability, policy, authority, commit, execution, and settlement remain kernel-owned boundaries.
+
 ---
 
 # 3. Current engineering truth

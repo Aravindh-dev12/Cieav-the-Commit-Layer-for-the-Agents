@@ -17,8 +17,12 @@ function proofOutcome(bundle:AuthorityGradeSettlementBundle){
 }
 
 export function assessAuthorityGradeSettlement(raw:AuthorityGradeSettlementBundle):AuthorityGradeSemanticAssessment{
-  const b=AuthorityGradeSettlementBundleSchema.parse(raw),authorityFailures:string[]=[],settlementFailures:string[]=[],warnings:string[]=[],refs=new Set<string>();
-  const {task,proposal,authorization,permissionGraph:graph,identityAttestation:att,credentialLease:lease,realityBoundCommit:commit,executionTicket:ticket,proofCase:proof}=b;
+  const b=AuthorityGradeSettlementBundleSchema.parse(raw) as AuthorityGradeSettlementBundle & {
+    trustedToolBinding?:{bindingDigest:string};
+    canonicalRealityResolution?:{resolutionDigest:string};
+    consequenceBundle?:{bundleDigest:string};
+  },authorityFailures:string[]=[],settlementFailures:string[]=[],warnings:string[]=[],refs=new Set<string>();
+  const {task,proposal,authorization,permissionGraph:graph,identityAttestation:att,credentialLease:lease,trustedToolBinding,canonicalRealityResolution,consequenceBundle,realityBoundCommit:commit,executionTicket:ticket,proofCase:proof}=b;
   for(const [kind,id] of [["task",task.id],["proposal",proposal.id],["attestation",att.id],["lease",lease.id],["reality-commit",commit.id],["ticket",ticket.id],["proof",proof.id]] as const)refs.add(`${kind}:${id}`);
 
   if(!verifyPermissionGraph(graph))authorityFailures.push("permission_graph_integrity_invalid");
@@ -44,11 +48,33 @@ export function assessAuthorityGradeSettlement(raw:AuthorityGradeSettlementBundl
   if(commit.preStateDigest!==proposal.realityWitness.digest||commit.expectedPostStateDigest!==proposal.expectedPostStateDigest||commit.proofObligationDigest!==proposal.proofObligationDigest)authorityFailures.push("reality_bound_commit_state_or_proof_mismatch");
   if(commit.effectKey!==effectKey(proposal.intentId,proposal.semanticEffect))authorityFailures.push("reality_bound_commit_effect_mismatch");
 
+  const currentAuthorizationDigest=trustedToolBinding&&consequenceBundle
+    ? digest({
+        decision:authorization,
+        trustedToolBindingDigest:trustedToolBinding.bindingDigest,
+        ...(canonicalRealityResolution?{canonicalRealityResolutionDigest:canonicalRealityResolution.resolutionDigest}:{}),
+        consequenceBundleDigest:consequenceBundle.bundleDigest
+      })
+    : null;
+  const legacyAuthorizationDigest=digest(authorization);
+  const currentRouteDigest=trustedToolBinding&&consequenceBundle
+    ? digest({
+        toolId:proposal.toolId,
+        protocol:proposal.protocol,
+        operation:proposal.operation,
+        target:proposal.target??null,
+        normalizedArgumentsDigest:proposal.normalizedArgumentsDigest,
+        trustedToolBindingDigest:trustedToolBinding.bindingDigest,
+        ...(canonicalRealityResolution?{canonicalRealityResolutionDigest:canonicalRealityResolution.resolutionDigest}:{}),
+        consequenceBundleDigest:consequenceBundle.bundleDigest
+      })
+    : null;
+  const legacyRouteDigest=digest({toolId:proposal.toolId,protocol:proposal.protocol,operation:proposal.operation,target:proposal.target??null,normalizedArgumentsDigest:proposal.normalizedArgumentsDigest});
+
   if(ticket.status!=="CONSUMED"||!ticket.consumedAt)authorityFailures.push("execution_ticket_not_consumed");
   if(ticket.proposalId!==proposal.id||ticket.intentId!==proposal.intentId||ticket.taskId!==proposal.taskId||ticket.toolId!==proposal.toolId||ticket.realityBoundCommitId!==commit.id||ticket.credentialLeaseId!==lease.id)authorityFailures.push("execution_ticket_binding_mismatch");
-  if(ticket.authorizationDigest!==digest(authorization))authorityFailures.push("execution_ticket_authorization_digest_mismatch");
-  const expectedRoute=digest({toolId:proposal.toolId,protocol:proposal.protocol,operation:proposal.operation,target:proposal.target??null,normalizedArgumentsDigest:proposal.normalizedArgumentsDigest});
-  if(ticket.routeDigest!==expectedRoute)authorityFailures.push("execution_ticket_route_digest_mismatch");
+  if(ticket.authorizationDigest!==legacyAuthorizationDigest&&ticket.authorizationDigest!==currentAuthorizationDigest)authorityFailures.push("execution_ticket_authorization_digest_mismatch");
+  if(ticket.routeDigest!==legacyRouteDigest&&ticket.routeDigest!==currentRouteDigest)authorityFailures.push("execution_ticket_route_digest_mismatch");
   if(ticket.consumedAt&&!inWindow(ticket.consumedAt,ticket.issuedAt,ticket.expiresAt))authorityFailures.push("execution_ticket_consumption_outside_window");
   if(ticket.consumedAt&&!inWindow(ticket.consumedAt,lease.issuedAt,lease.expiresAt))authorityFailures.push("credential_lease_not_valid_at_execution");
   if(lease.revokedAt&&ticket.consumedAt&&Date.parse(lease.revokedAt)<=Date.parse(ticket.consumedAt))authorityFailures.push("credential_lease_revoked_before_execution");

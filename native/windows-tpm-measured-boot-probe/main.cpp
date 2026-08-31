@@ -2,6 +2,7 @@
 #include <ncrypt.h>
 #include <bcrypt.h>
 #include <tbs.h>
+#include "../windows-ncrypt-compat.h"
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -9,9 +10,11 @@
 #include <string>
 #include <vector>
 
+#ifdef _MSC_VER
 #pragma comment(lib,"ncrypt.lib")
 #pragma comment(lib,"bcrypt.lib")
 #pragma comment(lib,"tbs.lib")
+#endif
 
 namespace {
 struct NcryptHandle{NCRYPT_HANDLE h{0};explicit NcryptHandle(NCRYPT_HANDLE v=0):h(v){}~NcryptHandle(){if(h)NCryptFreeObject(h);}NcryptHandle(const NcryptHandle&)=delete;NcryptHandle& operator=(const NcryptHandle&)=delete;};

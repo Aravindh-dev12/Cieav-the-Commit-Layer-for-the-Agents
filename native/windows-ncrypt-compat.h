@@ -1,0 +1,23 @@
+#pragma once
+
+// Older MinGW-compatible SDK headers omit NCrypt attestation constants that
+// are part of the Windows ABI. Prefer the platform SDK whenever it defines them.
+#ifndef NCRYPT_CLAIM_AUTHORITY_AND_SUBJECT
+#define NCRYPT_CLAIM_AUTHORITY_AND_SUBJECT 0x00000003
+#endif
+
+#ifndef NCRYPT_CLAIM_PLATFORM
+#define NCRYPT_CLAIM_PLATFORM 0x00010000
+#endif
+
+#ifndef NCRYPTBUFFER_CLAIM_KEYATTESTATION_NONCE
+#define NCRYPTBUFFER_CLAIM_KEYATTESTATION_NONCE 49
+#endif
+
+#ifndef NCRYPTBUFFER_TPM_PLATFORM_CLAIM_PCR_MASK
+#define NCRYPTBUFFER_TPM_PLATFORM_CLAIM_PCR_MASK 80
+#endif
+
+#ifndef NCRYPTBUFFER_TPM_PLATFORM_CLAIM_NONCE
+#define NCRYPTBUFFER_TPM_PLATFORM_CLAIM_NONCE 81
+#endif

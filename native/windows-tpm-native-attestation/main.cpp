@@ -5,6 +5,7 @@
 #include <ncrypt.h>
 #include <bcrypt.h>
 #include <wincrypt.h>
+#include "../windows-ncrypt-compat.h"
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -15,9 +16,11 @@
 #include <string>
 #include <vector>
 
+#ifdef _MSC_VER
 #pragma comment(lib,"ncrypt.lib")
 #pragma comment(lib,"bcrypt.lib")
 #pragma comment(lib,"crypt32.lib")
+#endif
 
 namespace {
 constexpr char kProtocol[]="CIEAV_WINDOWS_TPM_NATIVE_ATTESTATION_V1";

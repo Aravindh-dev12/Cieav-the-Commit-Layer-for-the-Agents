@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
-ROOT=Path(__file__).resolve().parents[1]
+from _repo_python import bootstrap_repo_pythonpath
+
+ROOT=bootstrap_repo_pythonpath()
 package=json.loads((ROOT/"package.json").read_text("utf-8"))
 pyproject=(ROOT/"pyproject.toml").read_text("utf-8")
 ci=(ROOT/".github/workflows/ci.yml").read_text("utf-8")

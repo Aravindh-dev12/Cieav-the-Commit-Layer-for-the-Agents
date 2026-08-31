@@ -3,6 +3,7 @@ import {describe,expect,it} from "vitest";
 import {mintConsequenceAuthorityEnvelope,verifyConsequenceAuthorityEnvelope,assertConsequenceAuthorityRoute} from "./consequence-authority-envelope.js";
 
 const h=(c:string)=>c.repeat(64);
+const issuedAt=new Date();
 
 function route(){return{
   routeId:"route:git-main",
@@ -34,7 +35,7 @@ function envelope(){return mintConsequenceAuthorityEnvelope({
   canonicalRealityResolutionDigest:h("c"),
   permittedRoutes:[route()],
   ttlSeconds:30,
-  at:new Date("2026-08-30T12:00:00.000Z")
+  at:issuedAt
 })}
 
 describe("Consequence Authority Envelope",()=>{
@@ -44,7 +45,7 @@ describe("Consequence Authority Envelope",()=>{
     expect(value.authorityClass).toBe("CONSEQUENCE_BOUND_EXECUTION");
     expect(value.oneUse).toBe(true);
     expect(value.mayMintExecutionAuthority).toBe(false);
-    expect(verifyConsequenceAuthorityEnvelope(value,new Date("2026-08-30T12:00:10.000Z")).envelopeDigest).toBe(value.envelopeDigest);
+    expect(verifyConsequenceAuthorityEnvelope(value,new Date(issuedAt.getTime()+10_000)).envelopeDigest).toBe(value.envelopeDigest);
     expect(assertConsequenceAuthorityRoute(value,route()).routeId).toBe("route:git-main");
   });
 
@@ -55,6 +56,6 @@ describe("Consequence Authority Envelope",()=>{
 
   it("fails closed after envelope expiry",()=>{
     const value=envelope();
-    expect(()=>verifyConsequenceAuthorityEnvelope(value,new Date("2026-08-30T12:00:31.000Z"))).toThrow("consequence_authority_envelope_expired");
+    expect(()=>verifyConsequenceAuthorityEnvelope(value,new Date(issuedAt.getTime()+31_000))).toThrow("consequence_authority_envelope_expired");
   });
 });

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+from _repo_python import bootstrap_repo_pythonpath
+
+bootstrap_repo_pythonpath()
+
 from latch_platform.companion_cli import _status
 
 

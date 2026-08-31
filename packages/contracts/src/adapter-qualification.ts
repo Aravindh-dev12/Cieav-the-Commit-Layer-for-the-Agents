@@ -81,6 +81,7 @@ export const QualifiedToolManifestSchema=z.object({
   commitPoint:CommitPointQualificationSchema,
   offlineCapability:z.enum(["FULL","LOCAL_ONLY","NONE"]),
   qualificationEvidenceRefs:z.array(RefSchema).min(1).max(200),
+  qualificationEpoch:z.string().uuid().optional(),
   qualificationState:z.enum(["DRAFT","QUALIFIED","SUSPENDED","REVOKED"]),
   productionQualified:z.boolean(),
   manifestDigest:DigestSchema,

@@ -13,6 +13,16 @@ const reportJson=path.join(REPORT_DIR,"latest-native-dotnet-qualification.json")
 const reportText=path.join(REPORT_DIR,"latest-native-dotnet-qualification.txt");
 const REQUIRED_DOTNET_MAJOR=10;
 const digest=(value)=>crypto.createHash("sha256").update(typeof value==="string"?value:JSON.stringify(value)).digest("hex");
+const configuredTool=(name,fallback)=>{
+  const raw=String(process.env[name]??"").trim();
+  if(!raw)return fallback;
+  const resolved=path.resolve(raw);
+  if(!fs.existsSync(resolved))throw new Error(`${name} does not exist: ${resolved}`);
+  return resolved;
+};
+const CMAKE=configuredTool("CIEAV_CMAKE","cmake");
+const CTEST=configuredTool("CIEAV_CTEST",process.env.CIEAV_CMAKE?path.join(path.dirname(CMAKE),process.platform==="win32"?"ctest.exe":"ctest"):"ctest");
+const DOTNET=configuredTool("CIEAV_DOTNET","dotnet");
 
 function run(name,cmd,args,env=process.env){
   const started=Date.now();
@@ -43,7 +53,7 @@ function version(cmd,args){
 
 function findNativeLibrary(){
   const names=process.platform==="win32"
-    ? ["cieav_native.dll"]
+    ? ["cieav_native.dll","libcieav_native.dll"]
     : process.platform==="darwin"
       ? ["libcieav_native.dylib"]
       : ["libcieav_native.so"];
@@ -60,7 +70,7 @@ function findNativeLibrary(){
 }
 
 function dotnetSdkPreflight(){
-  const result=run("require .NET 10 SDK","dotnet",["--list-sdks"]);
+  const result=run("require .NET 10 SDK",DOTNET,["--list-sdks"]);
   if(!result.ok)return result;
   const sdkLines=result.stdout.split(/\r?\n/).map((line)=>line.trim()).filter(Boolean);
   const hasRequired=sdkLines.some((line)=>new RegExp(`^${REQUIRED_DOTNET_MAJOR}\\.`).test(line));
@@ -77,6 +87,7 @@ function dotnetSdkPreflight(){
   };
 }
 
+fs.rmSync(BUILD,{recursive:true,force:true});
 fs.mkdirSync(BUILD,{recursive:true});
 fs.mkdirSync(REPORT_DIR,{recursive:true});
 const steps=[];
@@ -96,9 +107,19 @@ function step(name,cmd,args,env){
   record(run(name,cmd,args,env));
 }
 
-step("configure native C/C++ ABI","cmake",["-S","native","-B",BUILD,"-DCMAKE_BUILD_TYPE=Release","-DCIEAV_NATIVE_BUILD_SHARED=ON","-DCIEAV_NATIVE_BUILD_TESTS=ON"]);
-step("build native C/C++ ABI","cmake",["--build",BUILD,"--config","Release","--parallel"]);
-step("test native C/C++ ABI","ctest",["--test-dir",BUILD,"-C","Release","--output-on-failure"]);
+const configureArgs=["-S","native","-B",BUILD,"-DCMAKE_BUILD_TYPE=Release","-DCIEAV_NATIVE_BUILD_SHARED=ON","-DCIEAV_NATIVE_BUILD_TESTS=ON"];
+const zig=String(process.env.CIEAV_ZIG??"").trim(),ninja=String(process.env.CIEAV_NINJA??"").trim();
+if(process.platform==="win32"&&(zig||ninja)){
+  const zigExe=configuredTool("CIEAV_ZIG",""),ninjaExe=configuredTool("CIEAV_NINJA","");
+  if(!zigExe||!ninjaExe)throw new Error("portable Windows qualification requires both CIEAV_ZIG and CIEAV_NINJA");
+  const zigAr=path.join(BUILD,"zig-ar.cmd"),zigRanlib=path.join(BUILD,"zig-ranlib.cmd");
+  fs.writeFileSync(zigAr,`@echo off\r\n"${zigExe}" ar %*\r\n`,"utf8");
+  fs.writeFileSync(zigRanlib,`@echo off\r\n"${zigExe}" ranlib %*\r\n`,"utf8");
+  configureArgs.push("-G","Ninja",`-DCMAKE_MAKE_PROGRAM=${ninjaExe}`,`-DCMAKE_C_COMPILER=${zigExe}`,"-DCMAKE_C_COMPILER_ARG1=cc",`-DCMAKE_CXX_COMPILER=${zigExe}`,"-DCMAKE_CXX_COMPILER_ARG1=c++",`-DCMAKE_AR=${zigAr}`,`-DCMAKE_RANLIB=${zigRanlib}`);
+}
+step("configure native C/C++ ABI",CMAKE,configureArgs);
+step("build native C/C++ ABI",CMAKE,["--build",BUILD,"--config","Release","--parallel"]);
+step("test native C/C++ ABI",CTEST,["--test-dir",BUILD,"-C","Release","--output-on-failure"]);
 
 if(!failure){
   try{nativeLibrary=findNativeLibrary();}
@@ -114,10 +135,10 @@ if(!failure){
   record(preflight);
 }
 
-step("build .NET 10 platform host","dotnet",["build","dotnet/Cieav.Platform/Cieav.Platform.csproj","-c","Release","--nologo"]);
+step("build .NET 10 platform host",DOTNET,["build","dotnet/Cieav.Platform/Cieav.Platform.csproj","-c","Release","--nologo"]);
 const integratedEnv=nativeLibrary?{...process.env,CIEAV_NATIVE_LIBRARY:nativeLibrary}:process.env;
-step("validate native ABI through .NET host","dotnet",["run","--project","dotnet/Cieav.Platform/Cieav.Platform.csproj","-c","Release","--no-build","--","native-health"],integratedEnv);
-step("selftest authenticated .NET platform host with native ABI","dotnet",["run","--project","dotnet/Cieav.Platform/Cieav.Platform.csproj","-c","Release","--no-build","--","selftest"],integratedEnv);
+step("validate native ABI through .NET host",DOTNET,["run","--project","dotnet/Cieav.Platform/Cieav.Platform.csproj","-c","Release","--no-build","--","native-health"],integratedEnv);
+step("selftest authenticated .NET platform host with native ABI",DOTNET,["run","--project","dotnet/Cieav.Platform/Cieav.Platform.csproj","-c","Release","--no-build","--","selftest"],integratedEnv);
 
 const commit=git(["rev-parse","HEAD"]);
 const branch=git(["branch","--show-current"]);
@@ -132,8 +153,8 @@ const report={
   requirements:{dotnetSdkMajor:REQUIRED_DOTNET_MAJOR},
   toolchain:{
     node:process.version,
-    cmake:version("cmake",["--version"]),
-    dotnet:version("dotnet",["--version"]),
+    cmake:version(CMAKE,["--version"]),
+    dotnet:version(DOTNET,["--version"]),
     installedDotnetSdks,
     cc:process.env.CC??null,
     cxx:process.env.CXX??null

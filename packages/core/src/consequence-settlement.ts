@@ -99,16 +99,19 @@ export function transitionConsequenceSettlement(
   if(current.executionState==="COMPLETED"&&executionState!=="COMPLETED")throw new Error("consequence_settlement_execution_complete_is_immutable");
   if(current.realityState!=="UNKNOWN"&&realityState!==current.realityState)throw new Error("consequence_settlement_observed_reality_is_immutable");
   if(current.realityState==="UNKNOWN"&&realityState!=="UNKNOWN"&&!options.trustedRealityReconciliation)throw new Error("consequence_settlement_reality_reconciliation_required");
-  if(!recoveryAllowed[current.recoveryState].has(recoveryState))throw new Error("consequence_settlement_recovery_transition_invalid");
+  const allowedRecoveryTransitions=recoveryAllowed[current.recoveryState];
+  if(!allowedRecoveryTransitions||!allowedRecoveryTransitions.has(recoveryState))throw new Error("consequence_settlement_recovery_transition_invalid");
   const changedAxes:Array<"EXECUTION"|"REALITY"|"LEGITIMACY"|"EVIDENCE"|"RECOVERY">=[];
   if(executionState!==current.executionState)changedAxes.push("EXECUTION");if(realityState!==current.realityState)changedAxes.push("REALITY");if(legitimacyState!==current.legitimacyState)changedAxes.push("LEGITIMACY");if(evidenceState!==current.evidenceState)changedAxes.push("EVIDENCE");if(recoveryState!==current.recoveryState)changedAxes.push("RECOVERY");
   if(!changedAxes.length&&(patch.evidenceRefs?.length||patch.basisRefs?.length))changedAxes.push("EVIDENCE");
   if(!changedAxes.length)throw new Error("consequence_settlement_transition_no_change");
+  const nextEvidenceRefs=uniq([...current.evidenceRefs,...(patch.evidenceRefs??[])]);
+  const nextBasisRefs=uniq([...current.basisRefs,...(patch.basisRefs??[])]);
   const base={
     ...current,
     executionState,realityState,legitimacyState,evidenceState,recoveryState,
-    evidenceRefs:uniq([...current.evidenceRefs,...(patch.evidenceRefs??[])]),
-    basisRefs:uniq([...current.basisRefs,...(patch.basisRefs??[])]),
+    evidenceRefs:nextEvidenceRefs,
+    basisRefs:nextBasisRefs,
     ...(patch.observedAt?{observedAt:patch.observedAt}:realityState!=="UNKNOWN"&&!current.observedAt?{observedAt:now}:{}),
     ...(patch.legitimacyEvaluatedAt?{legitimacyEvaluatedAt:patch.legitimacyEvaluatedAt}:legitimacyState!==current.legitimacyState?{legitimacyEvaluatedAt:now}:{}),
     ...(patch.recoveryUpdatedAt?{recoveryUpdatedAt:patch.recoveryUpdatedAt}:recoveryState!==current.recoveryState?{recoveryUpdatedAt:now}:{}),

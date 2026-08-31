@@ -7,7 +7,9 @@
 #include <string>
 #include <vector>
 
+#ifdef _MSC_VER
 #pragma comment(lib,"tbs.lib")
+#endif
 
 namespace {
 constexpr char kProtocol[]="CIEAV_WINDOWS_TPM_MEASURED_BOOT_V1";
