@@ -42,7 +42,11 @@ export function materializeResolvedExecutionProposal(proposal:ExecutionProposal,
     ...(base.footprint.temporalWindow?{temporalWindow:base.footprint.temporalWindow}:{})
   });
 
-  const normalizedSemanticEffect={...proposal.semanticEffect,target:resolution.address.stableId,objectRef:resolution.address.stableId};
+  const normalizedSemanticEffect={
+    ...proposal.semanticEffect,
+    target:resolution.address.stableId,
+    objectRef:proposal.semanticEffect.objectRef??resolution.address.stableId
+  };
   const transitionShape=canonical(normalizedSemanticEffect);
   const semanticIdentity=makeSemanticEffectIdentity({
     version:"CIEAV_SEMANTIC_EFFECT_IDENTITY_V1",

@@ -164,6 +164,8 @@ model / agent / tool provider / MCP server / computer-use controller
 
 # 3. User experience
 
+CIEAV is installed, not opened. Its ordinary operating mode is ambient local infrastructure, not a destination application.
+
 ```text
 install CIEAV once
       ↓
@@ -233,6 +235,19 @@ Developer and forensic surfaces may expose state, receipts, causality, quarantin
 ```
 
 Authority is not transitive across planes.
+
+## 4.1 Consequence Intelligence Framework
+
+The intelligence plane remains a zero-authority **Consequence Intelligence Framework** above the Reality Transaction Kernel. It may assemble context, compare strategies, propose consequence programs, and learn from verified outcomes, but it cannot authorize or settle its own proposals.
+
+- **Intelligence State** is the explicit, privacy-scoped working state for objectives, claims, evidence, constraints, available cognitive cells, and unresolved uncertainty.
+- The **Cognitive Scheduler** selects a bounded computation strategy across local models, remote models, agents, deterministic services, and qualified skills according to privacy, latency, cost, and proofability constraints.
+- The **Consequence Compiler** converts a probabilistic objective or plan into a typed proposal for trusted materialization. The Tool Trust Kernel, not the model or agent, derives the authoritative Consequence Bundle and canonical reality identity.
+- The **Consequence Graph** stores only cryptographically verified, reality-bound learning relationships and preserves `UNKNOWN` as uncertainty rather than success.
+- **Verified Skills** are immutable, typed procedures promoted from reproducible held-out evidence. Activation is explicit, dependencies remain locked, and skill execution still crosses the normal authority and commit boundary.
+- An **Authorized Outcome Trajectory** is the learning object produced only from a complete authenticated authority chain plus trusted settlement evidence. Caller assertions, agent reports, and transport acceptance alone cannot create an authority-grade trajectory.
+
+This layer can improve proposals and reduce repeated reasoning, while `MODEL AUTHORITY = 0` remains constitutional.
 
 ---
 

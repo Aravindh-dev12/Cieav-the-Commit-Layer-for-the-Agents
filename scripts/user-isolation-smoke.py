@@ -6,6 +6,10 @@ import stat
 import tempfile
 from pathlib import Path
 
+from _repo_python import bootstrap_repo_pythonpath
+
+bootstrap_repo_pythonpath()
+
 from latch_platform.config import Settings
 
 

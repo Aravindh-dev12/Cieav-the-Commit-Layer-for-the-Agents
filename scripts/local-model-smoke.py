@@ -5,6 +5,10 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from _repo_python import bootstrap_repo_pythonpath
+
+bootstrap_repo_pythonpath()
+
 from latch_platform.local_model import LocalModelConfig, LocalSemanticProvider
 
 

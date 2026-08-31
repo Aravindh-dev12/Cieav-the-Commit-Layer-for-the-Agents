@@ -1,8 +1,10 @@
 import {z} from "zod";
 import {AgentTaskSchema,AgentTaskEventSchema} from "./agent-task.js";
+import {ConsequenceBundleSchema} from "./consequence-bundle.js";
 import {RealityBoundCommitSchema} from "./intent-reality.js";
-import {AgentIdentityAttestationSchema,ExecutionAuditEventSchema,ExecutionProposalSchema,ExecutionTicketSchema,FormalAuthorizationDecisionSchema,FormalPermissionGraphSchema,ScopedCredentialLeaseSchema} from "./execution-fabric.js";
+import {AgentIdentityAttestationSchema,ExecutionAuditEventSchema,ExecutionProposalSchema,ExecutionTicketSchema,FormalAuthorizationDecisionSchema,FormalPermissionGraphSchema,ScopedCredentialLeaseSchema,TrustedToolAuthorizationBindingSchema} from "./execution-fabric.js";
 import {ProofCaseSchema} from "./proof.js";
+import {CanonicalRealityResolutionSchema} from "./reality-resolver.js";
 
 export const AuthorityGradeSettlementBundleSchema=z.object({
   version:z.literal("CIEAV_AUTHORITY_GRADE_SETTLEMENT_BUNDLE_V1"),
@@ -13,6 +15,9 @@ export const AuthorityGradeSettlementBundleSchema=z.object({
   permissionGraph:FormalPermissionGraphSchema,
   identityAttestation:AgentIdentityAttestationSchema,
   credentialLease:ScopedCredentialLeaseSchema,
+  trustedToolBinding:TrustedToolAuthorizationBindingSchema.optional(),
+  canonicalRealityResolution:CanonicalRealityResolutionSchema.optional(),
+  consequenceBundle:ConsequenceBundleSchema.optional(),
   realityBoundCommit:RealityBoundCommitSchema,
   executionTicket:ExecutionTicketSchema,
   executionAudit:z.array(ExecutionAuditEventSchema).max(10000),

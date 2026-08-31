@@ -9,8 +9,10 @@
 #include <stdexcept>
 #include <cstdint>
 
+#ifdef _MSC_VER
 #pragma comment(lib,"ncrypt.lib")
 #pragma comment(lib,"bcrypt.lib")
+#endif
 
 namespace {
 struct NcryptHandle {NCRYPT_HANDLE h{0};NcryptHandle()=default;explicit NcryptHandle(NCRYPT_HANDLE v):h(v){}~NcryptHandle(){if(h)NCryptFreeObject(h);}NcryptHandle(const NcryptHandle&)=delete;NcryptHandle& operator=(const NcryptHandle&)=delete;};

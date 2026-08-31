@@ -41,7 +41,7 @@ export async function exportAuthorityGradeTrajectory(
 
   const record=await kernel.executionFabric.getProposalRecord(ticket.proposalId);
   if(!record)throw new Error("authority_grade_execution_proposal_not_found");
-  const {proposal,decision:authorization}=record;
+  const {proposal,decision:authorization,trustedToolBinding,canonicalRealityResolution,consequenceBundle}=record;
 
   const task=await kernel.get(ticket.taskId);
   if(!task)throw new Error("authority_grade_agent_task_not_found");
@@ -72,6 +72,9 @@ export async function exportAuthorityGradeTrajectory(
   const bundle=AuthorityGradeSettlementBundleSchema.parse({
     version:"CIEAV_AUTHORITY_GRADE_SETTLEMENT_BUNDLE_V1",
     task,taskEvents,proposal,authorization,permissionGraph,identityAttestation,credentialLease,realityBoundCommit,executionTicket:ticket,
+    ...(trustedToolBinding?{trustedToolBinding}:{}),
+    ...(canonicalRealityResolution?{canonicalRealityResolution}:{}),
+    ...(consequenceBundle?{consequenceBundle}:{}),
     executionAudit,proofCase,redactionProfile,
     ...(options.consentScope?.trim()?{consentScope:options.consentScope.trim()}:{}),
     authority:false,productionAuthority:false

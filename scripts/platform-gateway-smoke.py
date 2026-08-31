@@ -16,6 +16,10 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from _repo_python import bootstrap_repo_pythonpath
+
+bootstrap_repo_pythonpath()
+
 from latch_platform.cli import build_parser
 from latch_platform.config import Settings
 import latch_platform.gateway as gateway_module

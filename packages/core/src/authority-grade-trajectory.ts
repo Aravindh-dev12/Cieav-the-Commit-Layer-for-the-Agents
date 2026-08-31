@@ -6,7 +6,7 @@ const trustedProof=new Set(["CIEAV_OBSERVER","TRUSTED_ADAPTER","EXTERNAL_SIGNED"
 const recoveryEventTypes=new Set(["EFFECT_QUARANTINED","QUARANTINE_RESOLVED","RETRY_SCHEDULED","RECOVERY_REQUIRED","OPEN_LOOP_DETECTED"]);
 
 export function buildAuthorizedOutcomeTrajectory(raw:AuthorityGradeSettlementBundle,rawAssessment:AuthorityGradeSettlementAssessment):AuthorizedOutcomeTrajectory{
-  const bundle=AuthorityGradeSettlementBundleSchema.parse(raw);
+  const bundle=AuthorityGradeSettlementBundleSchema.parse(raw) as AuthorityGradeSettlementBundle;
   const assessment=AuthorityGradeSettlementAssessmentSchema.parse(rawAssessment);
   const proofEvidence=bundle.proofCase.observations.map(observation=>({
     kind:observation.kind,

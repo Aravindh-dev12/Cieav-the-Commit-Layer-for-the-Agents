@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import {afterEach,describe,expect,it} from "vitest";
-import {mkdtemp,rm,symlink,writeFile} from "node:fs/promises";
+import {mkdir,mkdtemp,rm,symlink,writeFile} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {pathToFileURL} from "node:url";
@@ -15,6 +15,6 @@ async function fixture(){const dir=await mkdtemp(path.join(os.tmpdir(),"cieav-mo
 describe("verifyModelCandidateArtifact",()=>{
   it("recomputes the exact training-round tree before activation",async()=>{const x=await fixture(),result=await verifyModelCandidateArtifact(x.candidate);expect(result.ok).toBe(true);expect(result.checkpointDigest).toBe(x.candidate.checkpointDigest);expect(result.authority).toBe(false);expect(result.mayMintExecutionAuthority).toBe(false)});
   it("rejects checkpoint substitution after qualification",async()=>{const x=await fixture();await writeFile(x.modelFile,"substituted checkpoint bytes");await expect(verifyModelCandidateArtifact(x.candidate)).rejects.toThrow("checkpoint_tree_digest_mismatch")});
-  it("rejects symlink injection into a qualified checkpoint",async()=>{const x=await fixture(),outside=path.join(path.dirname(x.dir),`outside-${crypto.randomUUID()}.txt`);await writeFile(outside,"outside");try{await symlink(outside,path.join(x.dir,"linked.bin"));await expect(verifyModelCandidateArtifact(x.candidate)).rejects.toThrow("symlink_forbidden")}finally{await rm(outside,{force:true})}});
+  it("rejects symlink injection into a qualified checkpoint",async()=>{const x=await fixture(),outside=path.join(path.dirname(x.dir),`outside-${crypto.randomUUID()}`);await mkdir(outside);await writeFile(path.join(outside,"model.bin"),"outside");try{await symlink(outside,path.join(x.dir,"linked"),process.platform==="win32"?"junction":"dir");await expect(verifyModelCandidateArtifact(x.candidate)).rejects.toThrow("symlink_forbidden")}finally{await rm(outside,{recursive:true,force:true})}});
   it("requires local verifiable checkpoint material",async()=>{const x=await fixture(),candidate={...x.candidate,checkpointUri:"https://models.example/candidate"};await expect(verifyModelCandidateArtifact(candidate)).rejects.toThrow("locally_verifiable_checkpoint")});
 });

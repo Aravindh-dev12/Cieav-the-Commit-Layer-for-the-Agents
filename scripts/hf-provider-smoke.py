@@ -6,6 +6,10 @@ import os
 import tempfile
 from pathlib import Path
 
+from _repo_python import bootstrap_repo_pythonpath
+
+bootstrap_repo_pythonpath()
+
 from latch_platform.config import Settings
 from latch_platform.gateway import Gateway
 from latch_platform.hf_provider import HFConfig, HuggingFaceSemanticProvider

@@ -57,7 +57,9 @@ export function mintConsequenceAuthorityEnvelope(input:ConsequenceAuthorityEnvel
     authorityPolicyDigest:consequenceAuthorityEnvelopeDigest(input.authorityPolicy),
     trustedToolBindingDigest:input.trustedToolBindingDigest,
     canonicalRealityResolutionDigest:input.canonicalRealityResolutionDigest,
-    permittedRoutes:input.permittedRoutes.map(route=>({...route,authority:false,mayMintExecutionAuthority:false})).sort((a,b)=>a.routeId.localeCompare(b.routeId)),
+    permittedRoutes:input.permittedRoutes
+      .map<ConsequenceAuthorityRoute>(route=>({...route,authority:false as const,mayMintExecutionAuthority:false as const}))
+      .sort((a,b)=>a.routeId.localeCompare(b.routeId)),
     issuedAt:at.toISOString(),
     expiresAt:new Date(at.getTime()+ttl*1000).toISOString(),
     oneUse:true,

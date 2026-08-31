@@ -13,6 +13,8 @@ release/reports/
 release-out/
 publish/
 build/
+dotnet/**/bin/
+dotnet/**/obj/
 .tmp/
 /ml/data/live/
 /ml/runs/

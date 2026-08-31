@@ -42,6 +42,7 @@ import {CieavAuthorityTransactionJournal,type AuthorityTransactionEntry} from ".
 const riskRank={LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3} as const;
 const member=(items:string[],value:string)=>items.includes("*")||items.includes(value);
 const canonical=(value:unknown):string=>Array.isArray(value)?`[${value.map(canonical).join(",")}]`:value&&typeof value==="object"?`{${Object.keys(value as Record<string,unknown>).sort().map(k=>`${JSON.stringify(k)}:${canonical((value as Record<string,unknown>)[k])}`).join(",")}}`:JSON.stringify(value)??"undefined";
+const findLastMatch=<T>(values:T[],predicate:(value:T)=>boolean)=>{for(let index=values.length-1;index>=0;index--){const value=values[index];if(value&&predicate(value))return value}return undefined};
 type ProposalRecord={proposal:ExecutionProposal;decision:FormalAuthorizationDecision;trustedToolBinding?:TrustedToolAuthorizationBinding;canonicalRealityResolution?:CanonicalRealityResolution;consequenceBundle?:ConsequenceBundle};
 type Payload={version:1;attestations:AgentIdentityAttestation[];tools:FederatedTool[];leases:ScopedCredentialLease[];graphs:FormalPermissionGraph[];proposals:ProposalRecord[];tickets:ExecutionTicket[];audit:ExecutionAuditEvent[]};
 type Envelope={payload:Payload;mac:string};
@@ -50,6 +51,7 @@ type ConsumeTicketTransaction={ticketId:string;consumed:ExecutionTicket;proposal
 type ExecutionAttemptTransport="ACCEPTED"|"REJECTED"|"UNKNOWN";
 type ExecutionAttemptTransaction={ticketId:string;proposalId:string;trustedToolBindingDigest:string;canonicalRealityResolutionDigest?:string;consequenceBundleDigest:string;scopeDeviceId:string;intentId:string;taskId:string;transport:ExecutionAttemptTransport;summary:string;detailsDigest:string;effectKey:string};
 const empty=():Payload=>({version:1,attestations:[],tools:[],leases:[],graphs:[],proposals:[],tickets:[],audit:[]});
+const expectedCanonicalResolutionDigest=(resolution:CanonicalRealityResolution|null,provided?:string)=>provided??resolution?.resolutionDigest??null;
 
 async function durableReplace(file:string,contents:string){
   const dir=path.dirname(file),tmp=`${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
@@ -138,6 +140,9 @@ export class CieavExecutionFabricStore{
   }
   private historicalConsequenceBundle(record:ProposalRecord){return this.assertRecordConsequenceBundle(record)}
   private authorizationDigest(record:ProposalRecord){const trusted=this.historicalTrustedToolBinding(record),bundle=this.historicalConsequenceBundle(record);if(!record.canonicalRealityResolution)return digest({decision:record.decision,trustedToolBindingDigest:trusted.bindingDigest,consequenceBundleDigest:bundle.bundleDigest});const resolution=this.historicalCanonicalRealityResolution(record);return digest({decision:record.decision,trustedToolBindingDigest:trusted.bindingDigest,canonicalRealityResolutionDigest:resolution.resolutionDigest,consequenceBundleDigest:bundle.bundleDigest})}
+  private preCanonicalAuthorizationDigest(record:ProposalRecord){const trusted=this.historicalTrustedToolBinding(record),bundle=this.historicalConsequenceBundle(record);return digest({decision:record.decision,trustedToolBindingDigest:trusted.bindingDigest,consequenceBundleDigest:bundle.bundleDigest})}
+  private legacyAuthorizationDigest(record:ProposalRecord){return digest(record.decision)}
+  private matchesAuthorizationDigest(record:ProposalRecord,value:string){const current=this.authorizationDigest(record);return value===current||value===this.preCanonicalAuthorizationDigest(record)||value===this.legacyAuthorizationDigest(record)}
 
   private async ensureAlgebraAtLeast(consequenceRef:string,target:"COMMITTED"|"DISPATCHED"){
     const node=await this.consequenceAlgebra.getNode(consequenceRef);
@@ -158,8 +163,8 @@ export class CieavExecutionFabricStore{
     const data=tx.payload,ticket=ExecutionTicketSchema.parse(data.ticket),record=this.payload.proposals.find(x=>x.proposal.id===data.proposalId);
     if(!record||record.proposal.id!==ticket.proposalId||record.decision.decision!=="ALLOW")throw new Error("authority_transaction_issue_ticket_proposal_conflict");
     const tool=this.activeTool(record.proposal.toolId);if(!tool)throw new Error("registered_tool_not_active");
-    const trusted=this.assertRecordTrustedToolBinding(record,tool),resolution=this.assertRecordCurrentCanonicalRealityResolution(record),bundle=this.historicalConsequenceBundle(record);if(data.trustedToolBindingDigest!==trusted.bindingDigest)throw new Error("authority_transaction_trusted_tool_binding_conflict");if(data.canonicalRealityResolutionDigest!==resolution.resolutionDigest)throw new Error("authority_transaction_canonical_reality_resolution_conflict");if(data.consequenceBundleDigest!==bundle.bundleDigest)throw new Error("authority_transaction_consequence_bundle_conflict");
-    if(ticket.authorizationDigest!==this.authorizationDigest(record))throw new Error("authority_transaction_authorization_digest_conflict");
+    const trusted=this.assertRecordTrustedToolBinding(record,tool),resolution=this.assertRecordCurrentCanonicalRealityResolution(record),bundle=this.historicalConsequenceBundle(record);if(data.trustedToolBindingDigest!==trusted.bindingDigest)throw new Error("authority_transaction_trusted_tool_binding_conflict");if(expectedCanonicalResolutionDigest(resolution,data.canonicalRealityResolutionDigest)!==resolution.resolutionDigest)throw new Error("authority_transaction_canonical_reality_resolution_conflict");if(data.consequenceBundleDigest!==bundle.bundleDigest)throw new Error("authority_transaction_consequence_bundle_conflict");
+    if(!this.matchesAuthorizationDigest(record,ticket.authorizationDigest))throw new Error("authority_transaction_authorization_digest_conflict");
     await this.ensureAlgebraAtLeast(data.proposalId,"COMMITTED");
     const existingById=this.payload.tickets.find(x=>x.id===ticket.id);
     const conflicting=this.payload.tickets.find(x=>x.id!==ticket.id&&(x.proposalId===ticket.proposalId||x.realityBoundCommitId===ticket.realityBoundCommitId)&&["ISSUED","CONSUMED"].includes(x.status));
@@ -179,8 +184,8 @@ export class CieavExecutionFabricStore{
     const current=this.payload.tickets[ticketIndex]!;
     const record=this.payload.proposals.find(x=>x.proposal.id===data.proposalId);if(!record)throw new Error("authority_transaction_consume_ticket_proposal_conflict");
     const tool=this.activeTool(record.proposal.toolId);if(!tool)throw new Error("registered_tool_not_active");
-    const trusted=this.assertRecordTrustedToolBinding(record,tool),resolution=this.assertRecordCurrentCanonicalRealityResolution(record),bundle=this.historicalConsequenceBundle(record);if(data.trustedToolBindingDigest!==trusted.bindingDigest)throw new Error("authority_transaction_trusted_tool_binding_conflict");if(data.canonicalRealityResolutionDigest!==resolution.resolutionDigest)throw new Error("authority_transaction_canonical_reality_resolution_conflict");if(data.consequenceBundleDigest!==bundle.bundleDigest)throw new Error("authority_transaction_consequence_bundle_conflict");
-    if(current.authorizationDigest!==this.authorizationDigest(record)||consumed.authorizationDigest!==current.authorizationDigest)throw new Error("authority_transaction_authorization_digest_conflict");
+    const trusted=this.assertRecordTrustedToolBinding(record,tool),resolution=this.assertRecordCurrentCanonicalRealityResolution(record),bundle=this.historicalConsequenceBundle(record);if(data.trustedToolBindingDigest!==trusted.bindingDigest)throw new Error("authority_transaction_trusted_tool_binding_conflict");if(expectedCanonicalResolutionDigest(resolution,data.canonicalRealityResolutionDigest)!==resolution.resolutionDigest)throw new Error("authority_transaction_canonical_reality_resolution_conflict");if(data.consequenceBundleDigest!==bundle.bundleDigest)throw new Error("authority_transaction_consequence_bundle_conflict");
+    if(!this.matchesAuthorizationDigest(record,current.authorizationDigest)||consumed.authorizationDigest!==current.authorizationDigest)throw new Error("authority_transaction_authorization_digest_conflict");
     if(current.proposalId!==data.proposalId||consumed.id!==current.id||consumed.status!=="CONSUMED")throw new Error("authority_transaction_consume_ticket_conflict");
     if(current.status==="ISSUED")this.payload.tickets[ticketIndex]=consumed;
     else if(current.status==="CONSUMED"&&canonical(current)!==canonical(consumed))throw new Error("authority_transaction_consumed_ticket_payload_conflict");
@@ -190,7 +195,7 @@ export class CieavExecutionFabricStore{
     if(lease.used===data.leaseUsedBefore)this.payload.leases[leaseIndex]=ScopedCredentialLeaseSchema.parse({...lease,used:lease.used+1});
     else if(lease.used!==data.leaseUsedBefore+1)throw new Error("authority_transaction_credential_lease_counter_conflict");
     await this.ensureAlgebraAtLeast(data.proposalId,"DISPATCHED");
-    if(!this.payload.audit.some(x=>x.ticketId===consumed.id&&x.phase==="ROUTE"&&x.outcome==="PASS"))this.appendAudit({scopeDeviceId:data.scopeDeviceId,intentId:data.intentId,taskId:data.taskId,proposalId:data.proposalId,ticketId:consumed.id,phase:"ROUTE",outcome:"PASS",summary:"Single-use execution ticket transaction recovered or consumed with exact arguments, credential use, canonical reality resolution, ConsequenceBundle and trusted tool binding.",detailsDigest:digest({ticket:consumed.id,argumentsDigest:data.argumentsDigest,trustedToolBindingDigest:trusted.bindingDigest,canonicalRealityResolutionDigest:resolution.resolutionDigest,consequenceBundleDigest:bundle.bundleDigest,transactionId:tx.id,fenceToken:tx.fenceToken})});
+    if(!this.payload.audit.some(x=>x.ticketId===consumed.id&&x.phase==="ROUTE"&&x.outcome==="PASS"))this.appendAudit({scopeDeviceId:data.scopeDeviceId,intentId:data.intentId,taskId:data.taskId,proposalId:data.proposalId,ticketId:consumed.id,phase:"ROUTE",outcome:"PASS",summary:"Single-use execution ticket consumed or transaction-recovered with exact arguments, credential use, canonical reality resolution, ConsequenceBundle and trusted tool binding.",detailsDigest:digest({ticket:consumed.id,argumentsDigest:data.argumentsDigest,trustedToolBindingDigest:trusted.bindingDigest,canonicalRealityResolutionDigest:resolution.resolutionDigest,consequenceBundleDigest:bundle.bundleDigest,transactionId:tx.id,fenceToken:tx.fenceToken})});
     await this.persist();
     if(tx.stage==="PREPARED")tx=await this.authorityTransactions.advance(tx.id,"APPLIED") as AuthorityTransactionEntry<ConsumeTicketTransaction>;
     if(tx.stage!=="COMMITTED")await this.authorityTransactions.advance(tx.id,"COMMITTED");
@@ -200,7 +205,7 @@ export class CieavExecutionFabricStore{
   private executionOutcome(transport:ExecutionAttemptTransport):ExecutionAuditEvent["outcome"]{return transport==="ACCEPTED"?"PASS":transport==="UNKNOWN"?"UNKNOWN":"ERROR"}
 
   private async committedExecutionAttemptResult(tx:AuthorityTransactionEntry<ExecutionAttemptTransaction>){
-    const data=tx.payload,outcome=this.executionOutcome(data.transport),audit=this.payload.audit.find(x=>x.ticketId===data.ticketId&&x.phase==="EXECUTE");
+    const data=tx.payload,outcome=this.executionOutcome(data.transport),audit=findLastMatch(this.payload.audit,x=>x.ticketId===data.ticketId&&x.phase==="EXECUTE"&&x.outcome===outcome&&x.summary===data.summary&&x.detailsDigest===data.detailsDigest);
     if(!audit||audit.outcome!==outcome||audit.summary!==data.summary||audit.detailsDigest!==data.detailsDigest)throw new Error("authority_transaction_execution_audit_conflict");
     if(data.transport!=="UNKNOWN")return{audit};
     const quarantines=await this.kernel.intentReality.listQuarantines(),quarantine=quarantines.find(q=>q.effectKey===data.effectKey&&q.status==="OPEN");
@@ -213,8 +218,8 @@ export class CieavExecutionFabricStore{
     const data=tx.payload,ticket=this.payload.tickets.find(x=>x.id===data.ticketId),record=this.payload.proposals.find(x=>x.proposal.id===data.proposalId);
     if(!ticket||ticket.status!=="CONSUMED"||ticket.proposalId!==data.proposalId)throw new Error("authority_transaction_execution_ticket_conflict");
     if(!record||record.proposal.taskId!==data.taskId||record.proposal.intentId!==data.intentId||record.proposal.scopeDeviceId!==data.scopeDeviceId)throw new Error("authority_transaction_execution_proposal_conflict");
-    const historical=this.historicalTrustedToolBinding(record),resolution=record.canonicalRealityResolution?this.historicalCanonicalRealityResolution(record):null,bundle=this.historicalConsequenceBundle(record);if(data.trustedToolBindingDigest!==historical.bindingDigest)throw new Error("authority_transaction_trusted_tool_binding_conflict");if((data.canonicalRealityResolutionDigest??null)!==(resolution?.resolutionDigest??null))throw new Error("authority_transaction_canonical_reality_resolution_conflict");if(data.consequenceBundleDigest!==bundle.bundleDigest)throw new Error("authority_transaction_consequence_bundle_conflict");
-    if(ticket.authorizationDigest!==this.authorizationDigest(record))throw new Error("authority_transaction_authorization_digest_conflict");
+    const historical=this.historicalTrustedToolBinding(record),resolution=record.canonicalRealityResolution?this.historicalCanonicalRealityResolution(record):null,bundle=this.historicalConsequenceBundle(record);if(data.trustedToolBindingDigest!==historical.bindingDigest)throw new Error("authority_transaction_trusted_tool_binding_conflict");if(expectedCanonicalResolutionDigest(resolution,data.canonicalRealityResolutionDigest)!==(resolution?.resolutionDigest??null))throw new Error("authority_transaction_canonical_reality_resolution_conflict");if(data.consequenceBundleDigest!==bundle.bundleDigest)throw new Error("authority_transaction_consequence_bundle_conflict");
+    if(!this.matchesAuthorizationDigest(record,ticket.authorizationDigest))throw new Error("authority_transaction_authorization_digest_conflict");
     const expectedEffectKey=semanticEffectKey(record.proposal.intentId,record.proposal.semanticEffect);if(expectedEffectKey!==data.effectKey)throw new Error("authority_transaction_execution_effect_conflict");
     let quarantine;
     const node=await this.consequenceAlgebra.getNode(data.proposalId);if(!node)throw new Error(`authority_transaction_consequence_missing:${data.proposalId}`);
@@ -230,13 +235,18 @@ export class CieavExecutionFabricStore{
       if(node.state!=="DISPATCHED")throw new Error(`authority_transaction_invalid_execution_algebra_state:${node.state}`);
       await this.consequenceAlgebra.mark(data.proposalId,"OBSERVING");
     }
-    const outcome=this.executionOutcome(data.transport),existing=this.payload.audit.find(x=>x.ticketId===data.ticketId&&x.phase==="EXECUTE");
-    if(existing){if(existing.outcome!==outcome||existing.summary!==data.summary||existing.detailsDigest!==data.detailsDigest)throw new Error("authority_transaction_execution_audit_conflict")}
-    else this.appendAudit({scopeDeviceId:data.scopeDeviceId,intentId:data.intentId,taskId:data.taskId,proposalId:data.proposalId,ticketId:data.ticketId,phase:"EXECUTE",outcome,summary:data.summary,detailsDigest:data.detailsDigest});
+    const outcome=this.executionOutcome(data.transport),existing=this.payload.audit.filter(x=>x.ticketId===data.ticketId&&x.phase==="EXECUTE"),matching=existing.find(x=>x.outcome===outcome&&x.summary===data.summary&&x.detailsDigest===data.detailsDigest);
+    if(data.transport==="UNKNOWN"){
+      if(existing.length>0&&!matching)throw new Error("authority_transaction_execution_audit_conflict");
+      if(!matching)this.appendAudit({scopeDeviceId:data.scopeDeviceId,intentId:data.intentId,taskId:data.taskId,proposalId:data.proposalId,ticketId:data.ticketId,phase:"EXECUTE",outcome,summary:data.summary,detailsDigest:data.detailsDigest});
+    }else if(!matching){
+      this.appendAudit({scopeDeviceId:data.scopeDeviceId,intentId:data.intentId,taskId:data.taskId,proposalId:data.proposalId,ticketId:data.ticketId,phase:"EXECUTE",outcome,summary:data.summary,detailsDigest:data.detailsDigest});
+    }
     await this.persist();
     if(tx.stage==="PREPARED")tx=await this.authorityTransactions.advance(tx.id,"APPLIED") as AuthorityTransactionEntry<ExecutionAttemptTransaction>;
     if(tx.stage!=="COMMITTED")await this.authorityTransactions.advance(tx.id,"COMMITTED");
-    const audit=this.payload.audit.find(x=>x.ticketId===data.ticketId&&x.phase==="EXECUTE")!;
+    const audit=findLastMatch(this.payload.audit,x=>x.ticketId===data.ticketId&&x.phase==="EXECUTE"&&x.outcome===outcome&&x.summary===data.summary&&x.detailsDigest===data.detailsDigest);
+    if(!audit)throw new Error("authority_transaction_execution_audit_missing");
     return{audit,...(quarantine?{quarantine}:{})};
   }
 
@@ -373,7 +383,7 @@ export class CieavExecutionFabricStore{
     await this.load();const ticket=this.payload.tickets.find(x=>x.id===ticketId);if(!ticket||ticket.status!=="CONSUMED")throw new Error("consumed_execution_ticket_required");
     const record=this.payload.proposals.find(x=>x.proposal.id===ticket.proposalId);if(!record)throw new Error("execution_proposal_not_found");const historical=this.historicalTrustedToolBinding(record),canonicalRealityResolution=record.canonicalRealityResolution?this.historicalCanonicalRealityResolution(record):null,consequenceBundle=this.historicalConsequenceBundle(record);
     if(ticket.authorizationDigest!==this.authorizationDigest(record))throw new Error("execution_authorization_binding_invalid");
-    const effectKey=semanticEffectKey(record.proposal.intentId,record.proposal.semanticEffect),txData:ExecutionAttemptTransaction={ticketId,proposalId:record.proposal.id,trustedToolBindingDigest:historical.bindingDigest,...(canonicalRealityResolution?{canonicalRealityResolutionDigest:canonicalRealityResolution.resolutionDigest}:{}),consequenceBundleDigest:consequenceBundle.bundleDigest,scopeDeviceId:record.proposal.scopeDeviceId,intentId:record.proposal.intentId,taskId:record.proposal.taskId,transport,summary:summary.slice(0,1200),detailsDigest:digest(details),effectKey},tx=await this.authorityTransactions.begin("RECORD_EXECUTION_ATTEMPT",`execute:${ticketId}`,txData);
+    const effectKey=semanticEffectKey(record.proposal.intentId,record.proposal.semanticEffect),txData:ExecutionAttemptTransaction={ticketId,proposalId:record.proposal.id,trustedToolBindingDigest:historical.bindingDigest,...(canonicalRealityResolution?{canonicalRealityResolutionDigest:canonicalRealityResolution.resolutionDigest}:{}),consequenceBundleDigest:consequenceBundle.bundleDigest,scopeDeviceId:record.proposal.scopeDeviceId,intentId:record.proposal.intentId,taskId:record.proposal.taskId,transport,summary:summary.slice(0,1200),detailsDigest:digest(details),effectKey},transactionKey=transport==="UNKNOWN"?`execute:${ticketId}`:`execute:${ticketId}:${transport}:${txData.detailsDigest}`,tx=await this.authorityTransactions.begin("RECORD_EXECUTION_ATTEMPT",transactionKey,txData);
     return this.applyExecutionAttemptTransaction(tx)
   })}
   listTickets(){return this.enqueue(async()=>{await this.load();return this.payload.tickets.slice().reverse()})}
