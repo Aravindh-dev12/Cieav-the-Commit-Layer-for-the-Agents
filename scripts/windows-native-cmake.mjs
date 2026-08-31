@@ -4,6 +4,14 @@ import path from "node:path";
 
 const run=(root,exe,args,opts={})=>spawnSync(exe,args,{cwd:root,encoding:"utf8",shell:false,...opts});
 
+export const describeWindowsNativeRun=(result)=>[
+  `exit=${result.status??"not-started"}`,
+  result.signal?`signal=${result.signal}`:"",
+  result.error?`spawn=${result.error.code??result.error.name}:${result.error.message}`:"",
+  String(result.stdout??"").trim()?`stdout=${String(result.stdout).trim()}`:"",
+  String(result.stderr??"").trim()?`stderr=${String(result.stderr).trim()}`:""
+].filter(Boolean).join(" · ");
+
 const configuredTool=(name,fallback,fail)=>{
   const value=String(process.env[name]??"").trim();
   if(!value)return fallback;

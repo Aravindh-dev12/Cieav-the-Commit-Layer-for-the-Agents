@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
-import {buildWindowsNativeExecutable} from "./windows-native-cmake.mjs";
+import {buildWindowsNativeExecutable,describeWindowsNativeRun} from "./windows-native-cmake.mjs";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const source=readFileSync(path.join(ROOT,"native/windows-tpm-cng/main.cpp"),"utf8");
 const cmake=readFileSync(path.join(ROOT,"native/windows-tpm-cng/CMakeLists.txt"),"utf8");
@@ -11,7 +11,7 @@ for(const token of ["MS_PLATFORM_CRYPTO_PROVIDER","NCRYPT_IMPL_HARDWARE_FLAG","N
 for(const token of ["ncrypt","bcrypt","/W4","/WX","/guard:cf","/DYNAMICBASE","/NXCOMPAT","/HIGHENTROPYVA","-fstack-protector-strong","_FORTIFY_SOURCE=2","-fcf-protection=full","--dynamicbase","--nxcompat","--high-entropy-va"])if(!cmake.includes(token))fail(`native build missing ${token}`);
 if(process.platform!=="win32"){console.log(`CIEAV Windows TPM/CNG gate PASS · platform=${process.platform} · P-256 consequence + RSA MAA attestation-key source/build invariants verified; Windows runtime probe not applicable`);process.exit(0)}
 const {run}=buildWindowsNativeExecutable({root:ROOT,sourceDir:"native/windows-tpm-cng",buildName:"windows-tpm-cng",executableName:"cieav-windows-tpm-cng.exe",fail});
-let r=run(["probe"]);if(![0,20].includes(r.status??-1))fail(`probe returned unexpected exit ${r.status}: ${r.stdout} ${r.stderr}`);
+let r=run(["probe"]);if(![0,20].includes(r.status??-1))fail(`probe process did not complete: ${describeWindowsNativeRun(r)}`);
 let body;try{body=JSON.parse(String(r.stdout).trim())}catch{fail(`probe did not return JSON: ${r.stdout}`)}
 if(body.protocol!=="CIEAV_KEY_PROVIDER_V1"||body.provider!=="TPM"||body.nativeProvider!=="Microsoft Platform Crypto Provider")fail("probe identity mismatch");
 if(r.status===0){if(body.available!==true||body.hardwareBacked!==true)fail("successful Platform Crypto Provider probe did not prove hardware backing");}

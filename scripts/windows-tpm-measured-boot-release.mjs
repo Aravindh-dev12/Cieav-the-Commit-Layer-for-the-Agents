@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
-import {buildWindowsNativeExecutable} from "./windows-native-cmake.mjs";
+import {buildWindowsNativeExecutable,describeWindowsNativeRun} from "./windows-native-cmake.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const nativeSource=readFileSync(path.join(ROOT,"native/windows-tpm-measured-boot/main.cpp"),"utf8");
@@ -22,7 +22,7 @@ if(process.platform!=="win32"){
 }
 
 const {run}=buildWindowsNativeExecutable({root:ROOT,sourceDir:"native/windows-tpm-measured-boot",buildName:"windows-tpm-measured-boot",executableName:"cieav-windows-tpm-measured-boot.exe",fail});
-let r=run(["probe"]);if(![0,20].includes(r.status??-1))fail(`probe returned unexpected exit ${r.status}: ${r.stdout} ${r.stderr}`);
+let r=run(["probe"]);if(![0,20].includes(r.status??-1))fail(`probe process did not complete: ${describeWindowsNativeRun(r)}`);
 let body;try{body=JSON.parse(String(r.stdout).trim())}catch{fail(`probe did not return JSON: ${r.stdout}`)}
 if(body.protocol!=="CIEAV_WINDOWS_TPM_MEASURED_BOOT_V1"||body.operation!=="probe"||body.collector!=="Windows TBS"||body.qualification!=="UNQUALIFIED")fail("probe identity/qualification boundary mismatch");
 if(r.status===0){if(body.available!==true||body.logType!=="SRTM_CURRENT"||body.pcrRange!=="0-15"||!Number.isInteger(body.bytes)||body.bytes<=0)fail("successful TBS probe returned invalid evidence metadata")}else if(body.available!==false)fail("failed TBS probe attempted to claim availability");

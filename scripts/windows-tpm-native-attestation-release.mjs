@@ -2,7 +2,7 @@
 import {readFileSync} from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
-import {buildWindowsNativeExecutable} from "./windows-native-cmake.mjs";
+import {buildWindowsNativeExecutable,describeWindowsNativeRun} from "./windows-native-cmake.mjs";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const source=readFileSync(path.join(ROOT,"native/windows-tpm-native-attestation/main.cpp"),"utf8"),cmake=readFileSync(path.join(ROOT,"native/windows-tpm-native-attestation/CMakeLists.txt"),"utf8"),ts=readFileSync(path.join(ROOT,"apps/api/src/windows-tpm-native-attestation.ts"),"utf8");
@@ -16,7 +16,7 @@ requireTokens(cmake,["cxx_std_20","ncrypt bcrypt crypt32","/W4","/WX","/permissi
 requireTokens(ts,["MICROSOFT_TPM_ROOT_CA_2014_SHA256","windows_tpm_native_unapproved_aik_root","expectedAikCertificateSha256","expectedAikRootCertificateSha256","windows_tpm_native_aik_certificate_mismatch","attestationMode:\"LOCAL_WINDOWS\"","PINNED_EXCLUSIVE_ROOT","ISSUING_CA_REQUIRED_LEAF_UNKNOWN_ALLOWED","leafRevocationUnknownAllowed","NCryptVerifyClaim+CertCreateCertificateChainEngine","local-ncrypt-verify-claim+pinned-root","windows_tpm_native_digest_mismatch","windows_tpm_native_adjacent_dll_forbidden"],"API attestor");
 if(process.platform!=="win32"){console.log(`CIEAV Windows TPM native attestation gate PASS · platform=${process.platform} · source/build/pinned-exclusive-root local-attestation invariants verified; physical Windows execution not applicable`);process.exit(0)}
 const {run}=buildWindowsNativeExecutable({root:ROOT,sourceDir:"native/windows-tpm-native-attestation",buildName:"windows-tpm-native-attestation",executableName:"cieav-windows-tpm-native-attestation.exe",fail});
-let r=run(["probe"]);if(![0,20].includes(r.status??-1))fail(`probe returned unexpected exit ${r.status}: ${r.stdout} ${r.stderr}`);
+let r=run(["probe"]);if(![0,20].includes(r.status??-1))fail(`probe process did not complete: ${describeWindowsNativeRun(r)}`);
 let body;try{body=JSON.parse(String(r.stdout).trim())}catch{fail(`probe did not return JSON: ${r.stdout}`)}
 if(body.protocol!=="CIEAV_WINDOWS_TPM_NATIVE_ATTESTATION_V1"||body.operation!=="probe"||body.provider!=="TPM"||body.nativeProvider!=="Microsoft Platform Crypto Provider")fail("probe identity mismatch");
 if(r.status===0){if(body.available!==true||body.hardwareBacked!==true)fail("successful native TPM probe did not prove hardware backing")}else if(body.available!==false||body.hardwareBacked!==false)fail("unavailable native TPM probe attempted to claim hardware backing");
