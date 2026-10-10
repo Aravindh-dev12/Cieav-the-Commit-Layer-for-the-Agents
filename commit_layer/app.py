@@ -35,6 +35,8 @@ from commit_layer import agent
 from commit_layer import crustdata
 from commit_layer import intent
 from commit_layer import headroom
+from commit_layer.decision_model import OpenAIDecisionRequest, SystemOneRequest
+
 
 
 @asynccontextmanager
@@ -449,5 +451,43 @@ async def api_baseten_info():
         "has_api_key": has_key,
         "active_frontier_providers": frontier_intelligence.get_active_providers()
     }
+
+
+# =========================================================================
+# LiteLLM-Compatible Decisions & System One Endpoints
+# =========================================================================
+
+@app.post("/v1/decisions")
+@app.post("/decisions")
+async def api_openai_decisions(req: OpenAIDecisionRequest):
+    """LiteLLM-compatible OpenAI Decisions API endpoint."""
+    from commit_layer.decision_model import handle_openai_decisions
+    return handle_openai_decisions(req)
+
+
+@app.post("/v1/systemone")
+@app.post("/systemone")
+async def api_systemone_decisions(req: SystemOneRequest):
+    """LiteLLM-compatible System One API endpoint."""
+    from commit_layer.decision_model import handle_systemone
+    return handle_systemone(req)
+
+
+@app.get("/v1/decisions/models")
+async def api_decisions_models():
+    """List available local decision models."""
+    return {
+        "models": [
+            {
+                "id": "cieav-decider-mini",
+                "object": "model",
+                "owned_by": "cieav-local",
+                "type": "decision_model",
+                "supported_routes": ["/v1/decisions", "/v1/systemone"],
+                "offline_native": True
+            }
+        ]
+    }
+
 
 
