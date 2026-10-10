@@ -1,8 +1,11 @@
-"""Frontier AI Classifier & Consequence Algebra Evaluator.
+"""Action risk classifier.
 
-Can ONLY raise risk above the deterministic policy floor, never lower it.
-Uses multi-provider ensemble voting (OpenAI, Anthropic, Baseten, Bedrock, Gemini, xAI, Kimi)
-with Consequence Algebra and cross-verification anomaly detection.
+Evaluates incoming agent tool invocations against semantic safety boundaries.
+Enforces the one-way invariant: AI evaluation can only RAISE risk above policy floors,
+never lower it.
+
+Uses the embedded local decision model (cieav-decider-mini) by default with zero external
+dependencies, and can augment with AWS Bedrock Converse when AWS credentials are present.
 """
 from __future__ import annotations
 import os

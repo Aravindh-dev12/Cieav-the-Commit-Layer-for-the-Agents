@@ -1,27 +1,13 @@
 """
-CIEAV Frontier Intelligence Engine — Multi-Provider Cross-Verified Decision Model.
+Multi-provider decision escalation and Consequence Algebra engine.
 
-Goes beyond single-model prompting (GPT-6, Astra, Claude Opus) by implementing:
+Routes consequential agent actions through consensus evaluation when cloud
+providers are configured. Enforces the core invariant: AI evaluation can only
+escalate risk above deterministic policy floors, never lower it.
 
-1. MULTI-PROVIDER ENSEMBLE VOTING:
-   Routes the same consequential decision prompt to 2-5 frontier providers
-   simultaneously (OpenAI GPT-5.6, Anthropic Claude, Gemini, xAI Grok, Kimi K3).
-   Requires consensus before any CRITICAL action can proceed.
-
-2. CONSEQUENCE ALGEBRA:
-   Formalizes the risk of each action as a composable algebraic expression:
-   R(action) = deterministic_floor ⊕ classifier_raise ⊕ ensemble_vote ⊕ crustdata_signal
-   where ⊕ is the "max-risk join" operator that can ONLY escalate, never lower.
-
-3. CROSS-PROVIDER VERIFICATION:
-   If Provider A says LOW and Provider B says CRITICAL, the action is automatically
-   escalated to CRITICAL with the disagreement logged as an anomaly signal.
-
-4. CAUSAL TRACING:
-   Every decision records the full causal chain: which provider voted what, why,
-   and how the final decision was derived — all signed into the Ed25519 ledger.
-
-All providers load from .env via dotenv. No local/offline models are used.
+By default, CIEAV uses the embedded local decision model (cieav-decider-mini),
+which requires zero external API keys. When remote cloud providers or AWS Bedrock
+are configured, they participate in the Consequence Algebra escalation flow.
 """
 
 from __future__ import annotations
