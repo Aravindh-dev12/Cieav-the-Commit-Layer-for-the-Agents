@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CIEAV — The Commit Layer for the Internet</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-alt: #f1f5f9;
+      --border: #e2e8f0;
+      --border-dark: #cbd5e1;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --text-dim: #94a3b8;
+      --primary: #0f172a;
+      --primary-hover: #1e293b;
+      --accent-blue: #2563eb;
+      --critical: #dc2626;
+      --critical-bg: #fef2f2;
+      --high: #ea580c;
+      --high-bg: #fff7ed;
+      --medium: #d97706;
+      --medium-bg: #fffbeb;
+      --low: #16a34a;
+      --low-bg: #f0fdf4;
+      --undo: #7c3aed;
+      --undo-hover: #6d28d9;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+
+    header {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+    .brand img {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      object-fit: cover;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .brand-name {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #0f172a;
+    }
+    .brand-sub {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .nav-link {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s;
+      cursor: pointer;
+    }
+    .nav-link:hover, .nav-link.active {
+      color: var(--text);
+    }
+
+    .header-btns {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: #0f172a; color: #ffffff; }
+    .btn-primary:hover { background: #1e293b; }
+    .btn-outline {
+      background: #ffffff;
+      border-color: var(--border-dark);
+      color: #0f172a;
+    }
+    .btn-outline:hover { background: #f8fafc; border-color: #94a3b8; }
+    .btn-success { background: #16a34a; color: #ffffff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: #dc2626; color: #ffffff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-undo { background: #7c3aed; color: #ffffff; padding: 4px 10px; font-size: 11px; }
+    .btn-undo:hover { background: #6d28d9; }
+
+    .view-container { display: none; }
+    .view-container.active { display: block; }
+
+    /* Landing Styles */
+    .landing-hero {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 70px 24px 50px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .pill-tag {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .hero-h1 {
+      font-size: clamp(2.4rem, 4.5vw, 3.8rem);
+      font-weight: 800;
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+      color: #0f172a;
+    }
+    .hero-p {
+      font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+      color: #475569;
+      max-width: 760px;
+      line-height: 1.5;
+    }
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 10px;
+    }
+
+    .section-wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 24px 60px;
+    }
+    .section-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .grid-5 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .feature-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .feature-num {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    .feature-head {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .feature-desc {
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    .arch-list {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .arch-row {
+      display: grid;
+      grid-template-columns: 50px 1fr auto;
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      align-items: center;
+    }
+    .arch-row:last-child { border-bottom: none; }
+    .arch-num { font-family: var(--mono); color: var(--text-muted); font-size: 12px; font-weight: 600; }
+    .arch-desc { font-weight: 500; color: #1e293b; }
+    .arch-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      background: #f1f5f9;
+      color: #475569;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* Auth Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-card {
+      background: #ffffff;
+      border-radius: 16px;
+      max-width: 420px;
+      width: 100%;
+      padding: 32px;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+      position: relative;
+    }
+    .modal-close {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      background: transparent;
+      border: none;
+      font-size: 20px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .modal-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .modal-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+    .modal-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .modal-sub {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+
+    .btn-google {
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid var(--border-dark);
+      color: #0f172a;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .btn-google:hover { background: #f8fafc; border-color: #94a3b8; }
+    .google-icon { width: 18px; height: 18px; }
+
+    .divider-row {
+      display: flex;
+      align-items: center;
+      margin: 20px 0;
+      color: var(--text-dim);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .divider-row::before, .divider-row::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .divider-row span { padding: 0 12px; }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .form-input {
+      padding: 10px 14px;
+      border: 1px solid var(--border-dark);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: var(--sans);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-input:focus {
+      border-color: #0f172a;
+      box-shadow: 0 0 0 1px #0f172a;
+    }
+    .btn-auth-submit {
+      width: 100%;
+      background: #0f172a;
+      color: #ffffff;
+      font-weight: 700;
+      padding: 11px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    .btn-auth-submit:hover { background: #1e293b; }
+
+    /* Dashboard Layout */
+    .dashboard-wrap {
+      background: var(--bg-page);
+      min-height: calc(100vh - 65px);
+      padding: 28px;
+    }
+    .dash-container {
+      max-width: 1380px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .dash-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .dash-h1 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #0f172a;
+    }
+    .dash-sub {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* Integration Live Verification Bar */
+    .integrations-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+    }
+    .integ-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+    .integ-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .integ-name {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #1e293b;
+    }
+    .integ-status {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+    }
+    .integ-online { background: #dcfce7; color: #15803d; }
+    .integ-ready { background: #e0e7ff; color: #4338ca; }
+    .integ-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Stats Grid */
+    .dash-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .white-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+    .stat-val {
+      font-size: 28px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-top: 6px;
+      font-family: var(--mono);
+    }
+    .stat-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .dash-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 1024px) {
+      .dash-cols { grid-template-columns: 1fr; }
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .pending-item {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .pending-item:last-child { margin-bottom: 0; }
+    .pending-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tool-badge {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 14px;
+      color: #1e293b;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-CRITICAL { background: var(--critical-bg); color: var(--critical); border: 1px solid #fecaca; }
+    .badge-HIGH { background: var(--high-bg); color: var(--high); border: 1px solid #fed7aa; }
+    .badge-MEDIUM { background: var(--medium-bg); color: var(--medium); border: 1px solid #fde68a; }
+    .badge-LOW { background: var(--low-bg); color: var(--low); border: 1px solid #bbf7d0; }
+    .badge-OBSERVED_SUCCESS { background: var(--low-bg); color: var(--low); border: 1px solid #bbf7d0; }
+    .badge-OBSERVED_FAILURE { background: var(--critical-bg); color: var(--critical); border: 1px solid #fecaca; }
+    .badge-UNKNOWN { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
+
+    .code-box {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: #334155;
+      overflow-x: auto;
+    }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+    th {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      background: #f8fafc;
+    }
+    tr:hover td { background: #f8fafc; }
+
+    .pulse-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #16a34a;
+      box-shadow: 0 0 6px #16a34a;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Global Header -->
+  <header>
+    <div class="brand" onclick="navigate('landing')">
+      <img src="/logo.png" alt="CIEAV Logo" onerror="this.style.display='none'">
+      <div>
+        <div class="brand-name">CIEAV</div>
+        <div class="brand-sub">The Commit Layer</div>
+      </div>
+    </div>
+
+    <nav class="nav-links">
+      <span class="nav-link active" id="navLanding" onclick="navigate('landing')">Landing</span>
+      <span class="nav-link" id="navArchitecture" onclick="openAuthModal('Explore architecture')">Architecture</span>
+      <span class="nav-link" id="navSecurity" onclick="openAuthModal('Read security model')">Security Model</span>
+      <span class="nav-link" id="navDashboard" onclick="navigate('dashboard')">Live Dashboard</span>
+    </nav>
+
+    <div class="header-actions">
+      <span id="userStatusTag" style="font-size: 12px; font-weight:600; color:var(--text-muted); margin-right:8px; display:none;">
+        <span class="pulse-dot"></span> <span id="userEmailSpan">admin@cieav.local</span>
+      </span>
+      <button class="btn btn-outline" id="btnAuthTrigger" onclick="openAuthModal('Sign In')">Sign In</button>
+      <button class="btn btn-primary" id="btnDashTrigger" onclick="navigate('dashboard')">Open Dashboard</button>
+    </div>
+  </header>
+
+  <!-- ========================================================
+       LANDING VIEW (Content updated with 5 Pillars Story)
+       ======================================================== -->
+  <div id="landingView" class="view-container active">
+    
+    <!-- Hero Section -->
+    <section class="landing-hero">
+      <div class="pill-tag">
+        <span class="pulse-dot"></span> Built on AWS Bedrock • Traced via neatlogs • Checked with Crustdata
+      </div>
+      <h1 class="hero-h1">The commit layer for the internet.</h1>
+      <p class="hero-p">
+        “We built it (Entire), it runs on AWS, it checks real-world data (Crustdata), we can see everything it did (neatlogs), and here is how it makes money (cfo.ai).”
+      </p>
+      <div class="hero-actions">
+        <button class="btn btn-primary" onclick="openAuthModal('Explore architecture')">
+          Explore architecture ↗
+        </button>
+        <button class="btn btn-outline" onclick="openAuthModal('Read security model')">
+          Read security model ↗
+        </button>
+      </div>
+    </section>
+
+    <!-- 5 Pillars Integration Cards -->
+    <div class="section-wrap" style="padding-bottom:20px;">
+      <div class="section-title">
+        <span>00 The 5 Judging & Engineering Pillars</span>
+      </div>
+      <div class="grid-5">
+        <div class="feature-card">
+          <div class="feature-num">01 OBSERVABILITY</div>
+          <div class="feature-head">neatlogs Tracing</div>
+          <div class="feature-desc">Records every gateway step: rule checks, redactions, approvals, and outcomes with cost, speed, and error telemetry.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">02 PROVENANCE</div>
+          <div class="feature-head">Entire Checkpoints</div>
+          <div class="feature-desc">Saves agent coding sessions and links every checkpoint directly to git commits for verifiable build provenance.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">03 INTELLIGENCE</div>
+          <div class="feature-head">AWS Bedrock</div>
+          <div class="feature-desc">Powers the agent and classifier using Claude Haiku runtime, automatically instrumented with telemetry wrappers.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">04 VERIFICATION</div>
+          <div class="feature-head">Crustdata Lookup</div>
+          <div class="feature-desc">Verifies counterparty companies in real time before payments commit. Unknown or brand new companies escalate risk.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">05 ECONOMICS</div>
+          <div class="feature-head">cfo.ai Business Plan</div>
+          <div class="feature-desc">Calculates cost per protected action ($0.005), revenue projections, and unit economics for autonomous enterprise agents.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Architecture & Core Invariants -->
+    <div class="section-wrap" id="architecture">
+      <div class="section-title">
+        <span>01 Architecture Pipeline</span>
+      </div>
+      <div class="arch-list">
+        <div class="arch-row">
+          <span class="arch-num">01</span>
+          <span class="arch-desc">Human / AI Agent Intent (AWS Bedrock Claude Haiku)</span>
+          <span class="arch-tag">INTENT</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">02</span>
+          <span class="arch-desc">Local CIEAV Gateway Intercept & Normalization</span>
+          <span class="arch-tag">AUTHORITY</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">03</span>
+          <span class="arch-desc">Deterministic Safety Floor (Policy Rules)</span>
+          <span class="arch-tag">SAFETY</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">04</span>
+          <span class="arch-desc">Local Privacy Reduction (Scrub cards, passwords, secrets)</span>
+          <span class="arch-tag">PRIVACY</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">05</span>
+          <span class="arch-desc">Real-World Payee Screening via Crustdata API</span>
+          <span class="arch-tag">CRUSTDATA</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">06</span>
+          <span class="arch-desc">AI Semantic Classifier (Can ONLY Raise Risk, Never Lower)</span>
+          <span class="arch-tag">SEMANTICS</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">07</span>
+          <span class="arch-desc">Cognitive Friction & Approval Fatigue Damper</span>
+          <span class="arch-tag">FRICTION</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">08</span>
+          <span class="arch-desc">Human Approval & Single-Use Short-Lived Token (60s)</span>
+          <span class="arch-tag">DECISION</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">09</span>
+          <span class="arch-desc">Signed Action Receipt (Ed25519 & SHA-256 Hash Chained)</span>
+          <span class="arch-tag">RECEIPT</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">10</span>
+          <span class="arch-desc">Independent Outcome Observer → SUCCESS / FAILURE / UNKNOWN</span>
+          <span class="arch-tag">OBSERVE</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">11</span>
+          <span class="arch-desc">Reversal Compensating Action → Verified UNDO</span>
+          <span class="arch-tag">UNDO</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Model Cards -->
+    <div class="section-wrap" id="security" style="padding-top:0;">
+      <div class="section-title">
+        <span>02 Security Invariants</span>
+      </div>
+      <div class="grid-3">
+        <div class="feature-card">
+          <div class="feature-num">RULE 01</div>
+          <div class="feature-head">Deterministic Floor is Inviolable</div>
+          <div class="feature-desc">AI models and payee lookups can only escalate risk. The deterministic policy is the absolute bottom floor.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">RULE 02</div>
+          <div class="feature-head">Committed ≠ Succeeded</div>
+          <div class="feature-desc">Dispatching a request is not remote success. Out-of-band observers independently qualify the outcome state.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">RULE 03</div>
+          <div class="feature-head">Undo Requires Verified Inverse</div>
+          <div class="feature-desc">Undo is only enabled when the outcome was confirmed as OBSERVED_SUCCESS and a legitimate inverse function exists.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ========================================================
+       AUTH MODAL (Google & Traditional Sign In)
+       ======================================================== -->
+  <div id="authModal" class="modal-overlay">
+    <div class="modal-card">
+      <button class="modal-close" onclick="closeAuthModal()">✕</button>
+      <div class="modal-header">
+        <img src="/logo.png" alt="Logo" class="modal-logo" onerror="this.style.display='none'">
+        <div class="modal-title" id="authModalTitle">Welcome to CIEAV</div>
+        <div class="modal-sub">Sign in to access your local Gateway Dashboard</div>
+      </div>
+
+      <!-- Google Sign In Button -->
+      <button class="btn-google" onclick="handleGoogleSignIn()">
+        <svg class="google-icon" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+          <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"/>
+          <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+          <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <div class="divider-row">
+        <span>or with email</span>
+      </div>
+
+      <!-- Traditional Email Sign In -->
+      <form onsubmit="handleEmailAuth(event)">
+        <div class="form-group">
+          <label class="form-label">Work Email</label>
+          <input type="email" id="authEmail" class="form-input" placeholder="name@company.com" required value="admin@cieav.local">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="authPassword" class="form-input" placeholder="••••••••" required value="password123">
+        </div>
+        <button type="submit" class="btn-auth-submit" id="authSubmitBtn">Sign In & Enter Dashboard</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       WHITE-THEMED CONTROL DASHBOARD
+       ======================================================== -->
+  <div id="dashboardView" class="view-container">
+    <div class="dashboard-wrap">
+      <div class="dash-container">
+
+        <!-- Dashboard Top Header Row -->
+        <div class="dash-header-row">
+          <div>
+            <h1 class="dash-h1">Commit Layer Gateway Dashboard</h1>
+            <div class="dash-sub">Deterministic Action Governance • Cryptographic Proofs • Real-time Reversal</div>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="verifyLedger()">🔒 Verify Hash Chain</button>
+            <button class="btn btn-danger" onclick="triggerHostileDemo()">⚠️ Test Hostile Injection</button>
+            <button class="btn btn-outline" onclick="triggerSafePaymentDemo()">⚡ Safe $40 Pay</button>
+            <button class="btn btn-outline" onclick="triggerFlakyDemo()">🎲 Flaky Pay</button>
+            <button class="btn btn-outline" onclick="resetSandbox()">↺ Reset Sandbox</button>
+          </div>
+        </div>
+
+        <!-- Integrations Status Bar -->
+        <div class="integrations-bar" id="integrationsBar">
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">neatlogs</span>
+              <span class="integ-status integ-online" id="statusNeatlogs">ONLINE</span>
+            </div>
+            <div class="integ-sub" id="subNeatlogs">workflow: commit-layer</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">Entire</span>
+              <span class="integ-status integ-ready" id="statusEntire">LINKED</span>
+            </div>
+            <div class="integ-sub" id="subEntire">git checkpoint active</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">AWS Bedrock</span>
+              <span class="integ-status integ-ready" id="statusAws">CONFIGURED</span>
+            </div>
+            <div class="integ-sub" id="subAws">Claude Haiku 4.5</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">Crustdata</span>
+              <span class="integ-status integ-ready" id="statusCrustdata">ACTIVE</span>
+            </div>
+            <div class="integ-sub" id="subCrustdata">5000 credits ready</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">cfo.ai</span>
+              <span class="integ-status integ-ready">PLANNED</span>
+            </div>
+            <div class="integ-sub">$0.005 / protected action</div>
+          </div>
+        </div>
+
+        <!-- Metrics Row -->
+        <div class="dash-stats-grid">
+          <div class="white-card">
+            <div class="stat-label">Agent Bank Reserve</div>
+            <div class="stat-val" id="dashBankVal">$10,000.00</div>
+            <div class="stat-hint">Account: <span style="font-family:var(--mono); color:#2563eb;">agent</span></div>
+          </div>
+          <div class="white-card">
+            <div class="stat-label">Cognitive Friction Debt</div>
+            <div class="stat-val" id="dashDebtVal">0.00</div>
+            <div class="stat-hint">Automated fatigue damper</div>
+          </div>
+          <div class="white-card">
+            <div class="stat-label">Signed Ledger Receipts</div>
+            <div class="stat-val" id="dashReceiptsCount">0</div>
+            <div class="stat-hint">Hash-chained in SQLite</div>
+          </div>
+          <div class="white-card">
+            <div class="stat-label">Active Ed25519 Authority</div>
+            <div class="stat-val" id="dashKeyId" style="font-size:18px;">--</div>
+            <div class="stat-hint">Hardware-ready signing key</div>
+          </div>
+        </div>
+
+        <!-- 2 Columns: Action Dispatcher & Approvals (Left), Sandbox Reality & Payee Checker (Right) -->
+        <div class="dash-cols">
+
+          <!-- Left Column: Dispatcher & Pending Approvals -->
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            
+            <!-- Direct Dispatcher -->
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">🚀 Dispatch Consequential Action</span>
+                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Agent Interceptor</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; gap:10px;">
+                  <select id="dashToolSelect" onchange="updateDashToolPreset()" class="form-input" style="flex:1;">
+                    <option value="send_payment">send_payment(amount, to)</option>
+                    <option value="delete_file">delete_file(filename)</option>
+                    <option value="grant_access">grant_access(user, permission)</option>
+                    <option value="send_email">send_email(to, subject, body)</option>
+                    <option value="flaky_payment">flaky_payment(amount, to)</option>
+                  </select>
+                  <button class="btn btn-primary" onclick="submitDashAction()">Dispatch Action</button>
+                </div>
+                <textarea id="dashArgsInput" class="form-input" style="font-family:var(--mono); font-size:12px; min-height:65px;"></textarea>
+              </div>
+            </div>
+
+            <!-- Pending Approvals -->
+            <div class="white-card" style="flex:1;">
+              <div class="card-header">
+                <span class="card-title">🛑 Pending Human Approvals</span>
+                <span id="dashPendingBadge" class="badge badge-LOW">0 Pending</span>
+              </div>
+              <div id="dashPendingContainer">
+                <p style="font-size:13px; color:var(--text-muted); text-align:center; padding:30px 0;">
+                  No actions currently waiting for approval.
+                </p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column: Sandbox Environment Live Reality & Crustdata Screen -->
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            
+            <!-- Crustdata Live Payee Lookup Tool -->
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">🔍 Crustdata Counterparty Screener</span>
+                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Real-world intelligence</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; gap:10px;">
+                  <input type="text" id="crustdataDomainInput" class="form-input" placeholder="e.g. stripe.com or attacker_offshore.xyz" style="flex:1;">
+                  <button class="btn btn-outline" onclick="runCrustdataLookup()">Verify Payee</button>
+                </div>
+                <div id="crustdataResultBox" class="code-box" style="display:none; font-size:11px;"></div>
+              </div>
+            </div>
+
+            <!-- Sandbox Reality -->
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">🌐 Sandbox World Reality State</span>
+                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Independent State</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                <div>
+                  <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Bank Ledger Accounts</div>
+                  <pre class="code-box" id="dashBankBox">Loading bank state...</pre>
+                </div>
+                <div>
+                  <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Filesystem & Trash Bin</div>
+                  <pre class="code-box" id="dashFilesBox">Loading files...</pre>
+                </div>
+                <div>
+                  <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Access Control & Sent Email Outbox</div>
+                  <pre class="code-box" id="dashAccessBox">Loading permissions...</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Receipts Ledger Table -->
+        <div class="white-card">
+          <div class="card-header">
+            <span class="card-title">📜 Cryptographic Receipts Audit Chain</span>
+            <span style="font-size:12px; color:var(--text-muted);">Ed25519 Signatures • SHA-256 Prev Hash Chained</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Tool</th>
+                  <th>Redacted Arguments</th>
+                  <th>Risk Floor</th>
+                  <th>Decision</th>
+                  <th>Commit Status</th>
+                  <th>Observed Outcome</th>
+                  <th>Reversal (Undo)</th>
+                  <th>Proof (Prev & Sig)</th>
+                </tr>
+              </thead>
+              <tbody id="dashReceiptsTbody">
+                <!-- Rows injected dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+
+    function navigate(viewName) {
+      document.querySelectorAll('.view-container').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+
+      if (viewName === 'dashboard') {
+        document.getElementById('dashboardView').classList.add('active');
+        document.getElementById('navDashboard').classList.add('active');
+        fetchState();
+      } else {
+        document.getElementById('landingView').classList.add('active');
+        document.getElementById('navLanding').classList.add('active');
+      }
+      window.scrollTo(0, 0);
+    }
+
+    function openAuthModal(actionContext) {
+      if (currentUser) {
+        navigate('dashboard');
+        return;
+      }
+      document.getElementById('authModalTitle').innerText = actionContext || 'Sign In to CIEAV';
+      document.getElementById('authModal').classList.add('active');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('authModal').classList.remove('active');
+    }
+
+    function handleGoogleSignIn() {
+      currentUser = { email: 'user@google-oauth.cieav.com', provider: 'google' };
+      onUserSignedIn();
+    }
+
+    function handleEmailAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById('authEmail').value;
+      currentUser = { email: email, provider: 'email' };
+      onUserSignedIn();
+    }
+
+    function onUserSignedIn() {
+      closeAuthModal();
+      document.getElementById('userEmailSpan').innerText = currentUser.email;
+      document.getElementById('userStatusTag').style.display = 'inline-flex';
+      document.getElementById('btnAuthTrigger').style.display = 'none';
+      navigate('dashboard');
+    }
+
+    const TOOL_PRESETS = {
+      send_payment: '{\n  "amount": 750.0,\n  "to": "merchant_b"\n}',
+      delete_file: '{\n  "filename": "config.json"\n}',
+      grant_access: '{\n  "user": "guest",\n  "permission": "write"\n}',
+      send_email: '{\n  "to": "partner@vendor.org",\n  "subject": "Quarterly Ledger",\n  "body": "Commit layer status report."\n}',
+      flaky_payment: '{\n  "amount": 80.0,\n  "to": "merchant_a"\n}'
+    };
+
+    function updateDashToolPreset() {
+      const tool = document.getElementById('dashToolSelect').value;
+      document.getElementById('dashArgsInput').value = TOOL_PRESETS[tool] || '{}';
+    }
+    updateDashToolPreset();
+
+    async function submitDashAction() {
+      const tool = document.getElementById('dashToolSelect').value;
+      const raw = document.getElementById('dashArgsInput').value;
+      let args = {};
+      try {
+        args = JSON.parse(raw);
+      } catch (err) {
+        alert("Invalid JSON format");
+        return;
+      }
+
+      await fetch('/api/actions/intercept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool, args, agent_id: currentUser ? currentUser.email : 'web-user' })
+      });
+      fetchState();
+    }
+
+    async function runCrustdataLookup() {
+      const payee = document.getElementById('crustdataDomainInput').value.trim();
+      if (!payee) return;
+      const box = document.getElementById('crustdataResultBox');
+      box.style.display = 'block';
+      box.innerText = 'Querying Crustdata API...';
+
+      try {
+        const res = await fetch('/api/crustdata/lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payee })
+        });
+        const data = await res.json();
+        box.innerText = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.innerText = 'Lookup error: ' + err;
+      }
+    }
+
+    async function fetchState() {
+      try {
+        const res = await fetch('/api/state');
+        const data = await res.json();
+
+        // Metrics
+        const bal = data.sandbox.bank_ledger?.agent ?? 0;
+        document.getElementById('dashBankVal').innerText = '$' + bal.toLocaleString('en-US', { minimumFractionDigits: 2 });
+        document.getElementById('dashDebtVal').innerText = (data.cognitive_debt ?? 0).toFixed(2);
+        document.getElementById('dashReceiptsCount').innerText = data.receipts.length;
+        document.getElementById('dashKeyId').innerText = data.key_id || 'LOCAL-ED25519';
+
+        // Integrations Status
+        if (data.integrations) {
+          const neatlogs = data.integrations.neatlogs;
+          const statusNeatlogsEl = document.getElementById('statusNeatlogs');
+          if (neatlogs.configured) {
+            statusNeatlogsEl.innerText = 'ONLINE';
+            statusNeatlogsEl.className = 'integ-status integ-online';
+          } else {
+            statusNeatlogsEl.innerText = 'KEY READY';
+            statusNeatlogsEl.className = 'integ-status integ-ready';
+          }
+
+          const entire = data.integrations.entire;
+          if (entire.latest_commit_sha) {
+            document.getElementById('subEntire').innerText = 'sha: ' + entire.latest_commit_sha.substring(0, 7);
+          }
+
+          const crustdata = data.integrations.crustdata;
+          document.getElementById('subCrustdata').innerText = crustdata.credits;
+        }
+
+        // Sandbox
+        document.getElementById('dashBankBox').innerText = JSON.stringify(data.sandbox.bank_ledger, null, 2);
+        document.getElementById('dashFilesBox').innerText = JSON.stringify({
+          active_files: Object.keys(data.sandbox.filesystem || {}),
+          trash_files: Object.keys(data.sandbox.trash || {})
+        }, null, 2);
+        document.getElementById('dashAccessBox').innerText = JSON.stringify({
+          permissions: data.sandbox.access_list,
+          sent_emails_count: data.sandbox.email_outbox?.length ?? 0
+        }, null, 2);
+
+        // Pending
+        const container = document.getElementById('dashPendingContainer');
+        const pendingKeys = Object.keys(data.pending);
+        const badge = document.getElementById('dashPendingBadge');
+        badge.innerText = `${pendingKeys.length} Pending`;
+        badge.className = `badge ${pendingKeys.length > 0 ? 'badge-CRITICAL' : 'badge-LOW'}`;
+
+        if (pendingKeys.length === 0) {
+          container.innerHTML = '<p style="font-size:13px; color:var(--text-muted); text-align:center; padding:30px 0;">No actions currently waiting for approval.</p>';
+        } else {
+          container.innerHTML = '';
+          pendingKeys.forEach(id => {
+            const act = data.pending[id];
+            const div = document.createElement('div');
+            div.className = 'pending-item';
+            div.innerHTML = `
+              <div class="pending-top">
+                <span class="tool-badge">${act.tool_name}()</span>
+                <span class="badge badge-${act.risk}">${act.risk}</span>
+              </div>
+              <div class="code-box">${JSON.stringify(act.args_redacted, null, 2)}</div>
+              <div style="font-size:12px; color:#475569;"><strong>Reasons:</strong> ${act.reasons.join('; ')}</div>
+              ${act.requires_typed_confirmation ? `
+                <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:10px;">
+                  <label style="font-size:11px; font-weight:700; color:#dc2626; display:block; margin-bottom:4px;">High risk! Type 'COMMIT' to approve:</label>
+                  <input type="text" id="confirm_${act.id}" placeholder="Type COMMIT" class="form-input" style="width:100%; border-color:#dc2626; padding:6px 10px;" />
+                </div>
+              ` : ''}
+              <div style="display:flex; gap:10px; margin-top:4px;">
+                <button class="btn btn-success" style="flex:1;" onclick="approveAction('${act.id}', ${act.requires_typed_confirmation})">✓ COMMIT ACTION</button>
+                <button class="btn btn-danger" style="flex:1;" onclick="cancelAction('${act.id}')">✕ CANCEL</button>
+              </div>
+            `;
+            container.appendChild(div);
+          });
+        }
+
+        // Receipts Table
+        const tbody = document.getElementById('dashReceiptsTbody');
+        tbody.innerHTML = '';
+        data.receipts.slice().reverse().forEach(r => {
+          const tr = document.createElement('tr');
+          const outcomeBadge = r.outcome ? `<span class="badge badge-${r.outcome}">${r.outcome}</span>` : '--';
+          
+          let undoAction = '<span style="color:#94a3b8; font-size:12px;">--</span>';
+          if (r.outcome === 'OBSERVED_SUCCESS' && r.undo_state === 'AVAILABLE') {
+            undoAction = `<button class="btn btn-undo" onclick="undoReceipt('${r.id}')">⎌ Undo</button>`;
+          } else if (r.undo_state === 'UNDONE') {
+            undoAction = '<span style="color:#7c3aed; font-weight:700; font-size:11px;">UNDONE</span>';
+          }
+
+          tr.innerHTML = `
+            <td style="font-family:var(--mono); font-size:11px; color:#64748b;">${new Date(r.timestamp * 1000).toLocaleTimeString()}</td>
+            <td style="font-family:var(--mono); font-weight:700; color:#0f172a;">${r.tool}</td>
+            <td style="font-family:var(--mono); font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.args_redacted}</td>
+            <td><span class="badge badge-${r.risk}">${r.risk}</span></td>
+            <td style="font-size:12px; color:#64748b;">${r.decision}</td>
+            <td style="font-weight:700;">${r.status}</td>
+            <td>${outcomeBadge}</td>
+            <td>${undoAction}</td>
+            <td style="font-family:var(--mono); font-size:10px; color:#94a3b8;">
+              prev: ${r.prev_hash.substring(0, 8)}...<br/>
+              sig: ${r.signature ? r.signature.substring(0, 10) + '...' : 'none'}
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (err) {
+        console.error("Dashboard sync error", err);
+      }
+    }
+
+    async function approveAction(id, requiresTyped) {
+      if (requiresTyped) {
+        const val = document.getElementById(`confirm_${id}`)?.value;
+        if (val !== 'COMMIT') {
+          alert("Safety invariant: You must type 'COMMIT' exactly to authorize high consequence actions.");
+          return;
+        }
+      }
+      await fetch(`/api/actions/${id}/approve`, { method: 'POST' });
+      fetchState();
+    }
+
+    async function cancelAction(id) {
+      await fetch(`/api/actions/${id}/cancel`, { method: 'POST' });
+      fetchState();
+    }
+
+    async function undoReceipt(receiptId) {
+      const res = await fetch(`/api/receipts/${receiptId}/undo`, { method: 'POST' });
+      const data = await res.json();
+      if (data.error) {
+        alert("Undo rejected: " + data.error);
+      }
+      fetchState();
+    }
+
+    async function triggerHostileDemo() {
+      await fetch('/api/demo/hostile-injection', { method: 'POST' });
+      fetchState();
+    }
+
+    async function triggerSafePaymentDemo() {
+      await fetch('/api/demo/safe-payment', { method: 'POST' });
+      fetchState();
+    }
+
+    async function triggerFlakyDemo() {
+      await fetch('/api/demo/flaky-payment', { method: 'POST' });
+      fetchState();
+    }
+
+    async function resetSandbox() {
+      await fetch('/api/sandbox/reset', { method: 'POST' });
+      fetchState();
+    }
+
+    async function verifyLedger() {
+      const res = await fetch('/api/receipts/verify');
+      const data = await res.json();
+      if (data.valid) {
+        alert("✅ Cryptographic Verification PASSED!\nAll hash links and Ed25519 signatures in the SQLite ledger are authentic and unbroken.");
+      } else {
+        alert("❌ Chain Broken:\n" + data.errors.join('\n'));
+      }
+    }
+
+    setInterval(fetchState, 2000);
+    fetchState();
+  </script>
+</body>
+</html>
