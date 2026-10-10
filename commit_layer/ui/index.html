@@ -46,7 +46,6 @@
       line-height: 1.5;
     }
 
-    /* Top Global Header */
     header {
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(8px);
@@ -110,7 +109,6 @@
       gap: 10px;
     }
 
-    /* Buttons */
     .btn {
       font-family: var(--sans);
       font-size: 13px;
@@ -141,20 +139,17 @@
     .btn-undo { background: #7c3aed; color: #ffffff; padding: 4px 10px; font-size: 11px; }
     .btn-undo:hover { background: #6d28d9; }
 
-    /* VIEW CONTAINERS: Landing vs Dashboard */
     .view-container { display: none; }
     .view-container.active { display: block; }
 
-    /* ========================================================
-       LANDING PAGE (Clean White Minimalist Style)
-       ======================================================== */
+    /* Landing Styles */
     .landing-hero {
       max-width: 1100px;
       margin: 0 auto;
-      padding: 80px 24px 60px;
+      padding: 70px 24px 50px;
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: 20px;
     }
     .pill-tag {
       align-self: flex-start;
@@ -179,49 +174,53 @@
     .hero-p {
       font-size: clamp(1.05rem, 1.8vw, 1.25rem);
       color: #475569;
-      max-width: 720px;
+      max-width: 760px;
       line-height: 1.5;
     }
     .hero-actions {
       display: flex;
       flex-wrap: wrap;
       gap: 14px;
-      margin-top: 12px;
+      margin-top: 10px;
     }
 
-    /* Landing feature cards */
     .section-wrap {
       max-width: 1100px;
       margin: 0 auto;
-      padding: 40px 24px 80px;
+      padding: 40px 24px 60px;
     }
     .section-title {
       font-size: 22px;
       font-weight: 800;
       letter-spacing: -0.02em;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       display: flex;
       align-items: center;
       gap: 10px;
     }
     .grid-3 {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 20px;
+    }
+    .grid-5 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
     }
     .feature-card {
       background: #ffffff;
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 24px;
+      padding: 22px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.03);
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
     .feature-num {
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       color: var(--text-muted);
     }
@@ -231,12 +230,11 @@
       color: #0f172a;
     }
     .feature-desc {
-      font-size: 14px;
+      font-size: 13px;
       color: #64748b;
       line-height: 1.5;
     }
 
-    /* Architecture Pipeline list */
     .arch-list {
       background: #ffffff;
       border: 1px solid var(--border);
@@ -246,8 +244,8 @@
     }
     .arch-row {
       display: grid;
-      grid-template-columns: 60px 1fr auto;
-      padding: 14px 20px;
+      grid-template-columns: 50px 1fr auto;
+      padding: 13px 20px;
       border-bottom: 1px solid var(--border);
       font-size: 14px;
       align-items: center;
@@ -265,9 +263,7 @@
       border-radius: 4px;
     }
 
-    /* ========================================================
-       AUTH MODAL (Sign In / Sign Up / Google Auth)
-       ======================================================== */
+    /* Auth Modal */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -395,9 +391,7 @@
     }
     .btn-auth-submit:hover { background: #1e293b; }
 
-    /* ========================================================
-       WHITE THEMED DASHBOARD
-       ======================================================== */
+    /* Dashboard Layout */
     .dashboard-wrap {
       background: var(--bg-page);
       min-height: calc(100vh - 65px);
@@ -428,6 +422,51 @@
       font-size: 13px;
       color: #64748b;
       margin-top: 2px;
+    }
+
+    /* Integration Live Verification Bar */
+    .integrations-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+    }
+    .integ-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+    .integ-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .integ-name {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #1e293b;
+    }
+    .integ-status {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+    }
+    .integ-online { background: #dcfce7; color: #15803d; }
+    .integ-ready { background: #e0e7ff; color: #4338ca; }
+    .integ-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     /* Stats Grid */
@@ -465,7 +504,6 @@
       margin-top: 4px;
     }
 
-    /* 2 Columns: Actions & World */
     .dash-cols {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -489,7 +527,6 @@
       color: #0f172a;
     }
 
-    /* Approval Items */
     .pending-item {
       background: #f8fafc;
       border: 1px solid var(--border);
@@ -540,7 +577,6 @@
       overflow-x: auto;
     }
 
-    /* Table */
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
@@ -578,7 +614,7 @@
     </div>
 
     <nav class="nav-links">
-      <span class="nav-link" id="navLanding" onclick="navigate('landing')">Landing</span>
+      <span class="nav-link active" id="navLanding" onclick="navigate('landing')">Landing</span>
       <span class="nav-link" id="navArchitecture" onclick="openAuthModal('Explore architecture')">Architecture</span>
       <span class="nav-link" id="navSecurity" onclick="openAuthModal('Read security model')">Security Model</span>
       <span class="nav-link" id="navDashboard" onclick="navigate('dashboard')">Live Dashboard</span>
@@ -594,21 +630,20 @@
   </header>
 
   <!-- ========================================================
-       LANDING VIEW
+       LANDING VIEW (Content updated with 5 Pillars Story)
        ======================================================== -->
   <div id="landingView" class="view-container active">
     
     <!-- Hero Section -->
     <section class="landing-hero">
       <div class="pill-tag">
-        <span class="pulse-dot"></span> Deterministic Consequence Gateway
+        <span class="pulse-dot"></span> Built on AWS Bedrock • Traced via neatlogs • Checked with Crustdata
       </div>
       <h1 class="hero-h1">The commit layer for the internet.</h1>
       <p class="hero-p">
-        Cloud interprets. Local authority commits. CIEAV sits between an AI agent or automation and browser actions that create consequential, irreversible effects.
+        “We built it (Entire), it runs on AWS, it checks real-world data (Crustdata), we can see everything it did (neatlogs), and here is how it makes money (cfo.ai).”
       </p>
       <div class="hero-actions">
-        <!-- Exact requested buttons linking to Sign In / Sign Up then Dashboard -->
         <button class="btn btn-primary" onclick="openAuthModal('Explore architecture')">
           Explore architecture ↗
         </button>
@@ -618,6 +653,40 @@
       </div>
     </section>
 
+    <!-- 5 Pillars Integration Cards -->
+    <div class="section-wrap" style="padding-bottom:20px;">
+      <div class="section-title">
+        <span>00 The 5 Judging & Engineering Pillars</span>
+      </div>
+      <div class="grid-5">
+        <div class="feature-card">
+          <div class="feature-num">01 OBSERVABILITY</div>
+          <div class="feature-head">neatlogs Tracing</div>
+          <div class="feature-desc">Records every gateway step: rule checks, redactions, approvals, and outcomes with cost, speed, and error telemetry.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">02 PROVENANCE</div>
+          <div class="feature-head">Entire Checkpoints</div>
+          <div class="feature-desc">Saves agent coding sessions and links every checkpoint directly to git commits for verifiable build provenance.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">03 INTELLIGENCE</div>
+          <div class="feature-head">AWS Bedrock</div>
+          <div class="feature-desc">Powers the agent and classifier using Claude Haiku runtime, automatically instrumented with telemetry wrappers.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">04 VERIFICATION</div>
+          <div class="feature-head">Crustdata Lookup</div>
+          <div class="feature-desc">Verifies counterparty companies in real time before payments commit. Unknown or brand new companies escalate risk.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num">05 ECONOMICS</div>
+          <div class="feature-head">cfo.ai Business Plan</div>
+          <div class="feature-desc">Calculates cost per protected action ($0.005), revenue projections, and unit economics for autonomous enterprise agents.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Architecture & Core Invariants -->
     <div class="section-wrap" id="architecture">
       <div class="section-title">
@@ -626,7 +695,7 @@
       <div class="arch-list">
         <div class="arch-row">
           <span class="arch-num">01</span>
-          <span class="arch-desc">Human / AI Agent Intent (e.g. Bedrock Claude Haiku)</span>
+          <span class="arch-desc">Human / AI Agent Intent (AWS Bedrock Claude Haiku)</span>
           <span class="arch-tag">INTENT</span>
         </div>
         <div class="arch-row">
@@ -646,33 +715,38 @@
         </div>
         <div class="arch-row">
           <span class="arch-num">05</span>
-          <span class="arch-desc">AI Classifier (Can ONLY Raise Risk, Never Lower)</span>
-          <span class="arch-tag">SEMANTICS</span>
+          <span class="arch-desc">Real-World Payee Screening via Crustdata API</span>
+          <span class="arch-tag">CRUSTDATA</span>
         </div>
         <div class="arch-row">
           <span class="arch-num">06</span>
-          <span class="arch-desc">Cognitive Friction & Rate Fatigue Engine</span>
-          <span class="arch-tag">FRICTION</span>
+          <span class="arch-desc">AI Semantic Classifier (Can ONLY Raise Risk, Never Lower)</span>
+          <span class="arch-tag">SEMANTICS</span>
         </div>
         <div class="arch-row">
           <span class="arch-num">07</span>
-          <span class="arch-desc">Human Approval & Single-Use Short-Lived Token</span>
-          <span class="arch-tag">DECISION</span>
+          <span class="arch-desc">Cognitive Friction & Approval Fatigue Damper</span>
+          <span class="arch-tag">FRICTION</span>
         </div>
         <div class="arch-row">
           <span class="arch-num">08</span>
-          <span class="arch-desc">Signed Action Receipt (Ed25519 & Hash-Chained)</span>
-          <span class="arch-tag">EXECUTION</span>
+          <span class="arch-desc">Human Approval & Single-Use Short-Lived Token (60s)</span>
+          <span class="arch-tag">DECISION</span>
         </div>
         <div class="arch-row">
           <span class="arch-num">09</span>
-          <span class="arch-desc">Outcome Observer → SUCCESS / FAILURE / UNKNOWN</span>
-          <span class="arch-tag">OBSERVE</span>
+          <span class="arch-desc">Signed Action Receipt (Ed25519 & SHA-256 Hash Chained)</span>
+          <span class="arch-tag">RECEIPT</span>
         </div>
         <div class="arch-row">
           <span class="arch-num">10</span>
-          <span class="arch-desc">Compensating Action Reversal → UNDO</span>
-          <span class="arch-tag">REVERSAL</span>
+          <span class="arch-desc">Independent Outcome Observer → SUCCESS / FAILURE / UNKNOWN</span>
+          <span class="arch-tag">OBSERVE</span>
+        </div>
+        <div class="arch-row">
+          <span class="arch-num">11</span>
+          <span class="arch-desc">Reversal Compensating Action → Verified UNDO</span>
+          <span class="arch-tag">UNDO</span>
         </div>
       </div>
     </div>
@@ -686,7 +760,7 @@
         <div class="feature-card">
           <div class="feature-num">RULE 01</div>
           <div class="feature-head">Deterministic Floor is Inviolable</div>
-          <div class="feature-desc">AI models can only escalate or raise risk. The deterministic policy is the absolute bottom floor.</div>
+          <div class="feature-desc">AI models and payee lookups can only escalate risk. The deterministic policy is the absolute bottom floor.</div>
         </div>
         <div class="feature-card">
           <div class="feature-num">RULE 02</div>
@@ -767,6 +841,45 @@
           </div>
         </div>
 
+        <!-- Integrations Status Bar -->
+        <div class="integrations-bar" id="integrationsBar">
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">neatlogs</span>
+              <span class="integ-status integ-online" id="statusNeatlogs">ONLINE</span>
+            </div>
+            <div class="integ-sub" id="subNeatlogs">workflow: commit-layer</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">Entire</span>
+              <span class="integ-status integ-ready" id="statusEntire">LINKED</span>
+            </div>
+            <div class="integ-sub" id="subEntire">git checkpoint active</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">AWS Bedrock</span>
+              <span class="integ-status integ-ready" id="statusAws">CONFIGURED</span>
+            </div>
+            <div class="integ-sub" id="subAws">Claude Haiku 4.5</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">Crustdata</span>
+              <span class="integ-status integ-ready" id="statusCrustdata">ACTIVE</span>
+            </div>
+            <div class="integ-sub" id="subCrustdata">5000 credits ready</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">cfo.ai</span>
+              <span class="integ-status integ-ready">PLANNED</span>
+            </div>
+            <div class="integ-sub">$0.005 / protected action</div>
+          </div>
+        </div>
+
         <!-- Metrics Row -->
         <div class="dash-stats-grid">
           <div class="white-card">
@@ -791,7 +904,7 @@
           </div>
         </div>
 
-        <!-- 2 Columns: Action Dispatcher & Approvals (Left), Sandbox Reality (Right) -->
+        <!-- 2 Columns: Action Dispatcher & Approvals (Left), Sandbox Reality & Payee Checker (Right) -->
         <div class="dash-cols">
 
           <!-- Left Column: Dispatcher & Pending Approvals -->
@@ -833,8 +946,25 @@
 
           </div>
 
-          <!-- Right Column: Sandbox Environment Live Reality -->
+          <!-- Right Column: Sandbox Environment Live Reality & Crustdata Screen -->
           <div style="display:flex; flex-direction:column; gap:20px;">
+            
+            <!-- Crustdata Live Payee Lookup Tool -->
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">🔍 Crustdata Counterparty Screener</span>
+                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Real-world intelligence</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; gap:10px;">
+                  <input type="text" id="crustdataDomainInput" class="form-input" placeholder="e.g. stripe.com or attacker_offshore.xyz" style="flex:1;">
+                  <button class="btn btn-outline" onclick="runCrustdataLookup()">Verify Payee</button>
+                </div>
+                <div id="crustdataResultBox" class="code-box" style="display:none; font-size:11px;"></div>
+              </div>
+            </div>
+
+            <!-- Sandbox Reality -->
             <div class="white-card">
               <div class="card-header">
                 <span class="card-title">🌐 Sandbox World Reality State</span>
@@ -892,7 +1022,6 @@
   </div>
 
   <script>
-    // State management
     let currentUser = null;
 
     function navigate(viewName) {
@@ -943,7 +1072,6 @@
       navigate('dashboard');
     }
 
-    // Tool Presets for Dispatcher
     const TOOL_PRESETS = {
       send_payment: '{\n  "amount": 750.0,\n  "to": "merchant_b"\n}',
       delete_file: '{\n  "filename": "config.json"\n}',
@@ -977,17 +1105,58 @@
       fetchState();
     }
 
+    async function runCrustdataLookup() {
+      const payee = document.getElementById('crustdataDomainInput').value.trim();
+      if (!payee) return;
+      const box = document.getElementById('crustdataResultBox');
+      box.style.display = 'block';
+      box.innerText = 'Querying Crustdata API...';
+
+      try {
+        const res = await fetch('/api/crustdata/lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payee })
+        });
+        const data = await res.json();
+        box.innerText = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.innerText = 'Lookup error: ' + err;
+      }
+    }
+
     async function fetchState() {
       try {
         const res = await fetch('/api/state');
         const data = await res.json();
 
-        // Stats
+        // Metrics
         const bal = data.sandbox.bank_ledger?.agent ?? 0;
         document.getElementById('dashBankVal').innerText = '$' + bal.toLocaleString('en-US', { minimumFractionDigits: 2 });
         document.getElementById('dashDebtVal').innerText = (data.cognitive_debt ?? 0).toFixed(2);
         document.getElementById('dashReceiptsCount').innerText = data.receipts.length;
         document.getElementById('dashKeyId').innerText = data.key_id || 'LOCAL-ED25519';
+
+        // Integrations Status
+        if (data.integrations) {
+          const neatlogs = data.integrations.neatlogs;
+          const statusNeatlogsEl = document.getElementById('statusNeatlogs');
+          if (neatlogs.configured) {
+            statusNeatlogsEl.innerText = 'ONLINE';
+            statusNeatlogsEl.className = 'integ-status integ-online';
+          } else {
+            statusNeatlogsEl.innerText = 'KEY READY';
+            statusNeatlogsEl.className = 'integ-status integ-ready';
+          }
+
+          const entire = data.integrations.entire;
+          if (entire.latest_commit_sha) {
+            document.getElementById('subEntire').innerText = 'sha: ' + entire.latest_commit_sha.substring(0, 7);
+          }
+
+          const crustdata = data.integrations.crustdata;
+          document.getElementById('subCrustdata').innerText = crustdata.credits;
+        }
 
         // Sandbox
         document.getElementById('dashBankBox').innerText = JSON.stringify(data.sandbox.bank_ledger, null, 2);
@@ -1129,7 +1298,6 @@
       }
     }
 
-    // Auto-sync dashboard every 2 seconds
     setInterval(fetchState, 2000);
     fetchState();
   </script>

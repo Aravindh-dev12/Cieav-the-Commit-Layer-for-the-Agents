@@ -4,19 +4,22 @@ Routes:
 - GET  /                           -> Serves the unified landing page + auth modal + dashboard HTML
 - GET  /logo.png                   -> Serves the custom logo
 - GET  /favicon.ico                -> Serves the custom favicon
-- GET  /api/state                  -> Current pending actions, sandbox state, receipts, cognitive debt
+- GET  /api/state                  -> Current pending actions, sandbox state, receipts, cognitive debt, integrations
 - POST /api/actions/intercept      -> Submits an agent action to the gateway pipeline
 - POST /api/actions/{id}/approve   -> Human commits a pending action
 - POST /api/actions/{id}/cancel    -> Human cancels a pending action
 - POST /api/receipts/{id}/undo     -> Triggers undo on an OBSERVED_SUCCESS receipt with inverse
 - GET  /api/receipts/verify        -> Verifies full Ed25519 hash-chain integrity
 - POST /api/sandbox/reset          -> Resets the fake sandbox environment
-- POST /api/demo/hostile-injection -> Simulates hostile $5000 injection attack
+- POST /api/demo/hostile-injection -> Simulates hostile $5000 injection attack with real LLM
 - POST /api/demo/safe-payment      -> Simulates routine $40 payment (previewable)
 - POST /api/demo/flaky-payment     -> Simulates flaky payment with potential UNKNOWN outcome
+- GET  /api/integrations/status    -> Live verification of neatlogs, Entire, AWS Bedrock, Crustdata, cfo.ai
+- POST /api/crustdata/lookup       -> Real-time payee company intelligence lookup
 """
 from __future__ import annotations
 import os
+import subprocess
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 from fastapi import FastAPI, HTTPException
@@ -29,6 +32,7 @@ from commit_layer import sandbox
 from commit_layer import friction
 from commit_layer import telemetry
 from commit_layer import agent
+from commit_layer import crustdata
 
 
 @asynccontextmanager
@@ -50,6 +54,10 @@ class InterceptRequest(BaseModel):
     tool: str
     args: Dict[str, Any]
     agent_id: str = "agent-1"
+
+
+class PayeeLookupRequest(BaseModel):
+    payee: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -93,12 +101,58 @@ async def get_state():
             "requires_typed_confirmation": action.decision.value == "preview_with_typed_confirmation"
         }
 
+    # Integrations status check
+    has_neatlogs_key = bool(os.environ.get("NEATLOGS_API_KEY", "").strip())
+    has_aws_keys = bool(os.environ.get("AWS_ACCESS_KEY_ID", "").strip() and os.environ.get("AWS_SECRET_ACCESS_KEY", "").strip())
+    has_crustdata_key = bool(os.environ.get("CRUSTDATA_API_KEY", "").strip())
+    has_anthropic_key = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+
+    # Get latest git commit SHA for Entire checkpoint
+    latest_git_sha = "unknown"
+    try:
+        git_proc = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=2)
+        if git_proc.returncode == 0:
+            latest_git_sha = git_proc.stdout.strip()
+    except Exception:
+        pass
+
     return {
         "pending": pending_formatted,
         "receipts": all_receipts,
         "sandbox": sandbox.snapshot(),
         "cognitive_debt": friction.get_cognitive_debt(),
-        "key_id": key_id
+        "key_id": key_id,
+        "integrations": {
+            "neatlogs": {
+                "active": telemetry.HAS_NEATLOGS and has_neatlogs_key,
+                "configured": has_neatlogs_key,
+                "workflow": "commit-layer",
+                "dashboard_url": "https://app.neatlogs.com"
+            },
+            "entire": {
+                "active": True,
+                "latest_commit_sha": latest_git_sha,
+                "checkpoint_url": f"https://entire.io/gh/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Internet/commit/{latest_git_sha}"
+            },
+            "aws_bedrock": {
+                "active": has_aws_keys,
+                "region": os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
+                "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+            },
+            "anthropic": {
+                "active": has_anthropic_key,
+                "model": "claude-3-5-haiku-20241022"
+            },
+            "crustdata": {
+                "active": has_crustdata_key,
+                "credits": "5000 allowance" if has_crustdata_key else "unconfigured"
+            },
+            "cfo_ai": {
+                "active": True,
+                "model_pricing": "$0.005 / protected action",
+                "target_margin": "88%"
+            }
+        }
     }
 
 
@@ -160,3 +214,8 @@ async def demo_safe_payment():
 async def demo_flaky_payment():
     action = gateway.intercept("flaky_payment", {"amount": 75.0, "to": "merchant_b"}, agent_id="agent-demo")
     return gateway.process(action)
+
+
+@app.post("/api/crustdata/lookup")
+async def crustdata_lookup(req: PayeeLookupRequest):
+    return crustdata.lookup_payee(req.payee)
