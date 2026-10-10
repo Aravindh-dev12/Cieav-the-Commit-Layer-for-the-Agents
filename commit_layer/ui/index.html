@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Commit Layer – Control Dashboard</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --surface: #131b2e;
+      --surface-border: #233152;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --critical: #ef4444;
+      --high: #f97316;
+      --medium: #eab308;
+      --low: #10b981;
+      --success: #10b981;
+      --unknown: #8b5cf6;
+      --font-mono: 'JetBrains Mono', Consolas, Monaco, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+    .header h1 { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-CRITICAL { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid var(--critical); }
+    .badge-HIGH { background: rgba(249, 115, 22, 0.2); color: #fdba74; border: 1px solid var(--high); }
+    .badge-MEDIUM { background: rgba(234, 179, 8, 0.2); color: #fde047; border: 1px solid var(--medium); }
+    .badge-LOW { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid var(--low); }
+    .badge-OBSERVED_SUCCESS { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+    .badge-OBSERVED_FAILURE { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .badge-UNKNOWN { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; border: 1px solid var(--unknown); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 12px;
+    }
+    .action-card {
+      background: #18223a;
+      border: 1px solid #2d3e66;
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .action-header { display: flex; justify-content: space-between; align-items: center; }
+    .tool-name { font-family: var(--font-mono); font-weight: 700; color: #60a5fa; }
+    .args-box {
+      background: #0f1626;
+      border: 1px solid #1e293b;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      word-break: break-all;
+    }
+    .btn-group { display: flex; gap: 10px; margin-top: 6px; }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.9; }
+    .btn-commit { background: #10b981; color: #fff; }
+    .btn-cancel { background: #ef4444; color: #fff; }
+    .btn-undo { background: #8b5cf6; color: #fff; padding: 4px 10px; font-size: 12px; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    input[type="text"] {
+      background: #0f1626;
+      border: 1px solid #334155;
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #1e293b; }
+    th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 11px; }
+    .chain-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #10b981;
+    }
+    .stats-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-box {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 14px 18px;
+    }
+    .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
+    .stat-value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h1>🛡️ Commit Layer Gateway</h1>
+      <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">Deterministic Safety Floor & Action Verification for AI Agents</p>
+    </div>
+    <div style="display:flex; gap:12px; align-items:center;">
+      <span class="chain-status" id="chainStatus">● Chain Valid</span>
+      <button class="btn-primary" onclick="triggerHostileDemo()">Run Hostile Injection Test</button>
+      <button class="btn-primary" onclick="triggerSafePaymentDemo()">Simulate Safe Action</button>
+      <button class="btn-primary" onclick="triggerFlakyDemo()">Simulate Flaky Action</button>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-label">Agent Bank Balance</div>
+      <div class="stat-value" id="bankBalance">$10,000.00</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Cognitive Debt Level</div>
+      <div class="stat-value" id="cognitiveDebt">0.00</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Total Receipts in Chain</div>
+      <div class="stat-value" id="totalReceipts">0</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Active Ed25519 Key ID</div>
+      <div class="stat-value" id="keyId" style="font-family: var(--font-mono); font-size: 16px;">--</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Column 1: Pending Human Approvals -->
+    <div class="card">
+      <div class="card-title">
+        <span>Pending Human Approvals</span>
+        <span id="pendingCount" class="badge badge-HIGH">0 Pending</span>
+      </div>
+      <div id="pendingContainer" style="display: flex; flex-direction: column; gap: 14px;">
+        <p style="color: var(--text-muted); font-size: 13px;">No actions currently waiting for approval.</p>
+      </div>
+    </div>
+
+    <!-- Column 2: Sandbox Live State -->
+    <div class="card">
+      <div class="card-title">
+        <span>Sandbox Environment Live State</span>
+        <button onclick="resetSandbox()" style="background:#334155; color:#cbd5e1; font-size:11px; padding:4px 8px;">Reset World</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <strong style="font-size:12px; color:var(--text-muted); text-transform:uppercase;">Bank Ledger Accounts</strong>
+          <pre id="sandboxBank" class="args-box" style="margin-top:6px;"></pre>
+        </div>
+        <div>
+          <strong style="font-size:12px; color:var(--text-muted); text-transform:uppercase;">Filesystem & Trash</strong>
+          <pre id="sandboxFiles" class="args-box" style="margin-top:6px;"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Row: Signed Receipts Ledger Timeline -->
+  <div class="card" style="margin-top: 24px;">
+    <div class="card-title">
+      <span>Signed Cryptographic Receipts Ledger (Hash-Chained)</span>
+      <button onclick="verifyLedger()" style="background:#1e293b; color:#93c5fd; border:1px solid #3b82f6; font-size:12px; padding:4px 10px;">Verify Chain Integrity</button>
+    </div>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Tool</th>
+            <th>Redacted Arguments</th>
+            <th>Risk Floor</th>
+            <th>Decision</th>
+            <th>Status</th>
+            <th>Observed Outcome</th>
+            <th>Undo Action</th>
+            <th>Prev Hash & Signature</th>
+          </tr>
+        </thead>
+        <tbody id="receiptsTableBody">
+          <!-- Filled dynamically -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    async function fetchState() {
+      try {
+        const res = await fetch('/api/state');
+        const data = await res.json();
+        
+        // Render bank & stats
+        document.getElementById('bankBalance').innerText = '$' + (data.sandbox.bank_ledger.agent || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+        document.getElementById('cognitiveDebt').innerText = data.cognitive_debt.toFixed(2);
+        document.getElementById('keyId').innerText = data.key_id || 'LOCAL';
+        document.getElementById('totalReceipts').innerText = data.receipts.length;
+        
+        // Sandbox boxes
+        document.getElementById('sandboxBank').innerText = JSON.stringify(data.sandbox.bank_ledger, null, 2);
+        document.getElementById('sandboxFiles').innerText = JSON.stringify({
+          active_files: Object.keys(data.sandbox.filesystem),
+          trash: Object.keys(data.sandbox.trash)
+        }, null, 2);
+
+        // Pending approvals
+        const pendingContainer = document.getElementById('pendingContainer');
+        const pendingKeys = Object.keys(data.pending);
+        document.getElementById('pendingCount').innerText = `${pendingKeys.length} Pending`;
+
+        if (pendingKeys.length === 0) {
+          pendingContainer.innerHTML = '<p style="color: var(--text-muted); font-size: 13px;">No actions currently waiting for approval.</p>';
+        } else {
+          pendingContainer.innerHTML = '';
+          pendingKeys.forEach(id => {
+            const act = data.pending[id];
+            const div = document.createElement('div');
+            div.className = 'action-card';
+            div.innerHTML = `
+              <div class="action-header">
+                <span class="tool-name">${act.tool_name}</span>
+                <span class="badge badge-${act.risk}">${act.risk}</span>
+              </div>
+              <div class="args-box">${JSON.stringify(act.args_redacted)}</div>
+              <div style="font-size:12px; color:#cbd5e1;">Reasons: ${act.reasons.join('; ')}</div>
+              ${act.requires_typed_confirmation ? `
+                <div style="margin-top:6px;">
+                  <label style="font-size:11px; color:#f87171; display:block; margin-bottom:4px;">Type 'COMMIT' to confirm high-risk action:</label>
+                  <input type="text" id="confirm_${act.id}" placeholder="Type COMMIT" style="width:100%; margin-bottom:8px;" />
+                </div>
+              ` : ''}
+              <div class="btn-group">
+                <button class="btn-commit" onclick="approveAction('${act.id}', ${act.requires_typed_confirmation})">COMMIT</button>
+                <button class="btn-cancel" onclick="cancelAction('${act.id}')">CANCEL</button>
+              </div>
+            `;
+            pendingContainer.appendChild(div);
+          });
+        }
+
+        // Receipts Table
+        const tbody = document.getElementById('receiptsTableBody');
+        tbody.innerHTML = '';
+        data.receipts.slice().reverse().forEach(r => {
+          const tr = document.createElement('tr');
+          const outcomeBadge = r.outcome ? `<span class="badge badge-${r.outcome}">${r.outcome}</span>` : '--';
+          const undoButton = (r.outcome === 'OBSERVED_SUCCESS' && r.undo_state === 'AVAILABLE') 
+            ? `<button class="btn-undo" onclick="undoReceipt('${r.id}')">Undo</button>`
+            : (r.undo_state === 'UNDONE' ? '<span style="color:#a78bfa; font-size:12px; font-weight:600;">UNDONE</span>' : '<span style="color:#64748b; font-size:12px;">--</span>');
+
+          tr.innerHTML = `
+            <td style="font-family:var(--font-mono); font-size:11px;">${new Date(r.timestamp * 1000).toLocaleTimeString()}</td>
+            <td style="font-family:var(--font-mono); font-weight:600; color:#93c5fd;">${r.tool}</td>
+            <td style="font-family:var(--font-mono); font-size:11px; max-width:220px; overflow:hidden; text-overflow:ellipsis;">${r.args_redacted}</td>
+            <td><span class="badge badge-${r.risk}">${r.risk}</span></td>
+            <td style="font-size:12px;">${r.decision}</td>
+            <td style="font-weight:600;">${r.status}</td>
+            <td>${outcomeBadge}</td>
+            <td>${undoButton}</td>
+            <td style="font-family:var(--font-mono); font-size:10px; color:#94a3b8;">
+              prev: ${r.prev_hash.substring(0, 10)}...<br/>
+              sig: ${r.signature ? r.signature.substring(0, 12) + '...' : 'none'}
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (err) {
+        console.error("Failed to load state", err);
+      }
+    }
+
+    async function approveAction(id, requiresTyped) {
+      if (requiresTyped) {
+        const val = document.getElementById(`confirm_${id}`)?.value;
+        if (val !== 'COMMIT') {
+          alert("You must type 'COMMIT' exactly to approve this action.");
+          return;
+        }
+      }
+      await fetch(`/api/actions/${id}/approve`, { method: 'POST' });
+      fetchState();
+    }
+
+    async function cancelAction(id) {
+      await fetch(`/api/actions/${id}/cancel`, { method: 'POST' });
+      fetchState();
+    }
+
+    async function undoReceipt(receiptId) {
+      const res = await fetch(`/api/receipts/${receiptId}/undo`, { method: 'POST' });
+      const data = await res.json();
+      if (data.error) {
+        alert(data.error);
+      }
+      fetchState();
+    }
+
+    async function triggerHostileDemo() {
+      await fetch('/api/demo/hostile-injection', { method: 'POST' });
+      fetchState();
+    }
+
+    async function triggerSafePaymentDemo() {
+      await fetch('/api/demo/safe-payment', { method: 'POST' });
+      fetchState();
+    }
+
+    async function triggerFlakyDemo() {
+      await fetch('/api/demo/flaky-payment', { method: 'POST' });
+      fetchState();
+    }
+
+    async function resetSandbox() {
+      await fetch('/api/sandbox/reset', { method: 'POST' });
+      fetchState();
+    }
+
+    async function verifyLedger() {
+      const res = await fetch('/api/receipts/verify');
+      const data = await res.json();
+      if (data.valid) {
+        alert("Cryptographic verification PASSED: All hash links and Ed25519 signatures are authentic.");
+      } else {
+        alert("Verification FAILED:\n" + data.errors.join('\n'));
+      }
+    }
+
+    setInterval(fetchState, 2000);
+    fetchState();
+  </script>
+</body>
+</html>
