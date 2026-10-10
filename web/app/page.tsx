@@ -452,12 +452,10 @@ export default function Page() {
           <p className="mt-6 text-sm text-black/55">
             CI additionally syntax-checks the browser execution boundary and runs synthetic success, failure, and unknown browser E2E coverage.
           </p>
-          <a href="mailto:hello@cieav.com" className="mt-10 block text-2xl underline decoration-black underline-offset-8">
-            hello@cieav.com <ArrowUpRight className="inline size-5" />
-          </a>
         </Card>
       </div>
     </main>
+
   )
 }
 
