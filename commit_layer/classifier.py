@@ -1,4 +1,9 @@
-"""Optional AI classifier that can only raise risk, never lower it."""
+"""Frontier AI Classifier & Consequence Algebra Evaluator.
+
+Can ONLY raise risk above the deterministic policy floor, never lower it.
+Uses multi-provider ensemble voting (OpenAI, Anthropic, Baseten, Bedrock, Gemini, xAI, Kimi)
+with Consequence Algebra and cross-verification anomaly detection.
+"""
 from __future__ import annotations
 import os
 import logging
@@ -8,15 +13,25 @@ logger = logging.getLogger(__name__)
 
 def classify(action: Action) -> tuple[RiskLevel | None, str]:
     """
-    Use an LLM to classify risk. Returns (risk_level, reason) or (None, '') if
-    classifier is unavailable or fails.
+    Classify risk using the Frontier Intelligence Ensemble.
+    Returns (risk_level, reason) or (None, '') if unavailable or fails.
     
     The classifier can only RAISE risk above the policy floor.
     If it fails or times out, we keep the policy risk (fail conservative).
     """
+    try:
+        from commit_layer.frontier_intelligence import classify_with_ensemble, get_active_providers
+        active = get_active_providers()
+        if active:
+            risk, reason, trace = classify_with_ensemble(action)
+            return risk, reason
+    except Exception as e:
+        logger.warning(f"Frontier ensemble failed: {e}. Trying direct fallback.")
+
+    # Fallback to direct Anthropic if available
     api_key = os.environ.get('ANTHROPIC_API_KEY', '')
     if not api_key:
-        logger.info("No ANTHROPIC_API_KEY set, classifier disabled")
+        logger.info("No frontier AI keys configured, classifier disabled (using policy floor)")
         return None, ''
     
     try:
@@ -56,3 +71,4 @@ RISK: LOW|MEDIUM|HIGH|CRITICAL - reason
     except Exception as e:
         logger.warning(f"Classifier failed: {e}. Keeping policy risk.")
         return None, ''
+

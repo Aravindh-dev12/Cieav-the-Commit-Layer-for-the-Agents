@@ -80,6 +80,29 @@ class HeadroomCompressRequest(BaseModel):
     content: str
 
 
+class PoppySessionRequest(BaseModel):
+    user_id: str
+    client_agent_id: str = "atlas-personal-agent"
+    scopes: Optional[List[str]] = None
+
+
+class PoppyConversationRequest(BaseModel):
+    session_id: str
+    message: str
+    sender_type: str = "ai"
+    structured_payload: Optional[Dict[str, Any]] = None
+    typed_confirmation: str = ""
+
+
+class WebzeroInvokeRequest(BaseModel):
+    surface_id: str
+    args: Dict[str, Any]
+    idempotency_key: str
+    caller_agent_id: str = "webzero-agent"
+    typed_confirmation: str = ""
+
+
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
     ui_path = os.path.join(UI_DIR, "index.html")
@@ -337,4 +360,94 @@ async def api_opendots_session(provider: str = "ollama", model: str = "llama3.3:
     from commit_layer.connectors import opendots_workspace
     session = opendots_workspace.create_session(model_provider=provider, model_name=model)
     return {"session_id": session.session_id, "model_provider": session.model_provider, "model": session.model_name}
+
+
+# =========================================================================
+# Personal Agent Protocol (PAP / Poppy) Endpoints
+# =========================================================================
+
+@app.get("/.well-known/poppy.json")
+async def api_poppy_discovery():
+    """Personal Agent Protocol discovery document (personalagentprotocol.org spec)."""
+    from commit_layer import poppy
+    return poppy.get_discovery_document()
+
+
+@app.post("/api/poppy/session")
+async def api_poppy_create_session(req: PoppySessionRequest):
+    """Authenticate and issue a Poppy session token for a personal agent."""
+    from commit_layer import poppy
+    return poppy.create_session(user_id=req.user_id, client_agent_id=req.client_agent_id, scopes=req.scopes)
+
+
+@app.post("/api/poppy/conversations")
+async def api_poppy_conversations(req: PoppyConversationRequest):
+    """Governed Personal Agent conversation turn backed by Commit Layer."""
+    from commit_layer import poppy
+    return poppy.handle_conversation(
+        session_id=req.session_id,
+        message=req.message,
+        sender_type=req.sender_type,
+        structured_payload=req.structured_payload,
+        typed_confirmation=req.typed_confirmation
+    )
+
+
+@app.get("/api/poppy/discover")
+async def api_poppy_discover_remote(domain: str):
+    """Discover a remote company's Personal Agent Protocol manifest."""
+    from commit_layer import poppy
+    return poppy.discover_remote_company(domain)
+
+
+# =========================================================================
+# Webzero Action Surfaces & WARI Readiness Endpoints
+# =========================================================================
+
+@app.get("/api/webzero/wari")
+async def api_webzero_wari():
+    """Retrieve Webzero Agent Readiness Index (WARI) & w0 score."""
+    from commit_layer import webzero
+    return webzero.get_wari_overview()
+
+
+@app.get("/api/webzero/surfaces")
+async def api_webzero_surfaces():
+    """List registered Action Surfaces with idempotency & scoping contracts."""
+    from commit_layer import webzero
+    return {"surfaces": webzero.list_action_surfaces()}
+
+
+@app.post("/api/webzero/action-surface/invoke")
+async def api_webzero_invoke(req: WebzeroInvokeRequest):
+    """Invoke an Action Surface with idempotency guarantee and Trajectory Evidence."""
+    from commit_layer import webzero
+    return webzero.invoke_action_surface(
+        surface_id=req.surface_id,
+        args=req.args,
+        idempotency_key=req.idempotency_key,
+        caller_agent_id=req.caller_agent_id,
+        typed_confirmation=req.typed_confirmation
+    )
+
+
+# =========================================================================
+# Baseten Inference Status Endpoint
+# =========================================================================
+
+@app.get("/api/baseten/info")
+async def api_baseten_info():
+    """Retrieve Baseten high-performance inference engine status."""
+    from commit_layer import frontier_intelligence
+    has_key = bool(os.environ.get("BASETEN_API_KEY", "").strip())
+    model_id = os.environ.get("BASETEN_MODEL_ID", "llama-3.3-70b-instruct")
+    return {
+        "status": "ready" if has_key else "unconfigured",
+        "engine": "Baseten Dedicated Inference Stack (Truss)",
+        "model_id": model_id,
+        "base_url": os.environ.get("BASETEN_BASE_URL", "https://bridge.baseten.co/v1"),
+        "has_api_key": has_key,
+        "active_frontier_providers": frontier_intelligence.get_active_providers()
+    }
+
 
