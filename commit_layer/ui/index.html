@@ -9,11 +9,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* CIEAV Clean Minimalist Typography & Layout */
+    /* CIEAV Clean Minimalist Design & Typography */
     :root {
       --bg: #ffffff;
       --bg-page: #f8fafc;
-      --bg-card: #ffffff;
       --border: #e2e8f0;
       --border-dark: #cbd5e1;
       --text: #000000;
@@ -44,72 +43,152 @@
       overflow-x: hidden;
     }
 
-    /* Fixed Top Header */
-    .top-bar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 90;
-      padding: 16px 28px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    /* VIEW SWITCHER */
+    .view-pane { display: none; }
+    .view-pane.active { display: block; }
+
+    /* ========================================================
+       CIEAV OFFICIAL LANDING PAGE STYLES (No Global Top Header)
+       ======================================================== */
+    .grids-root { font-family: 'Inter Tight', sans-serif; --p: 0; min-height: 100vh; position: relative; }
+    .fixed-layers { display: contents; }
+    .wm-canvas { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 30; }
+    .cap {
+      position: fixed; z-index: 35; pointer-events: none; margin: 0; top: 18px;
+      color: #000; font-size: 14px; line-height: 1.3; letter-spacing: -.02em;
+      opacity: calc(1 - var(--p) * 6);
     }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      cursor: pointer;
-    }
-    .brand img {
-      width: 32px;
-      height: 32px;
-      object-fit: contain;
-    }
-    .brand-title {
-      font-size: 17px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-    .brand-sub {
-      font-size: 11px;
-      color: var(--text-dim);
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      font-weight: 600;
+    .cap-a { left: 21px; font-weight: 500; }
+    .cap-b { left: 25.6vw; color: rgba(0, 0, 0, 0.65); }
+    .explore-hint {
+      position: fixed; z-index: 35; pointer-events: none; margin: 0; left: 12px; top: 45vh;
+      font-size: 11px; color: rgba(0,0,0,.35); opacity: calc(1 - var(--p) * 8);
     }
 
-    .nav-actions {
-      display: flex;
-      align-items: center;
-      gap: 14px;
+    .main {
+      position: relative; z-index: 20; padding: 165px 28px 160px 115px;
+      max-width: 1400px; margin: 0 auto;
     }
-    .nav-link {
-      font-size: 14px;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-weight: 500;
-      text-decoration: none;
-      transition: color 0.15s;
+    @media (min-width: 1024px) {
+      .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 11px;
+        row-gap: 7rem;
+      }
     }
-    .nav-link:hover, .nav-link.active { color: #000; }
+
+    .side-nav {
+      position: fixed; left: 99px; top: 50%; transform: translateY(-50%); z-index: 60;
+      color: #000; font-size: 13px; letter-spacing: -.01em;
+    }
+    .side-nav a {
+      position: relative; display: flex; align-items: center; height: 22px;
+      opacity: .45; transition: opacity .2s; text-decoration: none; color: inherit;
+    }
+    .side-nav a:hover, .side-nav a.is-active { opacity: 1; }
+    .side-nav .dot { width: 5px; height: 5px; background: currentColor; transition: transform .25s; }
+    .side-nav a.is-active .dot { transform: scale(1.8); }
+    .side-nav .lbl {
+      position: absolute; left: 16px; white-space: nowrap; opacity: 0;
+      transform: translateX(-4px); transition: opacity .2s, transform .2s;
+    }
+    .side-nav a:hover .lbl { opacity: 1; transform: none; }
+
+    .link-cta {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 15px;
+      letter-spacing: -.02em; padding-bottom: 2px; color: #000; cursor: pointer;
+      text-decoration: none; font-weight: 500;
+      background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1px no-repeat;
+      transition: background-size .35s cubic-bezier(.2,.7,.2,1), gap .3s;
+    }
+    .link-cta:hover { background-size: 0% 1px; gap: 10px; }
+    .rv {
+      opacity: 0; transform: translateY(18px);
+      transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1);
+    }
+    .rv.in { opacity: 1; transform: none; }
+    .hv { transition: transform .3s cubic-bezier(.2,.7,.2,1), opacity .3s; }
+    .hv:hover { transform: translateX(6px); }
+
+    /* ========================================================
+       AUTH MODAL (Sign In Triggered by Hero Buttons)
+       ======================================================== */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(6px); z-index: 200; display: none;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-card {
+      background: #ffffff; border-radius: 16px; max-width: 410px; width: 100%;
+      padding: 34px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15); position: relative;
+    }
+    .modal-close {
+      position: absolute; top: 18px; right: 18px; background: transparent;
+      border: none; font-size: 20px; color: var(--text-muted); cursor: pointer;
+    }
+    .modal-header { text-align: center; margin-bottom: 24px; }
+    .modal-logo { width: 44px; height: 44px; object-fit: contain; margin-bottom: 12px; }
+    .modal-title { font-size: 20px; font-weight: 800; color: #000; letter-spacing: -0.02em; }
+    .modal-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    .btn-google {
+      width: 100%; background: #ffffff; border: 1px solid var(--border-dark);
+      color: #0f172a; font-size: 14px; font-weight: 600; padding: 10px 16px;
+      border-radius: 8px; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; gap: 12px; transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .btn-google:hover { background: #f8fafc; border-color: #94a3b8; }
+    .google-icon { width: 18px; height: 18px; }
+
+    .divider-row {
+      display: flex; align-items: center; margin: 20px 0; color: #94a3b8;
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+    }
+    .divider-row::before, .divider-row::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+    .divider-row span { padding: 0 12px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .form-label { font-size: 12px; font-weight: 600; color: #334155; }
+    .form-input {
+      padding: 10px 14px; border: 1px solid var(--border-dark); border-radius: 8px;
+      font-size: 14px; font-family: var(--ui-sans); outline: none; transition: border-color 0.15s;
+    }
+    .form-input:focus { border-color: #000; box-shadow: 0 0 0 1px #000; }
+    .btn-auth-submit {
+      width: 100%; background: #000000; color: #ffffff; font-weight: 700;
+      padding: 11px; border-radius: 8px; border: none; cursor: pointer;
+      font-size: 14px; margin-top: 8px;
+    }
+    .btn-auth-submit:hover { background: #1e293b; }
+
+    /* ========================================================
+       WHITE MINIMALIST DASHBOARD STYLES (Shown After Sign In)
+       ======================================================== */
+    .dash-top-bar {
+      position: sticky; top: 0; z-index: 100; padding: 14px 28px;
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand-group { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+    .brand-group img { width: 32px; height: 32px; object-fit: contain; }
+    .dash-brand-title { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+    .dash-brand-sub { font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; }
+
+    .dashboard-wrap {
+      background: var(--bg-page); min-height: calc(100vh - 65px); padding: 28px;
+    }
+    .dash-container {
+      max-width: 1380px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px;
+    }
 
     .btn {
-      font-family: var(--ui-sans);
-      font-size: 13px;
-      font-weight: 600;
-      padding: 8px 16px;
-      border-radius: 8px;
-      border: 1px solid transparent;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.15s ease;
+      font-family: var(--ui-sans); font-size: 13px; font-weight: 600; padding: 8px 16px;
+      border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease;
       text-decoration: none;
     }
     .btn:active { transform: scale(0.98); }
@@ -123,210 +202,26 @@
     .btn-danger:hover { background: #b91c1c; }
     .btn-undo { background: #7c3aed; color: #ffffff; padding: 4px 10px; font-size: 11px; }
 
-    /* VIEW ROUTING */
-    .view-pane { display: none; }
-    .view-pane.active { display: block; }
-
-    /* ========================================================
-       CIEAV OFFICIAL LANDING PAGE (With Interactive Canvas Glyphs)
-       ======================================================== */
-    .grids-root { font-family: 'Inter Tight', sans-serif; --p: 0; min-height: 100vh; position: relative; }
-    .fixed-layers { display: contents; }
-    .wm-canvas { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-    .cap { position: fixed; z-index: 25; pointer-events: none; margin: 0; top: 76px; color: #000; font-size: 14px; line-height: 1.3; letter-spacing: -.02em; opacity: calc(1 - var(--p) * 6); }
-    .cap-a { left: 28px; font-weight: 600; }
-    .cap-b { left: 26vw; color: var(--text-muted); }
-    .explore-hint { position: fixed; z-index: 25; pointer-events: none; margin: 0; left: 28px; top: 48vh; font-size: 11px; color: rgba(0,0,0,.35); opacity: calc(1 - var(--p) * 8); }
-
-    .landing-main { position: relative; z-index: 20; padding: 180px 32px 140px 115px; max-width: 1300px; margin: 0 auto; }
-    
-    .side-nav {
-      position: fixed; left: 32px; top: 50%; transform: translateY(-50%); z-index: 40;
-      color: #000; font-size: 13px; letter-spacing: -.01em;
-    }
-    .side-nav a { position: relative; display: flex; align-items: center; height: 24px; opacity: .45; transition: opacity .2s; text-decoration: none; color: inherit; }
-    .side-nav a:hover, .side-nav a.is-active { opacity: 1; font-weight: 600; }
-    .side-nav .dot { width: 5px; height: 5px; background: currentColor; transition: transform .25s; border-radius: 50%; }
-    .side-nav a.is-active .dot { transform: scale(1.8); }
-    .side-nav .lbl { position: absolute; left: 16px; white-space: nowrap; opacity: 0; transform: translateX(-4px); transition: opacity .2s, transform .2s; }
-    .side-nav a:hover .lbl { opacity: 1; transform: none; }
-
-    .link-cta {
-      display: inline-flex; align-items: center; gap: 6px; font-size: 15px; letter-spacing: -.02em; padding-bottom: 2px;
-      color: #000; cursor: pointer; text-decoration: none; font-weight: 500;
-      background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1px no-repeat;
-      transition: background-size .35s cubic-bezier(.2,.7,.2,1), gap .3s;
-    }
-    .link-cta:hover { background-size: 0% 1px; gap: 10px; }
-    .rv { opacity: 0; transform: translateY(18px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
-    .rv.in { opacity: 1; transform: none; }
-    .hv { transition: transform .3s cubic-bezier(.2,.7,.2,1); }
-    .hv:hover { transform: translateX(6px); }
-
-    /* ========================================================
-       AUTH MODAL (Sign In with Google & Email)
-       ======================================================== */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.5);
-      backdrop-filter: blur(6px);
-      z-index: 200;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .modal-overlay.active { display: flex; }
-    .modal-card {
-      background: #ffffff;
-      border-radius: 16px;
-      max-width: 410px;
-      width: 100%;
-      padding: 34px;
-      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15);
-      position: relative;
-    }
-    .modal-close {
-      position: absolute;
-      top: 18px;
-      right: 18px;
-      background: transparent;
-      border: none;
-      font-size: 20px;
-      color: var(--text-muted);
-      cursor: pointer;
-    }
-    .modal-header { text-align: center; margin-bottom: 24px; }
-    .modal-logo { width: 44px; height: 44px; object-fit: contain; margin-bottom: 12px; }
-    .modal-title { font-size: 20px; font-weight: 800; color: #000; letter-spacing: -0.02em; }
-    .modal-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-
-    .btn-google {
-      width: 100%;
-      background: #ffffff;
-      border: 1px solid var(--border-dark);
-      color: #0f172a;
-      font-size: 14px;
-      font-weight: 600;
-      padding: 10px 16px;
-      border-radius: 8px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      transition: all 0.15s ease;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-    }
-    .btn-google:hover { background: #f8fafc; border-color: #94a3b8; }
-    .google-icon { width: 18px; height: 18px; }
-
-    .divider-row {
-      display: flex;
-      align-items: center;
-      margin: 20px 0;
-      color: #94a3b8;
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-    .divider-row::before, .divider-row::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: #e2e8f0;
-    }
-    .divider-row span { padding: 0 12px; }
-
-    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    .form-label { font-size: 12px; font-weight: 600; color: #334155; }
-    .form-input {
-      padding: 10px 14px;
-      border: 1px solid var(--border-dark);
-      border-radius: 8px;
-      font-size: 14px;
-      font-family: var(--ui-sans);
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    .form-input:focus { border-color: #000; box-shadow: 0 0 0 1px #000; }
-    .btn-auth-submit {
-      width: 100%;
-      background: #000000;
-      color: #ffffff;
-      font-weight: 700;
-      padding: 11px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      font-size: 14px;
-      margin-top: 8px;
-    }
-    .btn-auth-submit:hover { background: #1e293b; }
-
-    /* ========================================================
-       WHITE MINIMALIST DASHBOARD
-       ======================================================== */
-    .dashboard-wrap {
-      background: var(--bg-page);
-      min-height: calc(100vh - 65px);
-      padding: 85px 28px 40px;
-    }
-    .dash-container {
-      max-width: 1380px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      gap: 22px;
-    }
-
-    .dash-header-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 16px;
-    }
-    .dash-h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; }
-    .dash-sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
-
     .integrations-bar {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 12px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px;
     }
     .integ-card {
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+      background: #ffffff; border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 16px; display: flex; flex-direction: column; gap: 4px;
     }
     .integ-top { display: flex; justify-content: space-between; align-items: center; }
     .integ-name { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #1e293b; }
-    .integ-status {
-      font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 9999px; text-transform: uppercase;
-    }
+    .integ-status { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 9999px; text-transform: uppercase; }
     .integ-online { background: #dcfce7; color: #15803d; }
     .integ-ready { background: #e0e7ff; color: #4338ca; }
     .integ-sub { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
 
     .dash-stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;
     }
     .white-card {
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-      display: flex;
-      flex-direction: column;
+      background: #ffffff; border: 1px solid var(--border); border-radius: 12px;
+      padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); display: flex; flex-direction: column;
     }
     .stat-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
     .stat-val { font-size: 28px; font-weight: 800; margin-top: 6px; font-family: var(--mono); }
@@ -369,38 +264,13 @@
     th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
     th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); background: #f8fafc; }
     tr:hover td { background: #f8fafc; }
-
     .pulse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; margin-right: 6px; }
   </style>
 </head>
 <body>
 
-  <!-- Top Global Header -->
-  <header class="top-bar">
-    <div class="brand" onclick="navigate('landing')">
-      <img src="/logo.png" alt="CIEAV Logo" onerror="this.style.display='none'">
-      <div>
-        <div class="brand-title">CIEAV</div>
-        <div class="brand-sub">The Commit Layer</div>
-      </div>
-    </div>
-
-    <nav class="nav-actions">
-      <span class="nav-link active" id="navLanding" onclick="navigate('landing')">Landing</span>
-      <span class="nav-link" id="navArchitecture" onclick="openAuthModal('Explore architecture')">Architecture</span>
-      <span class="nav-link" id="navSecurity" onclick="openAuthModal('Read security model')">Security Model</span>
-      <span class="nav-link" id="navDashboard" onclick="navigate('dashboard')">Live Dashboard</span>
-      
-      <span id="userStatusTag" style="font-size: 12px; font-weight:600; color:var(--text-muted); display:none; align-items:center;">
-        <span class="pulse-dot"></span> <span id="userEmailSpan">admin@cieav.local</span>
-      </span>
-      <button class="btn btn-light" id="btnAuthTrigger" onclick="openAuthModal('Sign In')">Sign In</button>
-      <button class="btn btn-dark" id="btnDashTrigger" onclick="navigate('dashboard')">Open Dashboard</button>
-    </nav>
-  </header>
-
   <!-- ========================================================
-       CIEAV OFFICIAL LANDING VIEW
+       CIEAV LANDING VIEW (Exact Layout with Canvas & Typography)
        ======================================================== -->
   <div id="landingView" class="view-pane active grids-root">
     
@@ -414,141 +284,202 @@
       <p class="explore-hint">Scroll to Explore</p>
     </div>
 
+    <!-- Side-rail navigation dots -->
     <nav aria-label="Primary" class="side-nav">
       <a href="#home" class="is-active" onclick="event.preventDefault(); window.scrollTo({top:0, behavior:'smooth'})"><span class="dot"></span><span class="lbl">Home</span></a>
-      <a href="#architecture" onclick="event.preventDefault(); document.getElementById('secArch').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Architecture</span></a>
-      <a href="#commit" onclick="event.preventDefault(); document.getElementById('secCommit').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Commit</span></a>
-      <a href="#privacy" onclick="event.preventDefault(); document.getElementById('secPrivacy').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Privacy</span></a>
-      <a href="#security" onclick="event.preventDefault(); document.getElementById('secSecurity').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Security</span></a>
-      <a href="#verify" onclick="event.preventDefault(); document.getElementById('secVerify').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Verify</span></a>
+      <a href="#architecture" onclick="event.preventDefault(); document.getElementById('architecture').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Architecture</span></a>
+      <a href="#commit" onclick="event.preventDefault(); document.getElementById('commit').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Commit</span></a>
+      <a href="#privacy" onclick="event.preventDefault(); document.getElementById('privacy').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Privacy</span></a>
+      <a href="#runtime" onclick="event.preventDefault(); document.getElementById('runtime').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Runtime</span></a>
+      <a href="#cloud" onclick="event.preventDefault(); document.getElementById('cloud').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Cloud</span></a>
+      <a href="#security" onclick="event.preventDefault(); document.getElementById('security').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Security</span></a>
+      <a href="#verify" onclick="event.preventDefault(); document.getElementById('verify').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Verify</span></a>
     </nav>
 
-    <div class="landing-main" style="display:grid; grid-template-columns:1fr; gap:80px;">
+    <!-- Main Content Stream -->
+    <main class="main main-grid">
       
-      <!-- Home Section -->
-      <section id="home" class="rv in">
-        <div style="max-width:680px; margin-left:auto;">
-          <p style="font-size:clamp(1.6rem,2.8vw,2.5rem); font-weight:500; line-height:1.1; letter-spacing:-.04em;">
-            CIEAV is the commit layer for the internet: an always-on local control plane between digital intent and consequence.
-          </p>
-          <p style="margin-top:16px; font-size:16px; line-height:1.45; color:rgba(0,0,0,0.58);">
-            It sits between a human, AI agent, or automation and browser actions that create real-world effects. Deterministic safety and final authority stay local.
-          </p>
-          <div style="margin-top:24px; display:flex; flex-wrap:wrap; gap:28px;">
-            <a class="link-cta" onclick="openAuthModal('Explore architecture')">
-              Explore architecture <span style="font-size:12px;">↗</span>
-            </a>
-            <a class="link-cta" onclick="openAuthModal('Read security model')">
-              Read security model <span style="font-size:12px;">↗</span>
-            </a>
-          </div>
+      <!-- 00 Home Section -->
+      <section id="home" class="rv in lg:col-start-2" style="scroll-margin-top:24px; grid-column-start: 2;">
+        <p style="max-width:620px; font-size:clamp(1.5rem, 2.4vw, 2.3rem); font-weight:500; line-height:1.05; letter-spacing:-.05em;">
+          CIEAV is the commit layer for the internet: an always-on local control plane between digital intent and consequence.
+        </p>
+        <p style="margin-top:16px; max-width:560px; font-size:15px; line-height:1.45; color:rgba(0,0,0,0.55);">
+          It sits between a human, AI agent, or automation and browser actions that can create real-world effects. Deterministic safety and final authority stay local.
+        </p>
+        <div style="margin-top:24px; display:flex; flex-wrap:wrap; column-gap:32px; row-gap:12px;">
+          <a class="link-cta" onclick="openAuthModal('Explore architecture')">
+            Explore architecture <span style="font-size:13px;">↗</span>
+          </a>
+          <a class="link-cta" onclick="openAuthModal('Read security model')">
+            Read security model <span style="font-size:13px;">↗</span>
+          </a>
         </div>
       </section>
 
-      <!-- Architecture Section -->
-      <section id="secArch" class="rv in" style="border-top:1px solid #e2e8f0; padding-top:40px;">
-        <div style="display:grid; grid-template-columns:3rem 1fr auto; font-size:15px; letter-spacing:-.02em; margin-bottom:24px;">
-          <span style="font-weight:600;">01</span>
-          <span>Architecture: <span style="display:block; color:rgba(0,0,0,0.55);">Local authority, cloud interpretation...</span></span>
+      <!-- 01 Architecture Section -->
+      <article id="architecture" class="rv in scroll-mt-6" style="grid-column: span 2;">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>01</span>
+          <span>Architecture:<span style="display:block; color:rgba(0,0,0,0.55);">Local authority, cloud interpretation...</span></span>
           <span style="color:rgba(0,0,0,0.45);">CONTROL</span>
+        </header>
+        <div style="margin-top:36px; margin-left: 50%;">
+          <p style="max-width:620px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            Cloud interprets. Local authority commits. The cloud receives only privacy-reduced semantic evidence and never receives browser replay or commit capability.
+          </p>
+          <div style="margin-top:32px;">
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">01</span><span>Human / AI agent / automation</span><span style="color:rgba(0,0,0,0.45);">INTENT</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">02</span><span>Local CIEAV Gateway</span><span style="color:rgba(0,0,0,0.45);">AUTHORITY</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">03</span><span>Deterministic safety floor</span><span style="color:rgba(0,0,0,0.45);">SAFETY</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">04</span><span>Local privacy reduction</span><span style="color:rgba(0,0,0,0.45);">PRIVACY</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">05</span><span>Minimal semantic packet over TLS</span><span style="color:rgba(0,0,0,0.45);">TRANSPORT</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">06</span><span>CIEAV Cloud Intelligence</span><span style="color:rgba(0,0,0,0.45);">INTERPRETATION</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">07</span><span>Conservative local merge</span><span style="color:rgba(0,0,0,0.45);">MERGE</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">08</span><span>Cognitive-friction policy</span><span style="color:rgba(0,0,0,0.45);">POLICY</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">09</span><span>PREVIEW → COMMIT / CANCEL</span><span style="color:rgba(0,0,0,0.45);">DECISION</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">10</span><span>Trusted replay → signed Action Receipt</span><span style="color:rgba(0,0,0,0.45);">EXECUTION</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">11</span><span>Outcome observer → SUCCESS / FAILURE / UNKNOWN</span><span style="color:rgba(0,0,0,0.45);">OBSERVE</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">12</span><span>Verified inverse → UNDO</span><span style="color:rgba(0,0,0,0.45);">REVERSAL</span></div>
+          </div>
         </div>
-        <p style="font-size:24px; line-height:1.2; letter-spacing:-.04em; max-width:640px; margin-left:auto; margin-bottom:30px;">
-          Cloud interprets. Local authority commits. The cloud receives only privacy-reduced semantic evidence and never receives browser replay or commit capability.
-        </p>
-        <div style="max-width:640px; margin-left:auto; display:flex; flex-direction:column;">
-          <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><span style="color:rgba(0,0,0,0.45);">01</span><span>Human / AI agent intent (AWS Bedrock Claude Haiku)</span><span style="color:rgba(0,0,0,0.45);">INTENT</span></div>
-          <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><span style="color:rgba(0,0,0,0.45);">02</span><span>Local CIEAV Gateway</span><span style="color:rgba(0,0,0,0.45);">AUTHORITY</span></div>
-          <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><span style="color:rgba(0,0,0,0.45);">03</span><span>Deterministic safety floor</span><span style="color:rgba(0,0,0,0.45);">SAFETY</span></div>
-          <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><span style="color:rgba(0,0,0,0.45);">04</span><span>Local privacy reduction</span><span style="color:rgba(0,0,0,0.45);">PRIVACY</span></div>
-          <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><span style="color:rgba(0,0,0,0.45);">05</span><span>Crustdata payee lookup & company check</span><span style="color:rgba(0,0,0,0.45);">ENRICH</span></div>
-          <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><span style="color:rgba(0,0,0,0.45);">06</span><span>Cognitive-friction fatigue policy</span><span style="color:rgba(0,0,0,0.45);">POLICY</span></div>
-          <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><span style="color:rgba(0,0,0,0.45);">07</span><span>Single-use token → Signed Ed25519 Receipt</span><span style="color:rgba(0,0,0,0.45);">EXECUTION</span></div>
-          <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><span style="color:rgba(0,0,0,0.45);">08</span><span>Outcome observer → SUCCESS / FAILURE / UNKNOWN</span><span style="color:rgba(0,0,0,0.45);">OBSERVE</span></div>
-          <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><span style="color:rgba(0,0,0,0.45);">09</span><span>Verified inverse → UNDO</span><span style="color:rgba(0,0,0,0.45);">REVERSAL</span></div>
-        </div>
-      </section>
+      </article>
 
-      <!-- Commit Section -->
-      <section id="secCommit" class="rv in" style="border-top:1px solid #e2e8f0; padding-top:40px;">
-        <div style="display:grid; grid-template-columns:3rem 1fr auto; font-size:15px; letter-spacing:-.02em; margin-bottom:24px;">
-          <span style="font-weight:600;">02</span>
-          <span>Commit: <span style="display:block; color:rgba(0,0,0,0.55);">Commit is not success. Observe the outcome...</span></span>
+      <!-- 02 Commit Section -->
+      <article id="commit" class="rv in scroll-mt-6">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>02</span>
+          <span>Commit:<span style="display:block; color:rgba(0,0,0,0.55);">Commit is not success. Observe the outcome...</span></span>
           <span style="color:rgba(0,0,0,0.45);">RECEIPT V3</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            A browser submission is not proof that the intended consequential action succeeded.
+          </p>
+          <div style="margin-top:24px;">
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">SUCCESS</span><span>OBSERVED_SUCCESS — outcome verified locally</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">FAILURE</span><span>OBSERVED_FAILURE — outcome verified locally</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">UNKNOWN</span><span>UNKNOWN — evidence is inconclusive</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">UNDO</span><span>Requires observed success + one credible live inverse</span></div>
+          </div>
+          <p style="margin-top:24px; max-width:520px; font-size:14px; color:rgba(0,0,0,0.55);">
+            Redirects and navigation alone do not prove consequential success. The local receipt API independently gates UNDONE.
+          </p>
         </div>
-        <p style="font-size:24px; line-height:1.2; letter-spacing:-.04em; max-width:640px; margin-bottom:20px;">
-          A browser submission is not proof that the intended consequential action succeeded.
-        </p>
-        <div style="max-width:580px; display:flex; flex-direction:column; gap:8px;">
-          <div style="padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><strong>SUCCESS</strong> — OBSERVED_SUCCESS: outcome verified locally</div>
-          <div style="padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><strong>FAILURE</strong> — OBSERVED_FAILURE: outcome verified locally</div>
-          <div style="padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><strong>UNKNOWN</strong> — UNKNOWN: evidence is inconclusive (Undo strictly denied)</div>
-          <div style="padding:10px 0; border-bottom:1px solid #f1f5f9; font-size:14px;"><strong>UNDO</strong> — Requires observed success + one credible live inverse</div>
-        </div>
-      </section>
+      </article>
 
-      <!-- Privacy Section -->
-      <section id="secPrivacy" class="rv in" style="border-top:1px solid #e2e8f0; padding-top:40px;">
-        <div style="display:grid; grid-template-columns:3rem 1fr auto; font-size:15px; letter-spacing:-.02em; margin-bottom:24px;">
-          <span style="font-weight:600;">03</span>
-          <span>Privacy: <span style="display:block; color:rgba(0,0,0,0.55);">Durable state stays local. Raw secrets stay local...</span></span>
+      <!-- 03 Privacy Section -->
+      <article id="privacy" class="rv in scroll-mt-6">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>03</span>
+          <span>Privacy:<span style="display:block; color:rgba(0,0,0,0.55);">Durable state stays local. Raw secrets stay local...</span></span>
           <span style="color:rgba(0,0,0,0.45);">LOCAL</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="max-width:520px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            Durable user state and raw secrets remain local. Only privacy-reduced action evidence is transiently sent for interpretation.
+          </p>
+          <div style="margin-top:24px;">
+            <div class="hv" style="display:grid; grid-template-columns:7rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">LOCAL</span><span>Receipts, outcomes, Undo, cognitive debt</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:7rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">LOCAL</span><span>Browser profile, session state, local policies</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:7rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">LOCAL</span><span>Gateway credentials, signing secrets, device enrollment</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:7rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">NEVER CLOUD</span><span>Passwords, OTPs, card numbers, raw form values</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:7rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">NEVER CLOUD</span><span>Uploaded file contents, full page text, URL query strings</span></div>
+          </div>
         </div>
-        <p style="font-size:24px; line-height:1.2; letter-spacing:-.04em; max-width:640px; margin-left:auto; margin-bottom:20px;">
-          Durable user state and raw secrets remain local. Only privacy-reduced action evidence is transiently sent for interpretation.
-        </p>
-        <div style="max-width:640px; margin-left:auto; font-size:14px; color:rgba(0,0,0,0.65); line-height:1.6;">
-          • Passwords, OTPs, card numbers, raw form values: <strong>NEVER CLOUD</strong><br>
-          • Uploaded file contents, full page text, URL query strings: <strong>NEVER CLOUD</strong><br>
-          • Receipts, outcomes, Undo, cognitive debt: <strong>LOCAL ONLY</strong>
-        </div>
-      </section>
+      </article>
 
-      <!-- Security Section -->
-      <section id="secSecurity" class="rv in" style="border-top:1px solid #e2e8f0; padding-top:40px;">
-        <div style="display:grid; grid-template-columns:3rem 1fr auto; font-size:15px; letter-spacing:-.02em; margin-bottom:24px;">
-          <span style="font-weight:600;">04</span>
-          <span>Security: <span style="display:block; color:rgba(0,0,0,0.55);">Deterministic safety floor, conservative failure...</span></span>
+      <!-- 04 Runtime Section -->
+      <article id="runtime" class="rv in scroll-mt-6">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>04</span>
+          <span>Runtime:<span style="display:block; color:rgba(0,0,0,0.55);">Small OS bundles, fail-closed installation...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">CLI</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="max-width:520px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            Small per-OS runtime bundles. No separate Python, Node, npm, or model-weight installation for consumers. Chrome/Chromium required.
+          </p>
+          <div style="margin-top:24px;">
+            <div class="hv" style="display:grid; grid-template-columns:4.5rem 1fr; column-gap:12px; padding:9px 0; font-size:14px; font-family:var(--mono); border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">WIN</span><span>irm https://&lt;CIEAV-DOWNLOAD-DOMAIN&gt;/install.ps1 | iex</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:4.5rem 1fr; column-gap:12px; padding:9px 0; font-size:14px; font-family:var(--mono); border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">MAC/LINUX</span><span>curl -fsSL https://&lt;CIEAV-DOWNLOAD-DOMAIN&gt;/install.sh | sh</span></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 05 Cloud Section -->
+      <article id="cloud" class="rv in scroll-mt-6">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>05</span>
+          <span>Cloud:<span style="display:block; color:rgba(0,0,0,0.55);">Interpretation only. Never local execution...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">TLS</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="max-width:520px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            CIEAV Cloud Intelligence is an interpretation service, not an execution service.
+          </p>
+          <div style="margin-top:24px;">
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">MODEL</span><span>ibm-granite/granite-4.1-3b</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">API</span><span>POST /v1/inference/analyze — device token required</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">RECEIPTS</span><span>Cloud mode returns local_only_resource</span></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 06 Security Section -->
+      <article id="security" class="rv in scroll-mt-6">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>06</span>
+          <span>Security:<span style="display:block; color:rgba(0,0,0,0.55);">Deterministic safety floor, conservative failure...</span></span>
           <span style="color:rgba(0,0,0,0.45);">12 INVARIANTS</span>
-        </div>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:18px; margin-top:20px;">
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:18px;">
-            <div style="font-size:11px; font-weight:700; color:rgba(0,0,0,0.45);">INVARIANT 01</div>
-            <div style="font-weight:700; font-size:15px; margin:4px 0;">AI cannot lower risk</div>
-            <div style="font-size:13px; color:rgba(0,0,0,0.6);">The deterministic policy is the absolute bottom floor. AI can only raise risk.</div>
-          </div>
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:18px;">
-            <div style="font-size:11px; font-weight:700; color:rgba(0,0,0,0.45);">INVARIANT 02</div>
-            <div style="font-weight:700; font-size:15px; margin:4px 0;">Typed confirmation for high risk</div>
-            <div style="font-size:13px; color:rgba(0,0,0,0.6);">CRITICAL and HIGH actions require typing 'COMMIT' to prevent approval fatigue.</div>
-          </div>
-          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:18px;">
-            <div style="font-size:11px; font-weight:700; color:rgba(0,0,0,0.45);">INVARIANT 03</div>
-            <div style="font-weight:700; font-size:15px; margin:4px 0;">Tamper-proof hash chain</div>
-            <div style="font-size:13px; color:rgba(0,0,0,0.6);">Receipts chained via SHA-256 and signed with Ed25519 local authority keys.</div>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="max-width:560px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            CIEAV fails conservative. Semantic uncertainty never silently becomes a safer policy.
+          </p>
+          <div style="margin-top:24px;">
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">01</span><span>Website content is hostile.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">02</span><span>Raw secret and form values never enter cloud/model context.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">03</span><span>AI cannot lower the deterministic safety floor.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">04</span><span>HIGH, CRITICAL, and sensitive actions never habituate into passive mode.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">05</span><span>Approved replay is coordinate-bound, single-use, and short-lived.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">06</span><span>COMMITTED is not a remote-success claim.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">07</span><span>UNKNOWN stays UNKNOWN; navigation is not proof.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">08</span><span>Undo requires observed success plus one credible live inverse.</span></div>
           </div>
         </div>
-      </section>
+      </article>
 
-      <!-- Verify Section -->
-      <section id="secVerify" class="rv in" style="border-top:1px solid #e2e8f0; padding-top:40px; margin-bottom:60px;">
-        <div style="display:grid; grid-template-columns:3rem 1fr auto; font-size:15px; letter-spacing:-.02em; margin-bottom:24px;">
-          <span style="font-weight:600;">05</span>
-          <span>Verify: <span style="display:block; color:rgba(0,0,0,0.55);">Live dashboard and audit verification...</span></span>
-          <span style="color:rgba(0,0,0,0.45);">DASHBOARD</span>
+      <!-- 07 Verify Section -->
+      <article id="verify" class="rv in scroll-mt-6" style="margin-bottom:80px;">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>07</span>
+          <span>Verify:<span style="display:block; color:rgba(0,0,0,0.55);">Test the control plane, browser boundary and outcomes...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">CI</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="max-width:520px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            Verify the local control plane, cloud boundary, cognitive-friction policy, and browser outcome observer in CI.
+          </p>
+          <div style="margin-top:24px;">
+            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">npm run platform:check</div>
+            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">npm run test:ai-orchestration</div>
+            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">npm run test:cognitive-debt</div>
+            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">npm run test:browser</div>
+          </div>
+          <div style="margin-top:36px;">
+            <button class="btn btn-dark" style="font-size:15px; padding:12px 24px;" onclick="openAuthModal('Access Dashboard')">
+              Sign In to Open Live Dashboard ↗
+            </button>
+          </div>
         </div>
-        <p style="font-size:20px; line-height:1.3; max-width:600px; margin-bottom:20px;">
-          Inspect every consequential action live, verify receipts, and test prompt injection defenses directly in the Gateway Dashboard.
-        </p>
-        <button class="btn btn-dark" style="font-size:15px; padding:12px 24px;" onclick="openAuthModal('Access Dashboard')">
-          Sign In to Open Live Dashboard ↗
-        </button>
-      </section>
+      </article>
 
-    </div>
+    </main>
   </div>
 
   <!-- ========================================================
-       AUTH MODAL (Sign In with Google & Email)
+       AUTH MODAL (Google & Traditional Sign In)
        ======================================================== -->
   <div id="authModal" class="modal-overlay">
     <div class="modal-card">
@@ -588,13 +519,33 @@
   </div>
 
   <!-- ========================================================
-       WHITE MINIMALIST DASHBOARD VIEW
+       WHITE MINIMALIST DASHBOARD VIEW (Unlocks After Sign In)
        ======================================================== -->
   <div id="dashboardView" class="view-pane">
+    
+    <!-- Dashboard Top Bar with Logo & Sign Out -->
+    <header class="dash-top-bar">
+      <div class="brand-group" onclick="navigate('landing')">
+        <img src="/logo.png" alt="CIEAV Logo" onerror="this.style.display='none'">
+        <div>
+          <div class="dash-brand-title">CIEAV</div>
+          <div class="dash-brand-sub">The Commit Layer</div>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:16px;">
+        <span style="font-size:13px; font-weight:600; color:#334155; display:inline-flex; align-items:center;">
+          <span class="pulse-dot"></span> <span id="dashUserEmail">admin@cieav.local</span>
+        </span>
+        <button class="btn btn-light" onclick="navigate('landing')">Back to Landing</button>
+        <button class="btn btn-light" onclick="signOut()">Sign Out</button>
+      </div>
+    </header>
+
     <div class="dashboard-wrap">
       <div class="dash-container">
 
-        <!-- Dashboard Header -->
+        <!-- Header Row -->
         <div class="dash-header-row">
           <div>
             <h1 class="dash-h1">Commit Layer Gateway Dashboard</h1>
@@ -609,7 +560,7 @@
           </div>
         </div>
 
-        <!-- 5 Pillars Live Status Bar -->
+        <!-- 5 Pillars Live Integrations Bar -->
         <div class="integrations-bar">
           <div class="integ-card">
             <div class="integ-top">
@@ -648,7 +599,7 @@
           </div>
         </div>
 
-        <!-- Metrics Row -->
+        <!-- Metrics Grid -->
         <div class="dash-stats-grid">
           <div class="white-card">
             <div class="stat-label">Agent Bank Reserve</div>
@@ -711,7 +662,6 @@
 
           <!-- Right Column -->
           <div style="display:flex; flex-direction:column; gap:20px;">
-            <!-- Crustdata Lookup -->
             <div class="white-card">
               <div class="card-header">
                 <span class="card-title">🔍 Crustdata Counterparty Screener</span>
@@ -726,7 +676,6 @@
               </div>
             </div>
 
-            <!-- Sandbox Reality -->
             <div class="white-card">
               <div class="card-header">
                 <span class="card-title">🌐 Sandbox World Reality State</span>
@@ -751,7 +700,7 @@
 
         </div>
 
-        <!-- Cryptographic Receipts Table -->
+        <!-- Receipts Table -->
         <div class="white-card">
           <div class="card-header">
             <span class="card-title">📜 Cryptographic Receipts Audit Chain</span>
@@ -782,20 +731,16 @@
   </div>
 
   <script>
-    // State management
     let currentUser = null;
 
     function navigate(viewName) {
       document.querySelectorAll('.view-pane').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
 
       if (viewName === 'dashboard') {
         document.getElementById('dashboardView').classList.add('active');
-        document.getElementById('navDashboard').classList.add('active');
         fetchState();
       } else {
         document.getElementById('landingView').classList.add('active');
-        document.getElementById('navLanding').classList.add('active');
       }
       window.scrollTo(0, 0);
     }
@@ -827,10 +772,13 @@
 
     function onUserSignedIn() {
       closeAuthModal();
-      document.getElementById('userEmailSpan').innerText = currentUser.email;
-      document.getElementById('userStatusTag').style.display = 'inline-flex';
-      document.getElementById('btnAuthTrigger').style.display = 'none';
+      document.getElementById('dashUserEmail').innerText = currentUser.email;
       navigate('dashboard');
+    }
+
+    function signOut() {
+      currentUser = null;
+      navigate('landing');
     }
 
     // Interactive Glyph Canvas Logic from original landing page
@@ -869,46 +817,103 @@
       const ctx = cv.getContext('2d');
       const { rects, cols } = buildRects();
 
-      let vw = window.innerWidth;
-      let vh = window.innerHeight;
+      let vw = 0;
+      let vh = 0;
+      let dpr = 1;
       function resize() {
-        vw = window.innerWidth;
+        vw = document.documentElement.clientWidth;
         vh = window.innerHeight;
-        cv.width = vw;
-        cv.height = vh;
+        dpr = Math.min(2, window.devicePixelRatio || 1);
+        cv.width = Math.round(vw * dpr);
+        cv.height = Math.round(vh * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
       resize();
       window.addEventListener('resize', resize);
+
+      const START = 0;
+      const COL_DELAY = 16;
+      const COL_SPAN = 520;
+      const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+      const smooth = (t) => t * t * (3 - 2 * t);
+      const out = (t) => Math.sin((t * Math.PI) / 2);
 
       function draw() {
         if (!document.getElementById('landingView').classList.contains('active')) return;
         const y0 = window.scrollY;
         const mobile = vw < 1024;
+        const sc = y0 / (vh / 962);
         const railW = mobile ? 56 : 88;
         const heroH = vh * (mobile ? 0.12 : 0.162);
         const cw = vw / cols;
         const rh = heroH / 7;
-        const prog = Math.min(1, Math.max(0, y0 / Math.max(1, document.documentElement.scrollHeight - vh)));
+        const maxS = Math.max(1, document.documentElement.scrollHeight - vh);
+        const prog = clamp(y0 / maxS);
 
         ctx.clearRect(0, 0, vw, vh);
+
         for (const r of rects) {
-          const q = Math.min(1, Math.max(0, (y0 / (vh / 962) - r.x * 16) / 520));
-          const q2 = q * q * (3 - 2 * q);
+          const q = out(clamp((sc - START - r.x * COL_DELAY) / COL_SPAN));
+          const q2 = smooth(clamp((q - 0.3) / 0.7));
           const x = r.x * cw + (r.x * (railW / cols) - r.x * cw) * q;
           const w = r.w * cw + (r.w * (railW / cols) - r.w * cw) * q;
-          const y = r.y * rh + (r.y * (vh / 7) - r.y * rh) * q2;
+          let y = r.y * rh + (r.y * (vh / 7) - r.y * rh) * q2;
           const h = rh + (vh / 7 - rh) * q2;
-          ctx.fillStyle = 'rgba(0,0,0,0.85)';
-          ctx.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.round(h));
+          let a = 1;
+          const read = smooth(clamp((prog - (y + h / 2) / vh) / 0.02 + 0.5));
+          a *= 1 + (0.3 + 0.7 * read - 1) * q2;
+          const xa = Math.round(x);
+          const xb = Math.round(x + w);
+          const ya = Math.round(y);
+          const yb = Math.round(y + h);
+          ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;
+          ctx.fillRect(xa, ya, Math.max(1, xb - xa), yb - ya);
         }
+
+        const qa = smooth(clamp((sc - 450) / 400));
+        if (qa > 0) {
+          ctx.globalAlpha = qa;
+          ctx.fillStyle = 'rgba(0,0,0,.13)';
+          ctx.fillRect(railW + 4, 0, 2, vh);
+          ctx.fillStyle = '#000';
+          ctx.fillRect(railW + 4, 0, 2, vh * prog);
+          ctx.globalAlpha = 1;
+        }
+
+        document.getElementById('landingView').style.setProperty('--p', clamp(y0 / 220).toFixed(4));
       }
 
-      window.addEventListener('scroll', draw);
+      window.addEventListener('scroll', draw, { passive: true });
       draw();
     }
     setupCanvas();
 
-    // Tool Presets
+    // Intersection observer for sections fade in
+    const els = document.querySelectorAll('.rv');
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => e.isIntersecting && (e.target.classList.add('in'), io.unobserve(e.target))),
+      { threshold: 0.05 }
+    );
+    els.forEach((el, i) => {
+      el.style.transitionDelay = `${(i % 3) * 50}ms`;
+      io.observe(el);
+    });
+
+    // Update active nav dot on scroll
+    const secList = ['home', 'architecture', 'commit', 'privacy', 'runtime', 'cloud', 'security', 'verify'];
+    window.addEventListener('scroll', () => {
+      const vh = window.innerHeight;
+      const elMatches = secList.map(id => document.getElementById(id)).filter(Boolean);
+      const cur = [...elMatches].reverse().find(el => el.getBoundingClientRect().top <= vh * 0.35);
+      if (cur) {
+        document.querySelectorAll('.side-nav a').forEach(a => {
+          if (a.getAttribute('href') === `#${cur.id}`) a.classList.add('is-active');
+          else a.classList.remove('is-active');
+        });
+      }
+    }, { passive: true });
+
+    // Dashboard Tool Presets
     const TOOL_PRESETS = {
       send_payment: '{\n  "amount": 750.0,\n  "to": "merchant_b"\n}',
       delete_file: '{\n  "filename": "config.json"\n}',
