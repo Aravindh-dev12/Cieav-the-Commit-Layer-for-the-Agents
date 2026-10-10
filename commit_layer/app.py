@@ -21,7 +21,7 @@ from __future__ import annotations
 import os
 import subprocess
 from contextlib import asynccontextmanager
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel
