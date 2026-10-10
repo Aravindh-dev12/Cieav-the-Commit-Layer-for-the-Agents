@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CIEAV — The Commit Layer for the Internet</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* CIEAV Clean Minimalist Design & Typography */
+    :root {
+      --bg: #ffffff;
+      --bg-page: #f8fafc;
+      --border: #e2e8f0;
+      --border-dark: #cbd5e1;
+      --text: #000000;
+      --text-muted: rgba(0, 0, 0, 0.55);
+      --text-dim: rgba(0, 0, 0, 0.45);
+      --critical: #dc2626;
+      --critical-bg: #fef2f2;
+      --high: #ea580c;
+      --high-bg: #fff7ed;
+      --medium: #d97706;
+      --medium-bg: #fffbeb;
+      --low: #16a34a;
+      --low-bg: #f0fdf4;
+      --undo: #7c3aed;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
+      --ui-sans: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.4;
+      overflow-x: hidden;
+    }
+
+    /* VIEW SWITCHER */
+    .view-pane { display: none; }
+    .view-pane.active { display: block; }
+
+    /* ========================================================
+       CIEAV OFFICIAL LANDING PAGE STYLES (No Global Top Header)
+       ======================================================== */
+    .grids-root { font-family: 'Inter Tight', sans-serif; --p: 0; min-height: 100vh; position: relative; }
+    .fixed-layers { display: contents; }
+    .wm-canvas { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 30; }
+    .cap {
+      position: fixed; z-index: 35; pointer-events: none; margin: 0; top: 18px;
+      color: #000; font-size: 14px; line-height: 1.3; letter-spacing: -.02em;
+      opacity: calc(1 - var(--p) * 6);
+    }
+    .cap-a { left: 21px; font-weight: 500; }
+    .cap-b { left: 25.6vw; color: rgba(0, 0, 0, 0.65); }
+    .explore-hint {
+      position: fixed; z-index: 35; pointer-events: none; margin: 0; left: 12px; top: 45vh;
+      font-size: 11px; color: rgba(0,0,0,.35); opacity: calc(1 - var(--p) * 8);
+    }
+
+    .main {
+      position: relative; z-index: 20; padding: 165px 28px 160px 115px;
+      max-width: 1400px; margin: 0 auto;
+    }
+    @media (min-width: 1024px) {
+      .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 11px;
+        row-gap: 7rem;
+      }
+    }
+
+    .side-nav {
+      position: fixed; left: 99px; top: 50%; transform: translateY(-50%); z-index: 60;
+      color: #000; font-size: 13px; letter-spacing: -.01em;
+    }
+    .side-nav a {
+      position: relative; display: flex; align-items: center; height: 22px;
+      opacity: .45; transition: opacity .2s; text-decoration: none; color: inherit;
+    }
+    .side-nav a:hover, .side-nav a.is-active { opacity: 1; }
+    .side-nav .dot { width: 5px; height: 5px; background: currentColor; transition: transform .25s; }
+    .side-nav a.is-active .dot { transform: scale(1.8); }
+    .side-nav .lbl {
+      position: absolute; left: 16px; white-space: nowrap; opacity: 0;
+      transform: translateX(-4px); transition: opacity .2s, transform .2s;
+    }
+    .side-nav a:hover .lbl { opacity: 1; transform: none; }
+
+    .link-cta {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 15px;
+      letter-spacing: -.02em; padding-bottom: 2px; color: #000; cursor: pointer;
+      text-decoration: none; font-weight: 500;
+      background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1px no-repeat;
+      transition: background-size .35s cubic-bezier(.2,.7,.2,1), gap .3s;
+    }
+    .link-cta:hover { background-size: 0% 1px; gap: 10px; }
+    .rv {
+      opacity: 0; transform: translateY(18px);
+      transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1);
+    }
+    .rv.in { opacity: 1; transform: none; }
+    .hv { transition: transform .3s cubic-bezier(.2,.7,.2,1), opacity .3s; }
+    .hv:hover { transform: translateX(6px); }
+
+    /* ========================================================
+       AUTH MODAL (Sign In Triggered by Hero Buttons)
+       ======================================================== */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(6px); z-index: 200; display: none;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-card {
+      background: #ffffff; border-radius: 16px; max-width: 410px; width: 100%;
+      padding: 34px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15); position: relative;
+    }
+    .modal-close {
+      position: absolute; top: 18px; right: 18px; background: transparent;
+      border: none; font-size: 20px; color: var(--text-muted); cursor: pointer;
+    }
+    .modal-header { text-align: center; margin-bottom: 24px; }
+    .modal-logo { width: 44px; height: 44px; object-fit: contain; margin-bottom: 12px; }
+    .modal-title { font-size: 20px; font-weight: 800; color: #000; letter-spacing: -0.02em; }
+    .modal-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    .btn-google {
+      width: 100%; background: #ffffff; border: 1px solid var(--border-dark);
+      color: #0f172a; font-size: 14px; font-weight: 600; padding: 10px 16px;
+      border-radius: 8px; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; gap: 12px; transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .btn-google:hover { background: #f8fafc; border-color: #94a3b8; }
+    .google-icon { width: 18px; height: 18px; }
+
+    .divider-row {
+      display: flex; align-items: center; margin: 20px 0; color: #94a3b8;
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+    }
+    .divider-row::before, .divider-row::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+    .divider-row span { padding: 0 12px; }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .form-label { font-size: 12px; font-weight: 600; color: #334155; }
+    .form-input {
+      padding: 10px 14px; border: 1px solid var(--border-dark); border-radius: 8px;
+      font-size: 14px; font-family: var(--ui-sans); outline: none; transition: border-color 0.15s;
+    }
+    .form-input:focus { border-color: #000; box-shadow: 0 0 0 1px #000; }
+    .btn-auth-submit {
+      width: 100%; background: #000000; color: #ffffff; font-weight: 700;
+      padding: 11px; border-radius: 8px; border: none; cursor: pointer;
+      font-size: 14px; margin-top: 8px;
+    }
+    .btn-auth-submit:hover { background: #1e293b; }
+
+    /* ========================================================
+       WHITE MINIMALIST DASHBOARD STYLES (Shown After Sign In)
+       ======================================================== */
+    .dash-top-bar {
+      position: sticky; top: 0; z-index: 100; padding: 14px 28px;
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand-group { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+    .brand-group img { width: 32px; height: 32px; object-fit: contain; }
+    .dash-brand-title { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+    .dash-brand-sub { font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; }
+
+    .dashboard-wrap {
+      background: var(--bg-page); min-height: calc(100vh - 65px); padding: 28px;
+    }
+    .dash-container {
+      max-width: 1380px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px;
+    }
+
+    .btn {
+      font-family: var(--ui-sans); font-size: 13px; font-weight: 600; padding: 8px 16px;
+      border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s ease;
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-dark { background: #000000; color: #ffffff; }
+    .btn-dark:hover { background: #1e293b; }
+    .btn-light { background: #ffffff; border-color: #cbd5e1; color: #000; }
+    .btn-light:hover { background: #f8fafc; border-color: #94a3b8; }
+    .btn-success { background: #16a34a; color: #ffffff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: #dc2626; color: #ffffff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-undo { background: #7c3aed; color: #ffffff; padding: 4px 10px; font-size: 11px; }
+
+    .integrations-bar {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px;
+    }
+    .integ-card {
+      background: #ffffff; border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 16px; display: flex; flex-direction: column; gap: 4px;
+    }
+    .integ-top { display: flex; justify-content: space-between; align-items: center; }
+    .integ-name { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #1e293b; }
+    .integ-status { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 9999px; text-transform: uppercase; }
+    .integ-online { background: #dcfce7; color: #15803d; }
+    .integ-ready { background: #e0e7ff; color: #4338ca; }
+    .integ-sub { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+
+    .dash-stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;
+    }
+    .white-card {
+      background: #ffffff; border: 1px solid var(--border); border-radius: 12px;
+      padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); display: flex; flex-direction: column;
+    }
+    .stat-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .stat-val { font-size: 28px; font-weight: 800; margin-top: 6px; font-family: var(--mono); }
+    .stat-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    .dash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .dash-cols { grid-template-columns: 1fr; } }
+
+    .card-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+    }
+    .card-title { font-size: 15px; font-weight: 700; color: #000; }
+
+    .pending-item {
+      background: #f8fafc; border: 1px solid var(--border); border-radius: 10px;
+      padding: 16px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;
+    }
+    .pending-top { display: flex; justify-content: space-between; align-items: center; }
+    .tool-badge { font-family: var(--mono); font-weight: 700; font-size: 14px; }
+
+    .badge {
+      font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 9999px; text-transform: uppercase;
+    }
+    .badge-CRITICAL { background: var(--critical-bg); color: var(--critical); border: 1px solid #fecaca; }
+    .badge-HIGH { background: var(--high-bg); color: var(--high); border: 1px solid #fed7aa; }
+    .badge-MEDIUM { background: var(--medium-bg); color: var(--medium); border: 1px solid #fde68a; }
+    .badge-LOW { background: var(--low-bg); color: var(--low); border: 1px solid #bbf7d0; }
+    .badge-OBSERVED_SUCCESS { background: var(--low-bg); color: var(--low); border: 1px solid #bbf7d0; }
+    .badge-OBSERVED_FAILURE { background: var(--critical-bg); color: var(--critical); border: 1px solid #fecaca; }
+    .badge-UNKNOWN { background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe; }
+
+    .code-box {
+      background: #ffffff; border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px 12px; font-family: var(--mono); font-size: 12px; color: #334155; overflow-x: auto;
+    }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); background: #f8fafc; }
+    tr:hover td { background: #f8fafc; }
+    .pulse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; margin-right: 6px; }
+  </style>
+</head>
+<body>
+
+  <!-- ========================================================
+       CIEAV LANDING VIEW (Exact Layout with Canvas & Typography)
+       ======================================================== -->
+  <div id="landingView" class="view-pane active grids-root">
+    
+    <div class="fixed-layers">
+      <canvas id="wmCanvas" class="wm-canvas" aria-hidden="true"></canvas>
+      <p class="cap cap-a">CIEAV® — Commit Layer</p>
+      <p class="cap cap-b">
+        <span style="text-decoration:underline; text-underline-offset:2px;">CIEAV</span> — The commit layer for the internet.<br>
+        Cloud interprets. Local authority commits.
+      </p>
+      <p class="explore-hint">Scroll to Explore</p>
+    </div>
+
+    <!-- Side-rail navigation dots -->
+    <nav aria-label="Primary" class="side-nav">
+      <a href="#home" class="is-active" onclick="event.preventDefault(); window.scrollTo({top:0, behavior:'smooth'})"><span class="dot"></span><span class="lbl">Home</span></a>
+      <a href="#architecture" onclick="event.preventDefault(); document.getElementById('architecture').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Architecture</span></a>
+      <a href="#commit" onclick="event.preventDefault(); document.getElementById('commit').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Commit</span></a>
+      <a href="#privacy" onclick="event.preventDefault(); document.getElementById('privacy').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Privacy</span></a>
+      <a href="#runtime" onclick="event.preventDefault(); document.getElementById('runtime').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Runtime</span></a>
+      <a href="#cloud" onclick="event.preventDefault(); document.getElementById('cloud').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Cloud</span></a>
+      <a href="#security" onclick="event.preventDefault(); document.getElementById('security').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Security</span></a>
+      <a href="#verify" onclick="event.preventDefault(); document.getElementById('verify').scrollIntoView({behavior:'smooth'})"><span class="dot"></span><span class="lbl">Verify</span></a>
+    </nav>
+
+    <!-- Main Content Stream -->
+    <main class="main main-grid">
+      
+      <!-- 00 Home Section -->
+      <section id="home" class="rv in lg:col-start-2" style="scroll-margin-top:24px; grid-column-start: 2;">
+        <p style="max-width:620px; font-size:clamp(1.5rem, 2.4vw, 2.3rem); font-weight:500; line-height:1.05; letter-spacing:-.05em;">
+          CIEAV is the commit layer for the internet: an always-on local control plane between digital intent and consequence.
+        </p>
+        <p style="margin-top:16px; max-width:560px; font-size:15px; line-height:1.45; color:rgba(0,0,0,0.55);">
+          It sits between a human, AI agent, or automation and browser actions that can create real-world effects. Deterministic safety and final authority stay local.
+        </p>
+        <div style="margin-top:24px; display:flex; flex-wrap:wrap; column-gap:32px; row-gap:12px;">
+          <a class="link-cta" onclick="openAuthModal('Explore architecture')">
+            Explore architecture <span style="font-size:13px;">↗</span>
+          </a>
+          <a class="link-cta" onclick="openAuthModal('Read security model')">
+            Read security model <span style="font-size:13px;">↗</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- 01 Architecture Section -->
+      <article id="architecture" class="rv in scroll-mt-6" style="grid-column: span 2;">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>01</span>
+          <span>Architecture:<span style="display:block; color:rgba(0,0,0,0.55);">Local authority, cloud interpretation...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">CONTROL</span>
+        </header>
+        <div style="margin-top:36px; margin-left: 50%;">
+          <p style="max-width:620px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            Cloud interprets. Local authority commits. The cloud receives only privacy-reduced semantic evidence and never receives browser replay or commit capability.
+          </p>
+          <div style="margin-top:32px;">
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">01</span><span>Human / AI agent / automation</span><span style="color:rgba(0,0,0,0.45);">INTENT</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">02</span><span>Local CIEAV Gateway</span><span style="color:rgba(0,0,0,0.45);">AUTHORITY</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">03</span><span>Deterministic safety floor</span><span style="color:rgba(0,0,0,0.45);">SAFETY</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">04</span><span>Local privacy reduction</span><span style="color:rgba(0,0,0,0.45);">PRIVACY</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">05</span><span>Minimal semantic packet over TLS</span><span style="color:rgba(0,0,0,0.45);">TRANSPORT</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">06</span><span>CIEAV Cloud Intelligence</span><span style="color:rgba(0,0,0,0.45);">INTERPRETATION</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">07</span><span>Conservative local merge</span><span style="color:rgba(0,0,0,0.45);">MERGE</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">08</span><span>Cognitive-friction policy</span><span style="color:rgba(0,0,0,0.45);">POLICY</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">09</span><span>PREVIEW → COMMIT / CANCEL</span><span style="color:rgba(0,0,0,0.45);">DECISION</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">10</span><span>Trusted replay → signed Action Receipt</span><span style="color:rgba(0,0,0,0.45);">EXECUTION</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">11</span><span>Outcome observer → SUCCESS / FAILURE / UNKNOWN</span><span style="color:rgba(0,0,0,0.45);">OBSERVE</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr auto; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; letter-spacing:-.02em; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">12</span><span>Verified inverse → UNDO</span><span style="color:rgba(0,0,0,0.45);">REVERSAL</span></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 02 Commit Section -->
+      <article id="commit" class="rv in scroll-mt-6">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>02</span>
+          <span>Commit:<span style="display:block; color:rgba(0,0,0,0.55);">Commit is not success. Observe the outcome...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">RECEIPT V3</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            A browser submission is not proof that the intended consequential action succeeded.
+          </p>
+          <div style="margin-top:24px;">
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">SUCCESS</span><span>OBSERVED_SUCCESS — outcome verified locally</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">FAILURE</span><span>OBSERVED_FAILURE — outcome verified locally</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">UNKNOWN</span><span>UNKNOWN — evidence is inconclusive</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; line-height:1.25; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">UNDO</span><span>Requires observed success + one credible live inverse</span></div>
+          </div>
+          <p style="margin-top:24px; max-width:520px; font-size:14px; color:rgba(0,0,0,0.55);">
+            Redirects and navigation alone do not prove consequential success. The local receipt API independently gates UNDONE.
+          </p>
+        </div>
+      </article>
+
+      <!-- 03 Privacy Section -->
+      <article id="privacy" class="rv in scroll-mt-6">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>03</span>
+          <span>Privacy:<span style="display:block; color:rgba(0,0,0,0.55);">Durable state stays local. Raw secrets stay local...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">LOCAL</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="max-width:520px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            Durable user state and raw secrets remain local. Only privacy-reduced action evidence is transiently sent for interpretation.
+          </p>
+          <div style="margin-top:24px;">
+            <div class="hv" style="display:grid; grid-template-columns:7rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">LOCAL</span><span>Receipts, outcomes, Undo, cognitive debt</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:7rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">LOCAL</span><span>Browser profile, session state, local policies</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:7rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">LOCAL</span><span>Gateway credentials, signing secrets, device enrollment</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:7rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">NEVER CLOUD</span><span>Passwords, OTPs, card numbers, raw form values</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:7rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">NEVER CLOUD</span><span>Uploaded file contents, full page text, URL query strings</span></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 04 Runtime Section -->
+      <article id="runtime" class="rv in scroll-mt-6">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>04</span>
+          <span>Runtime:<span style="display:block; color:rgba(0,0,0,0.55);">Small OS bundles, fail-closed installation...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">CLI</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="max-width:520px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            Small per-OS runtime bundles. No separate Python, Node, npm, or model-weight installation for consumers. Chrome/Chromium required.
+          </p>
+          <div style="margin-top:24px;">
+            <div class="hv" style="display:grid; grid-template-columns:4.5rem 1fr; column-gap:12px; padding:9px 0; font-size:14px; font-family:var(--mono); border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">WIN</span><span>irm https://&lt;CIEAV-DOWNLOAD-DOMAIN&gt;/install.ps1 | iex</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:4.5rem 1fr; column-gap:12px; padding:9px 0; font-size:14px; font-family:var(--mono); border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">MAC/LINUX</span><span>curl -fsSL https://&lt;CIEAV-DOWNLOAD-DOMAIN&gt;/install.sh | sh</span></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 05 Cloud Section -->
+      <article id="cloud" class="rv in scroll-mt-6">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>05</span>
+          <span>Cloud:<span style="display:block; color:rgba(0,0,0,0.55);">Interpretation only. Never local execution...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">TLS</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="max-width:520px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            CIEAV Cloud Intelligence is an interpretation service, not an execution service.
+          </p>
+          <div style="margin-top:24px;">
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">MODEL</span><span>ibm-granite/granite-4.1-3b</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">API</span><span>POST /v1/inference/analyze — device token required</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:5rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">RECEIPTS</span><span>Cloud mode returns local_only_resource</span></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 06 Security Section -->
+      <article id="security" class="rv in scroll-mt-6">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>06</span>
+          <span>Security:<span style="display:block; color:rgba(0,0,0,0.55);">Deterministic safety floor, conservative failure...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">12 INVARIANTS</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="max-width:560px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            CIEAV fails conservative. Semantic uncertainty never silently becomes a safer policy.
+          </p>
+          <div style="margin-top:24px;">
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">01</span><span>Website content is hostile.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">02</span><span>Raw secret and form values never enter cloud/model context.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">03</span><span>AI cannot lower the deterministic safety floor.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">04</span><span>HIGH, CRITICAL, and sensitive actions never habituate into passive mode.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">05</span><span>Approved replay is coordinate-bound, single-use, and short-lived.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">06</span><span>COMMITTED is not a remote-success claim.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">07</span><span>UNKNOWN stays UNKNOWN; navigation is not proof.</span></div>
+            <div class="hv" style="display:grid; grid-template-columns:3.2rem 1fr; column-gap:12px; padding:9px 0; font-size:15px; border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">08</span><span>Undo requires observed success plus one credible live inverse.</span></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 07 Verify Section -->
+      <article id="verify" class="rv in scroll-mt-6" style="margin-bottom:80px;">
+        <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
+          <span>07</span>
+          <span>Verify:<span style="display:block; color:rgba(0,0,0,0.55);">Test the control plane, browser boundary and outcomes...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">CI</span>
+        </header>
+        <div style="margin-top:36px;">
+          <p style="max-width:520px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            Verify the local control plane, cloud boundary, cognitive-friction policy, and browser outcome observer in CI.
+          </p>
+          <div style="margin-top:24px;">
+            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">npm run platform:check</div>
+            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">npm run test:ai-orchestration</div>
+            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">npm run test:cognitive-debt</div>
+            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">npm run test:browser</div>
+          </div>
+          <div style="margin-top:36px;">
+            <button class="btn btn-dark" style="font-size:15px; padding:12px 24px;" onclick="openAuthModal('Access Dashboard')">
+              Sign In to Open Live Dashboard ↗
+            </button>
+          </div>
+        </div>
+      </article>
+
+    </main>
+  </div>
+
+  <!-- ========================================================
+       AUTH MODAL (Google & Traditional Sign In)
+       ======================================================== -->
+  <div id="authModal" class="modal-overlay">
+    <div class="modal-card">
+      <button class="modal-close" onclick="closeAuthModal()">✕</button>
+      <div class="modal-header">
+        <img src="/logo.png" alt="Logo" class="modal-logo" onerror="this.style.display='none'">
+        <div class="modal-title" id="authModalTitle">Welcome to CIEAV</div>
+        <div class="modal-sub">Sign in to access your local Gateway Dashboard</div>
+      </div>
+
+      <!-- Google Sign In -->
+      <button class="btn-google" onclick="handleGoogleSignIn()">
+        <svg class="google-icon" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+          <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"/>
+          <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+          <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <div class="divider-row"><span>or with email</span></div>
+
+      <!-- Traditional Email Sign In -->
+      <form onsubmit="handleEmailAuth(event)">
+        <div class="form-group">
+          <label class="form-label">Work Email</label>
+          <input type="email" id="authEmail" class="form-input" placeholder="name@company.com" required value="admin@cieav.local">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="authPassword" class="form-input" placeholder="••••••••" required value="password123">
+        </div>
+        <button type="submit" class="btn-auth-submit">Sign In & Enter Dashboard</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       WHITE MINIMALIST DASHBOARD VIEW (Unlocks After Sign In)
+       ======================================================== -->
+  <div id="dashboardView" class="view-pane">
+    
+    <!-- Dashboard Top Bar with Logo & Sign Out -->
+    <header class="dash-top-bar">
+      <div class="brand-group" onclick="navigate('landing')">
+        <img src="/logo.png" alt="CIEAV Logo" onerror="this.style.display='none'">
+        <div>
+          <div class="dash-brand-title">CIEAV</div>
+          <div class="dash-brand-sub">The Commit Layer</div>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:16px;">
+        <span style="font-size:13px; font-weight:600; color:#334155; display:inline-flex; align-items:center;">
+          <span class="pulse-dot"></span> <span id="dashUserEmail">admin@cieav.local</span>
+        </span>
+        <button class="btn btn-light" onclick="navigate('landing')">Back to Landing</button>
+        <button class="btn btn-light" onclick="signOut()">Sign Out</button>
+      </div>
+    </header>
+
+    <div class="dashboard-wrap">
+      <div class="dash-container">
+
+        <!-- Header Row -->
+        <div class="dash-header-row">
+          <div>
+            <h1 class="dash-h1">Commit Layer Gateway Dashboard</h1>
+            <div class="dash-sub">Deterministic Action Governance • Cryptographic Proofs • Real-time Reversal</div>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-light" onclick="verifyLedger()">🔒 Verify Hash Chain</button>
+            <button class="btn btn-danger" onclick="triggerHostileDemo()">⚠️ Test Hostile Injection</button>
+            <button class="btn btn-light" onclick="triggerSafePaymentDemo()">⚡ Safe $40 Pay</button>
+            <button class="btn btn-light" onclick="triggerFlakyDemo()">🎲 Flaky Pay</button>
+            <button class="btn btn-light" onclick="resetSandbox()">↺ Reset Sandbox</button>
+          </div>
+        </div>
+
+        <!-- 5 Pillars Live Integrations Bar -->
+        <div class="integrations-bar">
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">neatlogs</span>
+              <span class="integ-status integ-online" id="statusNeatlogs">ONLINE</span>
+            </div>
+            <div class="integ-sub" id="subNeatlogs">workflow: commit-layer</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">Entire</span>
+              <span class="integ-status integ-ready" id="statusEntire">LINKED</span>
+            </div>
+            <div class="integ-sub" id="subEntire">git checkpoint active</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">AWS Bedrock</span>
+              <span class="integ-status integ-ready" id="statusAws">CONFIGURED</span>
+            </div>
+            <div class="integ-sub" id="subAws">Claude Haiku 4.5</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">Crustdata</span>
+              <span class="integ-status integ-ready" id="statusCrustdata">ACTIVE</span>
+            </div>
+            <div class="integ-sub" id="subCrustdata">5000 credits ready</div>
+          </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">cfo.ai</span>
+              <span class="integ-status integ-ready">PLANNED</span>
+            </div>
+            <div class="integ-sub">$0.005 / protected action</div>
+          </div>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="dash-stats-grid">
+          <div class="white-card">
+            <div class="stat-label">Agent Bank Reserve</div>
+            <div class="stat-val" id="dashBankVal">$10,000.00</div>
+            <div class="stat-hint">Account: <span style="font-family:var(--mono); color:#2563eb;">agent</span></div>
+          </div>
+          <div class="white-card">
+            <div class="stat-label">Cognitive Friction Debt</div>
+            <div class="stat-val" id="dashDebtVal">0.00</div>
+            <div class="stat-hint">Automated fatigue damper</div>
+          </div>
+          <div class="white-card">
+            <div class="stat-label">Signed Ledger Receipts</div>
+            <div class="stat-val" id="dashReceiptsCount">0</div>
+            <div class="stat-hint">Hash-chained in SQLite</div>
+          </div>
+          <div class="white-card">
+            <div class="stat-label">Active Ed25519 Authority</div>
+            <div class="stat-val" id="dashKeyId" style="font-size:18px;">--</div>
+            <div class="stat-hint">Local cryptographic key</div>
+          </div>
+        </div>
+
+        <!-- 2 Columns: Dispatcher & Sandbox -->
+        <div class="dash-cols">
+
+          <!-- Left Column -->
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">🚀 Dispatch Consequential Action</span>
+                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Agent Interceptor</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; gap:10px;">
+                  <select id="dashToolSelect" onchange="updateDashToolPreset()" class="form-input" style="flex:1;">
+                    <option value="send_payment">send_payment(amount, to)</option>
+                    <option value="delete_file">delete_file(filename)</option>
+                    <option value="grant_access">grant_access(user, permission)</option>
+                    <option value="send_email">send_email(to, subject, body)</option>
+                    <option value="flaky_payment">flaky_payment(amount, to)</option>
+                  </select>
+                  <button class="btn btn-dark" onclick="submitDashAction()">Dispatch</button>
+                </div>
+                <textarea id="dashArgsInput" class="form-input" style="font-family:var(--mono); font-size:12px; min-height:65px;"></textarea>
+              </div>
+            </div>
+
+            <!-- Pending Approvals -->
+            <div class="white-card" style="flex:1;">
+              <div class="card-header">
+                <span class="card-title">🛑 Pending Human Approvals</span>
+                <span id="dashPendingBadge" class="badge badge-LOW">0 Pending</span>
+              </div>
+              <div id="dashPendingContainer">
+                <p style="font-size:13px; color:var(--text-muted); text-align:center; padding:30px 0;">No actions currently waiting for approval.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column -->
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">🔍 Crustdata Counterparty Screener</span>
+                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Real-world facts</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; gap:10px;">
+                  <input type="text" id="crustdataDomainInput" class="form-input" placeholder="e.g. stripe.com or attacker_offshore.xyz" style="flex:1;">
+                  <button class="btn btn-light" onclick="runCrustdataLookup()">Screen Payee</button>
+                </div>
+                <div id="crustdataResultBox" class="code-box" style="display:none; font-size:11px;"></div>
+              </div>
+            </div>
+
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">🌐 Sandbox World Reality State</span>
+                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Independent State</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                <div>
+                  <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Bank Ledger Accounts</div>
+                  <pre class="code-box" id="dashBankBox">Loading bank state...</pre>
+                </div>
+                <div>
+                  <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Filesystem & Trash Bin</div>
+                  <pre class="code-box" id="dashFilesBox">Loading files...</pre>
+                </div>
+                <div>
+                  <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Access Control & Sent Email Outbox</div>
+                  <pre class="code-box" id="dashAccessBox">Loading permissions...</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Receipts Table -->
+        <div class="white-card">
+          <div class="card-header">
+            <span class="card-title">📜 Cryptographic Receipts Audit Chain</span>
+            <span style="font-size:12px; color:var(--text-muted);">Ed25519 Signatures • SHA-256 Prev Hash Chained</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Tool</th>
+                  <th>Redacted Arguments</th>
+                  <th>Risk Floor</th>
+                  <th>Decision</th>
+                  <th>Commit Status</th>
+                  <th>Observed Outcome</th>
+                  <th>Reversal (Undo)</th>
+                  <th>Proof (Prev & Sig)</th>
+                </tr>
+              </thead>
+              <tbody id="dashReceiptsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+
+    function navigate(viewName) {
+      document.querySelectorAll('.view-pane').forEach(el => el.classList.remove('active'));
+
+      if (viewName === 'dashboard') {
+        document.getElementById('dashboardView').classList.add('active');
+        fetchState();
+      } else {
+        document.getElementById('landingView').classList.add('active');
+      }
+      window.scrollTo(0, 0);
+    }
+
+    function openAuthModal(actionContext) {
+      if (currentUser) {
+        navigate('dashboard');
+        return;
+      }
+      document.getElementById('authModalTitle').innerText = actionContext || 'Sign In to CIEAV';
+      document.getElementById('authModal').classList.add('active');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('authModal').classList.remove('active');
+    }
+
+    function handleGoogleSignIn() {
+      currentUser = { email: 'user@google-oauth.cieav.com', provider: 'google' };
+      onUserSignedIn();
+    }
+
+    function handleEmailAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById('authEmail').value;
+      currentUser = { email: email, provider: 'email' };
+      onUserSignedIn();
+    }
+
+    function onUserSignedIn() {
+      closeAuthModal();
+      document.getElementById('dashUserEmail').innerText = currentUser.email;
+      navigate('dashboard');
+    }
+
+    function signOut() {
+      currentUser = null;
+      navigate('landing');
+    }
+
+    // Interactive Glyph Canvas Logic from original landing page
+    const GLYPHS = {
+      C: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+      I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+      E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+      A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+      V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
+    };
+    const WORD = 'CIEAV';
+
+    function buildRects() {
+      const rects = [];
+      let cx = 0;
+      for (const ch of WORD) {
+        GLYPHS[ch].forEach((row, y) => {
+          let x = 0;
+          while (x < 5) {
+            if (row[x] === '1') {
+              let w = 1;
+              while (x + w < 5 && row[x + w] === '1') w++;
+              rects.push({ x: cx + x, y, w });
+              x += w;
+            } else x++;
+          }
+        });
+        cx += 6;
+      }
+      return { rects, cols: cx - 1 };
+    }
+
+    function setupCanvas() {
+      const cv = document.getElementById('wmCanvas');
+      if (!cv) return;
+      const ctx = cv.getContext('2d');
+      const { rects, cols } = buildRects();
+
+      let vw = 0;
+      let vh = 0;
+      let dpr = 1;
+      function resize() {
+        vw = document.documentElement.clientWidth;
+        vh = window.innerHeight;
+        dpr = Math.min(2, window.devicePixelRatio || 1);
+        cv.width = Math.round(vw * dpr);
+        cv.height = Math.round(vh * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      const START = 0;
+      const COL_DELAY = 16;
+      const COL_SPAN = 520;
+      const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+      const smooth = (t) => t * t * (3 - 2 * t);
+      const out = (t) => Math.sin((t * Math.PI) / 2);
+
+      function draw() {
+        if (!document.getElementById('landingView').classList.contains('active')) return;
+        const y0 = window.scrollY;
+        const mobile = vw < 1024;
+        const sc = y0 / (vh / 962);
+        const railW = mobile ? 56 : 88;
+        const heroH = vh * (mobile ? 0.12 : 0.162);
+        const cw = vw / cols;
+        const rh = heroH / 7;
+        const maxS = Math.max(1, document.documentElement.scrollHeight - vh);
+        const prog = clamp(y0 / maxS);
+
+        ctx.clearRect(0, 0, vw, vh);
+
+        for (const r of rects) {
+          const q = out(clamp((sc - START - r.x * COL_DELAY) / COL_SPAN));
+          const q2 = smooth(clamp((q - 0.3) / 0.7));
+          const x = r.x * cw + (r.x * (railW / cols) - r.x * cw) * q;
+          const w = r.w * cw + (r.w * (railW / cols) - r.w * cw) * q;
+          let y = r.y * rh + (r.y * (vh / 7) - r.y * rh) * q2;
+          const h = rh + (vh / 7 - rh) * q2;
+          let a = 1;
+          const read = smooth(clamp((prog - (y + h / 2) / vh) / 0.02 + 0.5));
+          a *= 1 + (0.3 + 0.7 * read - 1) * q2;
+          const xa = Math.round(x);
+          const xb = Math.round(x + w);
+          const ya = Math.round(y);
+          const yb = Math.round(y + h);
+          ctx.fillStyle = `rgba(0,0,0,${a.toFixed(3)})`;
+          ctx.fillRect(xa, ya, Math.max(1, xb - xa), yb - ya);
+        }
+
+        const qa = smooth(clamp((sc - 450) / 400));
+        if (qa > 0) {
+          ctx.globalAlpha = qa;
+          ctx.fillStyle = 'rgba(0,0,0,.13)';
+          ctx.fillRect(railW + 4, 0, 2, vh);
+          ctx.fillStyle = '#000';
+          ctx.fillRect(railW + 4, 0, 2, vh * prog);
+          ctx.globalAlpha = 1;
+        }
+
+        document.getElementById('landingView').style.setProperty('--p', clamp(y0 / 220).toFixed(4));
+      }
+
+      window.addEventListener('scroll', draw, { passive: true });
+      draw();
+    }
+    setupCanvas();
+
+    // Intersection observer for sections fade in
+    const els = document.querySelectorAll('.rv');
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => e.isIntersecting && (e.target.classList.add('in'), io.unobserve(e.target))),
+      { threshold: 0.05 }
+    );
+    els.forEach((el, i) => {
+      el.style.transitionDelay = `${(i % 3) * 50}ms`;
+      io.observe(el);
+    });
+
+    // Update active nav dot on scroll
+    const secList = ['home', 'architecture', 'commit', 'privacy', 'runtime', 'cloud', 'security', 'verify'];
+    window.addEventListener('scroll', () => {
+      const vh = window.innerHeight;
+      const elMatches = secList.map(id => document.getElementById(id)).filter(Boolean);
+      const cur = [...elMatches].reverse().find(el => el.getBoundingClientRect().top <= vh * 0.35);
+      if (cur) {
+        document.querySelectorAll('.side-nav a').forEach(a => {
+          if (a.getAttribute('href') === `#${cur.id}`) a.classList.add('is-active');
+          else a.classList.remove('is-active');
+        });
+      }
+    }, { passive: true });
+
+    // Dashboard Tool Presets
+    const TOOL_PRESETS = {
+      send_payment: '{\n  "amount": 750.0,\n  "to": "merchant_b"\n}',
+      delete_file: '{\n  "filename": "config.json"\n}',
+      grant_access: '{\n  "user": "guest",\n  "permission": "write"\n}',
+      send_email: '{\n  "to": "partner@vendor.org",\n  "subject": "Quarterly Ledger",\n  "body": "Commit layer status report."\n}',
+      flaky_payment: '{\n  "amount": 80.0,\n  "to": "merchant_a"\n}'
+    };
+
+    function updateDashToolPreset() {
+      const tool = document.getElementById('dashToolSelect').value;
+      document.getElementById('dashArgsInput').value = TOOL_PRESETS[tool] || '{}';
+    }
+    updateDashToolPreset();
+
+    async function submitDashAction() {
+      const tool = document.getElementById('dashToolSelect').value;
+      const raw = document.getElementById('dashArgsInput').value;
+      let args = {};
+      try { args = JSON.parse(raw); } catch (err) { alert("Invalid JSON format"); return; }
+
+      await fetch('/api/actions/intercept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool, args, agent_id: currentUser ? currentUser.email : 'web-user' })
+      });
+      fetchState();
+    }
+
+    async function runCrustdataLookup() {
+      const payee = document.getElementById('crustdataDomainInput').value.trim();
+      if (!payee) return;
+      const box = document.getElementById('crustdataResultBox');
+      box.style.display = 'block';
+      box.innerText = 'Screening on Crustdata...';
+
+      try {
+        const res = await fetch('/api/crustdata/lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payee })
+        });
+        const data = await res.json();
+        box.innerText = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.innerText = 'Lookup error: ' + err;
+      }
+    }
+
+    async function fetchState() {
+      try {
+        const res = await fetch('/api/state');
+        const data = await res.json();
+
+        // Metrics
+        const bal = data.sandbox.bank_ledger?.agent ?? 0;
+        document.getElementById('dashBankVal').innerText = '$' + bal.toLocaleString('en-US', { minimumFractionDigits: 2 });
+        document.getElementById('dashDebtVal').innerText = (data.cognitive_debt ?? 0).toFixed(2);
+        document.getElementById('dashReceiptsCount').innerText = data.receipts.length;
+        document.getElementById('dashKeyId').innerText = data.key_id || 'LOCAL-ED25519';
+
+        // Integrations Status
+        if (data.integrations) {
+          const neatlogs = data.integrations.neatlogs;
+          const statusNeatlogsEl = document.getElementById('statusNeatlogs');
+          if (neatlogs.configured) {
+            statusNeatlogsEl.innerText = 'ONLINE';
+            statusNeatlogsEl.className = 'integ-status integ-online';
+          } else {
+            statusNeatlogsEl.innerText = 'KEY READY';
+            statusNeatlogsEl.className = 'integ-status integ-ready';
+          }
+          if (data.integrations.entire?.latest_commit_sha) {
+            document.getElementById('subEntire').innerText = 'sha: ' + data.integrations.entire.latest_commit_sha.substring(0, 7);
+          }
+          if (data.integrations.crustdata) {
+            document.getElementById('subCrustdata').innerText = data.integrations.crustdata.credits;
+          }
+        }
+
+        // Sandbox
+        document.getElementById('dashBankBox').innerText = JSON.stringify(data.sandbox.bank_ledger, null, 2);
+        document.getElementById('dashFilesBox').innerText = JSON.stringify({
+          active_files: Object.keys(data.sandbox.filesystem || {}),
+          trash_files: Object.keys(data.sandbox.trash || {})
+        }, null, 2);
+        document.getElementById('dashAccessBox').innerText = JSON.stringify({
+          permissions: data.sandbox.access_list,
+          sent_emails_count: data.sandbox.email_outbox?.length ?? 0
+        }, null, 2);
+
+        // Pending
+        const container = document.getElementById('dashPendingContainer');
+        const pendingKeys = Object.keys(data.pending);
+        const badge = document.getElementById('dashPendingBadge');
+        badge.innerText = `${pendingKeys.length} Pending`;
+        badge.className = `badge ${pendingKeys.length > 0 ? 'badge-CRITICAL' : 'badge-LOW'}`;
+
+        if (pendingKeys.length === 0) {
+          container.innerHTML = '<p style="font-size:13px; color:var(--text-muted); text-align:center; padding:30px 0;">No actions currently waiting for approval.</p>';
+        } else {
+          container.innerHTML = '';
+          pendingKeys.forEach(id => {
+            const act = data.pending[id];
+            const div = document.createElement('div');
+            div.className = 'pending-item';
+            div.innerHTML = `
+              <div class="pending-top">
+                <span class="tool-badge">${act.tool_name}()</span>
+                <span class="badge badge-${act.risk}">${act.risk}</span>
+              </div>
+              <div class="code-box">${JSON.stringify(act.args_redacted, null, 2)}</div>
+              <div style="font-size:12px; color:#475569;"><strong>Reasons:</strong> ${act.reasons.join('; ')}</div>
+              ${act.requires_typed_confirmation ? `
+                <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:10px;">
+                  <label style="font-size:11px; font-weight:700; color:#dc2626; display:block; margin-bottom:4px;">High risk! Type 'COMMIT' to approve:</label>
+                  <input type="text" id="confirm_${act.id}" placeholder="Type COMMIT" class="form-input" style="width:100%; border-color:#dc2626; padding:6px 10px;" />
+                </div>
+              ` : ''}
+              <div style="display:flex; gap:10px; margin-top:4px;">
+                <button class="btn btn-success" style="flex:1;" onclick="approveAction('${act.id}', ${act.requires_typed_confirmation})">✓ COMMIT</button>
+                <button class="btn btn-danger" style="flex:1;" onclick="cancelAction('${act.id}')">✕ CANCEL</button>
+              </div>
+            `;
+            container.appendChild(div);
+          });
+        }
+
+        // Receipts Table
+        const tbody = document.getElementById('dashReceiptsTbody');
+        tbody.innerHTML = '';
+        data.receipts.slice().reverse().forEach(r => {
+          const tr = document.createElement('tr');
+          const outcomeBadge = r.outcome ? `<span class="badge badge-${r.outcome}">${r.outcome}</span>` : '--';
+          let undoAction = '<span style="color:#94a3b8; font-size:12px;">--</span>';
+          if (r.outcome === 'OBSERVED_SUCCESS' && r.undo_state === 'AVAILABLE') {
+            undoAction = `<button class="btn btn-undo" onclick="undoReceipt('${r.id}')">⎌ Undo</button>`;
+          } else if (r.undo_state === 'UNDONE') {
+            undoAction = '<span style="color:#7c3aed; font-weight:700; font-size:11px;">UNDONE</span>';
+          }
+
+          tr.innerHTML = `
+            <td style="font-family:var(--mono); font-size:11px; color:#64748b;">${new Date(r.timestamp * 1000).toLocaleTimeString()}</td>
+            <td style="font-family:var(--mono); font-weight:700; color:#0f172a;">${r.tool}</td>
+            <td style="font-family:var(--mono); font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.args_redacted}</td>
+            <td><span class="badge badge-${r.risk}">${r.risk}</span></td>
+            <td style="font-size:12px; color:#64748b;">${r.decision}</td>
+            <td style="font-weight:700;">${r.status}</td>
+            <td>${outcomeBadge}</td>
+            <td>${undoAction}</td>
+            <td style="font-family:var(--mono); font-size:10px; color:#94a3b8;">
+              prev: ${r.prev_hash.substring(0, 8)}...<br/>
+              sig: ${r.signature ? r.signature.substring(0, 10) + '...' : 'none'}
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (err) {
+        console.error("Dashboard sync error", err);
+      }
+    }
+
+    async function approveAction(id, requiresTyped) {
+      if (requiresTyped) {
+        const val = document.getElementById(`confirm_${id}`)?.value;
+        if (val !== 'COMMIT') {
+          alert("Safety invariant: You must type 'COMMIT' exactly to authorize high consequence actions.");
+          return;
+        }
+      }
+      await fetch(`/api/actions/${id}/approve`, { method: 'POST' });
+      fetchState();
+    }
+
+    async function cancelAction(id) {
+      await fetch(`/api/actions/${id}/cancel`, { method: 'POST' });
+      fetchState();
+    }
+
+    async function undoReceipt(receiptId) {
+      const res = await fetch(`/api/receipts/${receiptId}/undo`, { method: 'POST' });
+      const data = await res.json();
+      if (data.error) alert("Undo rejected: " + data.error);
+      fetchState();
+    }
+
+    async function triggerHostileDemo() { await fetch('/api/demo/hostile-injection', { method: 'POST' }); fetchState(); }
+    async function triggerSafePaymentDemo() { await fetch('/api/demo/safe-payment', { method: 'POST' }); fetchState(); }
+    async function triggerFlakyDemo() { await fetch('/api/demo/flaky-payment', { method: 'POST' }); fetchState(); }
+    async function resetSandbox() { await fetch('/api/sandbox/reset', { method: 'POST' }); fetchState(); }
+    async function verifyLedger() {
+      const res = await fetch('/api/receipts/verify');
+      const data = await res.json();
+      if (data.valid) alert("✅ Cryptographic Verification PASSED!\nAll hash links and Ed25519 signatures in the SQLite ledger are authentic and unbroken.");
+      else alert("❌ Chain Broken:\n" + data.errors.join('\n'));
+    }
+
+    setInterval(fetchState, 2000);
+    fetchState();
+  </script>
+</body>
+</html>
