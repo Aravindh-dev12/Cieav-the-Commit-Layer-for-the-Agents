@@ -1,0 +1,10 @@
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+cryptography>=41.0.0
+anthropic>=0.39.0
+jinja2>=3.1.0
+python-multipart>=0.0.6
+httpx>=0.25.0
+python-dotenv>=1.0.0
+boto3>=1.34.0
+neatlogs>=1.4.0
