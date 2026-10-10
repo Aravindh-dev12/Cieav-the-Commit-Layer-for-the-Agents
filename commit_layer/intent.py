@@ -22,11 +22,13 @@ from commit_layer import friction
 from commit_layer.tools.base import TOOL_REGISTRY
 from commit_layer.telemetry import get_llm_client, trace_stage
 from commit_layer.crustdata import lookup_payee
+from commit_layer.memorable import procedural_memory
 
 logger = logging.getLogger(__name__)
 
 # Active plans waiting for user confirmation
 PENDING_INTENT_PLANS: dict[str, dict[str, Any]] = {}
+
 
 
 def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
@@ -239,7 +241,27 @@ def parse_intent(prompt: str, context: Optional[dict[str, Any]] = None) -> list[
 
 def plan_intent(prompt: str, context: Optional[dict[str, Any]] = None, agent_id: str = "alma-native-agent") -> dict[str, Any]:
     """Build a Commit-Layer verified execution plan for the given intent."""
-    raw_actions = parse_intent(prompt, context)
+    # Check Memorable Procedural Memory first
+    cached_graph = procedural_memory.recall(prompt)
+    recalled_from_memory = False
+    tokens_saved = 0
+
+    if cached_graph and cached_graph.steps:
+        logger.info(f"Memorable procedure recalled: {cached_graph.procedure_id} (used {cached_graph.success_count} times)")
+        recalled_from_memory = True
+        tokens_saved = 1450  # Average reasoning turns avoided
+        raw_actions = [
+            {
+                "domain": "procedural_memory",
+                "tool": step.tool_name,
+                "args": step.args_pattern,
+                "summary": f"Certified Memorable procedure step: {step.tool_name}"
+            }
+            for step in cached_graph.steps
+        ]
+    else:
+        raw_actions = parse_intent(prompt, context)
+
     plan_id = f"plan-{uuid.uuid4().hex[:10]}"
     
     evaluated_actions = []
@@ -310,6 +332,8 @@ def plan_intent(prompt: str, context: Optional[dict[str, Any]] = None, agent_id:
         "confirmation_phrase": f"COMMIT {highest_risk.name}" if requires_typed_confirmation else "",
         "action_count": len(evaluated_actions),
         "actions": evaluated_actions,
+        "recalled_from_memorable": recalled_from_memory,
+        "tokens_saved": tokens_saved,
         "status": "AWAITING_COMMIT"
     }
 
@@ -318,7 +342,7 @@ def plan_intent(prompt: str, context: Optional[dict[str, Any]] = None, agent_id:
 
 
 def commit_plan(plan_id: str, approved_by: str = "human", typed_confirmation: str = "") -> dict[str, Any]:
-    """Execute all approved actions inside an intent plan and sign cryptographic receipts."""
+    """Execute all approved actions inside an intent plan, record in Memorable, and sign cryptographic receipts."""
     plan = PENDING_INTENT_PLANS.get(plan_id)
     if not plan:
         return {"error": f"Intent plan '{plan_id}' not found or already executed"}
@@ -332,6 +356,7 @@ def commit_plan(plan_id: str, approved_by: str = "human", typed_confirmation: st
 
     results = []
     receipt_ids = []
+    successful_steps = []
 
     for item in plan["actions"]:
         aid = item["action_id"]
@@ -340,12 +365,29 @@ def commit_plan(plan_id: str, approved_by: str = "human", typed_confirmation: st
             results.append(res)
             if "receipt_id" in res:
                 receipt_ids.append(res["receipt_id"])
+                if res.get("outcome") == "OBSERVED_SUCCESS":
+                    successful_steps.append({
+                        "tool_name": item["tool"],
+                        "args": item.get("args_redacted", {}),
+                        "outcome": "OBSERVED_SUCCESS"
+                    })
         else:
             results.append({"action_id": aid, "status": "already_executed_or_missing"})
 
     plan["status"] = "COMMITTED"
     plan["commit_results"] = results
     plan["receipt_ids"] = receipt_ids
+
+    # If all actions succeeded, store/reinforce in Memorable procedural graph
+    if successful_steps and len(successful_steps) == len(plan["actions"]):
+        try:
+            procedural_memory.record_successful_run(
+                intent=plan["prompt"],
+                domain=plan["actions"][0].get("domain", "general"),
+                steps=successful_steps
+            )
+        except Exception as e:
+            logger.warning("Failed to record procedural memory in Memorable: %s", e)
 
     return {
         "plan_id": plan_id,

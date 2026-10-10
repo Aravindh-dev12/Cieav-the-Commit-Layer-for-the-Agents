@@ -293,3 +293,48 @@ async def api_headroom_compress(req: HeadroomCompressRequest):
         "token_savings_pct": savings
     }
 
+
+# =========================================================================
+# Memorable Procedural Memory & Open-Dots / Connectors Endpoints
+# =========================================================================
+
+@app.get("/api/memorable/stats")
+async def api_memorable_stats():
+    """Retrieve procedural graph memory reuse statistics."""
+    from commit_layer.memorable import procedural_memory
+    return procedural_memory.get_stats()
+
+
+@app.get("/api/connectors/list")
+async def api_connectors_list():
+    """List all registered Open-Agent-Connectors."""
+    from commit_layer.connectors import connector_manager
+    return {"connectors": connector_manager.list_connectors()}
+
+
+@app.post("/api/connectors/dispatch")
+async def api_connectors_dispatch(connector_id: str, endpoint: str, payload: dict = None):
+    """Route an external connector request through the Commit Gateway."""
+    from commit_layer import gateway
+    action = gateway.intercept(
+        tool_name="dispatch_connector_action",
+        args={"connector_id": connector_id, "endpoint": endpoint, "payload": payload or {}},
+        agent_id="open-agent-connector"
+    )
+    return gateway.process(action)
+
+
+@app.get("/api/opendots/workspace")
+async def api_opendots_workspace():
+    """Inspect self-hosted Open-Dots workspace runtime."""
+    from commit_layer.connectors import opendots_workspace
+    return opendots_workspace.get_workspace_info()
+
+
+@app.post("/api/opendots/session")
+async def api_opendots_session(provider: str = "ollama", model: str = "llama3.3:70b"):
+    """Spawn a sovereign local BYOM session in Open-Dots."""
+    from commit_layer.connectors import opendots_workspace
+    session = opendots_workspace.create_session(model_provider=provider, model_name=model)
+    return {"session_id": session.session_id, "model_provider": session.model_provider, "model": session.model_name}
+

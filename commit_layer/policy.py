@@ -53,6 +53,14 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
     if tool == 'tpm_sign_attestation':
         return RiskLevel.HIGH, ["Hardware-backed TPM 2.0 enclave cryptographic signing"]
 
+    # ── External Connectors (Open-Agent-Connector) ──────────────
+    if tool == 'dispatch_connector_action':
+        connector_id = args.get('connector_id', '')
+        if connector_id in ('github', 'slack'):
+            return RiskLevel.MEDIUM, [f"External service action dispatched via connector: {connector_id}"]
+        return RiskLevel.HIGH, [f"External HTTP webhook dispatched via connector: {connector_id}"]
+
     # ── Unknown tool → HIGH ─────────────────────────────────────
     return RiskLevel.HIGH, [f"Unknown tool: {tool}"]
+
 
