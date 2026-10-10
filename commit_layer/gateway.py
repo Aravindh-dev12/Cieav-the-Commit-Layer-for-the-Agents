@@ -218,6 +218,10 @@ def execute_action(action: Action, approved_by: str = 'human') -> dict[str, Any]
         span.set_attribute("commit.outcome", outcome.value)
         span.set_attribute("commit.undo_state", undo_state.value)
 
+        # Headroom Context Optimization (Compress-Cache-Retrieve)
+        from commit_layer.headroom import compress
+        comp_summary, chunk_id, savings_pct = compress(result)
+
         return {
             'action_id': action.id,
             'status': 'committed',
@@ -225,7 +229,13 @@ def execute_action(action: Action, approved_by: str = 'human') -> dict[str, Any]
             'undo_state': undo_state.value,
             'result': result,
             'receipt_id': receipt['id'],
+            'headroom': {
+                'chunk_id': chunk_id,
+                'token_savings_pct': savings_pct,
+                'compressed_summary': comp_summary,
+            }
         }
+
 
 
 def undo(receipt_id: str) -> dict[str, Any]:

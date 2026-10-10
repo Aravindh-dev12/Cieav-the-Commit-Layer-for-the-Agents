@@ -34,6 +34,7 @@ from commit_layer import telemetry
 from commit_layer import agent
 from commit_layer import crustdata
 from commit_layer import intent
+from commit_layer import headroom
 
 
 @asynccontextmanager
@@ -69,6 +70,14 @@ class IntentPlanRequest(BaseModel):
 class IntentCommitRequest(BaseModel):
     plan_id: str
     typed_confirmation: str = ""
+
+
+class HeadroomRetrieveRequest(BaseModel):
+    chunk_id: str
+
+
+class HeadroomCompressRequest(BaseModel):
+    content: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -162,9 +171,17 @@ async def get_state():
                 "active": True,
                 "model_pricing": "$0.005 / protected action",
                 "target_margin": "88%"
+            },
+            "headroom": {
+                "active": True,
+                "engine": "SmartCrusher + CodeCompressor + LogCompressor (CCR)",
+                "savings_pct": f"{headroom.vault.get_stats()['savings_pct']}%",
+                "chunks_stored": headroom.vault.get_stats()["chunks_stored"]
             }
-        }
+        },
+        "headroom": headroom.vault.get_stats()
     }
+
 
 
 @app.post("/api/actions/intercept")
@@ -249,3 +266,30 @@ async def api_intent_commit(req: IntentCommitRequest):
     if "error" in res:
         raise HTTPException(status_code=400, detail=res["error"])
     return res
+
+
+@app.get("/api/headroom/stats")
+async def api_headroom_stats():
+    """Retrieve real-time token reduction analytics and byte savings from Headroom."""
+    return headroom.vault.get_stats()
+
+
+@app.post("/api/headroom/retrieve")
+async def api_headroom_retrieve(req: HeadroomRetrieveRequest):
+    """Restore 100% full uncompressed content from Headroom CCR vault."""
+    content = headroom.retrieve(req.chunk_id)
+    if content is None:
+        raise HTTPException(status_code=404, detail=f"Chunk {req.chunk_id} not found in CCR vault")
+    return {"chunk_id": req.chunk_id, "content": content}
+
+
+@app.post("/api/headroom/compress")
+async def api_headroom_compress(req: HeadroomCompressRequest):
+    """Compress arbitrary tool output, code, log, or JSON through Headroom pipeline."""
+    compressed_text, chunk_id, savings = headroom.compress(req.content)
+    return {
+        "compressed": compressed_text,
+        "chunk_id": chunk_id,
+        "token_savings_pct": savings
+    }
+

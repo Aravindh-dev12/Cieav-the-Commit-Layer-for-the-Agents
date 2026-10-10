@@ -641,6 +641,13 @@
             </div>
             <div class="integ-sub">$0.005 / protected action</div>
           </div>
+          <div class="integ-card">
+            <div class="integ-top">
+              <span class="integ-name">Headroom</span>
+              <span class="integ-status integ-online" id="statusHeadroom">ACTIVE</span>
+            </div>
+            <div class="integ-sub" id="subHeadroom">CCR token optimizer</div>
+          </div>
         </div>
 
         <!-- Metrics Grid -->
@@ -665,7 +672,13 @@
             <div class="stat-val" id="dashKeyId" style="font-size:18px;">--</div>
             <div class="stat-hint">Local cryptographic key</div>
           </div>
+          <div class="white-card">
+            <div class="stat-label">Headroom Token Reduction</div>
+            <div class="stat-val" id="dashHeadroomSavings" style="color:#15803d;">0.0%</div>
+            <div class="stat-hint">CCR Chunks: <span id="dashHeadroomChunks" style="font-family:var(--mono);">0</span> stored</div>
+          </div>
         </div>
+
 
         <!-- Alma-Style AI-Native Intent Omnibar -->
         <div class="alma-omnibar-card">
@@ -810,9 +823,55 @@
 
               </div>
             </div>
+
+            <!-- Headroom Context Optimization Card -->
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">⚡ Headroom Context Optimization (CCR Vault)</span>
+                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">60-95% Token Crusher</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="font-size:12px; color:var(--text-muted);">
+                  Compresses JSON, code diffs, logs, and tool outputs before passing to LLM context. Full content is cached in local CCR vault with instant content-addressable retrieval.
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:10px;">
+                    <div style="font-size:10px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Total Saved Bytes</div>
+                    <div id="headroomSavedBytes" style="font-family:var(--mono); font-weight:800; font-size:15px; margin-top:2px;">0 B</div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:10px;">
+                    <div style="font-size:10px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Tokens Conserved</div>
+                    <div id="headroomSavedTokens" style="font-family:var(--mono); font-weight:800; font-size:15px; margin-top:2px; color:#15803d;">0 tokens</div>
+                  </div>
+                </div>
+
+                <!-- Live Compression Tester -->
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <div style="font-size:11px; font-weight:700; color:#334155;">Test Content Compressor:</div>
+                  <textarea id="headroomTestInput" class="form-input" style="font-family:var(--mono); font-size:11px; min-height:55px;" placeholder="Paste JSON, code, or terminal output to compress..."></textarea>
+                  <div style="display:flex; gap:8px;">
+                    <button class="btn btn-dark" style="font-size:12px;" onclick="testHeadroomCompress()">Compress with Headroom</button>
+                    <button class="btn btn-light" style="font-size:12px;" onclick="loadSampleHeadroomJson()">Load Sample JSON</button>
+                  </div>
+                  <div id="headroomCompResult" class="code-box" style="display:none; font-size:11px; max-height:120px; overflow-y:auto;"></div>
+                </div>
+
+                <!-- CCR Retrieval Tester -->
+                <div style="display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--border); padding-top:10px;">
+                  <div style="font-size:11px; font-weight:700; color:#334155;">Restore Uncompressed from CCR Vault:</div>
+                  <div style="display:flex; gap:8px;">
+                    <input type="text" id="headroomChunkInput" class="form-input" placeholder="e.g. ccr_92a2b6e333c2" style="flex:1; font-size:12px;">
+                    <button class="btn btn-light" style="font-size:12px;" onclick="testHeadroomRetrieve()">Retrieve 100%</button>
+                  </div>
+                  <div id="headroomRestoreResult" class="code-box" style="display:none; font-size:11px; max-height:120px; overflow-y:auto;"></div>
+                </div>
+              </div>
+            </div>
+
           </div>
 
         </div>
+
 
         <!-- Receipts Table -->
         <div class="white-card">
@@ -1223,7 +1282,19 @@
           if (data.integrations.crustdata) {
             document.getElementById('subCrustdata').innerText = data.integrations.crustdata.credits;
           }
+          if (data.integrations.headroom) {
+            document.getElementById('subHeadroom').innerText = `${data.integrations.headroom.savings_pct} tokens saved`;
+          }
         }
+
+        // Headroom Metrics
+        if (data.headroom) {
+          document.getElementById('dashHeadroomSavings').innerText = (data.headroom.savings_pct ?? 0).toFixed(1) + '%';
+          document.getElementById('dashHeadroomChunks').innerText = data.headroom.chunks_stored ?? 0;
+          document.getElementById('headroomSavedBytes').innerText = (data.headroom.saved_bytes ?? 0).toLocaleString() + ' B';
+          document.getElementById('headroomSavedTokens').innerText = (data.headroom.approx_saved_tokens ?? 0).toLocaleString() + ' tokens';
+        }
+
 
         // Sandbox
         document.getElementById('dashBankBox').innerText = JSON.stringify(data.sandbox.bank_ledger, null, 2);
@@ -1349,6 +1420,69 @@
       if (data.valid) alert("✅ Cryptographic Verification PASSED!\nAll hash links and Ed25519 signatures in the SQLite ledger are authentic and unbroken.");
       else alert("❌ Chain Broken:\n" + data.errors.join('\n'));
     }
+
+    async function testHeadroomCompress() {
+      const content = document.getElementById('headroomTestInput').value.trim();
+      if (!content) return;
+      const box = document.getElementById('headroomCompResult');
+      box.style.display = 'block';
+      box.innerText = 'Compressing through Headroom pipeline...';
+
+      try {
+        const res = await fetch('/api/headroom/compress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+        const data = await res.json();
+        box.innerText = `[Saved ${data.token_savings_pct}% tokens | Chunk: ${data.chunk_id}]\n\n` + data.compressed;
+        document.getElementById('headroomChunkInput').value = data.chunk_id;
+        fetchState();
+      } catch (err) {
+        box.innerText = 'Compression error: ' + err;
+      }
+    }
+
+    async function testHeadroomRetrieve() {
+      const chunk_id = document.getElementById('headroomChunkInput').value.trim();
+      if (!chunk_id) return;
+      const box = document.getElementById('headroomRestoreResult');
+      box.style.display = 'block';
+      box.innerText = 'Retrieving full raw content from CCR vault...';
+
+      try {
+        const res = await fetch('/api/headroom/retrieve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chunk_id })
+        });
+        const data = await res.json();
+        box.innerText = `[100% Uncompressed Raw Content Restored from ${chunk_id}]:\n\n` + data.content;
+      } catch (err) {
+        box.innerText = 'Retrieval error: ' + err;
+      }
+    }
+
+    function loadSampleHeadroomJson() {
+      const sample = JSON.stringify({
+        cluster_name: "production-us-east-1",
+        services: [
+          { name: "payment-worker", status: "HEALTHY", replicas: 12, cpu_usage: "14%", p99_latency: "42ms", error_rate: 0.001 },
+          { name: "api-gateway", status: "HEALTHY", replicas: 24, cpu_usage: "28%", p99_latency: "18ms", error_rate: 0.0 },
+          { name: "auth-service", status: "HEALTHY", replicas: 8, cpu_usage: "9%", p99_latency: "25ms", error_rate: 0.0 },
+          { name: "tpm-attest-daemon", status: "ARMED", replicas: 2, cpu_usage: "2%", p99_latency: "4ms", error_rate: 0.0 }
+        ],
+        metadata: {
+          datacenter: "aws-us-east-1a",
+          vpc_id: "vpc-09881fa",
+          encryption: "AES-256-GCM / TPM-backed",
+          null_field: null,
+          empty_note: ""
+        }
+      }, null, 2);
+      document.getElementById('headroomTestInput').value = sample;
+    }
+
 
     setInterval(fetchState, 2000);
     fetchState();

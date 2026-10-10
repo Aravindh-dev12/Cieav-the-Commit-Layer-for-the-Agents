@@ -126,6 +126,37 @@ AGENT_TOOLS = [
             },
             "required": ["device_id"]
         }
+    },
+    {
+        "name": "headroom_compress",
+        "description": "Compress large tool outputs, code files, or logs by 60-95% before adding to agent context. Stores full original in CCR vault.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "content": {"type": "string", "description": "Raw uncompressed text or JSON content to optimize"},
+                "modality": {"type": "string", "enum": ["auto", "JSON", "CODE", "LOG", "PROSE"], "default": "auto"}
+            },
+            "required": ["content"]
+        }
+    },
+    {
+        "name": "headroom_retrieve",
+        "description": "Retrieve 100% of the raw, uncompressed text for a previously compressed Headroom CCR chunk ID.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "chunk_id": {"type": "string", "description": "The CCR chunk ID (e.g., 'ccr_9fa3b1c2')"}
+            },
+            "required": ["chunk_id"]
+        }
+    },
+    {
+        "name": "headroom_stats",
+        "description": "Get real-time token reduction analytics and byte savings across all compressed sessions.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
     }
 ]
 

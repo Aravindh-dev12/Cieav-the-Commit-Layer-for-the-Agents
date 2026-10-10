@@ -11,9 +11,10 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
     tool = action.tool_name
     args = action.args
 
-    # ── Read-only tools ─────────────────────────────────────────
-    if tool.startswith(('read_', 'get_', 'list_')):
-        return RiskLevel.LOW, ["Read-only tool"]
+    # ── Read-only & optimization tools ─────────────────────────
+    if tool.startswith(('read_', 'get_', 'list_', 'headroom_')):
+        return RiskLevel.LOW, ["Read-only / context optimization tool"]
+
 
     # ── Email ───────────────────────────────────────────────────
     if tool == 'send_email':

@@ -174,6 +174,40 @@ def repl():
             print(color(f"Error: {e}", "31"))
 
 
+def cmd_headroom(action: str, target: str = ""):
+    """Headroom context optimization and CCR commands."""
+    from commit_layer import headroom
+    if action == "stats":
+        st = headroom.vault.get_stats()
+        print("\n=== HEADROOM CONTEXT OPTIMIZATION STATS ===")
+        print(f"  * Total Raw Bytes:         {st['total_raw_bytes']:,} B")
+        print(f"  * Total Compressed Bytes:  {st['total_compressed_bytes']:,} B")
+        print(f"  * Bytes Saved:             {st['saved_bytes']:,} B")
+        pct_str = f"{st['savings_pct']}%"
+        print(f"  * Token Savings:           {color(pct_str, '1;32')}")
+        print(f"  * Approx Tokens Saved:     {st['approx_saved_tokens']:,} tokens")
+        print(f"  * Chunks in CCR Vault:     {st['chunks_stored']}")
+        print(f"  * Chunks Restored:         {st['chunks_retrieved']}")
+    elif action == "compress":
+        comp_text, chunk_id, savings = headroom.compress(target)
+        print(f"\n[Headroom Compressed: {savings}% tokens saved]")
+        print(f"CCR Chunk ID: {color(chunk_id, '1;36')}")
+        print(f"\n{comp_text}\n")
+    elif action == "retrieve":
+        raw = headroom.retrieve(target)
+        if raw is None:
+            print(color(f"[FAIL] Chunk '{target}' not found in CCR vault", "1;31"))
+        else:
+            print(f"\n[Headroom Restored Full Raw Text for {target}]:\n")
+            print(raw)
+    elif action == "mcp":
+        import json
+        from commit_layer.headroom.mcp import HEADROOM_MCP_TOOLS
+        print("\n=== HEADROOM MCP SERVER CONFIGURATION ===")
+        print(json.dumps({"mcpServers": {"headroom": {"command": "python", "args": ["-m", "commit_layer.cli", "headroom", "stats"]}}}, indent=2))
+        print("\nSupported MCP Tools:", ", ".join(t["name"] for t in HEADROOM_MCP_TOOLS))
+
+
 def main():
     parser = argparse.ArgumentParser(description="CIEAV Alma-Native CLI Interface")
     subparsers = parser.add_subparsers(dest="command")
@@ -193,6 +227,11 @@ def main():
     # status command
     subparsers.add_parser("status", help="Show system, software, hardware, and bank state")
 
+    # headroom command
+    p_headroom = subparsers.add_parser("headroom", help="Headroom context optimization and CCR vault")
+    p_headroom.add_argument("subaction", choices=["stats", "compress", "retrieve", "mcp"], help="Action to perform")
+    p_headroom.add_argument("target", nargs="?", default="", help="Text to compress or chunk ID to retrieve")
+
     args = parser.parse_args()
 
     if args.command == "intent":
@@ -203,8 +242,11 @@ def main():
         cmd_verify()
     elif args.command == "status":
         cmd_status()
+    elif args.command == "headroom":
+        cmd_headroom(args.subaction, args.target)
     else:
         repl()
+
 
 
 if __name__ == "__main__":
