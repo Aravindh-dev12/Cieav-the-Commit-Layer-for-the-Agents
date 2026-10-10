@@ -23,9 +23,20 @@ from commit_layer import sandbox
 from commit_layer import classifier
 
 
+import os
+import sqlite3
+
+TEST_DB = "commit_layer/test_commit_layer.db"
+
+
 def setup_function():
-    sandbox.reset()
+    receipts.DB_PATH = TEST_DB
     receipts.init_db()
+    with sqlite3.connect(TEST_DB) as conn:
+        conn.execute("DELETE FROM receipts")
+        conn.commit()
+    sandbox.reset()
+
 
 
 def test_ai_cannot_lower_risk_floor():

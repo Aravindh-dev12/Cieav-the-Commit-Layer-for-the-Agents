@@ -33,6 +33,7 @@ from commit_layer import friction
 from commit_layer import telemetry
 from commit_layer import agent
 from commit_layer import crustdata
+from commit_layer import intent
 
 
 @asynccontextmanager
@@ -58,6 +59,16 @@ class InterceptRequest(BaseModel):
 
 class PayeeLookupRequest(BaseModel):
     payee: str
+
+
+class IntentPlanRequest(BaseModel):
+    prompt: str
+    context: Dict[str, Any] = None
+
+
+class IntentCommitRequest(BaseModel):
+    plan_id: str
+    typed_confirmation: str = ""
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -219,3 +230,22 @@ async def demo_flaky_payment():
 @app.post("/api/crustdata/lookup")
 async def crustdata_lookup(req: PayeeLookupRequest):
     return crustdata.lookup_payee(req.payee)
+
+
+@app.post("/api/intent/plan")
+async def api_intent_plan(req: IntentPlanRequest):
+    """Plan a human intent across any domain bounded by the Commit Layer."""
+    return intent.plan_intent(prompt=req.prompt, context=req.context)
+
+
+@app.post("/api/intent/commit")
+async def api_intent_commit(req: IntentCommitRequest):
+    """Cryptographically commit an evaluated intent plan."""
+    res = intent.commit_plan(
+        plan_id=req.plan_id,
+        approved_by="dashboard-user",
+        typed_confirmation=req.typed_confirmation
+    )
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return res

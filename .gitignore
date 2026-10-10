@@ -22,3 +22,5 @@ dotnet/**/obj/
 *.tsbuildinfo
 __pycache__/
 *.py[cod]
+*test*.db
+commit_layer/*test*.db

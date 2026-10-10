@@ -230,6 +230,50 @@
     .dash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
     @media (max-width: 1024px) { .dash-cols { grid-template-columns: 1fr; } }
 
+    /* Alma AI-Native Omnibar & Domain Styles */
+    .alma-omnibar-card {
+      background: #ffffff; border: 1px solid #0f172a; border-radius: 14px;
+      padding: 24px; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04); display: flex; flex-direction: column; gap: 14px;
+    }
+    .alma-header-row {
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+    }
+    .alma-title { font-size: 16px; font-weight: 800; color: #000; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+    .alma-desc { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .alma-tag { font-size: 11px; font-weight: 700; background: #000; color: #fff; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; }
+    .alma-input-row { display: flex; gap: 10px; }
+    .alma-input {
+      flex: 1; padding: 13px 18px; border: 1.5px solid #cbd5e1; border-radius: 10px;
+      font-size: 14px; font-family: var(--sans); outline: none; transition: all 0.15s ease;
+    }
+    .alma-input:focus { border-color: #000; box-shadow: 0 0 0 2px rgba(0,0,0,0.08); }
+    .pills-container { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .pills-label { font-size: 11px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+    .intent-pill {
+      font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 9999px;
+      background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .intent-pill:hover { background: #000000; color: #ffffff; border-color: #000; }
+    .alma-plan-box {
+      background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 18px;
+      display: none; flex-direction: column; gap: 14px;
+    }
+    .plan-action-card {
+      background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 14px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .domain-badge {
+      font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 4px; text-transform: uppercase;
+      letter-spacing: 0.05em; font-family: var(--mono);
+    }
+    .domain-software { background: #e0f2fe; color: #0369a1; }
+    .domain-hardware { background: #fef3c7; color: #b45309; }
+    .domain-code { background: #f3e8ff; color: #7e22ce; }
+    .domain-finance { background: #dcfce7; color: #15803d; }
+    .domain-system { background: #f1f5f9; color: #475569; }
+    .domain-agentic { background: #fae8ff; color: #86198f; }
+
     .card-header {
       display: flex; justify-content: space-between; align-items: center;
       padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
@@ -623,6 +667,61 @@
           </div>
         </div>
 
+        <!-- Alma-Style AI-Native Intent Omnibar -->
+        <div class="alma-omnibar-card">
+          <div class="alma-header-row">
+            <div>
+              <div class="alma-title">
+                <span>✦ Alma AI-Native Computer Interface</span>
+                <span class="alma-tag">Intent-First Computing</span>
+              </div>
+              <div class="alma-desc">
+                "People should start with intent and context, not with the limits of an app." Execute natural human intent across Software, Code, Hardware TPM, Payments, and Access with deterministic safety floors and cryptographic commit receipts.
+              </div>
+            </div>
+            <button class="btn btn-light" style="font-size:12px; padding:6px 14px;" onclick="showCliInstructions()">💻 Native CLI Guide</button>
+          </div>
+
+          <div class="alma-input-row">
+            <input type="text" id="almaIntentInput" class="alma-input" placeholder="Type what you want to achieve on your computer... (e.g. 'Deploy payment-worker v2.1.0', 'Attest TPM 2.0 PCR 7', 'Power cycle edge-node-01', 'Patch auth.py with rollback')" onkeydown="if(event.key==='Enter') evaluateAlmaIntent()">
+            <button class="btn btn-dark" style="padding:0 24px; font-size:14px; white-space:nowrap;" onclick="evaluateAlmaIntent()">Evaluate Intent ↵</button>
+          </div>
+
+          <div class="pills-container">
+            <span class="pills-label">Quick Intents:</span>
+            <span class="intent-pill" onclick="setIntent('Deploy payment-worker microservice to v2.1.0')">🚀 Deploy payment-worker v2.1</span>
+            <span class="intent-pill" onclick="setIntent('Attest hardware TPM 2.0 PCR register 7 with secure enclave')">🛡️ TPM 2.0 PCR 7 Attest</span>
+            <span class="intent-pill" onclick="setIntent('Power cycle edge-node-01 IoT controller')">⚡ Power Cycle edge-node-01</span>
+            <span class="intent-pill" onclick="setIntent('Modify code file src/auth.py to add token expiration check')">📝 Refactor auth.py</span>
+            <span class="intent-pill" onclick="setIntent('Run terminal command \'uptime && free -m\' in sandbox shell')">💻 Terminal Diagnostic</span>
+            <span class="intent-pill" onclick="setIntent('Send $350.00 to merchant_a for cloud GPU infrastructure')">💳 Wire $350 to merchant_a</span>
+            <span class="intent-pill" onclick="setIntent('Grant admin security permission to audit-bot')">🔑 Grant Admin Access</span>
+          </div>
+
+          <!-- Evaluated Intent Execution Plan Preview -->
+          <div id="almaPlanBox" class="alma-plan-box">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <span style="font-size:14px; font-weight:800; color:#0f172a;">Plan Preview: </span>
+                <span id="almaPlanPrompt" style="font-size:13px; font-weight:600; color:#475569;"></span>
+              </div>
+              <span id="almaPlanRiskBadge" class="badge"></span>
+            </div>
+
+            <div id="almaPlanActionsList" style="display:flex; flex-direction:column; gap:10px;"></div>
+
+            <!-- Confirmation Action Bar -->
+            <div id="almaPlanConfirmBar" style="display:flex; gap:12px; align-items:center; border-top:1px solid #cbd5e1; padding-top:12px; flex-wrap:wrap;">
+              <div id="almaTypedConfirmWrap" style="display:none; flex:1; min-width:250px;">
+                <label id="almaTypedLabel" style="font-size:12px; font-weight:700; color:#dc2626; display:block; margin-bottom:4px;"></label>
+                <input type="text" id="almaTypedInput" class="form-input" placeholder="Type confirmation phrase..." style="width:100%; border-color:#dc2626;">
+              </div>
+              <button class="btn btn-success" style="font-size:14px; padding:10px 22px;" onclick="commitAlmaPlan()">✓ Commit Plan to Ledger</button>
+              <button class="btn btn-light" onclick="dismissAlmaPlan()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
         <!-- 2 Columns: Dispatcher & Sandbox -->
         <div class="dash-cols">
 
@@ -637,6 +736,11 @@
                 <div style="display:flex; gap:10px;">
                   <select id="dashToolSelect" onchange="updateDashToolPreset()" class="form-input" style="flex:1;">
                     <option value="send_payment">send_payment(amount, to)</option>
+                    <option value="deploy_service">deploy_service(service_name, version)</option>
+                    <option value="run_terminal_command">run_terminal_command(command)</option>
+                    <option value="modify_code_file">modify_code_file(filepath, content)</option>
+                    <option value="tpm_sign_attestation">tpm_sign_attestation(payload, pcr_index)</option>
+                    <option value="power_cycle_device">power_cycle_device(device_id)</option>
                     <option value="delete_file">delete_file(filename)</option>
                     <option value="grant_access">grant_access(user, permission)</option>
                     <option value="send_email">send_email(to, subject, body)</option>
@@ -647,6 +751,7 @@
                 <textarea id="dashArgsInput" class="form-input" style="font-family:var(--mono); font-size:12px; min-height:65px;"></textarea>
               </div>
             </div>
+
 
             <!-- Pending Approvals -->
             <div class="white-card" style="flex:1;">
@@ -694,6 +799,15 @@
                   <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Access Control & Sent Email Outbox</div>
                   <pre class="code-box" id="dashAccessBox">Loading permissions...</pre>
                 </div>
+                <div>
+                  <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Software Services & Terminal History</div>
+                  <pre class="code-box" id="dashSoftwareBox">Loading software state...</pre>
+                </div>
+                <div>
+                  <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Hardware TPM 2.0 & Enrolled Devices</div>
+                  <pre class="code-box" id="dashHardwareBox">Loading hardware state...</pre>
+                </div>
+
               </div>
             </div>
           </div>
@@ -916,6 +1030,11 @@
     // Dashboard Tool Presets
     const TOOL_PRESETS = {
       send_payment: '{\n  "amount": 750.0,\n  "to": "merchant_b"\n}',
+      deploy_service: '{\n  "service_name": "payment-worker",\n  "version": "v2.1.0"\n}',
+      run_terminal_command: '{\n  "command": "uptime"\n}',
+      modify_code_file: '{\n  "filepath": "src/auth.py",\n  "content": "# Patched security handler\\ndef verify(): return True"\n}',
+      tpm_sign_attestation: '{\n  "payload": "edge_enclave_quote_v1",\n  "pcr_index": 7\n}',
+      power_cycle_device: '{\n  "device_id": "edge-node-01"\n}',
       delete_file: '{\n  "filename": "config.json"\n}',
       grant_access: '{\n  "user": "guest",\n  "permission": "write"\n}',
       send_email: '{\n  "to": "partner@vendor.org",\n  "subject": "Quarterly Ledger",\n  "body": "Commit layer status report."\n}',
@@ -927,6 +1046,119 @@
       document.getElementById('dashArgsInput').value = TOOL_PRESETS[tool] || '{}';
     }
     updateDashToolPreset();
+
+    // Alma AI Intent Engine JavaScript
+    let currentAlmaPlan = null;
+
+    function setIntent(text) {
+      const input = document.getElementById('almaIntentInput');
+      input.value = text;
+      evaluateAlmaIntent();
+    }
+
+    async function evaluateAlmaIntent() {
+      const input = document.getElementById('almaIntentInput');
+      const prompt = input.value.trim();
+      if (!prompt) return;
+
+      const planBox = document.getElementById('almaPlanBox');
+      const actionsList = document.getElementById('almaPlanActionsList');
+      planBox.style.display = 'flex';
+      actionsList.innerHTML = '<div style="padding:16px; font-size:13px; color:#64748b; text-align:center;">Evaluating intent against deterministic safety floor & AI converse...</div>';
+
+      try {
+        const res = await fetch('/api/intent/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+        const plan = await res.json();
+        currentAlmaPlan = plan;
+
+        document.getElementById('almaPlanPrompt').innerText = `"${plan.prompt}"`;
+        const riskBadge = document.getElementById('almaPlanRiskBadge');
+        riskBadge.innerText = plan.highest_risk;
+        riskBadge.className = `badge badge-${plan.highest_risk}`;
+
+        actionsList.innerHTML = '';
+        plan.actions.forEach((act, idx) => {
+          const actDiv = document.createElement('div');
+          actDiv.className = 'plan-action-card';
+          actDiv.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="domain-badge domain-${act.domain.toLowerCase()}">${act.domain}</span>
+                <span style="font-family:var(--mono); font-weight:700; font-size:13px;">${act.tool}()</span>
+              </div>
+              <span class="badge badge-${act.risk}">${act.risk}</span>
+            </div>
+            <div style="font-size:13px; color:#1e293b; font-weight:500;">${act.summary}</div>
+            <pre class="code-box" style="margin:0; font-size:11px;">${JSON.stringify(act.args_redacted, null, 2)}</pre>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#64748b;">
+              <span><strong>Friction:</strong> ${act.decision}</span>
+              <span>${act.can_rollback ? '<strong style="color:#16a34a;">✓ Guaranteed Reversible</strong>' : '<strong style="color:#d97706;">⚠ Irreversible</strong>'}</span>
+            </div>
+          `;
+          actionsList.appendChild(actDiv);
+        });
+
+        // Typed confirmation
+        const typedWrap = document.getElementById('almaTypedConfirmWrap');
+        if (plan.requires_typed_confirmation) {
+          typedWrap.style.display = 'block';
+          document.getElementById('almaTypedLabel').innerText = `High risk floor! Type exact phrase: '${plan.confirmation_phrase}'`;
+          document.getElementById('almaTypedInput').value = '';
+          document.getElementById('almaTypedInput').placeholder = plan.confirmation_phrase;
+        } else {
+          typedWrap.style.display = 'none';
+        }
+
+      } catch (err) {
+        actionsList.innerHTML = `<div style="color:#dc2626; padding:12px;">Intent evaluation error: ${err}</div>`;
+      }
+    }
+
+    async function commitAlmaPlan() {
+      if (!currentAlmaPlan) return;
+      let typed = '';
+      if (currentAlmaPlan.requires_typed_confirmation) {
+        typed = document.getElementById('almaTypedInput').value.trim();
+        if (typed.toUpperCase() !== currentAlmaPlan.confirmation_phrase.toUpperCase()) {
+          alert(`Safety invariant: You must type '${currentAlmaPlan.confirmation_phrase}' exactly.`);
+          return;
+        }
+      }
+
+      try {
+        const res = await fetch('/api/intent/commit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan_id: currentAlmaPlan.plan_id,
+            typed_confirmation: typed
+          })
+        });
+        const data = await res.json();
+        if (data.error) {
+          alert("Commit error: " + data.error);
+        } else {
+          dismissAlmaPlan();
+          fetchState();
+        }
+      } catch (err) {
+        alert("Commit error: " + err);
+      }
+    }
+
+    function dismissAlmaPlan() {
+      document.getElementById('almaPlanBox').style.display = 'none';
+      currentAlmaPlan = null;
+    }
+
+    function showCliInstructions() {
+      alert("CIEAV Alma-Native CLI:\n\nRun in terminal:\n  python -m commit_layer.cli intent \"deploy payment-worker v2.1.0\"\n  python -m commit_layer.cli intent \"tpm attest pcr 7\"\n  python -m commit_layer.cli status\n  python -m commit_layer.cli verify\n  python -m commit_layer.cli undo <receipt_id>\n\nOr interactive REPL mode:\n  python -m commit_layer.cli");
+    }
+
 
     async function submitDashAction() {
       const tool = document.getElementById('dashToolSelect').value;
@@ -1003,6 +1235,13 @@
           permissions: data.sandbox.access_list,
           sent_emails_count: data.sandbox.email_outbox?.length ?? 0
         }, null, 2);
+        if (data.sandbox.software) {
+          document.getElementById('dashSoftwareBox').innerText = JSON.stringify(data.sandbox.software, null, 2);
+        }
+        if (data.sandbox.hardware) {
+          document.getElementById('dashHardwareBox').innerText = JSON.stringify(data.sandbox.hardware, null, 2);
+        }
+
 
         // Pending
         const container = document.getElementById('dashPendingContainer');

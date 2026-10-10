@@ -68,6 +68,64 @@ AGENT_TOOLS = [
             },
             "required": ["user", "permission"]
         }
+    },
+    {
+        "name": "run_terminal_command",
+        "description": "Execute a shell/terminal command in the system environment",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "command": {"type": "string", "description": "Shell command to execute"}
+            },
+            "required": ["command"]
+        }
+    },
+    {
+        "name": "deploy_service",
+        "description": "Deploy or upgrade a microservice / container instance",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "service_name": {"type": "string", "description": "Service or container name"},
+                "version": {"type": "string", "description": "Target version string or tag"}
+            },
+            "required": ["service_name", "version"]
+        }
+    },
+    {
+        "name": "modify_code_file",
+        "description": "Modify or rewrite source code file with automated rollback snapshots",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filepath": {"type": "string", "description": "Relative or absolute file path"},
+                "content": {"type": "string", "description": "Updated code content"}
+            },
+            "required": ["filepath", "content"]
+        }
+    },
+    {
+        "name": "tpm_sign_attestation",
+        "description": "Cryptographically attest PCR state with local hardware TPM 2.0 enclave",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "payload": {"type": "string", "description": "Payload data or nonce to attest"},
+                "pcr_index": {"type": "integer", "description": "Platform Configuration Register index (0-23)"}
+            },
+            "required": ["payload"]
+        }
+    },
+    {
+        "name": "power_cycle_device",
+        "description": "Power cycle or reboot a physical IoT or edge computing device",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "device_id": {"type": "string", "description": "Target hardware device identifier"}
+            },
+            "required": ["device_id"]
+        }
     }
 ]
 
