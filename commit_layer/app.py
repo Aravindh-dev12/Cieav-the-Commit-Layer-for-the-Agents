@@ -1,7 +1,9 @@
 """FastAPI Application for Commit Layer Gateway.
 
 Routes:
-- GET  /                           -> Serves the dashboard HTML
+- GET  /                           -> Serves the unified landing page + auth modal + dashboard HTML
+- GET  /logo.png                   -> Serves the custom logo
+- GET  /favicon.ico                -> Serves the custom favicon
 - GET  /api/state                  -> Current pending actions, sandbox state, receipts, cognitive debt
 - POST /api/actions/intercept      -> Submits an agent action to the gateway pipeline
 - POST /api/actions/{id}/approve   -> Human commits a pending action
@@ -18,7 +20,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel
 
 from commit_layer import gateway
@@ -41,6 +43,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Commit Layer Gateway", version="1.0.0", lifespan=lifespan)
 
+UI_DIR = os.path.join(os.path.dirname(__file__), "ui")
+
 
 class InterceptRequest(BaseModel):
     tool: str
@@ -50,9 +54,26 @@ class InterceptRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
-    ui_path = os.path.join(os.path.dirname(__file__), "ui", "index.html")
+    ui_path = os.path.join(UI_DIR, "index.html")
     with open(ui_path, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
+
+
+@app.get("/logo.png")
+async def serve_logo():
+    logo_path = os.path.join(UI_DIR, "logo.png")
+    if os.path.exists(logo_path):
+        return FileResponse(logo_path, media_type="image/png")
+    raise HTTPException(status_code=404, detail="Logo not found")
+
+
+@app.get("/favicon.ico")
+@app.get("/favicon.png")
+async def serve_favicon():
+    fav_path = os.path.join(UI_DIR, "favicon.png")
+    if os.path.exists(fav_path):
+        return FileResponse(fav_path, media_type="image/png")
+    raise HTTPException(status_code=404, detail="Favicon not found")
 
 
 @app.get("/api/state")
