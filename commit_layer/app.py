@@ -106,6 +106,12 @@ class WebzeroInvokeRequest(BaseModel):
 
 
 
+@app.get("/health")
+@app.get("/api/health")
+async def health_check():
+    return {"status": "healthy", "service": "cieav-commit-layer", "version": "0.8.0"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
     ui_path = os.path.join(UI_DIR, "index.html")
