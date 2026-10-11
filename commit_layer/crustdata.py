@@ -34,35 +34,71 @@ def lookup_payee(payee: str) -> dict[str, Any]:
             "details": {},
         }
 
-    # Normalize payee (e.g. if email or domain)
-    domain_candidate = payee
-    if "@" in payee:
-        domain_candidate = payee.split("@")[-1]
+    # Normalize payee (e.g. extract domain or name candidate)
+    clean_target = payee.strip().lower()
+    if "@" in clean_target:
+        clean_target = clean_target.split("@")[-1]
+    # Root name without TLD if domain
+    name_stem = clean_target.split(".")[0] if "." in clean_target else clean_target
 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Accept": "application/json",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "x-api-version": "2025-11-01"
     }
 
     try:
-        with httpx.Client(timeout=4.0) as client:
-            resp = client.get(
-                f"{CRUSTDATA_BASE_URL}/screener/company",
-                params={"domain": domain_candidate},
-                headers=headers
+        with httpx.Client(timeout=8.0) as client:
+            resp = client.post(
+                f"{CRUSTDATA_BASE_URL}/company/search",
+                headers=headers,
+                json={"search": {"query": clean_target}}
             )
             
+            matched = None
             if resp.status_code == 200:
                 data = resp.json()
-                # If company profile found and established
-                if data and (isinstance(data, list) and len(data) > 0 or isinstance(data, dict)):
-                    return {
-                        "verified": True,
-                        "escalate_risk": False,
-                        "reason": f"Payee '{domain_candidate}' verified on Crustdata",
-                        "details": data if isinstance(data, dict) else data[0],
-                    }
+                companies = data.get("companies", [])
+                for comp in companies:
+                    info = comp.get("basic_info", {})
+                    comp_name = (info.get("name") or "").lower()
+                    p_domain = (info.get("primary_domain") or "").lower()
+                    website = (info.get("website") or "").lower()
+                    all_domains = [d.lower() for d in info.get("all_domains", [])]
+                    
+                    if (
+                        clean_target in p_domain
+                        or any(clean_target in d for d in all_domains)
+                        or clean_target in website
+                        or (len(name_stem) >= 3 and name_stem in comp_name)
+                    ):
+                        matched = info
+                        break
+
+            # Secondary search: fallback to name stem if domain search returned no direct match
+            if not matched and name_stem != clean_target and len(name_stem) >= 3:
+                resp2 = client.post(
+                    f"{CRUSTDATA_BASE_URL}/company/search",
+                    headers=headers,
+                    json={"search": {"query": name_stem}}
+                )
+                if resp2.status_code == 200:
+                    companies2 = resp2.json().get("companies", [])
+                    for comp in companies2:
+                        info = comp.get("basic_info", {})
+                        comp_name = (info.get("name") or "").lower()
+                        if name_stem in comp_name:
+                            matched = info
+                            break
+
+            if matched:
+                return {
+                    "verified": True,
+                    "escalate_risk": False,
+                    "reason": f"Payee '{payee}' verified on Crustdata ({matched.get('name') or clean_target})",
+                    "details": matched,
+                }
 
             return {
                 "verified": False,
