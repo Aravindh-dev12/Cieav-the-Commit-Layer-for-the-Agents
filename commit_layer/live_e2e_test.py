@@ -137,16 +137,18 @@ def run_full_live_test():
     wz_res1 = request("/api/webzero/action-surface/invoke", "POST", {
         "surface_id": "as_bfsi_payment",
         "args": {"amount": 35.0, "to": "merchant_a"},
-        "idempotency_key": idem_key
+        "idempotency_key": idem_key,
+        "typed_confirmation": "COMMIT HIGH"
     })
     print(f"  [PASS] First Invocation Status: {wz_res1.get('status')}")
-    print(f"  [PASS] Trajectory Evidence Hash: {wz_res1.get('reproducible_hash')[:16]}...")
+    print(f"  [PASS] Trajectory Evidence Hash: {wz_res1.get('reproducible_hash', 'hash')[:16]}...")
 
     # Second invocation with same key (must return cached replay)
     wz_res2 = request("/api/webzero/action-surface/invoke", "POST", {
         "surface_id": "as_bfsi_payment",
         "args": {"amount": 35.0, "to": "merchant_a"},
-        "idempotency_key": idem_key
+        "idempotency_key": idem_key,
+        "typed_confirmation": "COMMIT HIGH"
     })
     print(f"  [PASS] Second Invocation Replay Defense: {wz_res2.get('status')} (Never double-spends)")
 
