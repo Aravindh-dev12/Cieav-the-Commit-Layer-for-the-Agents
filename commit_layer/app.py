@@ -35,6 +35,7 @@ from commit_layer import agent
 from commit_layer import crustdata
 from commit_layer import intent
 from commit_layer import headroom
+from commit_layer import cfo
 from commit_layer.decision_model import OpenAIDecisionRequest, SystemOneRequest
 
 
@@ -194,8 +195,10 @@ async def get_state():
             },
             "cfo_ai": {
                 "active": True,
+                "engine": "CFO Financial Governance & Unit Economics",
                 "model_pricing": "$0.005 / protected action",
-                "target_margin": "88%"
+                "target_margin": "88%",
+                **cfo.get_cfo_status()
             },
             "headroom": {
                 "active": True,
@@ -317,6 +320,33 @@ async def api_headroom_compress(req: HeadroomCompressRequest):
         "chunk_id": chunk_id,
         "token_savings_pct": savings
     }
+
+
+# =========================================================================
+# CFO Financial Governance & Unit Economics Endpoints
+# =========================================================================
+
+class CFOBudgetRequest(BaseModel):
+    total_budget: float
+
+
+@app.get("/api/cfo/status")
+@app.get("/api/cfo/overview")
+async def api_cfo_status():
+    """Retrieve CFO financial governance status, spend limits, and unit economics."""
+    return cfo.get_cfo_status()
+
+
+@app.post("/api/cfo/budget")
+async def api_cfo_set_budget(req: CFOBudgetRequest):
+    """Update team budget allowance."""
+    return cfo.set_budget(req.total_budget)
+
+
+@app.post("/api/cfo/reset")
+async def api_cfo_reset_spend():
+    """Reset spent budget counter."""
+    return cfo.reset_spend()
 
 
 # =========================================================================

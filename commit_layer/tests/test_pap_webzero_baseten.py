@@ -99,11 +99,16 @@ def test_webzero_action_surface_idempotency_and_trajectory():
     idempotency_key = f"idem_test_{int(time.time()*1000)}"
     args = {"amount": 50.0, "to": "merchant_test_webzero"}
 
+    from commit_layer import cfo
+    cfo.reset_spend()
+    cfo.set_budget(500.0)
+
     # First execution -> runs through Commit Gateway
     res1 = webzero.invoke_action_surface(
         surface_id="as_bfsi_payment",
         args=args,
-        idempotency_key=idempotency_key
+        idempotency_key=idempotency_key,
+        typed_confirmation="COMMIT HIGH"
     )
     assert res1["status"] == "committed"
     assert "trajectory_id" in res1
@@ -113,7 +118,8 @@ def test_webzero_action_surface_idempotency_and_trajectory():
     res2 = webzero.invoke_action_surface(
         surface_id="as_bfsi_payment",
         args=args,
-        idempotency_key=idempotency_key
+        idempotency_key=idempotency_key,
+        typed_confirmation="COMMIT HIGH"
     )
     assert res2["status"] == "cached_replay"
     assert res2["receipt_id"] == res1["receipt_id"]

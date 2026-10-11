@@ -637,9 +637,9 @@
           <div class="integ-card">
             <div class="integ-top">
               <span class="integ-name">cfo.ai</span>
-              <span class="integ-status integ-ready">PLANNED</span>
+              <span class="integ-status integ-online" id="statusCFO">ACTIVE</span>
             </div>
-            <div class="integ-sub">$0.005 / protected action</div>
+            <div class="integ-sub" id="subCFO">$25.00 budget · $0.005 / action</div>
           </div>
           <div class="integ-card">
             <div class="integ-top">
@@ -1284,6 +1284,11 @@
           }
           if (data.integrations.headroom) {
             document.getElementById('subHeadroom').innerText = `${data.integrations.headroom.savings_pct} tokens saved`;
+          }
+          if (data.integrations.cfo_ai) {
+            const cfo = data.integrations.cfo_ai;
+            document.getElementById('statusCFO').innerText = 'ACTIVE';
+            document.getElementById('subCFO').innerText = `$${cfo.remaining_budget_usd ?? 25.0} left / $${cfo.total_budget_usd ?? 25.0} budget`;
           }
         }
 

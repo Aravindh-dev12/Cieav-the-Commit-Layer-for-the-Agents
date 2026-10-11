@@ -90,6 +90,13 @@ def process(action: Action) -> dict[str, Any]:
                         action.reasons.append(f"Crustdata: {lookup.get('reason')}")
                     span.set_attribute("commit.crustdata_escalated", lookup.get("escalate_risk", False))
 
+        # Step 4b: CFO Financial Governance & Budget Caps
+        from commit_layer import cfo
+        cfo_viol, cfo_risk, cfo_reason = cfo.evaluate_financial_policy(action)
+        if cfo_risk is not None and cfo_risk > action.risk:
+            action.risk = cfo_risk
+            action.reasons.append(cfo_reason)
+
         # Step 5: AI Classifier (Can ONLY raise risk, never lower it)
         with trace_stage("ai_classifier", kind="TOOL") as span:
             cls_risk, cls_reason = classifier.classify(action)
@@ -221,6 +228,15 @@ def execute_action(action: Action, approved_by: str = 'human') -> dict[str, Any]
         # Headroom Context Optimization (Compress-Cache-Retrieve)
         from commit_layer.headroom import compress
         comp_summary, chunk_id, savings_pct = compress(result)
+
+        # CFO Accounting: Record spend and unit economics
+        from commit_layer import cfo
+        if outcome == Outcome.OBSERVED_SUCCESS:
+            amt = float(action.args.get("amount", 0.0)) if "amount" in action.args else 0.0
+            if amt > 0:
+                cfo.record_spend(amt)
+            tokens_saved = int(savings_pct * 10)
+            cfo.record_protected_action(tokens_saved=tokens_saved)
 
         return {
             'action_id': action.id,
