@@ -1,10 +1,10 @@
 """
-Personal Agent Protocol (PAP / "Poppy") Implementation for CIEAV Commit Layer.
+Autonomous Agent Gateway Protocol Implementation for CIEAV Commit Layer.
 
-Implements the Personal Agent Protocol (personalagentprotocol.org):
+Provides standardized agent federation and boundary governance:
 1. Discovery at `/.well-known/poppy.json`
-2. Unified session management across APIs, MCP, web pages, and company agents
-3. Governed conversations between personal agents (e.g. Atlas) and company agents
+2. Unified session management across APIs, MCP, and external agents
+3. Governed conversations between personal agents and organization agents
 4. Integration with CIEAV's Consequence Algebra & Two-Phase Commit receipts
 """
 
@@ -47,8 +47,7 @@ class PoppyMessage:
 
 def get_discovery_document(base_url: str = "") -> dict[str, Any]:
     """
-    Returns the Personal Agent Protocol discovery manifest (/.well-known/poppy.json).
-    Spec defined by personalagentprotocol.org
+    Returns the Agent Gateway Protocol discovery manifest (/.well-known/poppy.json).
     """
     api_base = base_url.rstrip("/") if base_url else ""
     return {

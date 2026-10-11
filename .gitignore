@@ -24,5 +24,8 @@ __pycache__/
 *.py[cod]
 *test*.db
 commit_layer/*test*.db
+*.db
+commit_layer/*.db
+.pytest_cache/
 *.ccr_cache/
 .ccr_cache/

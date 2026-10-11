@@ -57,35 +57,35 @@ Agent Tool Invocation (e.g. transfer_funds, delete_s3_bucket)
 
 ## Architectural Components
 
-### 1. Embedded Local Decision Model (`/v1/decisions` & `/v1/systemone`)
-CIEAV includes a low-latency, self-contained decision engine based on the [LiteLLM Decisions specification](https://docs.litellm.ai/docs/decisions). Instead of burning hundreds of tokens generating chat completions, decision models evaluate typed questions and return calibrated probabilities in under 3 milliseconds:
+### 1. Embedded Local Decision Engine (`/v1/decisions` & `/v1/systemone`)
+CIEAV includes a low-latency, self-contained decision engine. Instead of burning hundreds of tokens generating open-ended chat completions, the decision engine evaluates typed questions and returns calibrated probabilities in under 3 milliseconds:
 - **Predicates**: Boolean probabilities `[0.0, 1.0]` (e.g., `is_destructive`, `is_prompt_injection`, `is_routine`).
 - **Choices**: Probability distributions over category tiers (e.g., `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`).
-- **Scores**: Continuous scalar values on defined ranges (e.g., consequence severity from `0.0` to `1.0`).
+- **Scores**: Continuous scalar values on calibrated ranges (e.g., consequence severity from `0.0` to `1.0`).
 
-The gateway exposes both OpenAI-style (`POST /v1/decisions`) and System One-style (`POST /v1/systemone`) endpoints directly.
+The gateway exposes both `/v1/decisions` and `/v1/systemone` endpoints directly for any agent or workflow.
 
-### 2. Personal Agent Protocol (PAP / "Poppy")
-Implements the [Personal Agent Protocol](https://personalagentprotocol.org) for governed agent-to-company communication:
-- **Discovery**: Hosted at `/.well-known/poppy.json`, publishing organization details, supported intents, and auth schemes.
+### 2. Autonomous Agent Gateway Protocol
+Provides standardized agent session and boundary governance:
+- **Discovery**: Hosted at `/.well-known/poppy.json`, publishing organization endpoints, supported intents, and authentication schemes.
 - **Session Lifecycle**: HMAC-signed session tokens (`poppy_sess_*`) binding agents to specific scopes and TTLs.
-- **Governed Turns**: All personal agent actions are mediated through the commit layer, requiring step-up confirmation on consequential operations.
+- **Governed Turns**: All agent actions are mediated through the commit layer, requiring step-up confirmation on consequential operations.
 
-### 3. Webzero Action Surfaces & WARI
-Inspired by [Webzero](https://www.webzero.ai) architecture for mission-critical digital journeys:
+### 3. Governed Action Surfaces & Readiness Audit
+Enforces structured action surfaces for mission-critical operations:
 - **Action Surfaces**: Formally defined interfaces with strict idempotency keys (`idempotency_key`), preventing accidental double-spends or duplicate executions.
 - **Trajectory Evidence**: Canonical execution logs hashed with SHA-256 to provide tamper-proof forensic evidence for compliance.
-- **WARI (Webzero Agent Readiness Index)**: Evaluates agent action readiness, generating a calibrated `w0` score (99.5/100) and readiness grade.
+- **WARI (Agent Readiness Index)**: Evaluates agent action readiness, generating a calibrated `w0` score (99.5/100) and readiness grade.
 
-### 4. Headroom CCR Context Compression
-Context optimization middleware that dramatically reduces token consumption:
+### 4. Headroom Context Optimization & CCR Vault
+Context optimization middleware that reduces token consumption:
 - **Content-Aware Compression**: Specialized compressors for structured JSON (`SmartCrusher`), source code ASTs, and operational logs.
 - **CCR Vault**: Offloads large payloads to a local content-addressable vault (`ccr_*`), replacing them with compressed previews and saving up to 95.8% of tokens while preserving loss-free retrieval.
 
-### 5. Memorable Procedural Graph Memory
-Inspired by [Memorable](https://www.memorable.sh):
+### 5. Procedural Graph Memory Engine
+Graph-structured execution memory:
 - Caches verified execution graphs: `(precondition -> action -> postcondition -> outcome)`.
-- When an agent encounters a known intent, Memorable recalls the certified procedure graph, skipping exploratory loops and redundant LLM reasoning turns while preserving safety checks.
+- When an agent encounters a known intent, the engine recalls the certified procedure graph, skipping exploratory loops and redundant LLM reasoning turns while preserving all safety checks.
 
 ### 6. Cryptographic Receipt Ledger
 - Every state transition generates an **Ed25519**-signed receipt.
@@ -149,14 +149,14 @@ Open **`http://127.0.0.1:8000`** in your browser to access the live dashboard:
 - **Pending Approvals**: Review queued high-risk actions and submit typed confirmations.
 - **World State Ledger**: Inspect real-time bank ledger balances, filesystem nodes, and trash containers.
 - **Hash-Chained Receipt Timeline**: View signed Ed25519 receipts with one-click Undo execution.
-- **System Telemetry**: Monitor WARI readiness scores, procedural memory caches, and Headroom vault statistics.
+- **System Telemetry**: Monitor readiness scores, procedural memory caches, and Headroom vault statistics.
 
 ---
 
 ## Verification & Testing
 
 ### 1. Unit Test Suite (38 tests)
-Runs all unit tests across the decision model, policy floor, cryptographic chains, Headroom vault, Memorable graph memory, and Webzero surfaces:
+Runs all unit tests across the decision model, policy floor, cryptographic chains, Headroom vault, procedural memory, and action surfaces:
 ```bash
 python -m pytest commit_layer/tests/ -v
 ```
@@ -173,9 +173,9 @@ Validates:
 - Governed payments and 2-phase Undo
 - Multi-domain intent planning with typed confirmation
 - Headroom CCR token compression (95%+ reduction)
-- Memorable procedural graph recall
-- Webzero idempotency key caching and replay defense
-- Personal Agent Protocol discovery and session handling
+- Procedural graph recall
+- Action surface idempotency key caching and replay defense
+- Agent Gateway Protocol discovery and session handling
 - Open-Agent-Connector dispatch
 
 ### 3. Adversarial Red Team Suite (10 injection attacks)
@@ -188,7 +188,7 @@ python -m commit_layer.redteam
 
 ## API Usage Examples
 
-### 1. LiteLLM-Compatible Decisions API
+### 1. Calibrated Decisions API
 Query the embedded decision model directly:
 
 ```bash
@@ -326,7 +326,7 @@ The refund executes, ledger balances are restored, and a new signed audit receip
 Cieav-the-Commit-Layer-for-the-Internet/
 ├── commit_layer/
 │   ├── app.py                   # FastAPI application & REST/WebSocket routes
-│   ├── decision_model.py        # Embedded local decision engine (LiteLLM spec)
+│   ├── decision_model.py        # Embedded local decision engine (/v1/decisions)
 │   ├── gateway.py               # Central interception and approval pipeline
 │   ├── policy.py                # Deterministic safety rules (immutable floor)
 │   ├── classifier.py            # Risk classifier (policy floor + Bedrock + local model)
@@ -335,7 +335,7 @@ Cieav-the-Commit-Layer-for-the-Internet/
 │   ├── observer.py              # Before/after outcome verification
 │   ├── tokens.py                # Single-use execution token authority (60s TTL)
 │   ├── friction.py              # Cognitive debt & rate fatigue tracking
-│   ├── poppy.py                 # Personal Agent Protocol (discovery & sessions)
+│   ├── poppy.py                 # Autonomous Agent Gateway protocol (discovery & sessions)
 │   ├── webzero.py               # Action Surfaces, idempotency & WARI scoring
 │   ├── memorable.py             # Procedural graph memory (SQLite)
 │   ├── connectors.py            # Open-Agent-Connector & Open-Dots workspace

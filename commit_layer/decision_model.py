@@ -1,16 +1,14 @@
 """
-CIEAV Embedded Local Decision Model & LiteLLM-Compatible Decisions API.
+CIEAV Embedded Local Decision Model & Probability Engine.
 
-Inspired by https://docs.litellm.ai/docs/decisions:
-- Decision models answer typed questions about an input and return PROBABILITIES
-  instead of open-ended conversational text.
+Evaluates structured input queries to return calibrated probabilities instead
+of open-ended conversational text:
 - Types:
   1. predicate: yes/no probability [0.0, 1.0] (e.g. is_destructive, is_prompt_injection)
   2. choice: probability distribution over fixed categories (e.g. LOW, MEDIUM, HIGH, CRITICAL)
   3. score: scalar value on a calibrated scale (e.g. consequence severity 0.0 to 1.0)
 
-Runs 100% locally with zero external API dependencies.
-Can optionally leverage AWS Bedrock Converse when AWS credentials are provided.
+Runs 100% locally with zero external API dependencies in <3ms.
 """
 
 from __future__ import annotations
@@ -230,7 +228,7 @@ local_decision_model = LocalDecisionModel()
 # =========================================================================
 
 def handle_openai_decisions(req: OpenAIDecisionRequest) -> dict[str, Any]:
-    """LiteLLM-compatible /v1/decisions endpoint handler."""
+    """CIEAV /v1/decisions endpoint handler."""
     decisions = local_decision_model.decide(text=req.input, questions=req.questions)
     input_tokens = len(req.input.split())
     return {
@@ -247,7 +245,7 @@ def handle_openai_decisions(req: OpenAIDecisionRequest) -> dict[str, Any]:
 
 
 def handle_systemone(req: SystemOneRequest) -> dict[str, Any]:
-    """LiteLLM-compatible /v1/systemone endpoint handler."""
+    """CIEAV /v1/systemone endpoint handler."""
     converted_questions = []
     for q_id, q_data in req.questions.items():
         converted_questions.append(DecisionQuestion(

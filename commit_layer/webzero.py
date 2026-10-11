@@ -1,10 +1,9 @@
 """
-Webzero Architecture & Action Surfaces Engine for CIEAV Commit Layer.
+Action Surfaces & Readiness Index Engine for CIEAV Commit Layer.
 
-Inspired by Webzero (webzero.ai, formerly Bridge AI):
 1. Action Surfaces: Idempotent, scoped, confirmation-bound execution interfaces.
-2. Trajectory Evidence: Reproducible run logs and trajectory hashes for regulated digital journeys (BFSI, enterprise).
-3. WARI (Webzero Agent Readiness Index) & w0 Score: Governed readiness measurement of what an agent can safely complete.
+2. Trajectory Evidence: Reproducible run logs and trajectory hashes for regulated digital journeys.
+3. WARI (Agent Readiness Index) & w0 Score: Governed readiness measurement of what an agent can safely complete.
 4. Regulated Digital Journey Simulator: Guarantees statutory audit trails and entitlement verification.
 """
 
@@ -141,11 +140,11 @@ def calculate_w0_score(
     observable_outcome_rate: float = 1.0
 ) -> float:
     """
-    Computes the Webzero Agent Readiness Index (WARI) score (0.0 to 100.0).
-    Weighted by empirical completion probability across regulated journeys.
+    Computes the Agent Readiness Index (WARI) score (0.0 to 100.0).
+    Weighted by empirical completion probability across governed journeys.
     """
-    # Weights based on Webzero WARI specification:
-    # 35% Observable outcomes (no silent failures or email-only dropoffs)
+    # Weights for readiness index:
+    # 35% Observable outcomes (no silent failures or dropoffs)
     # 25% Idempotency & replay safety
     # 25% Confirmation binding across auth step-up
     # 15% Explicit scoped access coverage
@@ -159,7 +158,7 @@ def calculate_w0_score(
 
 
 def get_wari_overview() -> dict[str, Any]:
-    """Returns the system-wide Webzero Agent Readiness Index overview."""
+    """Returns the system-wide Agent Readiness Index overview."""
     total_surfaces = len(ACTION_SURFACES)
     idempotent_count = sum(1 for s in ACTION_SURFACES.values() if s.is_idempotent)
     confirmed_count = sum(1 for s in ACTION_SURFACES.values() if s.confirmation_bound)
@@ -172,14 +171,14 @@ def get_wari_overview() -> dict[str, Any]:
     )
 
     return {
-        "index_name": "Webzero Agent Readiness Index (WARI)",
+        "index_name": "Agent Readiness Index (WARI)",
         "w0_score": score,
         "governed_readiness": "CRITICAL_COMPLIANT" if score >= 90.0 else "INTERMEDIATE",
         "action_surfaces_count": total_surfaces,
         "idempotency_coverage_pct": round((idempotent_count / total_surfaces) * 100, 1),
         "confirmation_bound_coverage_pct": round((confirmed_count / total_surfaces) * 100, 1),
         "trajectories_recorded": len(TRAJECTORY_ARCHIVE),
-        "specification": "Webzero WARI-2026.BFSI"
+        "specification": "WARI-2026.GOVERNED"
     }
 
 
@@ -191,7 +190,7 @@ def invoke_action_surface(
     surface_id: str,
     args: dict[str, Any],
     idempotency_key: str,
-    caller_agent_id: str = "webzero-benchmark-fleet",
+    caller_agent_id: str = "benchmark-fleet",
     typed_confirmation: str = ""
 ) -> dict[str, Any]:
     """

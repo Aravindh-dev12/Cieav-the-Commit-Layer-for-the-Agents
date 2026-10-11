@@ -370,21 +370,21 @@ async def api_opendots_session(provider: str = "ollama", model: str = "llama3.3:
 
 @app.get("/.well-known/poppy.json")
 async def api_poppy_discovery():
-    """Personal Agent Protocol discovery document (personalagentprotocol.org spec)."""
+    """Autonomous Agent Gateway Protocol discovery document."""
     from commit_layer import poppy
     return poppy.get_discovery_document()
 
 
 @app.post("/api/poppy/session")
 async def api_poppy_create_session(req: PoppySessionRequest):
-    """Authenticate and issue a Poppy session token for a personal agent."""
+    """Authenticate and issue a session token for an agent."""
     from commit_layer import poppy
     return poppy.create_session(user_id=req.user_id, client_agent_id=req.client_agent_id, scopes=req.scopes)
 
 
 @app.post("/api/poppy/conversations")
 async def api_poppy_conversations(req: PoppyConversationRequest):
-    """Governed Personal Agent conversation turn backed by Commit Layer."""
+    """Governed agent conversation turn backed by Commit Layer."""
     from commit_layer import poppy
     return poppy.handle_conversation(
         session_id=req.session_id,
@@ -397,18 +397,18 @@ async def api_poppy_conversations(req: PoppyConversationRequest):
 
 @app.get("/api/poppy/discover")
 async def api_poppy_discover_remote(domain: str):
-    """Discover a remote company's Personal Agent Protocol manifest."""
+    """Discover a remote organization's Agent Gateway Protocol manifest."""
     from commit_layer import poppy
     return poppy.discover_remote_company(domain)
 
 
 # =========================================================================
-# Webzero Action Surfaces & WARI Readiness Endpoints
+# Action Surfaces & Agent Readiness Index (WARI) Endpoints
 # =========================================================================
 
 @app.get("/api/webzero/wari")
 async def api_webzero_wari():
-    """Retrieve Webzero Agent Readiness Index (WARI) & w0 score."""
+    """Retrieve Agent Readiness Index (WARI) & w0 score."""
     from commit_layer import webzero
     return webzero.get_wari_overview()
 
@@ -434,33 +434,33 @@ async def api_webzero_invoke(req: WebzeroInvokeRequest):
 
 
 # =========================================================================
-# Baseten Inference Status Endpoint
+# Dedicated Inference Status Endpoint
 # =========================================================================
 
 @app.get("/api/baseten/info")
 async def api_baseten_info():
-    """Retrieve Baseten high-performance inference engine status."""
+    """Retrieve high-performance dedicated inference engine status."""
     from commit_layer import frontier_intelligence
     has_key = bool(os.environ.get("BASETEN_API_KEY", "").strip())
     model_id = os.environ.get("BASETEN_MODEL_ID", "llama-3.3-70b-instruct")
     return {
         "status": "ready" if has_key else "unconfigured",
-        "engine": "Baseten Dedicated Inference Stack (Truss)",
+        "engine": "Dedicated Inference Stack",
         "model_id": model_id,
-        "base_url": os.environ.get("BASETEN_BASE_URL", "https://bridge.baseten.co/v1"),
+        "base_url": os.environ.get("BASETEN_BASE_URL", "https://api.inference.local/v1"),
         "has_api_key": has_key,
         "active_frontier_providers": frontier_intelligence.get_active_providers()
     }
 
 
 # =========================================================================
-# LiteLLM-Compatible Decisions & System One Endpoints
+# Decisions & System One Endpoints
 # =========================================================================
 
 @app.post("/v1/decisions")
 @app.post("/decisions")
 async def api_openai_decisions(req: OpenAIDecisionRequest):
-    """LiteLLM-compatible OpenAI Decisions API endpoint."""
+    """CIEAV Decisions API endpoint."""
     from commit_layer.decision_model import handle_openai_decisions
     return handle_openai_decisions(req)
 
@@ -468,7 +468,7 @@ async def api_openai_decisions(req: OpenAIDecisionRequest):
 @app.post("/v1/systemone")
 @app.post("/systemone")
 async def api_systemone_decisions(req: SystemOneRequest):
-    """LiteLLM-compatible System One API endpoint."""
+    """CIEAV System One API endpoint."""
     from commit_layer.decision_model import handle_systemone
     return handle_systemone(req)
 

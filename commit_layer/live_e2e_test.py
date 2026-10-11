@@ -131,8 +131,8 @@ def run_full_live_test():
     print(f"  [PASS] Reused Executions: {mem_stats.get('reused_executions')}")
     print(f"  [PASS] Estimated Tokens Saved: {mem_stats.get('estimated_tokens_saved')}")
 
-    # 10. Webzero Action Surfaces & Idempotency
-    print("\n[STEP 10] Testing Webzero Action Surface with Idempotency Key...")
+    # 10. Action Surfaces & Idempotency
+    print("\n[STEP 10] Testing Action Surface with Idempotency Key...")
     idem_key = f"live_test_idem_{int(time.time()*1000)}"
     wz_res1 = request("/api/webzero/action-surface/invoke", "POST", {
         "surface_id": "as_bfsi_payment",
@@ -150,14 +150,14 @@ def run_full_live_test():
     })
     print(f"  [PASS] Second Invocation Replay Defense: {wz_res2.get('status')} (Never double-spends)")
 
-    # 11. Webzero WARI Readiness Score
-    print("\n[STEP 11] Checking Webzero Agent Readiness Index (WARI)...")
+    # 11. Agent Readiness Index (WARI) Score
+    print("\n[STEP 11] Checking Agent Readiness Index (WARI)...")
     wari_res = request("/api/webzero/wari")
     print(f"  [PASS] Governed w0 Score: {wari_res.get('w0_score')} / 100")
     print(f"  [PASS] Readiness Grade: {wari_res.get('governed_readiness')}")
 
-    # 12. Personal Agent Protocol (Poppy)
-    print("\n[STEP 12] Testing Personal Agent Protocol (PAP / Poppy)...")
+    # 12. Agent Gateway Protocol (Poppy)
+    print("\n[STEP 12] Testing Agent Gateway Protocol (Poppy Discovery)...")
     poppy_doc = request("/.well-known/poppy.json")
     print(f"  [PASS] Discovery Spec Version: {poppy_doc.get('protocol_version')}")
     print(f"  [PASS] Organization: {poppy_doc.get('organization', {}).get('name')}")

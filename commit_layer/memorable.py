@@ -1,11 +1,10 @@
 """
-Procedural Graph Memory (Memorable Integration) for CIEAV Commit Layer.
+Procedural Graph Memory Engine for CIEAV Commit Layer.
 
-Inspired by memorable.sh:
-Instead of semantic text chunk retrieval (vector RAG), Memorable stores PROCEDURAL
+Instead of semantic text chunk retrieval (vector RAG), stores PROCEDURAL
 graphs of actions: (precondition -> action -> postcondition -> outcome).
 
-When an agent is presented with a task or intent, Memorable checks whether an
+When an agent is presented with a task or intent, the memory checks whether an
 identical or similar sequence of tool commits has previously reached OBSERVED_SUCCESS.
 If so, it extracts the certified commit graph, pruning exploratory dead-ends and
 skipping redundant LLM reasoning turns, while verifying all Invariants before re-execution.

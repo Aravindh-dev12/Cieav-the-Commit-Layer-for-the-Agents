@@ -92,7 +92,7 @@ PROVIDER_CONFIGS = {
     "baseten": {
         "env_key": "BASETEN_API_KEY",
         "base_url_env": "BASETEN_BASE_URL",
-        "default_base_url": "https://bridge.baseten.co/v1",
+        "default_base_url": "https://api.inference.local/v1",
         "model_env": "BASETEN_MODEL_ID",
         "default_model": "llama-3.3-70b-instruct",
         "verifier_model_env": "BASETEN_VERIFIER_MODEL",
@@ -298,7 +298,7 @@ def _classify_via_gemini(action: Action, config: dict) -> dict[str, Any]:
 
 
 def _classify_via_baseten(action: Action, config: dict) -> dict[str, Any]:
-    """Classify risk using Baseten high-performance dedicated inference."""
+    """Classify risk using high-performance dedicated inference."""
     api_key = os.environ.get(config["env_key"], "").strip()
     if not api_key:
         return {"provider": "baseten", "risk": None, "reason": "No Baseten API key", "latency_ms": 0}
