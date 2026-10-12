@@ -715,16 +715,33 @@
       <article id="runtime" class="rv in scroll-mt-6">
         <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
           <span>04</span>
-          <span>Runtime:<span style="display:block; color:rgba(0,0,0,0.55);">Small OS bundles, fail-closed installation...</span></span>
-          <span style="color:rgba(0,0,0,0.45);">CLI</span>
+          <span>Runtime & Setup:<span style="display:block; color:rgba(0,0,0,0.55);">Host locally on your machine with 100% privacy...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">SETUP</span>
         </header>
         <div style="margin-top:36px;">
-          <p style="max-width:520px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
-            Small per-OS runtime bundles. No separate Python, Node, npm, or model-weight installation for consumers. Chrome/Chromium required.
+          <p style="max-width:560px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            Clone from GitHub to run the autonomous agent and commit gateway on your own machine.
           </p>
-          <div style="margin-top:24px;">
-            <div class="hv" style="display:grid; grid-template-columns:4.5rem 1fr; column-gap:12px; padding:9px 0; font-size:14px; font-family:var(--mono); border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">WIN</span><span>irm https://&lt;CIEAV-DOWNLOAD-DOMAIN&gt;/install.ps1 | iex</span></div>
-            <div class="hv" style="display:grid; grid-template-columns:4.5rem 1fr; column-gap:12px; padding:9px 0; font-size:14px; font-family:var(--mono); border-bottom:1px solid rgba(0,0,0,0.06);"><span style="color:rgba(0,0,0,0.45);">MAC/LINUX</span><span>curl -fsSL https://&lt;CIEAV-DOWNLOAD-DOMAIN&gt;/install.sh | sh</span></div>
+          <div style="margin-top:24px; display:flex; flex-direction:column; gap:12px;">
+            <div style="background:#0f172a; color:#f8fafc; border-radius:8px; padding:16px; font-family:var(--mono); font-size:13px; line-height:1.6; overflow-x:auto;">
+              <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.05em;"># 1. Download & Install from GitHub</div>
+              <div style="color:#38bdf8;">git clone https://github.com/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Internet.git</div>
+              <div style="color:#38bdf8;">cd Cieav-the-Commit-Layer-for-the-Internet</div>
+              <div style="color:#38bdf8;">pip install -r commit_layer/requirements.txt</div>
+            </div>
+
+            <div style="background:#0f172a; color:#f8fafc; border-radius:8px; padding:16px; font-family:var(--mono); font-size:13px; line-height:1.6; overflow-x:auto;">
+              <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.05em;"># 2. Run Governed Agent in Terminal (Alma-Style Computer Control)</div>
+              <div style="color:#4ade80;">python python/cieav_platform/chat_cli.py</div>
+            </div>
+
+            <div style="background:#0f172a; color:#f8fafc; border-radius:8px; padding:16px; font-family:var(--mono); font-size:13px; line-height:1.6; overflow-x:auto;">
+              <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.05em;"># 3. Start Local Gateway & Dashboard (Port 8000)</div>
+              <div style="color:#facc15;">python -m uvicorn commit_layer.app:app --host 0.0.0.0 --port 8000</div>
+            </div>
+          </div>
+          <div style="margin-top:16px; font-size:13px; color:rgba(0,0,0,0.55);">
+            Live Hosted Interface: <a href="https://cieav.vercel.app/" target="_blank" style="color:#000; font-weight:600; text-decoration:underline;">https://cieav.vercel.app/</a>
           </div>
         </div>
       </article>
@@ -797,18 +814,22 @@
       <article id="verify" class="rv in scroll-mt-6" style="margin-bottom:80px;">
         <header style="display:grid; grid-template-columns:3rem 1fr auto; column-gap:8px; font-size:15px; line-height:1.25; letter-spacing:-.02em;">
           <span>08</span>
-          <span>Verify:<span style="display:block; color:rgba(0,0,0,0.55);">Run real-world empirical benchmarks & unit test suites...</span></span>
-          <span style="color:rgba(0,0,0,0.45);">EVALUATION</span>
+          <span>Verify:<span style="display:block; color:rgba(0,0,0,0.55);">Empirical benchmarks & unit test suites...</span></span>
+          <span style="color:rgba(0,0,0,0.45);">TESTS</span>
         </header>
         <div style="margin-top:36px;">
-          <p style="max-width:520px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
-            Verify the local control plane, empirical decision model benchmarks, and two-phase rollback live on your laptop.
+          <p style="max-width:560px; font-size:24px; line-height:1.1; letter-spacing:-.04em;">
+            Verify the local control plane, decision model benchmarks, and two-phase rollback live on your laptop.
           </p>
-          <div style="margin-top:24px;">
-            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">python benchmark_decision_models_vs_cieav.py</div>
-            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">python test_portfolio_with_and_without_cieav.py</div>
-            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">python -m pytest commit_layer/tests/ -v</div>
-            <div style="border-bottom:1px solid rgba(0,0,0,0.08); padding:8px 0; font-family:var(--mono); font-size:12px;">python commit_layer/live_e2e_test.py</div>
+          <div style="margin-top:24px; display:flex; flex-direction:column; gap:12px;">
+            <div style="background:#0f172a; color:#f8fafc; border-radius:8px; padding:16px; font-family:var(--mono); font-size:13px; line-height:1.6; overflow-x:auto;">
+              <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.05em;"># 1. Run Empirical Decision Model Benchmark (Jev 1.13 vs Kev vs Laya vs CIEAV)</div>
+              <div style="color:#38bdf8;">python benchmark_decision_models_vs_cieav.py</div>
+            </div>
+            <div style="background:#0f172a; color:#f8fafc; border-radius:8px; padding:16px; font-family:var(--mono); font-size:13px; line-height:1.6; overflow-x:auto;">
+              <div style="color:#94a3b8; font-size:11px; text-transform:uppercase; margin-bottom:8px; letter-spacing:0.05em;"># 2. Run Test Suite (43 Unit Tests, 100% Pass Rate)</div>
+              <div style="color:#4ade80;">python -m pytest commit_layer/tests/ -v</div>
+            </div>
           </div>
           <div style="margin-top:36px;">
             <button class="btn btn-dark" style="font-size:15px; padding:12px 24px;" onclick="openAuthModal('Access Dashboard')">

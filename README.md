@@ -10,10 +10,9 @@
 2. [How CIEAV Works: The 6-Stage Commit Pipeline](#2-how-cieav-works-the-6-stage-commit-pipeline)
 3. [Autonomous Laptop Control: Safe Computer-Use (Like Alma)](#3-autonomous-laptop-control-safe-computer-use-like-alma)
 4. [Empirical Benchmarks: CIEAV vs. System 1 Decision Models (Jev 1.13, Kev, Laya)](#4-empirical-benchmarks-cieav-vs-system-1-decision-models-jev-113-kev-laya)
-5. [Local Installation & Privacy Architecture](#5-local-installation--privacy-architecture)
-6. [Full Real-World Testing Guide (PowerShell, CLI, Dashboard)](#6-full-real-world-testing-guide-powershell-cli-dashboard)
-7. [Step-by-Step Video Proof Recording Guide](#7-step-by-step-video-proof-recording-guide)
-8. [Directory Structure](#8-directory-structure)
+5. [Local Installation & Quickstart](#5-local-installation--quickstart)
+6. [Interactive CLI & Computer-Use Commands](#6-interactive-cli--computer-use-commands)
+7. [Directory Structure](#7-directory-structure)
 
 ---
 
@@ -189,15 +188,13 @@ NEATLOGS_API_KEY=your-neatlogs-key
 CRUSTDATA_API_KEY=your-crustdata-key
 ```
 
----
+### 1. Launch Governed Terminal Agent (Alma-Style Computer Control)
+```bash
+python python/cieav_platform/chat_cli.py
+```
 
-## 6. Full Real-World Testing Guide (PowerShell, CLI, Dashboard)
-
-You can conduct full real-world tests on your laptop in under 2 minutes:
-
-### Test 1: Start the Gateway & Live Dashboard
-Launch the server in PowerShell:
-```powershell
+### 2. Launch Local Gateway & Dashboard
+```bash
 python -m uvicorn commit_layer.app:app --host 0.0.0.0 --port 8000
 ```
 Open **`http://127.0.0.1:8000`** in your browser:
@@ -205,90 +202,39 @@ Open **`http://127.0.0.1:8000`** in your browser:
 - Navigate to the **Model Benchmarks** tab to view the live comparison between Jev 1.13, Kev, Laya, and CIEAV.
 - Click **"Run Live Empirical Benchmark"** to execute all 10 real-world scenarios live in the browser.
 
-### Test 2: Run the Unit Test Suite (100% Pass Rate)
-Run pytest across all 43 tests:
-```powershell
-python -m pytest commit_layer/tests/ -v
-```
-All 43 tests pass cleanly in under 12 seconds.
+Live Hosted Cloud Interface: **[https://cieav.vercel.app/](https://cieav.vercel.app/)**
 
-### Test 3: Run the Empirical Decision Model Benchmark
-Execute the standalone benchmark script:
-```powershell
+### 3. Run Verification Suite
+```bash
+# Run unit tests (43 unit tests, 100% pass rate)
+python -m pytest commit_layer/tests/ -v
+
+# Run empirical decision model benchmark
 python benchmark_decision_models_vs_cieav.py
 ```
-Outputs the complete scientific breakdown comparing adversarial defense rates, arithmetic spend bounds, and two-phase rollback.
 
-### Test 4: Run Real-World Portfolio Deletion & Rollback Test
-Test real filesystem modifications on your local portfolio directory:
-```powershell
-python test_portfolio_with_and_without_cieav.py
-```
-This test performs a side-by-side demonstration:
-1. **Without CIEAV**: A file in your portfolio is permanently erased. Data is permanently lost.
-2. **With CIEAV**: An atomic snapshot is taken, the action is committed, and an immediate two-phase `/undo` restores the exact file contents losslessly!
+---
 
-### Test 5: Interactive Terminal Control (Alma / Claude Code Style)
-Launch the interactive CLI in PowerShell:
-```powershell
-python python/cieav_platform/chat_cli.py
-```
-Try running commands:
+## 6. Interactive CLI & Computer-Use Commands
+
+When running the interactive CLI (`python python/cieav_platform/chat_cli.py`), you can direct the agent to perform local tasks on your computer. All actions are held under the CIEAV Commit Layer:
+
 ```text
-cieav> list .
-cieav> create test_demo.txt "Hello from CIEAV Commit Layer"
-cieav> read test_demo.txt
-cieav> delete test_demo.txt
-[CIEAV INTERCEPTOR] Action held for human governance:
-  Risk : CRITICAL
-Type 'COMMIT' to approve: COMMIT
-  Status : COMMITTED
-  Outcome : OBSERVED_SUCCESS
-cieav> /undo
-  Rollback SUCCESS! File restored from atomic snapshot.
-cieav> /receipts
-cieav> /status
+cieav> list <dirpath>                     # Lossless directory inspection
+cieav> read <filepath>                    # Lossless safe file inspection
+cieav> create <file> <content>            # Atomic file creation with backup snapshot
+cieav> modify <file> <content>            # Atomic modification with backup snapshot
+cieav> delete <filepath>                  # Intercepted as CRITICAL; requires COMMIT
+cieav> exec <shell_command>               # Governed shell execution filtered for safety
+cieav> pay <amount> <recipient>           # Checked against CFO budget ceilings
+cieav> /undo                              # Instant two-phase rollback of last action
+cieav> /receipts                          # Inspect Ed25519-signed SQLite audit ledger
+cieav> /status                            # View signing key ID, ledger health & cognitive debt
 ```
 
 ---
 
-## 7. Step-by-Step Video Proof Recording Guide
-
-Follow this 3-minute recording script to capture compelling video proof on your laptop:
-
-### Scene 1: Introduction & Web Dashboard (0:00 - 0:45)
-1. Open OBS Studio or Windows Screen Recorder (`Win + Alt + R`).
-2. Open your browser to `http://127.0.0.1:8000`.
-3. Show the **Overview & Health** tab: Active Ed25519 signing key, 0 errors, local SQLite authentication.
-4. Click on the **Model Benchmarks** tab:
-   - Highlight the comparison: CIEAV 100% Adversarial Defense vs Jev 20%, Kev 10%, Laya 20%.
-   - Highlight: 100% Arithmetic Spend Floor vs Decision Models 0% (No Math).
-   - Click the button: **"Run Live Empirical Benchmark"** and show the live execution completing across all 10 scenarios in real-time.
-
-### Scene 2: Safe Laptop Control in PowerShell (0:45 - 1:45)
-1. Split your screen or switch to PowerShell.
-2. Run `python python/cieav_platform/chat_cli.py`.
-3. Type: `create portfolio_test.txt "Important user code"`.
-4. Type: `delete portfolio_test.txt`.
-5. Point out how CIEAV intercepts the deletion as `CRITICAL`, refusing to execute until you type `COMMIT`.
-6. Type `COMMIT`. File is deleted.
-7. Immediately type `/undo`. Show the green success message: **"File restored from atomic snapshot"**.
-8. Type `/receipts` and show the signed cryptographic Ed25519 receipt with `undo_state: UNDONE`.
-
-### Scene 3: Portfolio Real-World Comparison Test (1:45 - 2:30)
-1. Run `python test_portfolio_with_and_without_cieav.py`.
-2. Show the terminal output demonstrating:
-   - Without CIEAV: File permanently lost.
-   - With CIEAV: File safely recovered in 4 milliseconds.
-
-### Scene 4: Cryptographic Ledger Verification (2:30 - 3:00)
-1. In the Web Dashboard or terminal, trigger `Verify Hash Chain`.
-2. Show the verification badge: **"Cryptographic Verification PASSED! All hash links and Ed25519 signatures authentic."**
-3. Conclude: CIEAV is the essential transaction and commit layer for autonomous AI agents.
-
----
-
-## 8. Directory Structure
+## 7. Directory Structure
 
 ```text
 Cieav-the-Commit-Layer-for-the-Internet/
