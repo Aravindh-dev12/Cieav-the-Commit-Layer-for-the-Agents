@@ -35,7 +35,7 @@ def entrypoint() -> int:
     first = args[0].lower()
     if first in {"chat", "code", "agent"}:
         return chat_main(args[1:])
-    if first in {"/status", "status", "/receipts", "receipts", "/undo", "undo", "/help", "help", "/reset", "reset"}:
+    if first in {"/status", "status", "/receipts", "receipts", "/undo", "undo", "/help", "help", "/reset", "reset", "/jobs", "jobs", "/report", "report"}:
         return chat_main(args)
     if first == "mcp":
         return mcp_main(args[1:])

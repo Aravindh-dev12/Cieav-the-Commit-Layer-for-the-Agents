@@ -20,7 +20,7 @@ if PROJECT_ROOT not in sys.path:
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from commit_layer import gateway, receipts, sandbox
+from commit_layer import gateway, receipts, sandbox, job_tracker
 from commit_layer.tools.repo import RealRepoFileTool
 from commit_layer.agents.alma_job_agent import (
     find_local_resume,
@@ -113,6 +113,7 @@ def handle_undo():
     else:
         print(f"  ✅ Rollback SUCCESS: {res.get('result', {})}")
         print("  Receipt state updated to UNDONE in cryptographic ledger.\n")
+        job_tracker.update_application_status(last_committed_receipt_id, status="UNDONE", undo_state="UNDONE")
 
 
 def execute_governed_action(tool_name: str, args: dict, agent_id: str = "cieav-chat-agent"):
@@ -178,19 +179,28 @@ def run_alma_job_search_workflow(query_text: str = ""):
     print(f"  🛠️  Skills    : {', '.join(profile['skills'][:6])}...")
     print(f"  🔗 Profiles  : {profile['github']} | {profile['linkedin']}")
 
-    print("\n[2/4] Researching LinkedIn & Google Jobs for high-fit engineering roles...")
+    print("\n[2/4] Researching live jobs across LinkedIn, RemoteOK, and Arbeitnow feeds...")
     matched_jobs = search_matched_jobs(profile, query=query_text)
-    for i, j in enumerate(matched_jobs[:6], 1):
-        print(f"  [{i}] {j['company']} - {j['role']} (Match: {j['match_score']}%)")
-        print(f"      Reasons: {'; '.join(j['match_reasons'][:2])}")
 
-    # Allow operator to choose target role or specify custom company
+    print(f"\n{'#':<4} {'COMPANY':<20} {'ROLE':<34} {'PLATFORM':<12} {'MATCH':<8} {'LOCATION'}")
+    print("-" * 96)
+    for i, j in enumerate(matched_jobs[:8], 1):
+        comp = j['company'][:19]
+        role = j['role'][:33]
+        plat = j.get('platform', 'Direct')[:11]
+        score = f"{j['match_score']}%"
+        loc = j.get('location', 'Remote')[:18]
+        print(f"[{i:<2}] {comp:<20} {role:<34} {plat:<12} {score:<8} {loc}")
+
     target_job = matched_jobs[0]
-    # If the user's query didn't explicitly target one company, allow selection
-    has_explicit_company = any(c.lower() in query_text.lower() for c in ["google", "openai", "cursor", "anthropic", "vercel", "cognition", "microsoft", "meta", "amazon", "apple"])
+    has_explicit_company = any(c.lower() in query_text.lower() for c in ["google", "openai", "cursor", "anthropic", "vercel", "cognition", "microsoft", "meta", "amazon", "apple", "tether", "lemon.io"])
     if not has_explicit_company and len(matched_jobs) > 1:
         try:
-            sel = input("\nSelect role to apply [1-6, or enter custom company name, default: 1]: ").strip()
+            print("\nOptions: Enter 1-8 to select role | Type company name to target | Type 'report' for history")
+            sel = input("Select job to apply [1-8, or company, or report]: ").strip()
+            if sel.lower() in ("report", "/report", "/jobs", "jobs"):
+                print("\n" + job_tracker.format_cli_report() + "\n")
+                return
             if sel.isdigit() and 1 <= int(sel) <= len(matched_jobs):
                 target_job = matched_jobs[int(sel) - 1]
             elif sel:
@@ -206,6 +216,8 @@ def run_alma_job_search_workflow(query_text: str = ""):
     print(f"\n[CIEAV INTERCEPTOR] Outbound application held for human governance:")
     print(f"  Target Company : {target_job['company']}")
     print(f"  Role           : {target_job['role']}")
+    print(f"  Platform       : {target_job.get('platform', 'Direct')}")
+    print(f"  Listing URL    : {target_job.get('listing_url', 'Direct')}")
     print(f"  Risk Level     : {gov['risk']} (Policy Floor: Outbound PII & Legal Intent)")
     print(f"  Redacted PII   : {gov['args_redacted']}")
     print(f"  Policy Reason  : {', '.join(gov['reasons'])}")
@@ -217,20 +229,27 @@ def run_alma_job_search_workflow(query_text: str = ""):
     except (KeyboardInterrupt, EOFError):
         print("\nApplication cancelled.")
         gateway.cancel(action_id)
+        job_tracker.update_application_status(action_id, status="CANCELLED")
         return
 
     if choice == "COMMIT" or choice.lower() in ("y", "yes", "commit"):
         print("\n[4/4] [CIEAV] Committing application with single-use permit token...")
         appr = gateway.approve(action_id, approved_by="aravindh-human-operator")
-        last_committed_receipt_id = appr.get("receipt_id")
+        last_committed_receipt_id = appr.get("receipt_id", "")
+        job_tracker.update_application_status(action_id, status="COMMITTED", receipt_id=last_committed_receipt_id)
         print(f"  ✅ Status     : COMMITTED")
         print(f"  ✅ Outcome    : {appr.get('outcome')}")
         print(f"  ✅ Signed ID  : {last_committed_receipt_id[:8]} (Ed25519 Chain)")
         print(f"  ✅ Result     : {appr.get('result', {}).get('message', 'Submitted')}")
+        print(f"  ✅ Platform Sourced : {target_job.get('platform', 'Direct')}")
         print("\n[TWO-PHASE SAFETY GUARANTEE] You can withdraw this application anytime by typing: /undo\n")
     else:
         print("[CIEAV] Action cancelled by operator. No PII transmitted.\n")
         gateway.cancel(action_id)
+        job_tracker.update_application_status(action_id, status="CANCELLED")
+
+    # Print real-time auto-updated report summary
+    print(job_tracker.format_cli_report() + "\n")
 
 def process_user_input(text: str):
     cmd = text.strip()
@@ -272,6 +291,9 @@ Natural Language Task Examples:
         return
     elif lower in ("/undo", "undo"):
         handle_undo()
+        return
+    elif lower in ("/jobs", "jobs", "/report", "report"):
+        print("\n" + job_tracker.format_cli_report() + "\n")
         return
     elif lower in ("/reset", "reset"):
         receipts.clear_all_receipts()
