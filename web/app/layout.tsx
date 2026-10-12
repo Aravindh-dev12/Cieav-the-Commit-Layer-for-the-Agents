@@ -3,9 +3,9 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'armadin — Ideas with a pulse',
-  description: 'armadin is an independent creative studio building distinct identities and digital spaces.',
-  generator: 'v0.app',
+  title: 'CIEAV — The Commit Layer for the Internet & Autonomous Agents',
+  description: 'Deterministic safety floors, Ed25519 cryptographic receipts, and two-phase atomic rollbacks for local computer agents and web actions.',
+  generator: 'CIEAV Core',
   icons: {
     icon: [
       {
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'light',
-  themeColor: '#f8f7ee',
+  themeColor: '#09090b',
 }
 
 export default function RootLayout({
