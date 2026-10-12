@@ -19,6 +19,8 @@ import {
   X,
   ChevronRight,
   Play,
+  Activity,
+  Layers,
 } from 'lucide-react'
 
 type Section = {
@@ -90,42 +92,182 @@ const benchmarkData = [
   { metric: 'Decision Latency Overhead', jev: '450ms', kev: '380ms', laya: '410ms', cieav: '1.8ms (Local Python/C Core)' },
 ]
 
-function Row({ left, mid, right }: { left: string; mid: React.ReactNode; right?: string }) {
-  return (
-    <div className="rv">
-      <div className="hv grid grid-cols-[3.2rem_1fr_auto] gap-x-3 py-[9px] text-[15px] leading-[1.25] tracking-[-.02em]">
-        <span className="text-black/45 font-mono text-xs">{left}</span>
-        <span>{mid}</span>
-        <span className="text-black/45 font-mono text-xs">{right}</span>
-      </div>
-    </div>
-  )
-}
+// Liquid Interactive Monogram Canvas Component
+function LiquidLogoCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [coords, setCoords] = useState({ x: 90.5, y: 34.7 })
+  const mouseRef = useRef({ x: -1000, y: -1000, active: false })
 
-function Card({ s, cls, indent = false, children }: { s: Section; cls: string; indent?: boolean; children: React.ReactNode }) {
+  useEffect(() => {
+    const cv = canvasRef.current
+    if (!cv) return
+    const ctx = cv.getContext('2d')
+    if (!ctx) return
+
+    let animationFrameId: number
+    let time = 0
+
+    const resize = () => {
+      const rect = cv.getBoundingClientRect()
+      const dpr = Math.min(2, window.devicePixelRatio || 1)
+      cv.width = rect.width * dpr
+      cv.height = rect.height * dpr
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    }
+    resize()
+    window.addEventListener('resize', resize)
+
+    // Base polygon points for the stylized 'C' / CIEAV stepped monogram
+    const baseGlyph = [
+      { x: 0.45, y: -0.65 },
+      { x: 0.45, y: -0.28 },
+      { x: -0.05, y: -0.28 },
+      { x: -0.05, y: 0.28 },
+      { x: 0.45, y: 0.28 },
+      { x: 0.45, y: 0.65 },
+      { x: -0.55, y: 0.65 },
+      { x: -0.55, y: 0.22 },
+      { x: -0.72, y: 0.22 },
+      { x: -0.72, y: -0.22 },
+      { x: -0.55, y: -0.22 },
+      { x: -0.55, y: -0.65 },
+    ]
+
+    const render = () => {
+      time += 0.022
+      const rect = cv.getBoundingClientRect()
+      const w = rect.width
+      const h = rect.height
+
+      ctx.clearRect(0, 0, w, h)
+
+      const cx = w * 0.52
+      const cy = h * 0.5
+      const scale = Math.min(w, h) * 0.42
+
+      // Draw subtle crosshair grid lines
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.09)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(0, cy)
+      ctx.lineTo(w, cy)
+      const angleOffset = Math.sin(time * 0.4) * 6
+      ctx.moveTo(cx + 10 + angleOffset, 0)
+      ctx.lineTo(cx - 10 - angleOffset, h)
+      ctx.stroke()
+
+      // Calculate fluid vertices with organic harmonic wave noise
+      const pts = baseGlyph.map((p, idx) => {
+        const waveX = Math.sin(time * 2.2 + p.y * 3.8 + idx * 0.7) * 0.048 +
+                      Math.cos(time * 1.4 + p.x * 2.6) * 0.028
+        const waveY = Math.cos(time * 2.4 + p.x * 3.8 + idx * 0.7) * 0.048 +
+                      Math.sin(time * 1.8 + p.y * 2.6) * 0.028
+
+        let px = cx + (p.x + waveX) * scale
+        let py = cy + (p.y + waveY) * scale
+
+        // Interactive mouse repulsion (liquid ferrofluid dynamic)
+        if (mouseRef.current.active) {
+          const dx = px - mouseRef.current.x
+          const dy = py - mouseRef.current.y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist < 130) {
+            const force = (1 - dist / 130) * 24
+            px += (dx / (dist || 1)) * force
+            py += (dy / (dist || 1)) * force
+          }
+        }
+
+        return { x: px, y: py }
+      })
+
+      // Draw smooth liquid contour using quadratic curve smoothing
+      ctx.beginPath()
+      ctx.fillStyle = '#09090b' // Black liquid fill
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.22)'
+      ctx.shadowBlur = 28
+      ctx.shadowOffsetY = 10
+
+      const len = pts.length
+      ctx.moveTo((pts[0].x + pts[len - 1].x) / 2, (pts[0].y + pts[len - 1].y) / 2)
+      for (let i = 0; i < len; i++) {
+        const next = pts[(i + 1) % len]
+        const midX = (pts[i].x + next.x) / 2
+        const midY = (pts[i].y + next.y) / 2
+        ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY)
+      }
+      ctx.closePath()
+      ctx.fill()
+      ctx.shadowColor = 'transparent'
+
+      // Specular liquid stroke
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)'
+      ctx.lineWidth = 2.5
+      ctx.stroke()
+
+      // Idle coordinate drift if mouse is not over canvas
+      if (!mouseRef.current.active) {
+        setCoords({
+          x: 90.5 + Math.sin(time * 0.8) * 3.5,
+          y: 34.7 + Math.cos(time * 0.6) * 3.2,
+        })
+      }
+
+      animationFrameId = requestAnimationFrame(render)
+    }
+
+    render()
+
+    const onPointerMove = (e: MouseEvent) => {
+      const rect = cv.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+      mouseRef.current = { x: mx, y: my, active: true }
+      const normX = ((mx / rect.width) * 100).toFixed(1)
+      const normY = ((my / rect.height) * 100).toFixed(1)
+      setCoords({ x: parseFloat(normX), y: parseFloat(normY) })
+    }
+
+    const onPointerLeave = () => {
+      mouseRef.current.active = false
+    }
+
+    cv.addEventListener('mousemove', onPointerMove)
+    cv.addEventListener('mouseleave', onPointerLeave)
+
+    return () => {
+      cancelAnimationFrame(animationFrameId)
+      window.removeEventListener('resize', resize)
+      cv.removeEventListener('mousemove', onPointerMove)
+      cv.removeEventListener('mouseleave', onPointerLeave)
+    }
+  }, [])
+
   return (
-    <article id={s.id} className={`rv scroll-mt-20 ${cls}`}>
-      <header className="grid grid-cols-[3rem_1fr_auto] gap-x-2 text-[15px] leading-[1.25] tracking-[-.02em]">
-        <span className="font-mono text-xs text-black/40">{s.num}</span>
-        <span>
-          <span className="font-semibold">{s.title}</span>
-          {s.sub.map((l) => (
-            <span key={l} className="block text-black/55">{l}</span>
-          ))}
-        </span>
-        <span className="text-black/45 font-mono text-xs">{s.meta}</span>
-      </header>
-      <div className={`mt-8 ${indent ? 'lg:ml-[50%]' : ''}`}>{children}</div>
-    </article>
+    <div className="relative flex h-[380px] sm:h-[420px] lg:h-[460px] w-full items-center justify-center rounded-2xl border border-zinc-200/90 bg-zinc-50/70 p-4 shadow-sm overflow-hidden group">
+      {/* Dynamic Coordinate Tag */}
+      <div className="absolute top-6 left-6 font-mono text-xs font-semibold tracking-wider text-blue-600 bg-white/90 px-3 py-1.5 rounded-md border border-blue-100 shadow-sm z-10 backdrop-blur-md">
+        【X {coords.x.toFixed(1)}, Y {coords.y.toFixed(1)}】
+      </div>
+
+      <div className="absolute top-6 right-6 font-mono text-[10px] text-zinc-500 bg-white/80 px-2 py-1 rounded border border-zinc-200">
+        ED25519 VERIFIED GLYPH
+      </div>
+
+      <div className="absolute bottom-5 right-6 text-[10px] font-mono text-zinc-400">
+        INTERACTIVE LIQUID C MONOGRAM • HOVER TO DISTORT
+      </div>
+
+      <canvas ref={canvasRef} className="h-full w-full cursor-crosshair" />
+    </div>
   )
 }
 
 export default function Page() {
   const rootRef = useRef<HTMLElement>(null)
-  const [active, setActive] = useState('home')
-  const [copiedText, setCopiedText] = useState('')
   const [activeInstallTab, setActiveInstallTab] = useState<'powershell' | 'bash' | 'git'>('powershell')
   const [showSignInModal, setShowSignInModal] = useState(false)
+  const [copiedText, setCopiedText] = useState('')
   const [terminalInput, setTerminalInput] = useState('')
   const [terminalLogs, setTerminalLogs] = useState<string[]>([
     'CIEAV Native Control Plane initialized.',
@@ -267,42 +409,52 @@ export default function Page() {
       </header>
 
       {/* Main Content Layout */}
-      <div className="mx-auto max-w-6xl px-6 py-12 md:py-20">
-        {/* Section 00: Home Hero */}
+      <div className="mx-auto max-w-6xl px-6 py-12 md:py-16">
+        {/* Section 00: Home Hero with Liquid Monogram Logo on the Right */}
         <section id="home" className="rv scroll-mt-24 border-b border-zinc-200 pb-16">
-          <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-700">
-            <ShieldCheck size={14} className="text-zinc-950" />
-            <span>Deterministic Safety Floors • Cryptographic Ed25519 Receipts • Two-Phase Rollback</span>
-          </div>
+          <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
+            {/* Left Hero Column */}
+            <div className="lg:col-span-7">
+              <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-700">
+                <ShieldCheck size={14} className="text-zinc-950" />
+                <span>Deterministic Safety Floors • Cryptographic Ed25519 Receipts • Two-Phase Rollback</span>
+              </div>
 
-          <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl lg:text-6xl">
-            The Commit Layer for the Internet & Autonomous Agents
-          </h1>
+              <h1 className="mt-6 text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl lg:text-6xl leading-[1.08]">
+                The Commit Layer for the Internet & Autonomous Agents
+              </h1>
 
-          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-zinc-600">
-            CIEAV sits between humans, AI agents (Claude Code, Cursor, Alma.inc), and digital side-effects.
-            Cloud models interpret intent. Deterministic safety, PII redaction, and execution authority stay 100% local on your laptop.
-          </p>
+              <p className="mt-6 text-base sm:text-lg leading-relaxed text-zinc-600 max-w-xl">
+                CIEAV sits between humans, AI agents (Claude Code, Cursor, Alma.inc), and digital side-effects.
+                Cloud models interpret intent. Deterministic safety, PII redaction, and execution authority stay 100% local on your laptop.
+              </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <a
-              href="#install"
-              className="inline-flex items-center gap-2 rounded-md bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-zinc-800"
-            >
-              Get Started Locally <ArrowUpRight size={15} />
-            </a>
-            <a
-              href="#alma-agent"
-              className="inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
-            >
-              Explore Alma Computer Control
-            </a>
-            <a
-              href="#decision-models"
-              className="inline-flex items-center gap-2 rounded-md border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100"
-            >
-              Decision Models Benchmark (Jev 1.13)
-            </a>
+              <div className="mt-8 flex flex-wrap items-center gap-4">
+                <a
+                  href="#install"
+                  className="inline-flex items-center gap-2 rounded-md bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-zinc-800"
+                >
+                  Get Started Locally <ArrowUpRight size={15} />
+                </a>
+                <a
+                  href="#alma-agent"
+                  className="inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+                >
+                  Explore Alma Computer Control
+                </a>
+                <a
+                  href="#decision-models"
+                  className="inline-flex items-center gap-2 rounded-md border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100"
+                >
+                  Decision Models (Jev 1.13)
+                </a>
+              </div>
+            </div>
+
+            {/* Right Hero Column: Liquid Animated 'C' Monogram Presentation */}
+            <div className="lg:col-span-5">
+              <LiquidLogoCanvas />
+            </div>
           </div>
         </section>
 
@@ -318,7 +470,6 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Tab Selector */}
           <div className="mt-8">
             <div className="flex items-center gap-2 border-b border-zinc-200 pb-2">
               <button
@@ -710,24 +861,97 @@ export default function Page() {
         </section>
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-200 bg-zinc-50 py-12 px-6">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 md:flex-row">
-          <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded bg-zinc-950 text-xs font-bold text-white">
-              C
-            </span>
-            <span className="font-mono text-xs font-semibold text-zinc-800">CIEAV Commit Layer 0.8.0</span>
+      {/* Massive Bold Footer with Large Font Typography and Logo */}
+      <footer className="border-t border-zinc-800 bg-zinc-950 text-white pt-20 pb-12 px-6">
+        <div className="mx-auto max-w-6xl">
+          {/* Hero Brand Block */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-zinc-800 pb-12 gap-8">
+            <div className="flex items-center gap-6">
+              <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-white text-zinc-950 text-3xl sm:text-4xl font-black shadow-2xl">
+                C
+              </div>
+              <div>
+                <h1 className="text-6xl sm:text-7xl md:text-8xl font-black tracking-tighter text-white font-mono leading-none">
+                  CIEAV
+                </h1>
+                <p className="mt-2 text-xs sm:text-sm font-mono tracking-widest text-zinc-400 uppercase">
+                  The Commit Layer for the Internet & Autonomous Agents
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-start md:items-end gap-2 text-xs font-mono text-zinc-400">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-emerald-400">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                Ed25519 Cryptographic Ledger Active
+              </span>
+              <span>Local Authority • Zero Remote Replay Authority</span>
+            </div>
           </div>
-          <p className="text-xs text-zinc-500 text-center md:text-right">
-            Open Source • MIT Licensed • Deterministic Safety Floors & Ed25519 Hash-Chained Receipts
-          </p>
+
+          {/* Footer Navigation Columns */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 py-12 border-b border-zinc-800/80 text-xs">
+            <div>
+              <h4 className="font-mono uppercase font-semibold text-zinc-400 tracking-wider mb-4">Architecture</h4>
+              <ul className="space-y-2 text-zinc-300">
+                <li><a href="#install" className="hover:text-white transition">One-Line Setup</a></li>
+                <li><a href="#agent-cli" className="hover:text-white transition">Agent CLI Commands</a></li>
+                <li><a href="#alma-agent" className="hover:text-white transition">Alma Computer Control</a></li>
+                <li><a href="#decision-models" className="hover:text-white transition">Decision Models</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-mono uppercase font-semibold text-zinc-400 tracking-wider mb-4">Security Invariants</h4>
+              <ul className="space-y-2 text-zinc-300">
+                <li><a href="#security" className="hover:text-white transition">Deterministic Floor</a></li>
+                <li><a href="#security" className="hover:text-white transition">Single-Use 60s Permits</a></li>
+                <li><a href="#security" className="hover:text-white transition">Two-Phase Undo Engine</a></li>
+                <li><a href="#security" className="hover:text-white transition">Automatic PII Redaction</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-mono uppercase font-semibold text-zinc-400 tracking-wider mb-4">Integrations</h4>
+              <ul className="space-y-2 text-zinc-300">
+                <li><span className="text-zinc-500">cfo.ai</span> — Spend Governance ($25 Cap)</li>
+                <li><span className="text-zinc-500">Entire</span> — Checkpoint Provenance</li>
+                <li><span className="text-zinc-500">neatlogs</span> — Real-time Spans</li>
+                <li><span className="text-zinc-500">SQLite</span> — Merkle Hash Chain</li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-mono uppercase font-semibold text-zinc-400 tracking-wider mb-4">Repository</h4>
+              <ul className="space-y-2 text-zinc-300">
+                <li>
+                  <a
+                    href="https://github.com/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Agents"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 hover:text-white transition"
+                  >
+                    GitHub Source <ExternalLink size={11} />
+                  </a>
+                </li>
+                <li><a href="https://cieav.vercel.app" className="hover:text-white transition">Hosted Portal ↗</a></li>
+                <li><span className="text-zinc-500">Version: 0.8.0 Release</span></li>
+                <li><span className="text-zinc-500">License: MIT Open Source</span></li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Copyright & Disclaimer */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-[11px] font-mono text-zinc-500">
+            <p>© 2026 CIEAV. Local authority commits. Cloud interpretation never performs remote execution.</p>
+            <p>Signed by Ed25519 Key ID: 130ce62f • Loopback 127.0.0.1:8000</p>
+          </div>
         </div>
       </footer>
 
       {/* Sign-In Modal */}
       {showSignInModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="relative w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-2xl">
             <button
               onClick={() => setShowSignInModal(false)}
