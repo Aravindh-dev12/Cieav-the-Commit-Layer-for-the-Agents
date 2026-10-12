@@ -32,6 +32,7 @@ Modern autonomous AI agents (such as Claude Code, Cursor, AutoGPT, and computer-
 - **Commit Layer (CIEAV)**: The authoritative local gateway. Tools **cannot execute** without a single-use, 60-second cryptographic token issued by CIEAV.
 
 ```
+
 ┌─────────────────────────────────────────────────────────────┐
 │                 AUTONOMOUS AGENT REASONING                  │
 │       (Claude Code / Cursor / Alma Desktop / AutoGPT)       │
@@ -229,8 +230,11 @@ cieav> /status                                              # View signing key I
 
 
 ---
+## 7. Check the Video 
 
-## 7. Directory Structure
+https://www.loom.com/share/5e0c06f2fe1d4f02852c4dd5f9ff5c01?t=4
+
+## 8. Directory Structure
 
 ```text
 Cieav-the-Commit-Layer-for-the-Internet/
