@@ -27,7 +27,7 @@ from commit_layer.tools.repo import RealRepoFileTool
 BANNER = r"""
 ==============================================================================
    C I E A V   C H A T  --  Governed AI Terminal Agent
-   The Commit Layer for Autonomous AI Coding (like Claude Code)
+   The Commit Layer for Computer Control & Autonomous Agents (like Alma & Claude Code)
 ==============================================================================
 Type your instruction or use commands:
   /help       - Show available commands & examples
@@ -220,24 +220,44 @@ Natural Language Task Examples:
             print(f"Directory not found: {target}")
         return
 
-    if cmd.startswith("delete "):
-        target = cmd[7:].strip().strip('"').strip("'")
+    if cmd.startswith("delete ") or cmd.startswith("rm "):
+        target = cmd.split(" ", 1)[1].strip().strip('"').strip("'")
+        if target.startswith("file "):
+            target = target[5:].strip().strip('"').strip("'")
         execute_governed_action("repo_file_action", {"file_path": target, "operation": "delete"})
         return
 
-    if cmd.startswith("modify ") or cmd.startswith("write "):
+    if cmd.startswith("modify ") or cmd.startswith("write ") or cmd.startswith("create "):
         parts = cmd.split(" ", 2)
         if len(parts) >= 3:
             target = parts[1].strip().strip('"').strip("'")
             new_content = parts[2].strip()
             execute_governed_action("repo_file_action", {"file_path": target, "operation": "modify", "content": new_content})
         else:
-            print("Usage: modify <file_path> <content>")
+            print("Usage: modify <file_path> <content> or create <file_path> <content>")
+        return
+
+    if cmd.startswith("exec ") or cmd.startswith("run "):
+        shell_cmd = cmd.split(" ", 1)[1].strip()
+        execute_governed_action("run_terminal_command", {"command": shell_cmd})
+        return
+
+    if cmd.startswith("pay "):
+        parts = cmd.split()
+        if len(parts) >= 3:
+            try:
+                amt = float(parts[1].replace("$", ""))
+                recipient = parts[2]
+                execute_governed_action("send_payment", {"amount": amt, "to": recipient})
+                return
+            except ValueError:
+                pass
+        print("Usage: pay <amount> <recipient> (e.g. pay 50 merchant_a)")
         return
 
     # Fallback to smart intent matching
     words = lower.split()
-    if "undo" in words:
+    if "undo" in words or "/undo" in words:
         handle_undo()
         return
     elif "status" in words:
@@ -247,12 +267,42 @@ Natural Language Task Examples:
         show_receipts()
         return
 
+    # Check for natural language "pay $X to Y"
+    if "pay" in words and any(w.startswith("$") or w.isdigit() for w in words):
+        amt = 0.0
+        rec = "merchant_a"
+        for w in words:
+            clean = w.replace("$", "")
+            try:
+                amt = float(clean)
+                break
+            except ValueError:
+                continue
+        if "to" in words:
+            to_idx = words.index("to")
+            if to_idx + 1 < len(words):
+                rec = words[to_idx + 1]
+        if amt > 0:
+            execute_governed_action("send_payment", {"amount": amt, "to": rec})
+            return
+
+    # Check for natural language "delete ..."
+    if "delete" in words:
+        for w in words:
+            if "." in w or "/" in w or "\\" in w:
+                execute_governed_action("repo_file_action", {"file_path": w, "operation": "delete"})
+                return
+
     print(f"\n[AI AGENT INTERPRETER] Instruction received: '{cmd}'")
-    print("Tip: To execute governed actions on your repos, you can use:")
-    print("  delete <filepath>  -> Intercepted as CRITICAL with Undo")
-    print("  modify <filepath> <content> -> Intercepted with snapshot")
-    print("  read <filepath>    -> Safe read inspection")
-    print("  list <dirpath>     -> Safe folder listing\n")
+    print("Tip: To control your computer safely via CIEAV (like Alma / Claude Code):")
+    print("  exec <shell_cmd>              -> Governed command execution (filtered for harm)")
+    print("  create <file> <content>       -> Governed file creation with snapshot")
+    print("  modify <file> <content>       -> Governed file modification with snapshot")
+    print("  delete <filepath>             -> Intercepted as CRITICAL with 2-Phase Undo")
+    print("  read <filepath>               -> Safe lossless inspection")
+    print("  list <dirpath>                -> Safe directory listing")
+    print("  pay <amount> <recipient>      -> Governed financial transfer with spend bounds")
+    print("  /undo                         -> Instant cryptographic rollback of last action\n")
 
 
 def main(argv: list[str] | None = None) -> int:
