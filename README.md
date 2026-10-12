@@ -3,6 +3,7 @@
 > **"Commit is not success."**  
 > An autonomous agent issuing an action is only an unverified intent dispatch. Whether the physical or digital world actually completed that transaction safely, deterministically, and reversibly requires an immutable safety floor, independent state observation, single-use cryptographic permits, and guaranteed two-phase rollback.
 
+Video : https://www.loom.com/share/5e0c06f2fe1d4f02852c4dd5f9ff5c01?t=4
 ---
 
 ## Table of Contents
@@ -230,11 +231,8 @@ cieav> /status                                              # View signing key I
 
 
 ---
-## 7. Check the Video 
 
-https://www.loom.com/share/5e0c06f2fe1d4f02852c4dd5f9ff5c01?t=4
-
-## 8. Directory Structure
+## 7. Directory Structure
 
 ```text
 Cieav-the-Commit-Layer-for-the-Internet/
