@@ -15,7 +15,25 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.environ.get("COMMIT_LAYER_DB", "commit_layer/commit_layer.db")
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _resolve_safe_auth_db() -> str:
+    env_p = os.environ.get("COMMIT_LAYER_DB")
+    if env_p:
+        return os.path.abspath(env_p)
+    try:
+        os.makedirs(PACKAGE_DIR, exist_ok=True)
+        test_file = os.path.join(PACKAGE_DIR, ".write_test_auth")
+        with open(test_file, "w") as f:
+            f.write("ok")
+        os.remove(test_file)
+        return os.path.join(PACKAGE_DIR, "commit_layer.db")
+    except (PermissionError, OSError):
+        user_dir = os.path.join(os.path.expanduser("~"), ".cieav")
+        os.makedirs(user_dir, exist_ok=True)
+        return os.path.join(user_dir, "commit_layer.db")
+
+DB_PATH = _resolve_safe_auth_db()
 
 
 def _hash_password(password: str, salt: Optional[str] = None) -> tuple[str, str]:

@@ -10,36 +10,82 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 from cryptography.hazmat.primitives import serialization
 
 
-DB_PATH = os.environ.get("COMMIT_LAYER_DB", "commit_layer/commit_layer.db")
-KEY_PATH = os.environ.get("COMMIT_LAYER_KEY", "commit_layer/signing_key.pem")
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _resolve_safe_path(env_var: str, filename: str) -> str:
+    env_val = os.environ.get(env_var)
+    if env_val:
+        return os.path.abspath(env_val)
+    # Check if package directory is writable
+    try:
+        os.makedirs(PACKAGE_DIR, exist_ok=True)
+        test_file = os.path.join(PACKAGE_DIR, f".write_test_{filename}")
+        with open(test_file, "w") as f:
+            f.write("ok")
+        os.remove(test_file)
+        return os.path.join(PACKAGE_DIR, filename)
+    except (PermissionError, OSError):
+        user_dir = os.path.join(os.path.expanduser("~"), ".cieav")
+        os.makedirs(user_dir, exist_ok=True)
+        return os.path.join(user_dir, filename)
+
+DB_PATH = _resolve_safe_path("COMMIT_LAYER_DB", "commit_layer.db")
+KEY_PATH = _resolve_safe_path("COMMIT_LAYER_KEY", "signing_key.pem")
 
 
 def init_db() -> None:
     """Initialize the receipts SQLite database and create the table if it does not exist."""
-    os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
-    with sqlite3.connect(DB_PATH) as conn:
-        # Use rowid for ordering, allowing duplicate ids for append-only updates
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS receipts (
-                rowid INTEGER PRIMARY KEY AUTOINCREMENT,
-                id TEXT,
-                prev_hash TEXT,
-                timestamp REAL,
-                agent_id TEXT,
-                tool TEXT,
-                args_redacted TEXT,
-                risk TEXT,
-                decision TEXT,
-                approved_by TEXT,
-                status TEXT,
-                outcome TEXT,
-                undo_state TEXT,
-                signature TEXT,
-                key_id TEXT,
-                result TEXT
-            )
-        """)
-        conn.commit()
+    global DB_PATH
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS receipts (
+                    rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id TEXT,
+                    prev_hash TEXT,
+                    timestamp REAL,
+                    agent_id TEXT,
+                    tool TEXT,
+                    args_redacted TEXT,
+                    risk TEXT,
+                    decision TEXT,
+                    approved_by TEXT,
+                    status TEXT,
+                    outcome TEXT,
+                    undo_state TEXT,
+                    signature TEXT,
+                    key_id TEXT,
+                    result TEXT
+                )
+            """)
+            conn.commit()
+    except (PermissionError, OSError):
+        user_dir = os.path.join(os.path.expanduser("~"), ".cieav")
+        os.makedirs(user_dir, exist_ok=True)
+        DB_PATH = os.path.join(user_dir, "commit_layer.db")
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS receipts (
+                    rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id TEXT,
+                    prev_hash TEXT,
+                    timestamp REAL,
+                    agent_id TEXT,
+                    tool TEXT,
+                    args_redacted TEXT,
+                    risk TEXT,
+                    decision TEXT,
+                    approved_by TEXT,
+                    status TEXT,
+                    outcome TEXT,
+                    undo_state TEXT,
+                    signature TEXT,
+                    key_id TEXT,
+                    result TEXT
+                )
+            """)
+            conn.commit()
 
 
 def get_signing_key() -> Tuple[Ed25519PrivateKey, Ed25519PublicKey, str]:
@@ -47,25 +93,40 @@ def get_signing_key() -> Tuple[Ed25519PrivateKey, Ed25519PublicKey, str]:
     Load the Ed25519 signing key from KEY_PATH or generate a new one if it doesn't exist.
     Returns: (private_key, public_key, key_id)
     """
-    os.makedirs(os.path.dirname(os.path.abspath(KEY_PATH)), exist_ok=True)
-    
-    if os.path.exists(KEY_PATH):
-        with open(KEY_PATH, "rb") as f:
-            private_key = serialization.load_pem_private_key(
-                f.read(),
-                password=None
-            )
-            if not isinstance(private_key, Ed25519PrivateKey):
-                raise ValueError("Key is not an Ed25519 private key")
-    else:
-        private_key = Ed25519PrivateKey.generate()
-        with open(KEY_PATH, "wb") as f:
-            f.write(private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            ))
-            
+    global KEY_PATH
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(KEY_PATH)), exist_ok=True)
+        if os.path.exists(KEY_PATH):
+            with open(KEY_PATH, "rb") as f:
+                private_key = serialization.load_pem_private_key(f.read(), password=None)
+                if not isinstance(private_key, Ed25519PrivateKey):
+                    raise ValueError("Key is not an Ed25519 private key")
+        else:
+            private_key = Ed25519PrivateKey.generate()
+            with open(KEY_PATH, "wb") as f:
+                f.write(private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption()
+                ))
+    except (PermissionError, OSError):
+        user_dir = os.path.join(os.path.expanduser("~"), ".cieav")
+        os.makedirs(user_dir, exist_ok=True)
+        KEY_PATH = os.path.join(user_dir, "signing_key.pem")
+        if os.path.exists(KEY_PATH):
+            with open(KEY_PATH, "rb") as f:
+                private_key = serialization.load_pem_private_key(f.read(), password=None)
+                if not isinstance(private_key, Ed25519PrivateKey):
+                    raise ValueError("Key is not an Ed25519 private key")
+        else:
+            private_key = Ed25519PrivateKey.generate()
+            with open(KEY_PATH, "wb") as f:
+                f.write(private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption()
+                ))
+        
     public_key = private_key.public_key()
     pub_bytes = public_key.public_bytes(
         encoding=serialization.Encoding.Raw,

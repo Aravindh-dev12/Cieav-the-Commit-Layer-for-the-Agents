@@ -155,7 +155,7 @@ def execute_governed_action(tool_name: str, args: dict, agent_id: str = "cieav-c
         last_committed_receipt_id = eval_res.get("receipt_id")
 
 
-def run_alma_job_search_workflow():
+def run_alma_job_search_workflow(query_text: str = ""):
     global last_committed_receipt_id
 
     print("\n" + "=" * 76)
@@ -173,17 +173,33 @@ def run_alma_job_search_workflow():
     profile = parse_resume(resume_path)
     print(f"  👤 Candidate : {profile['name']} ({profile['headline']})")
     print(f"  📍 Location  : {profile['location']}")
+    if profile.get('phone'):
+        print(f"  📞 Phone     : {profile['phone']}")
     print(f"  🛠️  Skills    : {', '.join(profile['skills'][:6])}...")
     print(f"  🔗 Profiles  : {profile['github']} | {profile['linkedin']}")
 
     print("\n[2/4] Researching LinkedIn & Google Jobs for high-fit engineering roles...")
-    matched_jobs = search_matched_jobs(profile)
-    for i, j in enumerate(matched_jobs, 1):
+    matched_jobs = search_matched_jobs(profile, query=query_text)
+    for i, j in enumerate(matched_jobs[:6], 1):
         print(f"  [{i}] {j['company']} - {j['role']} (Match: {j['match_score']}%)")
         print(f"      Reasons: {'; '.join(j['match_reasons'][:2])}")
 
-    target_job = matched_jobs[0]  # Top match: Anthropic
-    print(f"\n[3/4] Preparing application dossier for #1 match: {target_job['company']}...")
+    # Allow operator to choose target role or specify custom company
+    target_job = matched_jobs[0]
+    # If the user's query didn't explicitly target one company, allow selection
+    has_explicit_company = any(c.lower() in query_text.lower() for c in ["google", "openai", "cursor", "anthropic", "vercel", "cognition", "microsoft", "meta", "amazon", "apple"])
+    if not has_explicit_company and len(matched_jobs) > 1:
+        try:
+            sel = input("\nSelect role to apply [1-6, or enter custom company name, default: 1]: ").strip()
+            if sel.isdigit() and 1 <= int(sel) <= len(matched_jobs):
+                target_job = matched_jobs[int(sel) - 1]
+            elif sel:
+                target_job = search_matched_jobs(profile, query=sel)[0]
+        except (KeyboardInterrupt, EOFError):
+            print("\nCancelled.")
+            return
+
+    print(f"\n[3/4] Preparing application dossier for: {target_job['company']} ({target_job['role']})...")
     gov = prepare_and_govern_application(profile, target_job, agent_id="alma-terminal-agent")
 
     action_id = gov["action_id"]
@@ -216,12 +232,16 @@ def run_alma_job_search_workflow():
         print("[CIEAV] Action cancelled by operator. No PII transmitted.\n")
         gateway.cancel(action_id)
 
-
 def process_user_input(text: str):
-
     cmd = text.strip()
     if not cmd:
         return
+
+    # Strip redundant leading 'cieav ' and quotes if user typed full CLI command inside chat shell
+    if cmd.lower().startswith("cieav "):
+        cmd = cmd[6:].strip()
+        if (cmd.startswith('"') and cmd.endswith('"')) or (cmd.startswith("'") and cmd.endswith("'")):
+            cmd = cmd[1:-1].strip()
 
     lower = cmd.lower()
     if lower in ("exit", "quit", "/quit", "/exit"):
@@ -328,7 +348,7 @@ Natural Language Task Examples:
     # Fallback to smart intent matching
     words = lower.split()
     if any(k in words for k in ("job", "jobs", "resume", "apply", "linkedin", "career", "alma")):
-        run_alma_job_search_workflow()
+        run_alma_job_search_workflow(query_text=cmd)
         return
 
     if "undo" in words or "/undo" in words:
