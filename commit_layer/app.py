@@ -314,7 +314,7 @@ async def reset_sandbox():
     receipts.clear_all_receipts()
     gateway.pending_actions.clear()
     cfo.reset_spend()
-    friction.approval_history.clear()
+    friction.reset_friction()
     return {"status": "reset", "state": sandbox.snapshot(), "receipts_count": 0}
 
 

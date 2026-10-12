@@ -33,8 +33,8 @@ def classify(action: Action) -> tuple[RiskLevel | None, str]:
     except Exception as e:
         logger.debug("Remote ensemble not active: %s", e)
 
-    # 2. AWS Bedrock Converse fallback
-    if os.environ.get("AWS_ACCESS_KEY_ID") and os.environ.get("AWS_SECRET_ACCESS_KEY"):
+    # 2. AWS Bedrock Converse fallback (if explicitly enabled)
+    if os.environ.get("ENABLE_AWS_BEDROCK", "false").lower() == "true" and os.environ.get("AWS_ACCESS_KEY_ID") and os.environ.get("AWS_SECRET_ACCESS_KEY"):
         try:
             from commit_layer import telemetry
             client, provider = telemetry.get_llm_client()

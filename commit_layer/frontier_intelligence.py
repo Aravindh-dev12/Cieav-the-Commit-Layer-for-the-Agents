@@ -231,6 +231,9 @@ def _classify_via_anthropic(action: Action, config: dict) -> dict[str, Any]:
 
 def _classify_via_bedrock(action: Action, config: dict) -> dict[str, Any]:
     """Classify risk using AWS Bedrock Converse API."""
+    if os.environ.get("ENABLE_AWS_BEDROCK", "false").lower() != "true":
+        return {"provider": "bedrock", "risk": None, "reason": "AWS Bedrock disabled", "latency_ms": 0}
+
     access_key = os.environ.get("AWS_ACCESS_KEY_ID", "").strip()
     secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY", "").strip()
     if not access_key or not secret_key:
@@ -391,9 +394,10 @@ def get_active_providers() -> list[str]:
         key_env = cfg.get("env_key", "")
         if os.environ.get(key_env, "").strip():
             active.append(name)
-    # Always check Bedrock separately
-    if "bedrock" not in active and os.environ.get("AWS_ACCESS_KEY_ID", "").strip() and os.environ.get("AWS_SECRET_ACCESS_KEY", "").strip():
-        active.append("bedrock")
+    # Always check Bedrock separately if explicitly enabled
+    if os.environ.get("ENABLE_AWS_BEDROCK", "false").lower() == "true":
+        if "bedrock" not in active and os.environ.get("AWS_ACCESS_KEY_ID", "").strip() and os.environ.get("AWS_SECRET_ACCESS_KEY", "").strip():
+            active.append("bedrock")
     return active
 
 

@@ -186,7 +186,7 @@ def run_hostile_email_scenario() -> dict[str, Any]:
         tool_call_target = {"amount": 5000.0, "to": "attacker_x"}
 
         # If live Bedrock / Anthropic is available, let the model read and format the tool call
-        if provider == "bedrock":
+        if provider == "bedrock" and os.environ.get("ENABLE_AWS_BEDROCK", "false").lower() == "true":
             try:
                 bedrock_tools = [{
                     "toolSpec": {

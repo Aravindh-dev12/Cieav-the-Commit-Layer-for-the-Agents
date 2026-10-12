@@ -11,6 +11,10 @@ def record_approval(user_id: str = 'default') -> None:
     """Record a user approval to track cognitive debt."""
     _approval_history[user_id].append(time.time())
 
+def reset_friction() -> None:
+    """Clear all approval history and reset cognitive debt to zero."""
+    _approval_history.clear()
+
 def get_cognitive_debt(user_id: str = 'default') -> float:
     """
     Calculate cognitive debt based on approvals in the last 60 seconds.
