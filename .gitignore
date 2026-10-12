@@ -29,3 +29,7 @@ commit_layer/*.db
 .pytest_cache/
 *.ccr_cache/
 .ccr_cache/
+*.repo_snapshots/
+.repo_snapshots/
+commit_layer/.repo_snapshots/
+

@@ -43,8 +43,9 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
     if tool == 'deploy_service':
         return RiskLevel.CRITICAL, ["Production service deployment / container reconfiguration"]
 
-    if tool == 'modify_code_file':
-        return RiskLevel.CRITICAL, ["Source code modification with filesystem overwrite"]
+    if tool in ('modify_code_file', 'repo_file_action'):
+        op = args.get('operation', 'modify')
+        return RiskLevel.CRITICAL, [f"Live repository filesystem action ({op})"]
 
     # ── Hardware & Physical operations ──────────────────────────
     if tool == 'power_cycle_device':
