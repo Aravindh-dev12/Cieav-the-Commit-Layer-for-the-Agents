@@ -69,7 +69,7 @@ Agent / MCP Client / Caller
 
 - **`decision_model.py`**: Embedded `/v1/decisions` and `/v1/systemone` engine. Answers typed decision questions (predicates, choice distributions, scores) in <3ms.
 - **`poppy.py`**: Autonomous Agent Gateway Protocol. Implements discovery at `/.well-known/poppy.json`, session issuance, and governed multi-turn dialogues.
-- **`webzero.py`**: Governed Action Surfaces engine. Enforces idempotency keys, Trajectory Evidence hashing, and evaluates the Agent Readiness Index (WARI / w0 score).
+- **`webzero.py`**: Governed Action Surfaces engine. Enforces idempotency keys, Trajectory Evidence hashing, and surface readiness evaluation.
 - **`headroom/`**: Context optimization middleware. Compresses JSON, code, and logs into a local content-addressable CCR vault, saving up to 95.8% of tokens.
 - **`memorable.py`**: Procedural graph memory. Caches verified `(precondition -> action -> postcondition -> outcome)` graphs in SQLite to bypass repetitive LLM turns safely.
 - **`connectors.py`**: Open connector & sovereign workspace module for managing external service integrations through the commit gateway.

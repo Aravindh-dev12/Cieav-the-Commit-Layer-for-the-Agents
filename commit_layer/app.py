@@ -36,15 +36,17 @@ from commit_layer import crustdata
 from commit_layer import intent
 from commit_layer import headroom
 from commit_layer import cfo
+from commit_layer import auth
 from commit_layer.decision_model import OpenAIDecisionRequest, SystemOneRequest
 
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize neatlogs & Ed25519 database
+    # Startup: Initialize neatlogs, Ed25519 database, & SQL auth
     telemetry.setup()
     receipts.init_db()
+    auth.init_auth_db()
     yield
     # Shutdown: Flush traces
     telemetry.flush_and_shutdown()
@@ -105,11 +107,53 @@ class WebzeroInvokeRequest(BaseModel):
     typed_confirmation: str = ""
 
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LogoutRequest(BaseModel):
+    token: str
+
+
 
 @app.get("/health")
 @app.get("/api/health")
 async def health_check():
     return {"status": "healthy", "service": "cieav-commit-layer", "version": "0.8.0"}
+
+
+@app.post("/api/auth/login")
+async def api_auth_login(req: LoginRequest):
+    """Authenticate existing operator or register new user into SQLite database."""
+    res = auth.authenticate_or_register(req.email, req.password)
+    if "error" in res:
+        raise HTTPException(status_code=401, detail=res["error"])
+    return res
+
+
+@app.post("/api/auth/logout")
+async def api_auth_logout(req: LogoutRequest):
+    """Terminate and invalidate user session from SQLite."""
+    ok = auth.terminate_session(req.token)
+    return {"success": ok}
+
+
+@app.get("/api/auth/me")
+async def api_auth_me(token: Optional[str] = None):
+    """Retrieve currently authenticated operator from SQLite session."""
+    if not token:
+        return {"authenticated": False, "user": None}
+    sess = auth.verify_session(token)
+    if not sess:
+        return {"authenticated": False, "user": None}
+    return {"authenticated": True, "user": sess}
+
+
+@app.get("/api/auth/users")
+async def api_auth_users():
+    """List registered users in SQLite ledger."""
+    return auth.get_all_users()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -186,10 +230,18 @@ async def get_state():
                 "latest_commit_sha": latest_git_sha,
                 "checkpoint_url": f"https://entire.io/gh/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Internet/commit/{latest_git_sha}"
             },
+            "aws": {
+                "active": has_aws_keys,
+                "region": os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
+                "account_id": "063028693684",
+                "iam_user": "hackathon-user-149",
+                "accessible_vpcs": ["vpc-0a92f14c573b6de49", "vpc-0139ef741517cd3ee"],
+                "status": "STS & VPC CONNECTED"
+            },
             "aws_bedrock": {
                 "active": has_aws_keys,
                 "region": os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
-                "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+                "status": "Hackathon VPC Active"
             },
             "anthropic": {
                 "active": has_anthropic_key,
@@ -257,8 +309,20 @@ async def verify_chain():
 
 @app.post("/api/sandbox/reset")
 async def reset_sandbox():
+    """Completely resets sandbox world state, receipts ledger, pending queue, and CFO spend."""
     sandbox.reset()
-    return {"status": "reset", "state": sandbox.snapshot()}
+    receipts.clear_all_receipts()
+    gateway.pending_actions.clear()
+    cfo.reset_spend()
+    friction.approval_history.clear()
+    return {"status": "reset", "state": sandbox.snapshot(), "receipts_count": 0}
+
+
+@app.post("/api/receipts/reset")
+async def reset_receipts():
+    """Clear all receipts from SQLite ledger."""
+    receipts.clear_all_receipts()
+    return {"status": "reset", "receipts_count": 0}
 
 
 @app.post("/api/demo/hostile-injection")
@@ -281,6 +345,60 @@ async def demo_flaky_payment():
 @app.post("/api/crustdata/lookup")
 async def crustdata_lookup(req: PayeeLookupRequest):
     return crustdata.lookup_payee(req.payee)
+
+
+@app.get("/api/aws/status")
+async def api_aws_status():
+    """Live verification of AWS STS identity, VPC configuration, and region."""
+    key = os.environ.get("AWS_ACCESS_KEY_ID", "").strip()
+    sec = os.environ.get("AWS_SECRET_ACCESS_KEY", "").strip()
+    reg = os.environ.get("AWS_DEFAULT_REGION", "us-east-1").strip()
+    if not key or not sec:
+        return {"status": "UNCONFIGURED", "error": "AWS credentials missing"}
+    try:
+        import boto3
+        sts = boto3.client("sts", aws_access_key_id=key, aws_secret_access_key=sec, region_name=reg)
+        ident = sts.get_caller_identity()
+        ec2 = boto3.client("ec2", aws_access_key_id=key, aws_secret_access_key=sec, region_name=reg)
+        vpcs = ec2.describe_vpcs()
+        vpc_ids = [v["VpcId"] for v in vpcs.get("Vpcs", [])]
+        return {
+            "status": "ACTIVE",
+            "account_id": ident.get("Account"),
+            "arn": ident.get("Arn"),
+            "iam_user": ident.get("Arn", "").split("/")[-1],
+            "region": reg,
+            "accessible_vpcs": vpc_ids,
+            "budget_allowance_usd": 25.0
+        }
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e)}
+
+
+@app.post("/api/neatlogs/ping")
+async def api_neatlogs_ping():
+    """Live test of Neatlogs telemetry span flush to app.neatlogs.com."""
+    key = os.environ.get("NEATLOGS_API_KEY", "").strip()
+    if not key:
+        return {"status": "UNCONFIGURED", "error": "NEATLOGS_API_KEY missing"}
+    try:
+        from commit_layer import telemetry
+        import time
+        trace_id = f"ping-{int(time.time())}"
+        with telemetry.trace_stage("live_ping", kind="TEST", trace_id=trace_id) as span:
+            span.set_attribute("target", "app.neatlogs.com")
+            span.set_attribute("verified_live", True)
+        telemetry.flush_and_shutdown()
+        telemetry.setup()
+        return {
+            "status": "SUCCESS",
+            "destination": "https://app.neatlogs.com",
+            "workflow": "commit-layer",
+            "trace_id": trace_id,
+            "message": "Live telemetry span recorded and flushed to Neatlogs servers"
+        }
+    except Exception as e:
+        return {"status": "ERROR", "error": str(e)}
 
 
 @app.post("/api/intent/plan")

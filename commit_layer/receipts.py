@@ -251,3 +251,11 @@ def verify_chain() -> Tuple[bool, List[str]]:
         expected_prev = compute_hash(r)
         
     return len(errors) == 0, errors
+
+
+def clear_all_receipts() -> None:
+    """Clear all receipts from the SQLite database for a clean live test run."""
+    init_db()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM receipts")
+        conn.commit()

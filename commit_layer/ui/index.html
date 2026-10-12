@@ -30,6 +30,7 @@
       --mono: 'JetBrains Mono', monospace;
       --sans: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
       --ui-sans: 'Plus Jakarta Sans', sans-serif;
+      --sidebar-w: 265px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -112,7 +113,7 @@
     .hv:hover { transform: translateX(6px); }
 
     /* ========================================================
-       AUTH MODAL (Sign In Triggered by Hero Buttons)
+       AUTH MODAL (SQLite Database Authentication)
        ======================================================== */
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
@@ -129,7 +130,6 @@
       border: none; font-size: 20px; color: var(--text-muted); cursor: pointer;
     }
     .modal-header { text-align: center; margin-bottom: 24px; }
-    .modal-logo { width: 44px; height: 44px; object-fit: contain; margin-bottom: 12px; }
     .modal-title { font-size: 20px; font-weight: 800; color: #000; letter-spacing: -0.02em; }
     .modal-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 
@@ -160,31 +160,309 @@
     .btn-auth-submit {
       width: 100%; background: #000000; color: #ffffff; font-weight: 700;
       padding: 11px; border-radius: 8px; border: none; cursor: pointer;
-      font-size: 14px; margin-top: 8px;
+      font-size: 14px; margin-top: 8px; transition: background 0.15s;
     }
     .btn-auth-submit:hover { background: #1e293b; }
 
     /* ========================================================
-       WHITE MINIMALIST DASHBOARD STYLES (Shown After Sign In)
+       MODERN SIDEBAR + DASHBOARD APP LAYOUT
        ======================================================== */
-    .dash-top-bar {
-      position: sticky; top: 0; z-index: 100; padding: 14px 28px;
-      display: flex; justify-content: space-between; align-items: center;
-      background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+    .dash-app-layout {
+      display: flex;
+      min-height: 100vh;
+      background: var(--bg-page);
+    }
+
+    /* Fixed Left Sidebar */
+    .dash-sidebar {
+      width: var(--sidebar-w);
+      background: #ffffff;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      z-index: 100;
+      flex-shrink: 0;
+      padding: 20px 16px;
+      overflow-y: auto;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      padding: 0 4px 16px 4px;
       border-bottom: 1px solid var(--border);
     }
-    .brand-group { display: flex; align-items: center; gap: 12px; cursor: pointer; }
-    .brand-group img { width: 32px; height: 32px; object-fit: contain; }
-    .dash-brand-title { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
-    .dash-brand-sub { font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; }
-
-    .dashboard-wrap {
-      background: var(--bg-page); min-height: calc(100vh - 65px); padding: 28px;
+    .brand-logo-mark {
+      width: 34px;
+      height: 34px;
+      background: #000000;
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 18px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: -0.05em;
     }
-    .dash-container {
-      max-width: 1380px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px;
+    .sidebar-brand-title {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #000000;
+    }
+    .sidebar-brand-sub {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-weight: 700;
     }
 
+    .sidebar-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      margin: 14px 0 10px 0;
+      letter-spacing: 0.04em;
+    }
+
+    .sidebar-nav-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 14px 6px 6px 6px;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--ui-sans);
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .nav-item:hover {
+      background: #f1f5f9;
+      color: #000000;
+    }
+    .nav-item.active {
+      background: #000000;
+      color: #ffffff;
+      font-weight: 700;
+    }
+    .nav-icon {
+      font-size: 15px;
+      line-height: 1;
+      width: 18px;
+      display: inline-flex;
+      justify-content: center;
+    }
+    .nav-text {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .nav-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 9999px;
+      background: #dc2626;
+      color: #ffffff;
+    }
+    .nav-item.active .nav-badge {
+      background: #ffffff;
+      color: #dc2626;
+    }
+
+    .sidebar-quick-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .sidebar-btn {
+      padding: 7px 8px;
+      border: 1px solid var(--border-dark);
+      background: #ffffff;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--ui-sans);
+      color: #1e293b;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .sidebar-btn:hover {
+      background: #f8fafc;
+      border-color: #94a3b8;
+    }
+    .sidebar-btn-danger {
+      border-color: #fca5a5;
+      color: #dc2626;
+      background: #fff5f5;
+    }
+    .sidebar-btn-danger:hover {
+      background: #fee2e2;
+    }
+
+    /* Sidebar Footer User Info */
+    .sidebar-footer {
+      margin-top: auto;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .sidebar-user-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .user-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .user-email {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .user-role {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+    .sidebar-footer-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* Right Main Content Area */
+    .dash-main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .dash-top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 90;
+      padding: 14px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .dash-top-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .dash-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .breadcrumb-sep {
+      color: #cbd5e1;
+    }
+    .breadcrumb-active {
+      font-weight: 800;
+      color: #000000;
+    }
+
+    .dash-top-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .sync-pill {
+      font-size: 11px;
+      font-weight: 700;
+      color: #166534;
+      background: #f0fdf4;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #bbf7d0;
+    }
+
+    .dash-tab-container {
+      padding: 28px 32px 60px 32px;
+      max-width: 1440px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .dash-tab-pane {
+      display: none;
+    }
+    .dash-tab-pane.active {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Common Card Styles */
     .btn {
       font-family: var(--ui-sans); font-size: 13px; font-weight: 600; padding: 8px 16px;
       border-radius: 8px; border: 1px solid transparent; cursor: pointer;
@@ -192,6 +470,7 @@
       text-decoration: none;
     }
     .btn:active { transform: scale(0.98); }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
     .btn-dark { background: #000000; color: #ffffff; }
     .btn-dark:hover { background: #1e293b; }
     .btn-light { background: #ffffff; border-color: #cbd5e1; color: #000; }
@@ -207,7 +486,8 @@
     }
     .integ-card {
       background: #ffffff; border: 1px solid var(--border); border-radius: 10px;
-      padding: 12px 16px; display: flex; flex-direction: column; gap: 4px;
+      padding: 14px 16px; display: flex; flex-direction: column; gap: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
     }
     .integ-top { display: flex; justify-content: space-between; align-items: center; }
     .integ-name { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #1e293b; }
@@ -217,20 +497,23 @@
     .integ-sub { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
 
     .dash-stats-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;
     }
     .white-card {
       background: #ffffff; border: 1px solid var(--border); border-radius: 12px;
       padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); display: flex; flex-direction: column;
     }
-    .stat-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
-    .stat-val { font-size: 28px; font-weight: 800; margin-top: 6px; font-family: var(--mono); }
+    .stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .stat-val { font-size: 26px; font-weight: 800; margin-top: 6px; font-family: var(--mono); }
     .stat-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 
-    .dash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    @media (max-width: 1024px) { .dash-cols { grid-template-columns: 1fr; } }
+    .card-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+    }
+    .card-title { font-size: 15px; font-weight: 700; color: #000; }
 
-    /* Alma AI-Native Omnibar & Domain Styles */
+    /* Alma Intent Omnibar Styles */
     .alma-omnibar-card {
       background: #ffffff; border: 1px solid #0f172a; border-radius: 14px;
       padding: 24px; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04); display: flex; flex-direction: column; gap: 14px;
@@ -274,12 +557,6 @@
     .domain-system { background: #f1f5f9; color: #475569; }
     .domain-agentic { background: #fae8ff; color: #86198f; }
 
-    .card-header {
-      display: flex; justify-content: space-between; align-items: center;
-      padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
-    }
-    .card-title { font-size: 15px; font-weight: 700; color: #000; }
-
     .pending-item {
       background: #f8fafc; border: 1px solid var(--border); border-radius: 10px;
       padding: 16px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;
@@ -308,15 +585,15 @@
     th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
     th { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); background: #f8fafc; }
     tr:hover td { background: #f8fafc; }
-    .pulse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; margin-right: 6px; }
+    .pulse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; margin-right: 4px; }
   </style>
 </head>
 <body>
 
   <!-- ========================================================
-       CIEAV LANDING VIEW (Exact Layout with Canvas & Typography)
+       CIEAV LANDING VIEW (Scrollable Canvas & Minimalist Rail)
        ======================================================== -->
-  <div id="landingView" class="view-pane active grids-root">
+<div id="landingView" class="view-pane active grids-root">
     
     <div class="fixed-layers">
       <canvas id="wmCanvas" class="wm-canvas" aria-hidden="true"></canvas>
@@ -525,16 +802,28 @@
   <!-- ========================================================
        AUTH MODAL (Google & Traditional Sign In)
        ======================================================== -->
+
+  <!-- ========================================================
+       AUTH MODAL (SQLite Database Authentication)
+       ======================================================== -->
+
+  <!-- ========================================================
+       AUTH MODAL (SQLite Database Authentication)
+       ======================================================== -->
+
+  <!-- ========================================================
+       AUTH MODAL (SQLite Database Authentication)
+       ======================================================== -->
   <div id="authModal" class="modal-overlay">
     <div class="modal-card">
       <button class="modal-close" onclick="closeAuthModal()">✕</button>
       <div class="modal-header">
-        <img src="/logo.png" alt="Logo" class="modal-logo" onerror="this.style.display='none'">
+        <div class="brand-logo-mark" style="margin: 0 auto 12px auto; width: 44px; height: 44px; font-size: 22px;">C</div>
         <div class="modal-title" id="authModalTitle">Welcome to CIEAV</div>
-        <div class="modal-sub">Sign in to access your local Gateway Dashboard</div>
+        <div class="modal-sub">Sign in with SQLite authentication to access your Gateway Dashboard</div>
       </div>
 
-      <!-- Google Sign In -->
+      <!-- Google Sign In Button -->
       <button class="btn-google" onclick="handleGoogleSignIn()">
         <svg class="google-icon" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
@@ -545,209 +834,261 @@
         Continue with Google
       </button>
 
-      <div class="divider-row"><span>or with email</span></div>
+      <div class="divider-row"><span>or with work credentials</span></div>
 
-      <!-- Traditional Email Sign In -->
+      <!-- SQL Database Sign In Form -->
       <form onsubmit="handleEmailAuth(event)">
         <div class="form-group">
-          <label class="form-label">Work Email</label>
-          <input type="email" id="authEmail" class="form-input" placeholder="name@company.com" required value="admin@cieav.local">
+          <label class="form-label">Operator Email</label>
+          <input type="email" id="authEmail" class="form-input" placeholder="admin@cieav.local" required value="admin@cieav.local">
         </div>
         <div class="form-group">
           <label class="form-label">Password</label>
-          <input type="password" id="authPassword" class="form-input" placeholder="••••••••" required value="password123">
+          <input type="password" id="authPassword" class="form-input" placeholder="••••••••" required value="admin123">
         </div>
-        <button type="submit" class="btn-auth-submit">Sign In & Enter Dashboard</button>
+        <div id="authErrorMsg" style="color:#dc2626; font-size:12px; margin-bottom:8px; display:none;"></div>
+        <button type="submit" class="btn-auth-submit" id="authSubmitBtn">Sign In / Register into SQLite</button>
       </form>
     </div>
   </div>
 
   <!-- ========================================================
-       WHITE MINIMALIST DASHBOARD VIEW (Unlocks After Sign In)
+       SIDEBAR + DASHBOARD APP VIEW (Unlocks After Sign In)
        ======================================================== -->
   <div id="dashboardView" class="view-pane">
-    
-    <!-- Dashboard Top Bar with Logo & Sign Out -->
-    <header class="dash-top-bar">
-      <div class="brand-group" onclick="navigate('landing')">
-        <img src="/logo.png" alt="CIEAV Logo" onerror="this.style.display='none'">
-        <div>
-          <div class="dash-brand-title">CIEAV</div>
-          <div class="dash-brand-sub">The Commit Layer</div>
-        </div>
-      </div>
+    <div class="dash-app-layout">
 
-      <div style="display:flex; align-items:center; gap:16px;">
-        <span style="font-size:13px; font-weight:600; color:#334155; display:inline-flex; align-items:center;">
-          <span class="pulse-dot"></span> <span id="dashUserEmail">admin@cieav.local</span>
-        </span>
-        <button class="btn btn-light" onclick="navigate('landing')">Back to Landing</button>
-        <button class="btn btn-light" onclick="signOut()">Sign Out</button>
-      </div>
-    </header>
-
-    <div class="dashboard-wrap">
-      <div class="dash-container">
-
-        <!-- Header Row -->
-        <div class="dash-header-row">
+      <!-- LEFT SIDEBAR -->
+      <aside class="dash-sidebar">
+        <!-- Brand -->
+        <div class="sidebar-brand" onclick="navigate('landing')">
+          <div class="brand-logo-mark">C</div>
           <div>
-            <h1 class="dash-h1">Commit Layer Gateway Dashboard</h1>
-            <div class="dash-sub">Deterministic Action Governance • Cryptographic Proofs • Real-time Reversal</div>
-          </div>
-          <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn btn-light" onclick="verifyLedger()">🔒 Verify Hash Chain</button>
-            <button class="btn btn-danger" onclick="triggerHostileDemo()">⚠️ Test Hostile Injection</button>
-            <button class="btn btn-light" onclick="triggerSafePaymentDemo()">⚡ Safe $40 Pay</button>
-            <button class="btn btn-light" onclick="triggerFlakyDemo()">🎲 Flaky Pay</button>
-            <button class="btn btn-light" onclick="resetSandbox()">↺ Reset Sandbox</button>
+            <div class="sidebar-brand-title">CIEAV</div>
+            <div class="sidebar-brand-sub">The Commit Layer</div>
           </div>
         </div>
 
-        <!-- 5 Pillars Live Integrations Bar -->
-        <div class="integrations-bar">
-          <div class="integ-card">
-            <div class="integ-top">
-              <span class="integ-name">neatlogs</span>
-              <span class="integ-status integ-online" id="statusNeatlogs">ONLINE</span>
-            </div>
-            <div class="integ-sub" id="subNeatlogs">workflow: commit-layer</div>
-          </div>
-          <div class="integ-card">
-            <div class="integ-top">
-              <span class="integ-name">Entire</span>
-              <span class="integ-status integ-ready" id="statusEntire">LINKED</span>
-            </div>
-            <div class="integ-sub" id="subEntire">git checkpoint active</div>
-          </div>
-          <div class="integ-card">
-            <div class="integ-top">
-              <span class="integ-name">AWS Bedrock</span>
-              <span class="integ-status integ-ready" id="statusAws">CONFIGURED</span>
-            </div>
-            <div class="integ-sub" id="subAws">Claude Haiku 4.5</div>
-          </div>
-          <div class="integ-card">
-            <div class="integ-top">
-              <span class="integ-name">Crustdata</span>
-              <span class="integ-status integ-ready" id="statusCrustdata">ACTIVE</span>
-            </div>
-            <div class="integ-sub" id="subCrustdata">5000 credits ready</div>
-          </div>
-          <div class="integ-card">
-            <div class="integ-top">
-              <span class="integ-name">cfo.ai</span>
-              <span class="integ-status integ-online" id="statusCFO">ACTIVE</span>
-            </div>
-            <div class="integ-sub" id="subCFO">$25.00 budget · $0.005 / action</div>
-          </div>
-          <div class="integ-card">
-            <div class="integ-top">
-              <span class="integ-name">Headroom</span>
-              <span class="integ-status integ-online" id="statusHeadroom">ACTIVE</span>
-            </div>
-            <div class="integ-sub" id="subHeadroom">CCR token optimizer</div>
-          </div>
+        <div class="sidebar-status-pill">
+          <span class="pulse-dot"></span>
+          <span>ONLINE • LOCAL ED25519</span>
         </div>
 
-        <!-- Metrics Grid -->
-        <div class="dash-stats-grid">
-          <div class="white-card">
-            <div class="stat-label">Agent Bank Reserve</div>
-            <div class="stat-val" id="dashBankVal">$10,000.00</div>
-            <div class="stat-hint">Account: <span style="font-family:var(--mono); color:#2563eb;">agent</span></div>
-          </div>
-          <div class="white-card">
-            <div class="stat-label">Cognitive Friction Debt</div>
-            <div class="stat-val" id="dashDebtVal">0.00</div>
-            <div class="stat-hint">Automated fatigue damper</div>
-          </div>
-          <div class="white-card">
-            <div class="stat-label">Signed Ledger Receipts</div>
-            <div class="stat-val" id="dashReceiptsCount">0</div>
-            <div class="stat-hint">Hash-chained in SQLite</div>
-          </div>
-          <div class="white-card">
-            <div class="stat-label">Active Ed25519 Authority</div>
-            <div class="stat-val" id="dashKeyId" style="font-size:18px;">--</div>
-            <div class="stat-hint">Local cryptographic key</div>
-          </div>
-          <div class="white-card">
-            <div class="stat-label">Headroom Token Reduction</div>
-            <div class="stat-val" id="dashHeadroomSavings" style="color:#15803d;">0.0%</div>
-            <div class="stat-hint">CCR Chunks: <span id="dashHeadroomChunks" style="font-family:var(--mono);">0</span> stored</div>
-          </div>
+        <!-- Navigation -->
+        <div class="sidebar-nav-label">Navigation</div>
+        <nav class="sidebar-nav">
+          <button class="nav-item active" onclick="switchDashTab('overview')" id="nav-overview">
+            <span class="nav-icon">📊</span>
+            <span class="nav-text">Overview & Health</span>
+          </button>
+          <button class="nav-item" onclick="switchDashTab('dispatcher')" id="nav-dispatcher">
+            <span class="nav-icon">🚀</span>
+            <span class="nav-text">Action Dispatcher</span>
+          </button>
+          <button class="nav-item" onclick="switchDashTab('approvals')" id="nav-approvals">
+            <span class="nav-icon">🛑</span>
+            <span class="nav-text">Pending Approvals</span>
+            <span id="sidePendingCount" class="nav-badge" style="display:none;">0</span>
+          </button>
+          <button class="nav-item" onclick="switchDashTab('intent')" id="nav-intent">
+            <span class="nav-icon">✦</span>
+            <span class="nav-text">Alma Intent Engine</span>
+          </button>
+          <button class="nav-item" onclick="switchDashTab('counterparty')" id="nav-counterparty">
+            <span class="nav-icon">🔍</span>
+            <span class="nav-text">Crustdata Screener</span>
+          </button>
+          <button class="nav-item" onclick="switchDashTab('cfo')" id="nav-cfo">
+            <span class="nav-icon">💰</span>
+            <span class="nav-text">CFO Governance</span>
+          </button>
+          <button class="nav-item" onclick="switchDashTab('aws')" id="nav-aws">
+            <span class="nav-icon">☁️</span>
+            <span class="nav-text">AWS Infrastructure</span>
+          </button>
+          <button class="nav-item" onclick="switchDashTab('neatlogs')" id="nav-neatlogs">
+            <span class="nav-icon">📡</span>
+            <span class="nav-text">Neatlogs Tracing</span>
+          </button>
+          <button class="nav-item" onclick="switchDashTab('headroom')" id="nav-headroom">
+            <span class="nav-icon">⚡</span>
+            <span class="nav-text">Headroom Vault</span>
+          </button>
+          <button class="nav-item" onclick="switchDashTab('sandbox')" id="nav-sandbox">
+            <span class="nav-icon">🌐</span>
+            <span class="nav-text">World Reality State</span>
+          </button>
+          <button class="nav-item" onclick="switchDashTab('receipts')" id="nav-receipts">
+            <span class="nav-icon">🔒</span>
+            <span class="nav-text">Cryptographic Ledger</span>
+          </button>
+        </nav>
+
+        <!-- Quick Actions -->
+        <div class="sidebar-nav-label" style="margin-top:16px;">Quick Presets</div>
+        <div class="sidebar-quick-actions">
+          <button class="sidebar-btn" onclick="verifyLedger()">🔒 Verify Chain</button>
+          <button class="sidebar-btn sidebar-btn-danger" onclick="triggerHostileDemo()">⚠️ Test Hostile</button>
+          <button class="sidebar-btn" onclick="triggerSafePaymentDemo()">⚡ Safe Pay $40</button>
+          <button class="sidebar-btn" onclick="resetSandbox()">↺ Reset State</button>
         </div>
 
+        <!-- User Profile Footer -->
+        <div class="sidebar-footer">
+          <div class="sidebar-user-card">
+            <div class="user-avatar" id="dashUserAvatar">AD</div>
+            <div class="user-info">
+              <div class="user-email" id="dashUserEmail">admin@cieav.local</div>
+              <div class="user-role" id="dashUserRole">Admin • SQLite Auth</div>
+            </div>
+          </div>
+          <div class="sidebar-footer-actions">
+            <button class="btn btn-light" style="flex:1; font-size:11px; padding:6px 8px;" onclick="navigate('landing')">Landing</button>
+            <button class="btn btn-dark" style="flex:1; font-size:11px; padding:6px 8px;" onclick="signOut()">Sign Out</button>
+          </div>
+        </div>
+      </aside>
 
-        <!-- Alma-Style AI-Native Intent Omnibar -->
-        <div class="alma-omnibar-card">
-          <div class="alma-header-row">
+      <!-- RIGHT MAIN CONTENT AREA -->
+      <main class="dash-main-area">
+
+        <!-- Top Header Navigation Bar -->
+        <header class="dash-top-bar">
+          <div class="dash-top-left">
+            <div class="dash-breadcrumb">
+              <span>Dashboard</span>
+              <span class="breadcrumb-sep">/</span>
+              <span class="breadcrumb-active" id="dashBreadcrumb">Overview & Health</span>
+            </div>
+          </div>
+          <div class="dash-top-right">
+            <span class="sync-pill"><span class="pulse-dot"></span> Live Sync (2s)</span>
+            <button class="btn btn-light btn-sm" onclick="fetchState()">Refresh</button>
+          </div>
+        </header>
+
+        <!-- Tab Panes Container -->
+        <div class="dash-tab-container">
+
+          <!-- ==============================================
+               TAB 1: OVERVIEW & HEALTH
+               ============================================== -->
+          <div id="pane-overview" class="dash-tab-pane active">
+            <!-- 5 Pillars Live Integrations Bar -->
             <div>
-              <div class="alma-title">
-                <span>✦ Alma AI-Native Computer Interface</span>
-                <span class="alma-tag">Intent-First Computing</span>
-              </div>
-              <div class="alma-desc">
-                "People should start with intent and context, not with the limits of an app." Execute natural human intent across Software, Code, Hardware TPM, Payments, and Access with deterministic safety floors and cryptographic commit receipts.
+              <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase; margin-bottom:10px; letter-spacing:0.04em;">Connected Live Cloud Infrastructure</div>
+              <div class="integrations-bar">
+                <div class="integ-card" onclick="switchDashTab('neatlogs')" style="cursor:pointer;">
+                  <div class="integ-top">
+                    <span class="integ-name">neatlogs</span>
+                    <span class="integ-status integ-online" id="statusNeatlogs">ONLINE</span>
+                  </div>
+                  <div class="integ-sub" id="subNeatlogs">Connecting...</div>
+                </div>
+                <div class="integ-card">
+                  <div class="integ-top">
+                    <span class="integ-name">Entire</span>
+                    <span class="integ-status integ-ready" id="statusEntire">LINKED</span>
+                  </div>
+                  <div class="integ-sub" id="subEntire">Connecting...</div>
+                </div>
+                <div class="integ-card" onclick="switchDashTab('aws')" style="cursor:pointer;">
+                  <div class="integ-top">
+                    <span class="integ-name">AWS Infra</span>
+                    <span class="integ-status integ-ready" id="statusAws">CONFIGURED</span>
+                  </div>
+                  <div class="integ-sub" id="subAws">Connecting...</div>
+                </div>
+                <div class="integ-card" onclick="switchDashTab('counterparty')" style="cursor:pointer;">
+                  <div class="integ-top">
+                    <span class="integ-name">Crustdata</span>
+                    <span class="integ-status integ-ready" id="statusCrustdata">ACTIVE</span>
+                  </div>
+                  <div class="integ-sub" id="subCrustdata">Connecting...</div>
+                </div>
+                <div class="integ-card" onclick="switchDashTab('cfo')" style="cursor:pointer;">
+                  <div class="integ-top">
+                    <span class="integ-name">cfo.ai</span>
+                    <span class="integ-status integ-online" id="statusCFO">ACTIVE</span>
+                  </div>
+                  <div class="integ-sub" id="subCFO">Connecting...</div>
+                </div>
+                <div class="integ-card" onclick="switchDashTab('headroom')" style="cursor:pointer;">
+                  <div class="integ-top">
+                    <span class="integ-name">Headroom</span>
+                    <span class="integ-status integ-online" id="statusHeadroom">ACTIVE</span>
+                  </div>
+                  <div class="integ-sub" id="subHeadroom">Connecting...</div>
+                </div>
               </div>
             </div>
-            <button class="btn btn-light" style="font-size:12px; padding:6px 14px;" onclick="showCliInstructions()">💻 Native CLI Guide</button>
-          </div>
 
-          <div class="alma-input-row">
-            <input type="text" id="almaIntentInput" class="alma-input" placeholder="Type what you want to achieve on your computer... (e.g. 'Deploy payment-worker v2.1.0', 'Attest TPM 2.0 PCR 7', 'Power cycle edge-node-01', 'Patch auth.py with rollback')" onkeydown="if(event.key==='Enter') evaluateAlmaIntent()">
-            <button class="btn btn-dark" style="padding:0 24px; font-size:14px; white-space:nowrap;" onclick="evaluateAlmaIntent()">Evaluate Intent ↵</button>
-          </div>
-
-          <div class="pills-container">
-            <span class="pills-label">Quick Intents:</span>
-            <span class="intent-pill" onclick="setIntent('Deploy payment-worker microservice to v2.1.0')">🚀 Deploy payment-worker v2.1</span>
-            <span class="intent-pill" onclick="setIntent('Attest hardware TPM 2.0 PCR register 7 with secure enclave')">🛡️ TPM 2.0 PCR 7 Attest</span>
-            <span class="intent-pill" onclick="setIntent('Power cycle edge-node-01 IoT controller')">⚡ Power Cycle edge-node-01</span>
-            <span class="intent-pill" onclick="setIntent('Modify code file src/auth.py to add token expiration check')">📝 Refactor auth.py</span>
-            <span class="intent-pill" onclick="setIntent('Run terminal command \'uptime && free -m\' in sandbox shell')">💻 Terminal Diagnostic</span>
-            <span class="intent-pill" onclick="setIntent('Send $350.00 to merchant_a for cloud GPU infrastructure')">💳 Wire $350 to merchant_a</span>
-            <span class="intent-pill" onclick="setIntent('Grant admin security permission to audit-bot')">🔑 Grant Admin Access</span>
-          </div>
-
-          <!-- Evaluated Intent Execution Plan Preview -->
-          <div id="almaPlanBox" class="alma-plan-box">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <span style="font-size:14px; font-weight:800; color:#0f172a;">Plan Preview: </span>
-                <span id="almaPlanPrompt" style="font-size:13px; font-weight:600; color:#475569;"></span>
+            <!-- Key Metrics Grid -->
+            <div>
+              <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase; margin-bottom:10px; letter-spacing:0.04em;">Operational Governance Metrics</div>
+              <div class="dash-stats-grid">
+                <div class="white-card">
+                  <div class="stat-label">Agent Bank Reserve</div>
+                  <div class="stat-val" id="dashBankVal">--</div>
+                  <div class="stat-hint">Account: <span style="font-family:var(--mono); color:#2563eb;">agent</span></div>
+                </div>
+                <div class="white-card">
+                  <div class="stat-label">Cognitive Friction Debt</div>
+                  <div class="stat-val" id="dashDebtVal">--</div>
+                  <div class="stat-hint">Automated fatigue damper</div>
+                </div>
+                <div class="white-card">
+                  <div class="stat-label">Signed Ledger Receipts</div>
+                  <div class="stat-val" id="dashReceiptsCount">--</div>
+                  <div class="stat-hint">Hash-chained in SQLite</div>
+                </div>
+                <div class="white-card">
+                  <div class="stat-label">Active Ed25519 Authority</div>
+                  <div class="stat-val" id="dashKeyId" style="font-size:18px;">--</div>
+                  <div class="stat-hint">Local cryptographic key</div>
+                </div>
+                <div class="white-card">
+                  <div class="stat-label">Headroom Token Reduction</div>
+                  <div class="stat-val" id="dashHeadroomSavings" style="color:#15803d;">--</div>
+                  <div class="stat-hint">CCR Chunks: <span id="dashHeadroomChunks" style="font-family:var(--mono);">0</span> stored</div>
+                </div>
               </div>
-              <span id="almaPlanRiskBadge" class="badge"></span>
             </div>
 
-            <div id="almaPlanActionsList" style="display:flex; flex-direction:column; gap:10px;"></div>
-
-            <!-- Confirmation Action Bar -->
-            <div id="almaPlanConfirmBar" style="display:flex; gap:12px; align-items:center; border-top:1px solid #cbd5e1; padding-top:12px; flex-wrap:wrap;">
-              <div id="almaTypedConfirmWrap" style="display:none; flex:1; min-width:250px;">
-                <label id="almaTypedLabel" style="font-size:12px; font-weight:700; color:#dc2626; display:block; margin-bottom:4px;"></label>
-                <input type="text" id="almaTypedInput" class="form-input" placeholder="Type confirmation phrase..." style="width:100%; border-color:#dc2626;">
+            <!-- System Overview Card -->
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">🛡️ Commit Layer Mission & Architecture</span>
+                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Zero-Trust Agent Gateway</span>
               </div>
-              <button class="btn btn-success" style="font-size:14px; padding:10px 22px;" onclick="commitAlmaPlan()">✓ Commit Plan to Ledger</button>
-              <button class="btn btn-light" onclick="dismissAlmaPlan()">Cancel</button>
+              <p style="font-size:14px; color:#334155; line-height:1.6;">
+                CIEAV acts as an authoritative boundary between AI agent intent and physical consequences. Every proposed action passes through deterministic policy floors, automated privacy redaction, and human friction controls. All committed states produce Ed25519-signed, SHA-256 hash-chained receipts in an immutable SQLite audit log with deterministic two-phase undo capabilities.
+              </p>
+              <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+                <button class="btn btn-dark" onclick="switchDashTab('dispatcher')">🚀 Go to Action Dispatcher</button>
+                <button class="btn btn-light" onclick="switchDashTab('counterparty')">🔍 Screen Payee on Crustdata</button>
+                <button class="btn btn-light" onclick="switchDashTab('cfo')">💰 View CFO Financial Engine</button>
+                <button class="btn btn-light" onclick="switchDashTab('aws')">☁️ Inspect AWS Cloud Infra</button>
+                <button class="btn btn-light" onclick="verifyLedger()">🔒 Verify Receipt Hash Chain</button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 2 Columns: Dispatcher & Sandbox -->
-        <div class="dash-cols">
-
-          <!-- Left Column -->
-          <div style="display:flex; flex-direction:column; gap:20px;">
+          <!-- ==============================================
+               TAB 2: ACTION DISPATCHER
+               ============================================== -->
+          <div id="pane-dispatcher" class="dash-tab-pane">
             <div class="white-card">
               <div class="card-header">
                 <span class="card-title">🚀 Dispatch Consequential Action</span>
                 <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Agent Interceptor</span>
               </div>
               <div style="display:flex; flex-direction:column; gap:12px;">
-                <div style="display:flex; gap:10px;">
-                  <select id="dashToolSelect" onchange="updateDashToolPreset()" class="form-input" style="flex:1;">
+                <div style="font-size:13px; color:var(--text-muted);">
+                  Select an operational tool and configure parameters. The gateway intercepts the call, evaluates risk floors, applies privacy masks, and holds for human authorization if friction is required.
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                  <select id="dashToolSelect" onchange="updateDashToolPreset()" class="form-input" style="flex:1; min-width:240px;">
                     <option value="send_payment">send_payment(amount, to)</option>
                     <option value="deploy_service">deploy_service(service_name, version)</option>
                     <option value="run_terminal_command">run_terminal_command(command)</option>
@@ -759,47 +1100,298 @@
                     <option value="send_email">send_email(to, subject, body)</option>
                     <option value="flaky_payment">flaky_payment(amount, to)</option>
                   </select>
-                  <button class="btn btn-dark" onclick="submitDashAction()">Dispatch</button>
+                  <button class="btn btn-dark" onclick="submitDashAction()">Dispatch to Gateway</button>
                 </div>
-                <textarea id="dashArgsInput" class="form-input" style="font-family:var(--mono); font-size:12px; min-height:65px;"></textarea>
+                <textarea id="dashArgsInput" class="form-input" style="font-family:var(--mono); font-size:12px; min-height:85px;"></textarea>
               </div>
             </div>
+          </div>
 
-
-            <!-- Pending Approvals -->
-            <div class="white-card" style="flex:1;">
+          <!-- ==============================================
+               TAB 3: PENDING APPROVALS (Dedicated Queue)
+               ============================================== -->
+          <div id="pane-approvals" class="dash-tab-pane">
+            <div class="white-card">
               <div class="card-header">
-                <span class="card-title">🛑 Pending Human Approvals</span>
-                <span id="dashPendingBadge" class="badge badge-LOW">0 Pending</span>
+                <span class="card-title">🛑 Intercepted Actions Awaiting Authorization</span>
+                <button class="btn btn-light btn-sm" onclick="fetchState()">Refresh Queue</button>
               </div>
-              <div id="dashPendingContainer">
+              <div id="dashDedicatedPendingContainer">
                 <p style="font-size:13px; color:var(--text-muted); text-align:center; padding:30px 0;">No actions currently waiting for approval.</p>
               </div>
             </div>
           </div>
 
-          <!-- Right Column -->
-          <div style="display:flex; flex-direction:column; gap:20px;">
-            <div class="white-card">
-              <div class="card-header">
-                <span class="card-title">🔍 Crustdata Counterparty Screener</span>
-                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Real-world facts</span>
-              </div>
-              <div style="display:flex; flex-direction:column; gap:10px;">
-                <div style="display:flex; gap:10px;">
-                  <input type="text" id="crustdataDomainInput" class="form-input" placeholder="e.g. stripe.com or attacker_offshore.xyz" style="flex:1;">
-                  <button class="btn btn-light" onclick="runCrustdataLookup()">Screen Payee</button>
+          <!-- ==============================================
+               TAB 4: ALMA INTENT ENGINE
+               ============================================== -->
+          <div id="pane-intent" class="dash-tab-pane">
+            <div class="alma-omnibar-card">
+              <div class="alma-header-row">
+                <div>
+                  <div class="alma-title">
+                    <span>✦ Alma AI-Native Computer Interface</span>
+                    <span class="alma-tag">Intent-First Computing</span>
+                  </div>
+                  <div class="alma-desc">
+                    "People should start with intent and context, not with the limits of an app." Execute natural human intent across Software, Code, Hardware TPM, Payments, and Access with deterministic safety floors and cryptographic commit receipts.
+                  </div>
                 </div>
-                <div id="crustdataResultBox" class="code-box" style="display:none; font-size:11px;"></div>
+                <button class="btn btn-light" style="font-size:12px; padding:6px 14px;" onclick="showCliInstructions()">💻 Native CLI Guide</button>
+              </div>
+
+              <div class="alma-input-row">
+                <input type="text" id="almaIntentInput" class="alma-input" placeholder="Type what you want to achieve... (e.g. 'Deploy payment-worker v2.1.0', 'Attest TPM 2.0 PCR 7', 'Power cycle edge-node-01', 'Patch auth.py with rollback')" onkeydown="if(event.key==='Enter') evaluateAlmaIntent()">
+                <button class="btn btn-dark" style="padding:0 24px; font-size:14px; white-space:nowrap;" onclick="evaluateAlmaIntent()">Evaluate Intent ↵</button>
+              </div>
+
+              <div class="pills-container">
+                <span class="pills-label">Quick Intents:</span>
+                <span class="intent-pill" onclick="setIntent('Deploy payment-worker microservice to v2.1.0')">🚀 Deploy payment-worker v2.1</span>
+                <span class="intent-pill" onclick="setIntent('Attest hardware TPM 2.0 PCR register 7 with secure enclave')">🛡️ TPM 2.0 PCR 7 Attest</span>
+                <span class="intent-pill" onclick="setIntent('Power cycle edge-node-01 IoT controller')">⚡ Power Cycle edge-node-01</span>
+                <span class="intent-pill" onclick="setIntent('Modify code file src/auth.py to add token expiration check')">📝 Refactor auth.py</span>
+                <span class="intent-pill" onclick="setIntent('Run terminal command \'uptime && free -m\' in sandbox shell')">💻 Terminal Diagnostic</span>
+                <span class="intent-pill" onclick="setIntent('Send $350.00 to merchant_a for cloud GPU infrastructure')">💳 Wire $350 to merchant_a</span>
+                <span class="intent-pill" onclick="setIntent('Grant admin security permission to audit-bot')">🔑 Grant Admin Access</span>
+              </div>
+
+              <!-- Evaluated Intent Execution Plan Preview -->
+              <div id="almaPlanBox" class="alma-plan-box">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <span style="font-size:14px; font-weight:800; color:#0f172a;">Plan Preview: </span>
+                    <span id="almaPlanPrompt" style="font-size:13px; font-weight:600; color:#475569;"></span>
+                  </div>
+                  <span id="almaPlanRiskBadge" class="badge"></span>
+                </div>
+
+                <div id="almaPlanActionsList" style="display:flex; flex-direction:column; gap:10px;"></div>
+
+                <!-- Confirmation Action Bar -->
+                <div id="almaPlanConfirmBar" style="display:flex; gap:12px; align-items:center; border-top:1px solid #cbd5e1; padding-top:12px; flex-wrap:wrap;">
+                  <div id="almaTypedConfirmWrap" style="display:none; flex:1; min-width:250px;">
+                    <label id="almaTypedLabel" style="font-size:12px; font-weight:700; color:#dc2626; display:block; margin-bottom:4px;"></label>
+                    <input type="text" id="almaTypedInput" class="form-input" placeholder="Type confirmation phrase..." style="width:100%; border-color:#dc2626;">
+                  </div>
+                  <button class="btn btn-success" style="font-size:14px; padding:10px 22px;" onclick="commitAlmaPlan()">✓ Commit Plan to Ledger</button>
+                  <button class="btn btn-light" onclick="dismissAlmaPlan()">Cancel</button>
+                </div>
               </div>
             </div>
+          </div>
 
+          <!-- ==============================================
+               TAB 5: CRUSTDATA SCREENER (Live API 2025-11-01)
+               ============================================== -->
+          <div id="pane-counterparty" class="dash-tab-pane">
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">🔍 Crustdata Counterparty Intelligence Screener</span>
+                <span style="font-size:11px; font-weight:700; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:9999px;">Live API 2025-11-01</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                <div style="font-size:13px; color:var(--text-muted);">
+                  Validates payee domains, companies, and counterparty entities directly against Crustdata's live corporate registry before payments commit.
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                  <input type="text" id="crustdataDomainInput" class="form-input" placeholder="Enter counterparty domain or company (e.g. stripe.com, github.com, or test-attacker.xyz)" style="flex:1; min-width:250px;" value="github.com">
+                  <button class="btn btn-dark" onclick="runCrustdataLookup()">Screen Payee Live</button>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <span class="pills-label">Presets:</span>
+                  <button class="sidebar-btn" onclick="document.getElementById('crustdataDomainInput').value='github.com'; runCrustdataLookup();">Verify GitHub (Live API)</button>
+                  <button class="sidebar-btn" onclick="document.getElementById('crustdataDomainInput').value='stripe.com'; runCrustdataLookup();">Verify Stripe (Live API)</button>
+                  <button class="sidebar-btn sidebar-btn-danger" onclick="document.getElementById('crustdataDomainInput').value='unregistered-hacker-drainer99.xyz'; runCrustdataLookup();">Test Unknown Malicious Counterparty</button>
+                </div>
+                <div id="crustdataVerdictBadge" style="display:none;"></div>
+                <div id="crustdataResultBox" class="code-box" style="display:none; font-size:12px; min-height:80px; max-height:350px; overflow-y:auto;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ==============================================
+               TAB 6: CFO FINANCIAL GOVERNANCE
+               ============================================== -->
+          <div id="pane-cfo" class="dash-tab-pane">
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">💰 CFO Financial Governance & Unit Economics Engine</span>
+                <span class="badge badge-LOW">88% Target Margin</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="font-size:13px; color:var(--text-muted);">
+                  Enforces team budgetary controls ($25.00 limit), per-action transaction caps ($100.00), unit economics ($0.005 fee per protected action), and tracks real-world token savings.
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Total Team Budget</div>
+                    <div id="cfoTotalBudget" style="font-family:var(--mono); font-size:24px; font-weight:800; margin-top:4px;">--</div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Current Spend</div>
+                    <div id="cfoCurrentSpend" style="font-family:var(--mono); font-size:24px; font-weight:800; margin-top:4px; color:#ea580c;">--</div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Remaining Balance</div>
+                    <div id="cfoRemainingBudget" style="font-family:var(--mono); font-size:24px; font-weight:800; margin-top:4px; color:#15803d;">--</div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Protected Actions Fee</div>
+                    <div id="cfoProtectedCount" style="font-family:var(--mono); font-size:24px; font-weight:800; margin-top:4px;">--</div>
+                    <div style="font-size:11px; color:var(--text-muted);">$0.005 / action</div>
+                  </div>
+                </div>
+
+                <div style="display:flex; gap:12px; align-items:center; border-top:1px solid var(--border); padding-top:14px; flex-wrap:wrap;">
+                  <span style="font-size:12px; font-weight:700; color:#334155;">Adjust Budget Limit:</span>
+                  <input type="number" id="cfoNewBudgetInput" class="form-input" style="width:120px; font-size:13px;" value="25.0" step="5.0">
+                  <button class="btn btn-light" onclick="updateCfoBudget()">Update Budget</button>
+                  <button class="btn btn-light" onclick="resetCfoSpend()">↺ Reset Spent Counter</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ==============================================
+               TAB 7: AWS CLOUD INFRASTRUCTURE
+               ============================================== -->
+          <div id="pane-aws" class="dash-tab-pane">
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">☁️ AWS Cloud & Deployment Infrastructure</span>
+                <span style="font-size:11px; font-weight:700; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:9999px;">STS & VPC Active</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="font-size:13px; color:var(--text-muted);">
+                  Direct live connection to AWS STS and EC2 infrastructure in Region <strong>us-east-1</strong> using configured hackathon credentials.
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">AWS Account ID</div>
+                    <div style="font-family:var(--mono); font-size:20px; font-weight:800; margin-top:4px;">063028693684</div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">IAM Username</div>
+                    <div style="font-family:var(--mono); font-size:20px; font-weight:800; margin-top:4px; color:#2563eb;">hackathon-user-149</div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Deployment Region</div>
+                    <div style="font-family:var(--mono); font-size:20px; font-weight:800; margin-top:4px;">us-east-1</div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Hackathon VPCs</div>
+                    <div style="font-family:var(--mono); font-size:13px; font-weight:700; margin-top:6px; color:#15803d;">vpc-0a92f14c573b6de49<br>vpc-0139ef741517cd3ee</div>
+                  </div>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:center;">
+                  <button class="btn btn-dark" onclick="verifyAwsLive()">Verify AWS Live STS & VPC Call</button>
+                </div>
+                <div id="awsLiveResultBox" class="code-box" style="display:none; font-size:12px; max-height:250px; overflow-y:auto;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ==============================================
+               TAB 8: NEATLOGS OBSERVABILITY & TRACING
+               ============================================== -->
+          <div id="pane-neatlogs" class="dash-tab-pane">
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">📡 Neatlogs Tracing & Observability</span>
+                <span style="font-size:11px; font-weight:700; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:9999px;">Live SDK Active</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="font-size:13px; color:var(--text-muted);">
+                  Every gateway action (intercept, policy check, friction gate, execution, and two-phase undo) streams real-time telemetry spans to <strong>app.neatlogs.com</strong> under workflow <strong>commit-layer</strong>.
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Dashboard Destination</div>
+                    <div style="font-family:var(--mono); font-size:16px; font-weight:800; margin-top:4px;"><a href="https://app.neatlogs.com" target="_blank" style="color:#2563eb; text-decoration:none;">app.neatlogs.com ↗</a></div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Workflow Channel</div>
+                    <div style="font-family:var(--mono); font-size:16px; font-weight:800; margin-top:4px; color:#15803d;">commit-layer</div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Configured API Key</div>
+                    <div style="font-family:var(--mono); font-size:16px; font-weight:800; margin-top:4px;">Xr52rW...bJMS</div>
+                  </div>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:center;">
+                  <button class="btn btn-dark" onclick="sendNeatlogsPing()">Send Live Telemetry Span (Ping)</button>
+                  <a href="https://app.neatlogs.com" target="_blank" class="btn btn-light">Open Neatlogs Dashboard ↗</a>
+                </div>
+                <div id="neatlogsLiveResultBox" class="code-box" style="display:none; font-size:12px; max-height:250px; overflow-y:auto;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ==============================================
+               TAB 9: HEADROOM TOKEN CRUSHER (CCR VAULT)
+               ============================================== -->
+          <div id="pane-headroom" class="dash-tab-pane">
+            <div class="white-card">
+              <div class="card-header">
+                <span class="card-title">⚡ Headroom Context Optimization (CCR Vault)</span>
+                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">60-95% Token Crusher</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="font-size:13px; color:var(--text-muted);">
+                  Compresses large JSON payloads, code diffs, logs, and tool outputs before passing to LLM context. Full uncompressed content is cached in local CCR vault with instant content-addressable retrieval.
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Total Saved Bytes</div>
+                    <div id="headroomSavedBytes" style="font-family:var(--mono); font-weight:800; font-size:22px; margin-top:4px;">0 B</div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Tokens Conserved</div>
+                    <div id="headroomSavedTokens" style="font-family:var(--mono); font-weight:800; font-size:22px; margin-top:4px; color:#15803d;">0 tokens</div>
+                  </div>
+                </div>
+
+                <!-- Live Compression Tester -->
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <div style="font-size:12px; font-weight:700; color:#334155;">Test Content Compressor:</div>
+                  <textarea id="headroomTestInput" class="form-input" style="font-family:var(--mono); font-size:11px; min-height:75px;" placeholder="Paste JSON, code diff, or logs to compress..."></textarea>
+                  <div style="display:flex; gap:8px;">
+                    <button class="btn btn-dark" style="font-size:12px;" onclick="testHeadroomCompress()">Compress with Headroom</button>
+                    <button class="btn btn-light" style="font-size:12px;" onclick="loadSampleHeadroomJson()">Load Sample Cluster JSON</button>
+                  </div>
+                  <div id="headroomCompResult" class="code-box" style="display:none; font-size:11px; max-height:140px; overflow-y:auto;"></div>
+                </div>
+
+                <!-- CCR Retrieval Tester -->
+                <div style="display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--border); padding-top:12px;">
+                  <div style="font-size:12px; font-weight:700; color:#334155;">Restore Uncompressed from CCR Vault:</div>
+                  <div style="display:flex; gap:8px;">
+                    <input type="text" id="headroomChunkInput" class="form-input" placeholder="e.g. ccr_92a2b6e333c2" style="flex:1; font-size:12px;">
+                    <button class="btn btn-light" style="font-size:12px;" onclick="testHeadroomRetrieve()">Retrieve 100%</button>
+                  </div>
+                  <div id="headroomRestoreResult" class="code-box" style="display:none; font-size:11px; max-height:140px; overflow-y:auto;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ==============================================
+               TAB 10: WORLD REALITY STATE
+               ============================================== -->
+          <div id="pane-sandbox" class="dash-tab-pane">
             <div class="white-card">
               <div class="card-header">
                 <span class="card-title">🌐 Sandbox World Reality State</span>
-                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Independent State</span>
+                <button class="btn btn-light btn-sm" onclick="resetSandbox()">↺ Reset All State</button>
               </div>
-              <div style="display:flex; flex-direction:column; gap:14px;">
+              <div style="display:flex; flex-direction:column; gap:16px;">
                 <div>
                   <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Bank Ledger Accounts</div>
                   <pre class="code-box" id="dashBankBox">Loading bank state...</pre>
@@ -820,91 +1412,80 @@
                   <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">Hardware TPM 2.0 & Enrolled Devices</div>
                   <pre class="code-box" id="dashHardwareBox">Loading hardware state...</pre>
                 </div>
-
               </div>
             </div>
+          </div>
 
-            <!-- Headroom Context Optimization Card -->
+          <!-- ==============================================
+               TAB 11: CRYPTOGRAPHIC RECEIPTS & UNDO
+               ============================================== -->
+          <div id="pane-receipts" class="dash-tab-pane">
             <div class="white-card">
               <div class="card-header">
-                <span class="card-title">⚡ Headroom Context Optimization (CCR Vault)</span>
-                <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">60-95% Token Crusher</span>
+                <span class="card-title">📜 Cryptographic Receipts Audit Chain (Ed25519 & Hash-Chained)</span>
+                <div style="display:flex; gap:8px;">
+                  <button class="btn btn-light" onclick="verifyLedger()">🔒 Verify Hash Chain</button>
+                  <button class="btn btn-light" onclick="resetReceipts()">↺ Clear Receipts</button>
+                </div>
               </div>
-              <div style="display:flex; flex-direction:column; gap:12px;">
-                <div style="font-size:12px; color:var(--text-muted);">
-                  Compresses JSON, code diffs, logs, and tool outputs before passing to LLM context. Full content is cached in local CCR vault with instant content-addressable retrieval.
-                </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:10px;">
-                    <div style="font-size:10px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Total Saved Bytes</div>
-                    <div id="headroomSavedBytes" style="font-family:var(--mono); font-weight:800; font-size:15px; margin-top:2px;">0 B</div>
-                  </div>
-                  <div style="background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:10px;">
-                    <div style="font-size:10px; font-weight:700; color:var(--text-dim); text-transform:uppercase;">Tokens Conserved</div>
-                    <div id="headroomSavedTokens" style="font-family:var(--mono); font-weight:800; font-size:15px; margin-top:2px; color:#15803d;">0 tokens</div>
-                  </div>
-                </div>
-
-                <!-- Live Compression Tester -->
-                <div style="display:flex; flex-direction:column; gap:6px;">
-                  <div style="font-size:11px; font-weight:700; color:#334155;">Test Content Compressor:</div>
-                  <textarea id="headroomTestInput" class="form-input" style="font-family:var(--mono); font-size:11px; min-height:55px;" placeholder="Paste JSON, code, or terminal output to compress..."></textarea>
-                  <div style="display:flex; gap:8px;">
-                    <button class="btn btn-dark" style="font-size:12px;" onclick="testHeadroomCompress()">Compress with Headroom</button>
-                    <button class="btn btn-light" style="font-size:12px;" onclick="loadSampleHeadroomJson()">Load Sample JSON</button>
-                  </div>
-                  <div id="headroomCompResult" class="code-box" style="display:none; font-size:11px; max-height:120px; overflow-y:auto;"></div>
-                </div>
-
-                <!-- CCR Retrieval Tester -->
-                <div style="display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--border); padding-top:10px;">
-                  <div style="font-size:11px; font-weight:700; color:#334155;">Restore Uncompressed from CCR Vault:</div>
-                  <div style="display:flex; gap:8px;">
-                    <input type="text" id="headroomChunkInput" class="form-input" placeholder="e.g. ccr_92a2b6e333c2" style="flex:1; font-size:12px;">
-                    <button class="btn btn-light" style="font-size:12px;" onclick="testHeadroomRetrieve()">Retrieve 100%</button>
-                  </div>
-                  <div id="headroomRestoreResult" class="code-box" style="display:none; font-size:11px; max-height:120px; overflow-y:auto;"></div>
-                </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Timestamp</th>
+                      <th>Tool</th>
+                      <th>Redacted Arguments</th>
+                      <th>Risk Floor</th>
+                      <th>Decision</th>
+                      <th>Commit Status</th>
+                      <th>Observed Outcome</th>
+                      <th>Reversal (Undo)</th>
+                      <th>Proof (Prev & Sig)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashReceiptsTbody"></tbody>
+                </table>
               </div>
             </div>
-
           </div>
 
         </div>
-
-
-        <!-- Receipts Table -->
-        <div class="white-card">
-          <div class="card-header">
-            <span class="card-title">📜 Cryptographic Receipts Audit Chain</span>
-            <span style="font-size:12px; color:var(--text-muted);">Ed25519 Signatures • SHA-256 Prev Hash Chained</span>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Timestamp</th>
-                  <th>Tool</th>
-                  <th>Redacted Arguments</th>
-                  <th>Risk Floor</th>
-                  <th>Decision</th>
-                  <th>Commit Status</th>
-                  <th>Observed Outcome</th>
-                  <th>Reversal (Undo)</th>
-                  <th>Proof (Prev & Sig)</th>
-                </tr>
-              </thead>
-              <tbody id="dashReceiptsTbody"></tbody>
-            </table>
-          </div>
-        </div>
-
-      </div>
+      </main>
     </div>
   </div>
 
   <script>
     let currentUser = null;
+    let currentAuthToken = localStorage.getItem('cieav_token') || null;
+
+    // Tab switcher inside Dashboard
+    const TAB_NAMES = {
+      overview: 'Overview & Health',
+      dispatcher: 'Action Dispatcher',
+      approvals: 'Pending Approvals',
+      intent: 'Alma Intent Engine',
+      counterparty: 'Crustdata Screener',
+      cfo: 'CFO Governance',
+      aws: 'AWS Infrastructure',
+      neatlogs: 'Neatlogs Tracing',
+      headroom: 'Headroom Vault',
+      sandbox: 'World Reality State',
+      receipts: 'Cryptographic Ledger'
+    };
+
+    function switchDashTab(tabId) {
+      document.querySelectorAll('.dash-sidebar .nav-item').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.dash-tab-pane').forEach(pane => pane.classList.remove('active'));
+
+      const activeNav = document.getElementById('nav-' + tabId);
+      if (activeNav) activeNav.classList.add('active');
+
+      const activePane = document.getElementById('pane-' + tabId);
+      if (activePane) activePane.classList.add('active');
+
+      document.getElementById('dashBreadcrumb').innerText = TAB_NAMES[tabId] || 'Overview';
+      window.scrollTo(0, 0);
+    }
 
     function navigate(viewName) {
       document.querySelectorAll('.view-pane').forEach(el => el.classList.remove('active'));
@@ -919,7 +1500,7 @@
     }
 
     function openAuthModal(actionContext) {
-      if (currentUser) {
+      if (currentUser && currentAuthToken) {
         navigate('dashboard');
         return;
       }
@@ -929,29 +1510,98 @@
 
     function closeAuthModal() {
       document.getElementById('authModal').classList.remove('active');
+      document.getElementById('authErrorMsg').style.display = 'none';
     }
 
-    function handleGoogleSignIn() {
-      currentUser = { email: 'user@google-oauth.cieav.com', provider: 'google' };
-      onUserSignedIn();
+    async function handleGoogleSignIn() {
+      await authenticateUser('user@google-oauth.cieav.com', 'google-oauth-token');
     }
 
-    function handleEmailAuth(e) {
+    async function handleEmailAuth(e) {
       e.preventDefault();
-      const email = document.getElementById('authEmail').value;
-      currentUser = { email: email, provider: 'email' };
-      onUserSignedIn();
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      await authenticateUser(email, password);
+    }
+
+    async function authenticateUser(email, password) {
+      const btn = document.getElementById('authSubmitBtn');
+      const errBox = document.getElementById('authErrorMsg');
+      btn.innerText = 'Connecting to SQLite...';
+      errBox.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        btn.innerText = 'Sign In / Register into SQLite';
+
+        if (!res.ok || data.error || data.detail) {
+          errBox.innerText = data.error || data.detail || 'Authentication error';
+          errBox.style.display = 'block';
+          return;
+        }
+
+        currentAuthToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('cieav_token', currentAuthToken);
+        localStorage.setItem('cieav_user', JSON.stringify(currentUser));
+
+        onUserSignedIn();
+      } catch (err) {
+        btn.innerText = 'Sign In / Register into SQLite';
+        errBox.innerText = 'Network error: ' + err;
+        errBox.style.display = 'block';
+      }
     }
 
     function onUserSignedIn() {
       closeAuthModal();
-      document.getElementById('dashUserEmail').innerText = currentUser.email;
+      const email = currentUser?.email || 'admin@cieav.local';
+      document.getElementById('dashUserEmail').innerText = email;
+      const initials = email.substring(0, 2).toUpperCase();
+      document.getElementById('dashUserAvatar').innerText = initials;
+      document.getElementById('dashUserRole').innerText = (currentUser?.role || 'Admin').toUpperCase() + ' • SQLite Auth';
       navigate('dashboard');
     }
 
-    function signOut() {
+    async function signOut() {
+      if (currentAuthToken) {
+        try {
+          await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: currentAuthToken })
+          });
+        } catch (e) {}
+      }
       currentUser = null;
+      currentAuthToken = null;
+      localStorage.removeItem('cieav_token');
+      localStorage.removeItem('cieav_user');
       navigate('landing');
+    }
+
+    // Auto resume session if token present
+    async function checkSavedSession() {
+      const savedToken = localStorage.getItem('cieav_token');
+      if (savedToken) {
+        try {
+          const res = await fetch(`/api/auth/me?token=${encodeURIComponent(savedToken)}`);
+          const data = await res.json();
+          if (data.authenticated && data.user) {
+            currentAuthToken = savedToken;
+            currentUser = data.user;
+            onUserSignedIn();
+          } else {
+            localStorage.removeItem('cieav_token');
+            localStorage.removeItem('cieav_user');
+          }
+        } catch (e) {}
+      }
     }
 
     // Interactive Glyph Canvas Logic from original landing page
@@ -989,14 +1639,13 @@
       if (!cv) return;
       const ctx = cv.getContext('2d');
       const { rects, cols } = buildRects();
+      let vw = window.innerWidth;
+      let vh = window.innerHeight;
 
-      let vw = 0;
-      let vh = 0;
-      let dpr = 1;
       function resize() {
-        vw = document.documentElement.clientWidth;
+        vw = window.innerWidth;
         vh = window.innerHeight;
-        dpr = Math.min(2, window.devicePixelRatio || 1);
+        const dpr = window.devicePixelRatio || 1;
         cv.width = Math.round(vw * dpr);
         cv.height = Math.round(vh * dpr);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1106,12 +1755,10 @@
     }
     updateDashToolPreset();
 
-    // Alma AI Intent Engine JavaScript
+    // Intent Omnibar helpers
     let currentAlmaPlan = null;
-
     function setIntent(text) {
-      const input = document.getElementById('almaIntentInput');
-      input.value = text;
+      document.getElementById('almaIntentInput').value = text;
       evaluateAlmaIntent();
     }
 
@@ -1123,7 +1770,7 @@
       const planBox = document.getElementById('almaPlanBox');
       const actionsList = document.getElementById('almaPlanActionsList');
       planBox.style.display = 'flex';
-      actionsList.innerHTML = '<div style="padding:16px; font-size:13px; color:#64748b; text-align:center;">Evaluating intent against deterministic safety floor & AI converse...</div>';
+      actionsList.innerHTML = '<div style="padding:16px; font-size:13px; color:#64748b; text-align:center;">Evaluating intent against deterministic safety floor...</div>';
 
       try {
         const res = await fetch('/api/intent/plan', {
@@ -1140,7 +1787,7 @@
         riskBadge.className = `badge badge-${plan.highest_risk}`;
 
         actionsList.innerHTML = '';
-        plan.actions.forEach((act, idx) => {
+        plan.actions.forEach((act) => {
           const actDiv = document.createElement('div');
           actDiv.className = 'plan-action-card';
           actDiv.innerHTML = `
@@ -1203,6 +1850,7 @@
         } else {
           dismissAlmaPlan();
           fetchState();
+          switchDashTab('receipts');
         }
       } catch (err) {
         alert("Commit error: " + err);
@@ -1218,7 +1866,6 @@
       alert("CIEAV Alma-Native CLI:\n\nRun in terminal:\n  python -m commit_layer.cli intent \"deploy payment-worker v2.1.0\"\n  python -m commit_layer.cli intent \"tpm attest pcr 7\"\n  python -m commit_layer.cli status\n  python -m commit_layer.cli verify\n  python -m commit_layer.cli undo <receipt_id>\n\nOr interactive REPL mode:\n  python -m commit_layer.cli");
     }
 
-
     async function submitDashAction() {
       const tool = document.getElementById('dashToolSelect').value;
       const raw = document.getElementById('dashArgsInput').value;
@@ -1228,28 +1875,96 @@
       await fetch('/api/actions/intercept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool, args, agent_id: currentUser ? currentUser.email : 'web-user' })
+        body: JSON.stringify({ tool, args, agent_id: currentUser ? currentUser.email : 'admin@cieav.local' })
       });
       fetchState();
+      switchDashTab('approvals');
     }
 
     async function runCrustdataLookup() {
       const payee = document.getElementById('crustdataDomainInput').value.trim();
       if (!payee) return;
       const box = document.getElementById('crustdataResultBox');
+      const badge = document.getElementById('crustdataVerdictBadge');
       box.style.display = 'block';
-      box.innerText = 'Screening on Crustdata...';
+      badge.style.display = 'none';
+      box.innerText = `Calling Crustdata 2025-11-01 API for '${payee}'...`;
 
       try {
+        const start = performance.now();
         const res = await fetch('/api/crustdata/lookup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ payee })
         });
+        const latency = Math.round(performance.now() - start);
         const data = await res.json();
+        
+        badge.style.display = 'block';
+        if (data.verified) {
+          badge.innerHTML = `<div style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:10px 14px; border-radius:8px; font-weight:700; font-size:13px;">✓ VERIFIED COUNTERPARTY — ${data.reason} (${latency}ms)</div>`;
+        } else {
+          badge.innerHTML = `<div style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:10px 14px; border-radius:8px; font-weight:700; font-size:13px;">⚠ UNVERIFIED / UNKNOWN COUNTERPARTY — ${data.reason} (${latency}ms). Policy escalates risk to prevent autonomous theft!</div>`;
+        }
+
         box.innerText = JSON.stringify(data, null, 2);
       } catch (err) {
-        box.innerText = 'Lookup error: ' + err;
+        box.innerText = 'Crustdata lookup error: ' + err;
+      }
+    }
+
+    async function verifyAwsLive() {
+      const box = document.getElementById('awsLiveResultBox');
+      box.style.display = 'block';
+      box.innerText = 'Querying live AWS STS caller identity & EC2 VPCs...';
+
+      try {
+        const start = performance.now();
+        const res = await fetch('/api/aws/status');
+        const latency = Math.round(performance.now() - start);
+        const data = await res.json();
+        box.innerText = `[Live AWS Call Succeeded in ${latency}ms]:\n\n` + JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.innerText = 'AWS verification error: ' + err;
+      }
+    }
+
+    async function sendNeatlogsPing() {
+      const box = document.getElementById('neatlogsLiveResultBox');
+      box.style.display = 'block';
+      box.innerText = 'Sending live telemetry span to app.neatlogs.com...';
+
+      try {
+        const start = performance.now();
+        const res = await fetch('/api/neatlogs/ping', { method: 'POST' });
+        const latency = Math.round(performance.now() - start);
+        const data = await res.json();
+        box.innerText = `[Neatlogs Live Telemetry Flushed in ${latency}ms]:\n\n` + JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.innerText = 'Neatlogs live test error: ' + err;
+      }
+    }
+
+    async function updateCfoBudget() {
+      const val = parseFloat(document.getElementById('cfoNewBudgetInput').value);
+      if (isNaN(val) || val <= 0) return;
+      await fetch('/api/cfo/budget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ total_budget: val })
+      });
+      fetchState();
+    }
+
+    async function resetCfoSpend() {
+      await fetch('/api/cfo/reset', { method: 'POST' });
+      fetchState();
+    }
+
+    async function resetReceipts() {
+      if (confirm("Reset SQLite receipts ledger?")) {
+        await fetch('/api/receipts/reset', { method: 'POST' });
+        fetchState();
       }
     }
 
@@ -1269,15 +1984,22 @@
         if (data.integrations) {
           const neatlogs = data.integrations.neatlogs;
           const statusNeatlogsEl = document.getElementById('statusNeatlogs');
-          if (neatlogs.configured) {
+          if (neatlogs.configured && neatlogs.active) {
             statusNeatlogsEl.innerText = 'ONLINE';
             statusNeatlogsEl.className = 'integ-status integ-online';
+            document.getElementById('subNeatlogs').innerText = 'app.neatlogs.com active';
           } else {
-            statusNeatlogsEl.innerText = 'KEY READY';
+            statusNeatlogsEl.innerText = 'OFFLINE';
             statusNeatlogsEl.className = 'integ-status integ-ready';
+            document.getElementById('subNeatlogs').innerText = 'local fallback';
           }
           if (data.integrations.entire?.latest_commit_sha) {
             document.getElementById('subEntire').innerText = 'sha: ' + data.integrations.entire.latest_commit_sha.substring(0, 7);
+          }
+          if (data.integrations.aws) {
+            document.getElementById('statusAws').innerText = 'CONNECTED';
+            document.getElementById('statusAws').className = 'integ-status integ-online';
+            document.getElementById('subAws').innerText = 'Account: ' + data.integrations.aws.account_id;
           }
           if (data.integrations.crustdata) {
             document.getElementById('subCrustdata').innerText = data.integrations.crustdata.credits;
@@ -1288,7 +2010,11 @@
           if (data.integrations.cfo_ai) {
             const cfo = data.integrations.cfo_ai;
             document.getElementById('statusCFO').innerText = 'ACTIVE';
-            document.getElementById('subCFO').innerText = `$${cfo.remaining_budget_usd ?? 25.0} left / $${cfo.total_budget_usd ?? 25.0} budget`;
+            document.getElementById('subCFO').innerText = `$${(cfo.remaining_budget_usd ?? 25.0).toFixed(2)} left / $${(cfo.total_budget_usd ?? 25.0).toFixed(2)} budget`;
+            document.getElementById('cfoTotalBudget').innerText = '$' + (cfo.total_budget_usd ?? 25.0).toFixed(2);
+            document.getElementById('cfoCurrentSpend').innerText = '$' + (cfo.current_spend_usd ?? 0.0).toFixed(2);
+            document.getElementById('cfoRemainingBudget').innerText = '$' + (cfo.remaining_budget_usd ?? 25.0).toFixed(2);
+            document.getElementById('cfoProtectedCount').innerText = `${cfo.protected_actions_count ?? 0} actions`;
           }
         }
 
@@ -1299,7 +2025,6 @@
           document.getElementById('headroomSavedBytes').innerText = (data.headroom.saved_bytes ?? 0).toLocaleString() + ' B';
           document.getElementById('headroomSavedTokens').innerText = (data.headroom.approx_saved_tokens ?? 0).toLocaleString() + ' tokens';
         }
-
 
         // Sandbox
         document.getElementById('dashBankBox').innerText = JSON.stringify(data.sandbox.bank_ledger, null, 2);
@@ -1318,73 +2043,82 @@
           document.getElementById('dashHardwareBox').innerText = JSON.stringify(data.sandbox.hardware, null, 2);
         }
 
-
-        // Pending
-        const container = document.getElementById('dashPendingContainer');
+        // Pending Approvals Queue
         const pendingKeys = Object.keys(data.pending);
-        const badge = document.getElementById('dashPendingBadge');
-        badge.innerText = `${pendingKeys.length} Pending`;
-        badge.className = `badge ${pendingKeys.length > 0 ? 'badge-CRITICAL' : 'badge-LOW'}`;
-
-        if (pendingKeys.length === 0) {
-          container.innerHTML = '<p style="font-size:13px; color:var(--text-muted); text-align:center; padding:30px 0;">No actions currently waiting for approval.</p>';
+        const sideCount = document.getElementById('sidePendingCount');
+        if (pendingKeys.length > 0) {
+          sideCount.innerText = pendingKeys.length;
+          sideCount.style.display = 'inline-block';
         } else {
-          container.innerHTML = '';
+          sideCount.style.display = 'none';
+        }
+
+        const renderPendingHTML = () => {
+          if (pendingKeys.length === 0) {
+            return '<p style="font-size:13px; color:var(--text-muted); text-align:center; padding:30px 0;">No actions currently waiting for approval.</p>';
+          }
+          let h = '';
           pendingKeys.forEach(id => {
             const act = data.pending[id];
-            const div = document.createElement('div');
-            div.className = 'pending-item';
-            div.innerHTML = `
-              <div class="pending-top">
-                <span class="tool-badge">${act.tool_name}()</span>
-                <span class="badge badge-${act.risk}">${act.risk}</span>
-              </div>
-              <div class="code-box">${JSON.stringify(act.args_redacted, null, 2)}</div>
-              <div style="font-size:12px; color:#475569;"><strong>Reasons:</strong> ${act.reasons.join('; ')}</div>
-              ${act.requires_typed_confirmation ? `
-                <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:10px;">
-                  <label style="font-size:11px; font-weight:700; color:#dc2626; display:block; margin-bottom:4px;">High risk! Type 'COMMIT' to approve:</label>
-                  <input type="text" id="confirm_${act.id}" placeholder="Type COMMIT" class="form-input" style="width:100%; border-color:#dc2626; padding:6px 10px;" />
+            h += `
+              <div class="pending-item">
+                <div class="pending-top">
+                  <span class="tool-badge">${act.tool_name}()</span>
+                  <span class="badge badge-${act.risk}">${act.risk}</span>
                 </div>
-              ` : ''}
-              <div style="display:flex; gap:10px; margin-top:4px;">
-                <button class="btn btn-success" style="flex:1;" onclick="approveAction('${act.id}', ${act.requires_typed_confirmation})">✓ COMMIT</button>
-                <button class="btn btn-danger" style="flex:1;" onclick="cancelAction('${act.id}')">✕ CANCEL</button>
+                <div class="code-box">${JSON.stringify(act.args_redacted, null, 2)}</div>
+                <div style="font-size:12px; color:#475569;"><strong>Reasons:</strong> ${act.reasons.join('; ')}</div>
+                ${act.requires_typed_confirmation ? `
+                  <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:10px;">
+                    <label style="font-size:11px; font-weight:700; color:#dc2626; display:block; margin-bottom:4px;">High risk! Type 'COMMIT' to approve:</label>
+                    <input type="text" id="confirm_${act.id}" placeholder="Type COMMIT" class="form-input" style="width:100%; border-color:#dc2626; padding:6px 10px;" />
+                  </div>
+                ` : ''}
+                <div style="display:flex; gap:10px; margin-top:4px;">
+                  <button class="btn btn-success" style="flex:1;" onclick="approveAction('${act.id}', ${act.requires_typed_confirmation})">✓ COMMIT</button>
+                  <button class="btn btn-danger" style="flex:1;" onclick="cancelAction('${act.id}')">✕ CANCEL</button>
+                </div>
               </div>
             `;
-            container.appendChild(div);
           });
-        }
+          return h;
+        };
+
+        document.getElementById('dashDedicatedPendingContainer').innerHTML = renderPendingHTML();
 
         // Receipts Table
         const tbody = document.getElementById('dashReceiptsTbody');
         tbody.innerHTML = '';
-        data.receipts.slice().reverse().forEach(r => {
-          const tr = document.createElement('tr');
-          const outcomeBadge = r.outcome ? `<span class="badge badge-${r.outcome}">${r.outcome}</span>` : '--';
-          let undoAction = '<span style="color:#94a3b8; font-size:12px;">--</span>';
-          if (r.outcome === 'OBSERVED_SUCCESS' && r.undo_state === 'AVAILABLE') {
-            undoAction = `<button class="btn btn-undo" onclick="undoReceipt('${r.id}')">⎌ Undo</button>`;
-          } else if (r.undo_state === 'UNDONE') {
-            undoAction = '<span style="color:#7c3aed; font-weight:700; font-size:11px;">UNDONE</span>';
-          }
+        if (data.receipts.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px; color:var(--text-muted);">No receipts recorded in SQLite yet. Dispatch and commit actions to record live cryptographic receipts.</td></tr>';
+        } else {
+          data.receipts.slice().reverse().forEach(r => {
+            const tr = document.createElement('tr');
+            const outcomeBadge = r.outcome ? `<span class="badge badge-${r.outcome}">${r.outcome}</span>` : '--';
+            let undoAction = '<span style="color:#94a3b8; font-size:12px;">--</span>';
+            if (r.outcome === 'OBSERVED_SUCCESS' && r.undo_state === 'AVAILABLE') {
+              undoAction = `<button class="btn btn-undo" onclick="undoReceipt('${r.id}')">⎌ Undo</button>`;
+            } else if (r.undo_state === 'UNDONE') {
+              undoAction = '<span style="color:#7c3aed; font-weight:700; font-size:11px;">UNDONE</span>';
+            }
 
-          tr.innerHTML = `
-            <td style="font-family:var(--mono); font-size:11px; color:#64748b;">${new Date(r.timestamp * 1000).toLocaleTimeString()}</td>
-            <td style="font-family:var(--mono); font-weight:700; color:#0f172a;">${r.tool}</td>
-            <td style="font-family:var(--mono); font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.args_redacted}</td>
-            <td><span class="badge badge-${r.risk}">${r.risk}</span></td>
-            <td style="font-size:12px; color:#64748b;">${r.decision}</td>
-            <td style="font-weight:700;">${r.status}</td>
-            <td>${outcomeBadge}</td>
-            <td>${undoAction}</td>
-            <td style="font-family:var(--mono); font-size:10px; color:#94a3b8;">
-              prev: ${r.prev_hash.substring(0, 8)}...<br/>
-              sig: ${r.signature ? r.signature.substring(0, 10) + '...' : 'none'}
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
+            tr.innerHTML = `
+              <td style="font-family:var(--mono); font-size:11px; color:#64748b;">${new Date(r.timestamp * 1000).toLocaleTimeString()}</td>
+              <td style="font-family:var(--mono); font-weight:700; color:#0f172a;">${r.tool}</td>
+              <td style="font-family:var(--mono); font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${r.args_redacted}</td>
+              <td><span class="badge badge-${r.risk}">${r.risk}</span></td>
+              <td style="font-size:12px; color:#64748b;">${r.decision}</td>
+              <td style="font-weight:700;">${r.status}</td>
+              <td>${outcomeBadge}</td>
+              <td>${undoAction}</td>
+              <td style="font-family:var(--mono); font-size:10px; color:#94a3b8;">
+                prev: ${r.prev_hash.substring(0, 8)}...<br/>
+                sig: ${r.signature ? r.signature.substring(0, 10) + '...' : 'none'}
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
 
       } catch (err) {
         console.error("Dashboard sync error", err);
@@ -1401,6 +2135,7 @@
       }
       await fetch(`/api/actions/${id}/approve`, { method: 'POST' });
       fetchState();
+      switchDashTab('receipts');
     }
 
     async function cancelAction(id) {
@@ -1415,10 +2150,23 @@
       fetchState();
     }
 
-    async function triggerHostileDemo() { await fetch('/api/demo/hostile-injection', { method: 'POST' }); fetchState(); }
-    async function triggerSafePaymentDemo() { await fetch('/api/demo/safe-payment', { method: 'POST' }); fetchState(); }
-    async function triggerFlakyDemo() { await fetch('/api/demo/flaky-payment', { method: 'POST' }); fetchState(); }
-    async function resetSandbox() { await fetch('/api/sandbox/reset', { method: 'POST' }); fetchState(); }
+    async function triggerHostileDemo() {
+      await fetch('/api/demo/hostile-injection', { method: 'POST' });
+      fetchState();
+      switchDashTab('approvals');
+    }
+
+    async function triggerSafePaymentDemo() {
+      await fetch('/api/demo/safe-payment', { method: 'POST' });
+      fetchState();
+      switchDashTab('approvals');
+    }
+
+    async function resetSandbox() {
+      await fetch('/api/sandbox/reset', { method: 'POST' });
+      fetchState();
+    }
+
     async function verifyLedger() {
       const res = await fetch('/api/receipts/verify');
       const data = await res.json();
@@ -1488,7 +2236,8 @@
       document.getElementById('headroomTestInput').value = sample;
     }
 
-
+    // Auto resume or fetch
+    checkSavedSession();
     setInterval(fetchState, 2000);
     fetchState();
   </script>

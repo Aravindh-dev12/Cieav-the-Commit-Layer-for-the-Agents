@@ -49,7 +49,7 @@ def lookup_payee(payee: str) -> dict[str, Any]:
     }
 
     try:
-        with httpx.Client(timeout=8.0) as client:
+        with httpx.Client(timeout=15.0) as client:
             resp = client.post(
                 f"{CRUSTDATA_BASE_URL}/company/search",
                 headers=headers,

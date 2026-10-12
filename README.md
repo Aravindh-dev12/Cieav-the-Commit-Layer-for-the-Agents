@@ -75,7 +75,7 @@ Provides standardized agent session and boundary governance:
 Enforces structured action surfaces for mission-critical operations:
 - **Action Surfaces**: Formally defined interfaces with strict idempotency keys (`idempotency_key`), preventing accidental double-spends or duplicate executions.
 - **Trajectory Evidence**: Canonical execution logs hashed with SHA-256 to provide tamper-proof forensic evidence for compliance.
-- **WARI (Agent Readiness Index)**: Evaluates agent action readiness, generating a calibrated `w0` score (99.5/100) and readiness grade.
+- **Readiness Audit**: Evaluates agent action surface readiness, generating a calibrated reliability score and execution grade.
 
 ### 4. Headroom Context Optimization & CCR Vault
 Context optimization middleware that reduces token consumption:
@@ -336,7 +336,7 @@ Cieav-the-Commit-Layer-for-the-Internet/
 │   ├── tokens.py                # Single-use execution token authority (60s TTL)
 │   ├── friction.py              # Cognitive debt & rate fatigue tracking
 │   ├── poppy.py                 # Autonomous Agent Gateway protocol (discovery & sessions)
-│   ├── webzero.py               # Action Surfaces, idempotency & WARI scoring
+│   ├── webzero.py               # Action Surfaces, idempotency & reliability scoring
 │   ├── memorable.py             # Procedural graph memory (SQLite)
 │   ├── connectors.py            # Open-Agent-Connector & Open-Dots workspace
 │   ├── crustdata.py             # Payee & counterparty identity checks
