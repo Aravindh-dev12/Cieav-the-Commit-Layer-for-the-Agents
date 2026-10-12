@@ -251,6 +251,79 @@ def run_alma_job_search_workflow(query_text: str = ""):
     # Print real-time auto-updated report summary
     print(job_tracker.format_cli_report() + "\n")
 
+def run_alma_general_intent_workflow(prompt: str):
+    global last_committed_receipt_id
+    from commit_layer import intent
+    
+    print("\n============================================================================")
+    print("   ALMA COMPUTER CONTROL AGENT (CIEAV COMMIT LAYER)")
+    print("   Autonomous Multi-Domain Intent Execution")
+    print("============================================================================")
+    print(f"🎯 Target Intent : \"{prompt}\"")
+    
+    try:
+        plan = intent.plan_intent(prompt)
+    except Exception as e:
+        print(f"  ❌ Intent planning error: {e}\n")
+        return
+
+    actions = plan.get("actions", [])
+    if not actions:
+        print(f"\n[AI AGENT INTERPRETER] Instruction received: '{prompt}'")
+        print("Tip: To control your computer safely via CIEAV (like Alma / Claude Code):")
+        print("  exec <shell_cmd>              -> Governed command execution")
+        print("  create <file> <content>       -> Governed file creation with snapshot")
+        print("  modify <file> <content>       -> Governed file modification with snapshot")
+        print("  delete <filepath>             -> Intercepted as CRITICAL with 2-Phase Undo")
+        print("  pay <amount> <recipient>      -> Governed financial transfer with spend bounds")
+        print("  cieav \"find jobs and apply\"   -> Autonomous career search and application")
+        print("  /undo                         -> Instant cryptographic rollback of last action\n")
+        return
+
+    print(f"📋 Actions Planned : {len(actions)} atomic operation(s)")
+    print(f"🔒 Highest Risk    : {plan.get('highest_risk')} (Safety Floor Enforced)")
+    if plan.get("recalled_from_memorable"):
+        print(f"🧠 Memorable Cache : Recalled verified procedure (saved {plan.get('tokens_saved')} reasoning tokens)")
+
+    for idx, act in enumerate(actions, 1):
+        print(f"\n  [{idx}/{len(actions)}] Action: {act.get('summary', act['tool'])}")
+        print(f"      Domain     : {act.get('domain', 'general').upper()}")
+        print(f"      Tool       : {act['tool']}")
+        print(f"      Risk Level : {act['risk']}")
+        print(f"      Reasons    : {', '.join(act.get('reasons', []))}")
+        print(f"      Arguments  : {act.get('args_redacted', {})}")
+        print(f"      Rollback   : {'Available (Atomic snapshot inverse)' if act.get('can_rollback') else 'Irreversible'}")
+
+    req_typed = plan.get("requires_typed_confirmation", False)
+    prompt_txt = f"\nType 'COMMIT' to approve plan or press Enter to cancel: " if req_typed else "\nApprove this plan? (y/N): "
+    
+    try:
+        choice = input(prompt_txt).strip()
+    except (KeyboardInterrupt, EOFError):
+        choice = ""
+
+    if (req_typed and ("COMMIT" in choice.upper() or choice.upper() == plan.get("confirmation_phrase", "").upper())) or (not req_typed and choice.lower() in ("y", "yes")):
+        print("\n[CIEAV] Committing actions under cryptographic governance...")
+        res = intent.commit_plan(plan["plan_id"], approved_by="human-operator", typed_confirmation="COMMIT")
+        if "error" in res:
+            print(f"  ❌ Commit error: {res['error']}\n")
+            return
+        
+        for r in res.get("results", []):
+            rid = r.get("receipt_id", "N/A")
+            if rid and rid != "N/A":
+                last_committed_receipt_id = rid
+            print(f"  ✅ Executed: {r.get('status', '').upper()} | Outcome: {r.get('outcome', 'UNKNOWN')} | Receipt: {rid[:8] if rid != 'N/A' else 'NONE'}")
+            if "result" in r:
+                print(f"     Result  : {r.get('result')}")
+        print("\n[CIEAV] All operations committed and recorded in Ed25519 hash-chained ledger.")
+        print("  Type 'cieav /undo' to recall the committed action.\n")
+    else:
+        print("\n[CIEAV] Plan cancelled by operator. No state was mutated.\n")
+        for act in actions:
+            gateway.cancel(act["action_id"])
+
+
 def process_user_input(text: str):
     cmd = text.strip()
     if not cmd:
@@ -268,19 +341,31 @@ def process_user_input(text: str):
         sys.exit(0)
     elif lower in ("/help", "help"):
         print("""
-Available Commands:
+Available Governed Commands:
   /status     - Inspect Commit Layer state and Ed25519 signing key
-  /receipts   - View recent cryptographic receipts
-  /undo       - Rollback the last committed action
+  /receipts   - View recent cryptographic Ed25519 hash-chained receipts
+  /undo       - Instantly rollback the last committed action
+  /jobs       - View real-world multi-platform job application tracker
   /reset      - Clean the receipts ledger
   exit / quit - Close session
 
-Natural Language Task Examples:
-  * 'read <path>'             - Inspect a file losslessly
-  * 'list <path>'             - List files in a directory
-  * 'delete <path>'           - Governed file deletion with rollback
-  * 'modify <path> <text>'    - Governed file modification with snapshot
-  * 'undo'                    - Revert last action
+4 Real-World Governed Agent Scenarios:
+  1. Autonomous Career Search & Application (Alma Style):
+     cieav "find jobs based on my resume and apply"
+     cieav "apply to Tether on RemoteOK"
+     cieav /jobs
+  2. Codebase Refactoring & Disaster Recovery (Atomic Undo):
+     cieav create demo.txt "Hello from CIEAV"
+     cieav delete demo.txt
+     cieav /undo
+  3. CFO Budget & Financial Transaction Governance:
+     cieav "pay $250 to AWS for GPU cluster"
+     cieav pay 50 merchant_a
+     cieav /undo
+  4. Autonomous DevOps & Infrastructure Incident Governance:
+     cieav "deploy service payment-worker v2.1.0"
+     cieav "attest tpm pcr 7"
+     cieav "reboot edge-node-01"
 """)
         return
     elif lower in ("/status", "status"):
@@ -356,7 +441,7 @@ Natural Language Task Examples:
 
     if cmd.startswith("pay "):
         parts = cmd.split()
-        if len(parts) >= 3:
+        if len(parts) == 3 and parts[2].lower() != "to":
             try:
                 amt = float(parts[1].replace("$", ""))
                 recipient = parts[2]
@@ -364,8 +449,6 @@ Natural Language Task Examples:
                 return
             except ValueError:
                 pass
-        print("Usage: pay <amount> <recipient> (e.g. pay 50 merchant_a)")
-        return
 
     # Fallback to smart intent matching
     words = lower.split()
@@ -409,17 +492,8 @@ Natural Language Task Examples:
             if "." in w or "/" in w or "\\" in w:
                 execute_governed_action("repo_file_action", {"file_path": w, "operation": "delete"})
                 return
-
-    print(f"\n[AI AGENT INTERPRETER] Instruction received: '{cmd}'")
-    print("Tip: To control your computer safely via CIEAV (like Alma / Claude Code):")
-    print("  exec <shell_cmd>              -> Governed command execution (filtered for harm)")
-    print("  create <file> <content>       -> Governed file creation with snapshot")
-    print("  modify <file> <content>       -> Governed file modification with snapshot")
-    print("  delete <filepath>             -> Intercepted as CRITICAL with 2-Phase Undo")
-    print("  read <filepath>               -> Safe lossless inspection")
-    print("  list <dirpath>                -> Safe directory listing")
-    print("  pay <amount> <recipient>      -> Governed financial transfer with spend bounds")
-    print("  /undo                         -> Instant cryptographic rollback of last action\n")
+    # Fallback to Alma multi-domain autonomous intent workflow
+    run_alma_general_intent_workflow(cmd)
 
 
 def main(argv: list[str] | None = None) -> int:

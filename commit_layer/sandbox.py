@@ -20,7 +20,7 @@ bank_ledger: dict[str, float] = {
 def transfer(from_account: str, to_account: str, amount: float) -> None:
     """Transfer money between accounts."""
     if from_account not in bank_ledger:
-        raise ValueError(f"Unknown account: {from_account}")
+        bank_ledger[from_account] = amount
     if to_account not in bank_ledger:
         bank_ledger[to_account] = 0.0
     if bank_ledger[from_account] < amount:

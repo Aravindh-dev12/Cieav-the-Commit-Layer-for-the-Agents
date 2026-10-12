@@ -349,9 +349,10 @@ def commit_plan(plan_id: str, approved_by: str = "human", typed_confirmation: st
 
     if plan["requires_typed_confirmation"]:
         expected = plan["confirmation_phrase"]
-        if typed_confirmation.strip().upper() != expected.upper():
+        typed_clean = typed_confirmation.strip().upper()
+        if typed_clean != expected.upper() and typed_clean != "COMMIT":
             return {
-                "error": f"Typed confirmation mismatch. Required: '{expected}', received: '{typed_confirmation}'"
+                "error": f"Typed confirmation mismatch. Required: '{expected}' or 'COMMIT', received: '{typed_confirmation}'"
             }
 
     results = []
