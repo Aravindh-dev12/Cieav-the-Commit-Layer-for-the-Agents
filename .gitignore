@@ -32,4 +32,7 @@ commit_layer/*.db
 *.repo_snapshots/
 .repo_snapshots/
 commit_layer/.repo_snapshots/
+*.egg-info/
+python/*.egg-info/
+
 

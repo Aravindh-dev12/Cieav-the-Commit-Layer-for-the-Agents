@@ -11,6 +11,7 @@ if __package__:
     from .mcp_launcher import main as mcp_main
     from .openclaw_cli import main as openclaw_main
     from .proof_cli import main as proof_main
+    from .chat_cli import main as chat_main
 else:
     # PyInstaller executes the configured source file as a top-level script.
     # Import through the package namespace so relative imports inside the
@@ -23,10 +24,13 @@ else:
     from cieav_platform.mcp_launcher import main as mcp_main
     from cieav_platform.openclaw_cli import main as openclaw_main
     from cieav_platform.proof_cli import main as proof_main
+    from cieav_platform.chat_cli import main as chat_main
 
 
 def entrypoint() -> int:
     args=sys.argv[1:]
+    if not args: return chat_main([])
+    if args and args[0] in {"chat", "code", "agent"}: return chat_main(args[1:])
     if args and args[0]=="mcp": return mcp_main(args[1:])
     if args and args[0]=="a2a": return a2a_main(args[1:])
     if args and args[0]=="companion": return companion_main(args[1:])
