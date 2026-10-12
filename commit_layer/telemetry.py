@@ -60,8 +60,8 @@ def get_llm_client():
     Tries AWS Bedrock first if AWS credentials exist,
     otherwise falls back to Anthropic client if ANTHROPIC_API_KEY exists.
     """
-    # Option A: AWS Bedrock
-    if os.environ.get("AWS_ACCESS_KEY_ID") and os.environ.get("AWS_SECRET_ACCESS_KEY"):
+    # Option A: AWS Bedrock (if explicitly enabled)
+    if os.environ.get("ENABLE_AWS_BEDROCK", "false").lower() == "true" and os.environ.get("AWS_ACCESS_KEY_ID") and os.environ.get("AWS_SECRET_ACCESS_KEY"):
         try:
             import boto3
             region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
@@ -120,9 +120,17 @@ class TraceSpan:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self._ctx:
             try:
-                return self._ctx.__exit__(exc_type, exc_val, exc_tb)
-            except Exception:
-                pass
+                if exc_type and self._span:
+                    try:
+                        self._span.set_attribute("commit.handled_error", True)
+                        self._span.set_attribute("commit.error_type", exc_type.__name__)
+                        self._span.set_attribute("commit.error_detail", str(exc_val))
+                    except Exception:
+                        pass
+                # Close the span cleanly without marking it as an unhandled application error
+                return self._ctx.__exit__(None, None, None)
+            except Exception as e:
+                logger.debug("Error exiting neatlogs span: %s", e)
         return False
 
 
