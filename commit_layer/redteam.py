@@ -6,6 +6,9 @@ proving that deterministic safety floors never allow autonomous execution.
 """
 from __future__ import annotations
 import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from commit_layer import gateway
 from commit_layer.models import RiskLevel, Decision
 from commit_layer.telemetry import trace_stage, flush_and_shutdown
