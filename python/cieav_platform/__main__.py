@@ -28,17 +28,37 @@ else:
 
 
 def entrypoint() -> int:
-    args=sys.argv[1:]
-    if not args: return chat_main([])
-    if args and args[0] in {"chat", "code", "agent"}: return chat_main(args[1:])
-    if args and args[0]=="mcp": return mcp_main(args[1:])
-    if args and args[0]=="a2a": return a2a_main(args[1:])
-    if args and args[0]=="companion": return companion_main(args[1:])
-    if args and args[0]=="openclaw": return openclaw_main(args[1:])
-    if args and args[0] in {"lab","action-lab"}: return lab_main(args[1:])
-    if args and args[0]=="approval": return approval_main(args[1:])
-    if args and args[0]=="proof": return proof_main(args[1:])
-    return cli_main(args)
+    args = sys.argv[1:]
+    if not args:
+        return chat_main([])
+    
+    first = args[0].lower()
+    if first in {"chat", "code", "agent"}:
+        return chat_main(args[1:])
+    if first in {"/status", "status", "/receipts", "receipts", "/undo", "undo", "/help", "help", "/reset", "reset"}:
+        return chat_main(args)
+    if first == "mcp":
+        return mcp_main(args[1:])
+    if first == "a2a":
+        return a2a_main(args[1:])
+    if first == "companion":
+        return companion_main(args[1:])
+    if first == "openclaw":
+        return openclaw_main(args[1:])
+    if first in {"lab", "action-lab"}:
+        return lab_main(args[1:])
+    if first == "approval":
+        return approval_main(args[1:])
+    if first == "proof":
+        return proof_main(args[1:])
+    
+    # Check if this is a legacy command (e.g. gateway, doctor, audit)
+    legacy_cmds = {"gateway", "cloud", "model", "audit", "doctor", "dashboard", "test-lab"}
+    if first in legacy_cmds:
+        return cli_main(args)
+
+    # Any other prompt or natural language instruction routes directly to chat_main
+    return chat_main(args)
 
 
 if __name__=="__main__":
