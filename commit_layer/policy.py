@@ -61,6 +61,10 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
             return RiskLevel.MEDIUM, [f"External service action dispatched via connector: {connector_id}"]
         return RiskLevel.HIGH, [f"External HTTP webhook dispatched via connector: {connector_id}"]
 
+    if tool == 'job_application_action':
+        company = args.get('company', 'Target Company')
+        return RiskLevel.HIGH, [f"Outbound job application and candidate PII transmission to {company}"]
+
     # ── Unknown tool → HIGH ─────────────────────────────────────
     return RiskLevel.HIGH, [f"Unknown tool: {tool}"]
 

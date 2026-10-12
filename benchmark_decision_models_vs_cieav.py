@@ -186,6 +186,10 @@ class CIEAVSystem:
         
         is_held = result.get("status") == "pending"
         requires_typed = result.get("requires_typed_confirmation", False)
+
+        # Remove from pending queue to keep real live operator queue clean
+        gateway.pending_actions.pop(action.id, None)
+
         
         return {
             "model": "cieav-decider-mini + Commit-Layer",

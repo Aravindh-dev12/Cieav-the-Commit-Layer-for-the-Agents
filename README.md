@@ -188,49 +188,45 @@ NEATLOGS_API_KEY=your-neatlogs-key
 CRUSTDATA_API_KEY=your-crustdata-key
 ```
 
-### 1. Launch Governed Terminal Agent (Alma-Style Computer Control)
-```bash
-python python/cieav_platform/chat_cli.py
+### 1. Launch Governed Terminal Agent (`cieav`)
+Run the native command directly in PowerShell or CMD:
+```powershell
+# Interactive NLP terminal assistant
+cieav
+
+# Or run an autonomous task directly (Alma.inc computer-use):
+cieav "find engineering jobs matching my resume and apply"
 ```
 
-### 2. Launch Local Gateway & Dashboard
-```bash
+### 2. Launch Local Gateway & Documentation Control Plane
+```powershell
 python -m uvicorn commit_layer.app:app --host 0.0.0.0 --port 8000
 ```
 Open **`http://127.0.0.1:8000`** in your browser:
-- Log in using default credentials (`admin@cieav.local` / `admin123`).
-- Navigate to the **Model Benchmarks** tab to view the live comparison between Jev 1.13, Kev, Laya, and CIEAV.
-- Click **"Run Live Empirical Benchmark"** to execute all 10 real-world scenarios live in the browser.
+- Log in or click **"Launch Console ↗"** at the top right.
+- Lands directly on the **Developer Documentation & Local CLI Guide** page with an embedded interactive playground.
+- Explore **Pending Approvals**, **Alma Computer Control**, **Crustdata Screener**, and **Model Benchmarks**.
 
 Live Hosted Cloud Interface: **[https://cieav.vercel.app/](https://cieav.vercel.app/)**
-
-### 3. Run Verification Suite
-```bash
-# Run unit tests (43 unit tests, 100% pass rate)
-python -m pytest commit_layer/tests/ -v
-
-# Run empirical decision model benchmark
-python benchmark_decision_models_vs_cieav.py
-```
 
 ---
 
 ## 6. Interactive CLI & Computer-Use Commands
 
-When running the interactive CLI (`python python/cieav_platform/chat_cli.py`), you can direct the agent to perform local tasks on your computer. All actions are held under the CIEAV Commit Layer:
+Run `cieav` in PowerShell to chat naturally with the agent:
 
 ```text
-cieav> list <dirpath>                     # Lossless directory inspection
-cieav> read <filepath>                    # Lossless safe file inspection
-cieav> create <file> <content>            # Atomic file creation with backup snapshot
-cieav> modify <file> <content>            # Atomic modification with backup snapshot
-cieav> delete <filepath>                  # Intercepted as CRITICAL; requires COMMIT
-cieav> exec <shell_command>               # Governed shell execution filtered for safety
-cieav> pay <amount> <recipient>           # Checked against CFO budget ceilings
-cieav> /undo                              # Instant two-phase rollback of last action
-cieav> /receipts                          # Inspect Ed25519-signed SQLite audit ledger
-cieav> /status                            # View signing key ID, ledger health & cognitive debt
+cieav> find engineering jobs matching my resume and apply   # Alma.inc autonomous agent workflow
+cieav> read C:\Users\ADMIN\Desktop\Aravindh\public\resume.html # Lossless safe file inspection
+cieav> list C:\Users\ADMIN\Desktop\Aravindh                 # Safe directory exploration
+cieav> modify config.json '{"debug": false}'                # Atomic file modification with snapshot
+cieav> delete old_temp.db                                   # Intercepted as CRITICAL; requires typed COMMIT
+cieav> exec "uptime && free -m"                             # Governed command execution
+cieav> /undo                                                # Instant two-phase rollback of last action
+cieav> /receipts                                            # Inspect Ed25519-signed SQLite audit ledger
+cieav> /status                                              # View signing key ID, ledger health & safety floor
 ```
+
 
 ---
 

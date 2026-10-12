@@ -7,4 +7,5 @@ from commit_layer.tools.software import RunTerminalCommandTool, DeployServiceToo
 from commit_layer.tools.hardware import TpmSignAttestationTool, PowerCycleDeviceTool
 from commit_layer.tools.headroom import HeadroomCompressTool, HeadroomRetrieveTool, HeadroomStatsTool
 from commit_layer.tools.repo import RealRepoFileTool
+from commit_layer.tools.jobs import JobApplicationTool
 

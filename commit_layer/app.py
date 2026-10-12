@@ -277,6 +277,12 @@ async def intercept_action(req: InterceptRequest):
     return result
 
 
+@app.post("/api/actions/clear-pending")
+async def clear_pending_actions():
+    gateway.pending_actions.clear()
+    return {"status": "success", "cleared": True}
+
+
 @app.post("/api/actions/{action_id}/approve")
 async def approve_action(action_id: str):
     res = gateway.approve(action_id, approved_by="dashboard-human")
@@ -645,8 +651,61 @@ async def api_decisions_models():
 
 
 # =========================================================================
+# Alma.inc Computer Control & Autonomous Job Search Agent Endpoints
+# =========================================================================
+
+class AlmaApplyRequest(BaseModel):
+    job_id: str
+    company: str
+    role: str
+
+
+@app.get("/api/agent/alma/profile")
+async def api_alma_profile():
+    """Discover candidate resume from local filesystem and parse profile."""
+    from commit_layer.agents.alma_job_agent import find_local_resume, parse_resume
+    resume_path = find_local_resume()
+    if not resume_path:
+        resume_path = r"C:\Users\ADMIN\Desktop\Aravindh\public\resume.html"
+    return parse_resume(resume_path)
+
+
+@app.get("/api/agent/alma/jobs")
+async def api_alma_jobs():
+    """Retrieve high-fit engineering roles matched against candidate profile."""
+    from commit_layer.agents.alma_job_agent import find_local_resume, parse_resume, search_matched_jobs
+    resume_path = find_local_resume()
+    if not resume_path:
+        resume_path = r"C:\Users\ADMIN\Desktop\Aravindh\public\resume.html"
+    profile = parse_resume(resume_path)
+    return {
+        "candidate": profile["name"],
+        "headline": profile["headline"],
+        "jobs": search_matched_jobs(profile)
+    }
+
+
+@app.post("/api/agent/alma/apply")
+async def api_alma_apply(req: AlmaApplyRequest):
+    """Intercept outbound job application dispatch via Commit Layer."""
+    from commit_layer.agents.alma_job_agent import find_local_resume, parse_resume, prepare_and_govern_application
+    resume_path = find_local_resume()
+    if not resume_path:
+        resume_path = r"C:\Users\ADMIN\Desktop\Aravindh\public\resume.html"
+    profile = parse_resume(resume_path)
+    job = {
+        "id": req.job_id,
+        "company": req.company,
+        "role": req.role,
+        "match_score": 98
+    }
+    return prepare_and_govern_application(profile, job, agent_id="alma-web-agent")
+
+
+# =========================================================================
 # Empirical Decision Model Benchmarks (Jev 1.13 vs Kev vs Laya vs CIEAV)
 # =========================================================================
+
 
 @app.get("/api/benchmark/results")
 @app.post("/api/benchmark/run")

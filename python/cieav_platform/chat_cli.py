@@ -22,6 +22,13 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from commit_layer import gateway, receipts, sandbox
 from commit_layer.tools.repo import RealRepoFileTool
+from commit_layer.agents.alma_job_agent import (
+    find_local_resume,
+    parse_resume,
+    search_matched_jobs,
+    prepare_and_govern_application
+)
+
 
 
 BANNER = r"""
@@ -148,7 +155,70 @@ def execute_governed_action(tool_name: str, args: dict, agent_id: str = "cieav-c
         last_committed_receipt_id = eval_res.get("receipt_id")
 
 
+def run_alma_job_search_workflow():
+    global last_committed_receipt_id
+
+    print("\n" + "=" * 76)
+    print("   ALMA COMPUTER CONTROL AGENT (CIEAV COMMIT LAYER)")
+    print("   Autonomous Job Search & Application Governance")
+    print("=" * 76)
+    print("[1/4] Scanning local Windows filesystem for candidate resume...")
+    resume_path = find_local_resume()
+    if resume_path:
+        print(f"  ✅ Located candidate resume: {resume_path}")
+    else:
+        print("  ⚠️ Resume not detected at default paths. Using local profile context.")
+        resume_path = r"C:\Users\ADMIN\Desktop\Aravindh\public\resume.html"
+
+    profile = parse_resume(resume_path)
+    print(f"  👤 Candidate : {profile['name']} ({profile['headline']})")
+    print(f"  📍 Location  : {profile['location']}")
+    print(f"  🛠️  Skills    : {', '.join(profile['skills'][:6])}...")
+    print(f"  🔗 Profiles  : {profile['github']} | {profile['linkedin']}")
+
+    print("\n[2/4] Researching LinkedIn & Google Jobs for high-fit engineering roles...")
+    matched_jobs = search_matched_jobs(profile)
+    for i, j in enumerate(matched_jobs, 1):
+        print(f"  [{i}] {j['company']} - {j['role']} (Match: {j['match_score']}%)")
+        print(f"      Reasons: {'; '.join(j['match_reasons'][:2])}")
+
+    target_job = matched_jobs[0]  # Top match: Anthropic
+    print(f"\n[3/4] Preparing application dossier for #1 match: {target_job['company']}...")
+    gov = prepare_and_govern_application(profile, target_job, agent_id="alma-terminal-agent")
+
+    action_id = gov["action_id"]
+    print(f"\n[CIEAV INTERCEPTOR] Outbound application held for human governance:")
+    print(f"  Target Company : {target_job['company']}")
+    print(f"  Role           : {target_job['role']}")
+    print(f"  Risk Level     : {gov['risk']} (Policy Floor: Outbound PII & Legal Intent)")
+    print(f"  Redacted PII   : {gov['args_redacted']}")
+    print(f"  Policy Reason  : {', '.join(gov['reasons'])}")
+    print(f"  Permit Token   : Ephemeral 60s single-use cryptographic permit")
+
+    prompt_txt = "Type 'COMMIT' to approve submission or press Enter to cancel: "
+    try:
+        choice = input(prompt_txt).strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\nApplication cancelled.")
+        gateway.cancel(action_id)
+        return
+
+    if choice == "COMMIT" or choice.lower() in ("y", "yes", "commit"):
+        print("\n[4/4] [CIEAV] Committing application with single-use permit token...")
+        appr = gateway.approve(action_id, approved_by="aravindh-human-operator")
+        last_committed_receipt_id = appr.get("receipt_id")
+        print(f"  ✅ Status     : COMMITTED")
+        print(f"  ✅ Outcome    : {appr.get('outcome')}")
+        print(f"  ✅ Signed ID  : {last_committed_receipt_id[:8]} (Ed25519 Chain)")
+        print(f"  ✅ Result     : {appr.get('result', {}).get('message', 'Submitted')}")
+        print("\n[TWO-PHASE SAFETY GUARANTEE] You can withdraw this application anytime by typing: /undo\n")
+    else:
+        print("[CIEAV] Action cancelled by operator. No PII transmitted.\n")
+        gateway.cancel(action_id)
+
+
 def process_user_input(text: str):
+
     cmd = text.strip()
     if not cmd:
         return
@@ -257,6 +327,10 @@ Natural Language Task Examples:
 
     # Fallback to smart intent matching
     words = lower.split()
+    if any(k in words for k in ("job", "jobs", "resume", "apply", "linkedin", "career", "alma")):
+        run_alma_job_search_workflow()
+        return
+
     if "undo" in words or "/undo" in words:
         handle_undo()
         return
@@ -266,6 +340,7 @@ Natural Language Task Examples:
     elif "receipt" in words or "ledger" in words:
         show_receipts()
         return
+
 
     # Check for natural language "pay $X to Y"
     if "pay" in words and any(w.startswith("$") or w.isdigit() for w in words):
@@ -308,11 +383,14 @@ Natural Language Task Examples:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     
-    # If one-shot command passed: e.g. cieav chat "delete myfile.txt"
+    # If one-shot command passed: e.g. cieav "delete myfile.txt"
     if args:
-        joined = " ".join(args)
-        process_user_input(joined)
-        return 0
+        if len(args) == 1 and args[0].lower() in ("chat", "repl", "interactive", "start"):
+            pass  # Fall through to interactive loop
+        else:
+            joined = " ".join(args)
+            process_user_input(joined)
+            return 0
 
     # Interactive REPL
     print(BANNER)
@@ -324,6 +402,7 @@ def main(argv: list[str] | None = None) -> int:
             print("\nExiting CIEAV Chat.")
             break
     return 0
+
 
 
 if __name__ == "__main__":
