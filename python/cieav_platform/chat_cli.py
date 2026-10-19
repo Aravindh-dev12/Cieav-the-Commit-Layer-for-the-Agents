@@ -31,18 +31,31 @@ from commit_layer.agents.alma_job_agent import (
 
 
 
-BANNER = r"""
-==============================================================================
-   C I E A V   C H A T  --  Governed AI Terminal Agent
-   The Commit Layer for Computer Control & Autonomous Agents (like Alma & Claude Code)
-==============================================================================
-Type your instruction or use commands:
+BANNER = """[1;36m
+  ██████╗██╗███████╗ █████╗ ██╗   ██╗
+ ██╔════╝██║██╔════╝██╔══██╗██║   ██║
+ ██║     ██║█████╗  ███████║██║   ██║
+ ██║     ██║██╔══╝  ██╔══██║╚██╗ ██╔╝
+ ╚██████╗██║███████╗██║  ██║ ╚████╔╝ 
+  ╚═════╝╚═╝╚══════╝╚═╝  ╚═╝  ╚═══╝  [0m
+[1;34m══════════════════════════════════════════════════════════════════════════════[0m
+ [1;37mA G E N T - T O - A G E N T   ( A 2 A )   S O V E R E I G N   R U N T I M E[0m
+ [38;5;246mThe Local Operating System for Autonomous Agents & Computer Control[0m
+[1;34m══════════════════════════════════════════════════════════════════════════════[0m
+ [1;32m●[0m [1;37mHost Identity   :[0m Agent-Node-01 (Online • Localhost)
+ [1;32m●[0m [1;37mAuthority Plane :[0m 100% Deterministic Safety Floor (Local Loopback)
+ [1;32m●[0m [1;37mCryptography    :[0m Ed25519 Hash-Chained Key ID [130ce62f]
+ [1;32m●[0m [1;37mReversible SLA  :[0m Two-Phase Atomic Rollback (/undo) Active
+[1;34m══════════════════════════════════════════════════════════════════════════════[0m
+
+[1;33mType your instruction or use commands:[0m
   /help       - Show available commands & examples
   /status     - Show Commit Layer health, keys & cognitive debt
+  /jobs       - View real-world multi-platform job application tracker
   /receipts   - View recent Ed25519-signed receipts
-  /undo       - Undo the last committed action
-  exit / quit - Exit session
-------------------------------------------------------------------------------
+  /undo       - Instantly rollback the last committed action
+  exit / quit - Close session
+[1;34m------------------------------------------------------------------------------[0m
 """
 
 

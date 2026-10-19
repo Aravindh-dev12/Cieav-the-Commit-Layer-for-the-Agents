@@ -1,7 +1,20 @@
-# CIEAV: The Commit Layer for the Internet & Autonomous Agents
+```text
+  ██████╗██╗███████╗ █████╗ ██╗   ██╗
+ ██╔════╝██║██╔════╝██╔══██╗██║   ██║
+ ██║     ██║█████╗  ███████║██║   ██║
+ ██║     ██║██╔══╝  ██╔══██║╚██╗ ██╔╝
+ ╚██████╗██║███████╗██║  ██║ ╚████╔╝ 
+  ╚═════╝╚═╝╚══════╝╚═╝  ╚═╝  ╚═══╝  
+══════════════════════════════════════════════════════════════════════════════
+ A G E N T - T O - A G E N T   ( A 2 A )   S O V E R E I G N   R U N T I M E
+ The Local-First Operating System for Autonomous Agents & Computer Control
+══════════════════════════════════════════════════════════════════════════════
+```
 
-> **"Commit is not success."**  
-> An autonomous agent issuing an action is only an unverified intent dispatch. Whether the physical or digital world actually completed that transaction safely, deterministically, and reversibly requires an immutable safety floor, independent state observation, single-use cryptographic permits, and guaranteed two-phase rollback.
+# CIEAV: The Sovereign Computer-Control Agent OS
+> **Autonomous Computer Control with Guaranteed Lossless Rollback (Like Alma.inc & Claude Code)**
+
+⚡ **Instant Launch**: Clone and double-click **`Start-CIEAV.bat`** (or run `cieav` in PowerShell) to start the autonomous agent runtime!
 
 Video : https://www.loom.com/share/5e0c06f2fe1d4f02852c4dd5f9ff5c01?t=4
 ---
