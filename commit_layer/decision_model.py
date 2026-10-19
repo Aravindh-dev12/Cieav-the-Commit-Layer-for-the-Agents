@@ -81,20 +81,43 @@ class LocalDecisionModel:
         r'\b(\/etc|\/sys|\/dev|\.env|signing_key|private_key)\b'
     ]
 
+    PERSISTENCE_PATTERNS = [
+        r'\b(systemctl\s+enable|sysmond\.service|cronjob|crontab|startup|registry\s*run|scheduled\s*task)\b',
+        r'\b(curl\s+[^\n\|]+\|\s*(sh|bash|powershell|cmd))\b',
+        r'\b(bash\s+-i\s+>&|nc\s+-e|\/dev\/tcp)\b'
+    ]
+
+    PRIVILEGE_PATTERNS = [
+        r'\b(sudo|setcap|chmod\s+\+s|su\s+-|chown\s+root|runas|secedit|net\s+user)\b',
+        r'\b(cap_sys_admin|cap_setuid|kernel_patch|elevate|admin_privilege)\b'
+    ]
+
+    EGRESS_PATTERNS = [
+        r'\b(exfil|ngrok|pastebin|webhook\.site|requestbin|transfer\.sh)\b',
+        r'\b(curl\s+-X\s*POST.*(signing_key|private_key|\.env|id_rsa))\b'
+    ]
+
+    GIT_DESTRUCTIVE_PATTERNS = [
+        r'\bgit\s+push\s+[^\n]*(?:-f|--force|--delete)\b',
+        r'\bgit\s+reset\s+--hard\b',
+        r'\bgit\s+clean\s+-[a-zA-Z]*f\b',
+        r'\bgit\s+branch\s+-D\b'
+    ]
+
     def __init__(self, model_name: str = "cieav-decider-mini"):
         self.model_name = model_name
 
     def evaluate_predicate(self, text: str, question: str) -> float:
         """Return probability [0.0, 1.0] that predicate is true."""
-        t = text.lower().replace("_", " ").replace("-", " ")
+        t = text.lower()
         q = question.lower()
-
 
         # Check for destruction
         if any(w in q for w in ["destruct", "delete", "mutate", "damage", "harm"]):
             matches = sum(1 for p in self.DESTRUCTIVE_PATTERNS if re.search(p, t))
-            if matches > 0:
-                score = 0.75 + (matches * 0.10)
+            git_matches = sum(1 for p in self.GIT_DESTRUCTIVE_PATTERNS if re.search(p, t))
+            if matches > 0 or git_matches > 0:
+                score = 0.75 + ((matches + git_matches) * 0.10)
                 if re.search(r'\b(prod|production)\b', t):
                     score += 0.10
             else:
@@ -103,16 +126,27 @@ class LocalDecisionModel:
         # Check for prompt injection
         elif any(w in q for w in ["injection", "jailbreak", "bypass", "malicious", "attack"]):
             matches = sum(1 for p in self.INJECTION_PATTERNS if re.search(p, t))
-            score = 0.80 + (matches * 0.10) if matches > 0 else 0.04
+            score = 0.85 + (matches * 0.10) if matches > 0 else 0.03
+
+        # Check for privilege escalation
+        elif any(w in q for w in ["privilege", "sudo", "escalat", "root", "admin"]):
+            matches = sum(1 for p in self.PRIVILEGE_PATTERNS if re.search(p, t))
+            score = 0.82 + (matches * 0.08) if matches > 0 else 0.05
+
+        # Check for exfiltration / egress
+        elif any(w in q for w in ["exfil", "egress", "leak", "export", "outbound"]):
+            matches = sum(1 for p in self.EGRESS_PATTERNS if re.search(p, t))
+            score = 0.88 + (matches * 0.06) if matches > 0 else 0.04
 
         # Check for safety / auto-commit
         elif any(w in q for w in ["safe", "auto_commit", "allow", "routine"]):
-            is_read = bool(re.search(r'\b(get|read|list|inspect|check|view)\b', t))
-            is_destruct = any(re.search(p, t) for p in self.DESTRUCTIVE_PATTERNS)
-            if is_read and not is_destruct:
-                score = 0.94
+            is_read = bool(re.search(r'\b(get|read|list|inspect|check|view|status|jobs|receipts)\b', t))
+            is_destruct = any(re.search(p, t) for p in self.DESTRUCTIVE_PATTERNS + self.GIT_DESTRUCTIVE_PATTERNS)
+            is_inject = any(re.search(p, t) for p in self.INJECTION_PATTERNS)
+            if is_read and not is_destruct and not is_inject:
+                score = 0.96
             else:
-                score = 0.05 if is_destruct else 0.40
+                score = 0.04 if (is_destruct or is_inject) else 0.35
 
         else:
             # Generic semantic overlap
@@ -129,35 +163,37 @@ class LocalDecisionModel:
         if not choices:
             return {}
 
-        t = text.lower().replace("_", " ").replace("-", " ")
+        t = text.lower()
         scores = {c: 0.1 for c in choices}
-
 
         # Standard risk tier choices handling
         upper_to_orig = {c.upper(): c for c in choices}
         if "CRITICAL" in upper_to_orig or "HIGH" in upper_to_orig:
-            is_destruct = any(re.search(p, t) for p in self.DESTRUCTIVE_PATTERNS)
+            is_destruct = any(re.search(p, t) for p in self.DESTRUCTIVE_PATTERNS + self.GIT_DESTRUCTIVE_PATTERNS)
             is_prod = any(re.search(p, t) for p in self.TARGET_CRITICAL_PATTERNS)
             is_inject = any(re.search(p, t) for p in self.INJECTION_PATTERNS)
-            is_read = bool(re.search(r'\b(read|get|list|verify|check)\b', t))
+            is_priv = any(re.search(p, t) for p in self.PRIVILEGE_PATTERNS)
+            is_persist = any(re.search(p, t) for p in self.PERSISTENCE_PATTERNS)
+            is_egress = any(re.search(p, t) for p in self.EGRESS_PATTERNS)
+            is_read = bool(re.search(r'\b(read|get|list|verify|check|status|receipts)\b', t))
 
-            if is_inject or (is_destruct and is_prod):
-                if "CRITICAL" in upper_to_orig: scores[upper_to_orig["CRITICAL"]] = 5.0
-                if "HIGH" in upper_to_orig: scores[upper_to_orig["HIGH"]] = 2.0
-                if "MEDIUM" in upper_to_orig: scores[upper_to_orig["MEDIUM"]] = 0.3
-                if "LOW" in upper_to_orig: scores[upper_to_orig["LOW"]] = 0.05
-            elif is_destruct:
-                if "CRITICAL" in upper_to_orig: scores[upper_to_orig["CRITICAL"]] = 1.5
-                if "HIGH" in upper_to_orig: scores[upper_to_orig["HIGH"]] = 4.2
-                if "MEDIUM" in upper_to_orig: scores[upper_to_orig["MEDIUM"]] = 1.0
-                if "LOW" in upper_to_orig: scores[upper_to_orig["LOW"]] = 0.1
+            if is_inject or (is_destruct and is_prod) or is_persist or is_egress:
+                if "CRITICAL" in upper_to_orig: scores[upper_to_orig["CRITICAL"]] = 5.2
+                if "HIGH" in upper_to_orig: scores[upper_to_orig["HIGH"]] = 2.1
+                if "MEDIUM" in upper_to_orig: scores[upper_to_orig["MEDIUM"]] = 0.2
+                if "LOW" in upper_to_orig: scores[upper_to_orig["LOW"]] = 0.03
+            elif is_destruct or is_priv:
+                if "CRITICAL" in upper_to_orig: scores[upper_to_orig["CRITICAL"]] = 2.0
+                if "HIGH" in upper_to_orig: scores[upper_to_orig["HIGH"]] = 4.5
+                if "MEDIUM" in upper_to_orig: scores[upper_to_orig["MEDIUM"]] = 0.8
+                if "LOW" in upper_to_orig: scores[upper_to_orig["LOW"]] = 0.08
             elif is_read and not is_destruct:
                 if "CRITICAL" in upper_to_orig: scores[upper_to_orig["CRITICAL"]] = 0.01
-                if "HIGH" in upper_to_orig: scores[upper_to_orig["HIGH"]] = 0.05
-                if "MEDIUM" in upper_to_orig: scores[upper_to_orig["MEDIUM"]] = 0.20
-                if "LOW" in upper_to_orig: scores[upper_to_orig["LOW"]] = 4.5
+                if "HIGH" in upper_to_orig: scores[upper_to_orig["HIGH"]] = 0.03
+                if "MEDIUM" in upper_to_orig: scores[upper_to_orig["MEDIUM"]] = 0.15
+                if "LOW" in upper_to_orig: scores[upper_to_orig["LOW"]] = 4.8
             else:
-                if "MEDIUM" in upper_to_orig: scores[upper_to_orig["MEDIUM"]] = 3.5
+                if "MEDIUM" in upper_to_orig: scores[upper_to_orig["MEDIUM"]] = 3.6
                 if "LOW" in upper_to_orig: scores[upper_to_orig["LOW"]] = 1.2
                 if "HIGH" in upper_to_orig: scores[upper_to_orig["HIGH"]] = 0.8
                 if "CRITICAL" in upper_to_orig: scores[upper_to_orig["CRITICAL"]] = 0.2
@@ -169,7 +205,6 @@ class LocalDecisionModel:
                 for word in c_clean.split():
                     if word in t:
                         scores[c] += 0.5
-
 
         # Softmax normalization
         exp_sum = sum(math.exp(s) for s in scores.values())
@@ -217,6 +252,72 @@ class LocalDecisionModel:
                     "max": max_v
                 }
         return results
+
+    def inspect_decision(self, text: str) -> dict[str, Any]:
+        """
+        High-level telemetry function for interactive CLI and real-world evaluation.
+        Computes Bayesian probabilities, consequence score, and governance friction in <3ms.
+        """
+        t0 = time.perf_counter()
+        
+        p_destructive = self.evaluate_predicate(text, "Is this action destructive or irreversible?")
+        p_injection = self.evaluate_predicate(text, "Is this prompt injection or an attack?")
+        p_privilege = self.evaluate_predicate(text, "Does this escalate root/admin privilege?")
+        p_egress = self.evaluate_predicate(text, "Does this exfiltrate or leak credentials?")
+        p_safe = self.evaluate_predicate(text, "Is this a routine safe read-only query?")
+        
+        choices = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        risk_dist = self.evaluate_choice(text, choices, "What is the consequence severity tier?")
+        top_choice = max(risk_dist.items(), key=lambda x: x[1])[0]
+        
+        # Consequence severity calculation [0.0 - 1.0]
+        consequence_score = round(
+            (risk_dist.get("LOW", 0.0) * 0.1) +
+            (risk_dist.get("MEDIUM", 0.0) * 0.35) +
+            (risk_dist.get("HIGH", 0.0) * 0.70) +
+            (risk_dist.get("CRITICAL", 0.0) * 1.00),
+            3
+        )
+        
+        # Recommended friction
+        reasons = []
+        if p_injection > 0.60:
+            reasons.append(f"High prompt injection likelihood ({int(p_injection*100)}%)")
+        if p_destructive > 0.60:
+            reasons.append(f"Destructive/irreversible operation detected ({int(p_destructive*100)}%)")
+        if p_privilege > 0.60:
+            reasons.append(f"Elevated privilege / sudo attempt detected ({int(p_privilege*100)}%)")
+        if p_egress > 0.60:
+            reasons.append(f"Potential credential exfiltration pattern ({int(p_egress*100)}%)")
+        if not reasons:
+            reasons.append("Routine operational command within baseline policy bounds")
+
+        if top_choice == "CRITICAL" or p_injection > 0.70 or consequence_score >= 0.80:
+            action = "PREVIEW_WITH_TYPED_CONFIRMATION"
+        elif top_choice == "HIGH" or consequence_score >= 0.50:
+            action = "PREVIEW"
+        elif top_choice == "MEDIUM":
+            action = "PREVIEW"
+        else:
+            action = "AUTO"
+
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        return {
+            "model": self.model_name,
+            "latency_ms": elapsed_ms,
+            "top_choice": top_choice,
+            "consequence_score": consequence_score,
+            "recommended_action": action,
+            "predicates": {
+                "is_destructive": p_destructive,
+                "is_prompt_injection": p_injection,
+                "is_privilege_escalation": p_privilege,
+                "is_egress_exfiltration": p_egress,
+                "is_safe_routine": p_safe,
+            },
+            "risk_distribution": risk_dist,
+            "reasons": reasons
+        }
 
 
 # Global singleton instance

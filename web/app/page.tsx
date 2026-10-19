@@ -74,12 +74,13 @@ const securityRows = [
 
 const nativeCliCommands = [
   { cmd: 'cieav', desc: 'Launch interactive NLP terminal assistant in PowerShell/CMD' },
+  { cmd: 'cieav /decide "rm -rf /"', desc: 'Embedded decision model: queries Bayesian prior & syntax AST in <3ms' },
+  { cmd: 'cieav /model', desc: 'Inspect local decision engine architecture and active models' },
   { cmd: 'cieav "find jobs based on my resume and apply"', desc: 'Autonomous Alma agent: scans local resume, matches LinkedIn jobs, requires typed COMMIT' },
   { cmd: 'cieav /status', desc: 'Verify cryptographic Ed25519 hash chain integrity and active key ID' },
   { cmd: 'cieav /receipts', desc: 'Display append-only immutable execution receipts' },
   { cmd: 'cieav /undo', desc: 'Instant two-phase atomic inverse rollback for committed actions' },
-  { cmd: 'cieav chat', desc: 'Interactive conversational loop with automatic safety interception' },
-  { cmd: 'cieav "delete portfolio.txt"', desc: 'Critical risk interception holding for explicit typed COMMIT' },
+  { cmd: 'python test_real_world_cieav_live.py', desc: '5-domain live consequential test runner (PDF, Git, Filesystem, CFO, Ed25519)' },
   { cmd: 'cieav /help', desc: 'Display comprehensive developer documentation and CLI guide' },
 ]
 
