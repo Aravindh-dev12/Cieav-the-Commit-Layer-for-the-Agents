@@ -67,7 +67,8 @@ class LocalDecisionModel:
     DESTRUCTIVE_PATTERNS = [
         r'\b(delete|drop|truncate|format|destroy|rm|wipe|kill|terminate|power\s*cycle|reboot)\b',
         r'\b(override|overwrite|replace|modify\s+file|patch\s+kernel)\b',
-        r'\b(transfer|pay|disburse|spend|charge)\b'
+        r'\b(transfer|pay|disburse|spend|charge)\b',
+        r'\b(empty\s+recycle\s*bin|clear\s+recycle\s*bin|purge\s+recycle\s*bin|empty_recycle_bin)\b'
     ]
 
     INJECTION_PATTERNS = [
@@ -78,7 +79,7 @@ class LocalDecisionModel:
 
     TARGET_CRITICAL_PATTERNS = [
         r'\b(prod|production|cluster-primary|main|master|root|pcr\s*[0-7]|secure\s*enclave)\b',
-        r'\b(\/etc|\/sys|\/dev|\.env|signing_key|private_key)\b'
+        r'\b(\/etc|\/sys|\/dev|\.env|signing_key|private_key|recycle\s*bin|\$recycle\.bin)\b'
     ]
 
     PERSISTENCE_PATTERNS = [
@@ -140,7 +141,7 @@ class LocalDecisionModel:
 
         # Check for safety / auto-commit
         elif any(w in q for w in ["safe", "auto_commit", "allow", "routine"]):
-            is_read = bool(re.search(r'\b(get|read|list|inspect|check|view|status|jobs|receipts)\b', t))
+            is_read = bool(re.search(r'\b(get|read|list|inspect|check|view|status|jobs|receipts|find|query)\b', t))
             is_destruct = any(re.search(p, t) for p in self.DESTRUCTIVE_PATTERNS + self.GIT_DESTRUCTIVE_PATTERNS)
             is_inject = any(re.search(p, t) for p in self.INJECTION_PATTERNS)
             if is_read and not is_destruct and not is_inject:
@@ -175,7 +176,7 @@ class LocalDecisionModel:
             is_priv = any(re.search(p, t) for p in self.PRIVILEGE_PATTERNS)
             is_persist = any(re.search(p, t) for p in self.PERSISTENCE_PATTERNS)
             is_egress = any(re.search(p, t) for p in self.EGRESS_PATTERNS)
-            is_read = bool(re.search(r'\b(read|get|list|verify|check|status|receipts)\b', t))
+            is_read = bool(re.search(r'\b(read|get|list|verify|check|status|receipts|find|inspect|query)\b', t))
 
             if is_inject or (is_destruct and is_prod) or is_persist or is_egress:
                 if "CRITICAL" in upper_to_orig: scores[upper_to_orig["CRITICAL"]] = 5.2

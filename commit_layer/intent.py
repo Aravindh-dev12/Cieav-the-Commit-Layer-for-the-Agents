@@ -36,6 +36,24 @@ def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
     p = prompt.strip()
     actions = []
 
+    # 0. Windows OS: Recycle Bin Operations
+    if re.search(r'\b(empty|clear|purge|wipe)\s+(?:the\s+)?recycle\s*bin\b', p, re.IGNORECASE):
+        actions.append({
+            "domain": "system",
+            "tool": "empty_recycle_bin",
+            "args": {},
+            "summary": "Permanently purge Windows Recycle Bin (Irreversible OS Action)"
+        })
+        return actions
+    elif re.search(r'\b(find|inspect|check|query|view|scan|list|show)\s+(?:the\s+)?recycle\s*bin\b', p, re.IGNORECASE) or (re.search(r'\brecycle\s*bin\b', p, re.IGNORECASE) and not re.search(r'\bdelete\b', p, re.IGNORECASE)):
+        actions.append({
+            "domain": "system",
+            "tool": "inspect_recycle_bin",
+            "args": {},
+            "summary": "Inspect real Windows Recycle Bin items and allocated disk space"
+        })
+        return actions
+
     # 1. Hardware: TPM Attestation
     if re.search(r'\b(tpm|attest|attestation|pcr|secure enclave)\b', p, re.IGNORECASE):
         pcr_match = re.search(r'pcr\s*[:=]?\s*(\d+)', p, re.IGNORECASE)

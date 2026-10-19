@@ -65,6 +65,13 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
         company = args.get('company', 'Target Company')
         return RiskLevel.HIGH, [f"Outbound job application and candidate PII transmission to {company}"]
 
+    # ── Windows OS & System Maintenance ────────────────────────
+    if tool == 'inspect_recycle_bin':
+        return RiskLevel.LOW, ["Host OS query: Read-only Windows Recycle Bin inspection"]
+
+    if tool == 'empty_recycle_bin':
+        return RiskLevel.CRITICAL, ["Host OS mutation: Permanent, irreversible purge of Windows Recycle Bin"]
+
     # ── Unknown tool → HIGH ─────────────────────────────────────
     return RiskLevel.HIGH, [f"Unknown tool: {tool}"]
 

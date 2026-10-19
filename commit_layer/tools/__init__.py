@@ -8,4 +8,5 @@ from commit_layer.tools.hardware import TpmSignAttestationTool, PowerCycleDevice
 from commit_layer.tools.headroom import HeadroomCompressTool, HeadroomRetrieveTool, HeadroomStatsTool
 from commit_layer.tools.repo import RealRepoFileTool
 from commit_layer.tools.jobs import JobApplicationTool
+from commit_layer.tools.windows_recycle_bin import InspectRecycleBinTool, EmptyRecycleBinTool
 

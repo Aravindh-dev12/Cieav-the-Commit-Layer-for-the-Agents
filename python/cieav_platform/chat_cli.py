@@ -23,6 +23,7 @@ if hasattr(sys.stdout, "reconfigure"):
 from commit_layer import gateway, receipts, sandbox, job_tracker
 from commit_layer.decision_model import local_decision_model
 from commit_layer.tools.repo import RealRepoFileTool
+from commit_layer.tools.windows_recycle_bin import query_recycle_bin_win32, list_recycle_bin_items
 from commit_layer.agents.alma_job_agent import (
     find_local_resume,
     parse_resume,
@@ -32,7 +33,16 @@ from commit_layer.agents.alma_job_agent import (
 
 
 
-BANNER = """[1;36m
+def get_interactive_banner() -> str:
+    rb_info = query_recycle_bin_win32()
+    rb_str = f"{rb_info.get('num_items', 0)} item(s) • {rb_info.get('size_mb', 0.0):.1f} MB"
+    _, _, key_id = receipts.get_signing_key()
+    
+    t0 = time.perf_counter()
+    local_decision_model.evaluate_predicate("status", "safe")
+    lat = (time.perf_counter() - t0) * 1000
+
+    return f"""[1;36m
   ██████╗██╗███████╗ █████╗ ██╗   ██╗
  ██╔════╝██║██╔════╝██╔══██╗██║   ██║
  ██║     ██║█████╗  ███████║██║   ██║
@@ -41,24 +51,27 @@ BANNER = """[1;36m
   ╚═════╝╚═╝╚══════╝╚═╝  ╚═╝  ╚═══╝  [0m
 [1;34m══════════════════════════════════════════════════════════════════════════════[0m
  [1;37mA G E N T - T O - A G E N T   ( A 2 A )   S O V E R E I G N   R U N T I M E[0m
- [38;5;246mThe Local Operating System for Autonomous Agents & Computer Control[0m
+ [38;5;246mThe Local Operating System for Autonomous Agents and Computer Control[0m
 [1;34m══════════════════════════════════════════════════════════════════════════════[0m
- [1;32m●[0m [1;37mHost Identity   :[0m Agent-Node-01 (Online • Localhost)
- [1;32m●[0m [1;37mAuthority Plane :[0m 100% Deterministic Safety Floor (Local Loopback)
- [1;32m●[0m [1;37mCryptography    :[0m Ed25519 Hash-Chained Key ID [130ce62f]
+ [1;32m●[0m [1;37mHost Identity   :[0m Agent-Node-01 (Windows 11 Native Win32 Loopback)
+ [1;32m●[0m [1;37mDecision Engine :[0m cieav-decider-mini (Bayesian AST Prior • [1;32m{lat:.2f}ms[0m Latency)
+ [1;32m●[0m [1;37mCryptography    :[0m Ed25519 Hash-Chained Key ID [[1;33m{key_id}[0m]
+ [1;32m●[0m [1;37mOS Storage Guard:[0m Windows Recycle Bin: [1;35m{rb_str}[0m (Governed)
  [1;32m●[0m [1;37mReversible SLA  :[0m Two-Phase Atomic Rollback (/undo) Active
 [1;34m══════════════════════════════════════════════════════════════════════════════[0m
 
-[1;33mType your instruction or use commands:[0m
-  /decide <cmd> - Query local decision model probabilities (<3ms)
-  /status     - Show Commit Layer health, keys & cognitive debt
-  /model      - Inspect local decision engine architecture
-  /jobs       - View real-world multi-platform job application tracker
-  /receipts   - View recent Ed25519-signed receipts
-  /undo       - Instantly rollback the last committed action
-  exit / quit - Close session
+[1;33mGoverned OS Actions and Interactive Commands:[0m
+  recyclebin        - Inspect real Windows Recycle Bin files and disk space
+  empty recycle bin - Governed CRITICAL purge of Recycle Bin (requires typed COMMIT)
+  /decide <cmd>     - Query local decision model probabilities (<3ms)
+  /jobs             - View real-world multi-platform career agent tracker
+  /status           - Inspect Commit Layer health, keys and receipts
+  /undo             - Instantly rollback the last committed action
+  exit / quit       - Close session
 [1;34m------------------------------------------------------------------------------[0m
 """
+
+BANNER = get_interactive_banner()
 
 
 last_committed_receipt_id: Optional[str] = None
@@ -124,6 +137,28 @@ def show_model_info():
   API Conformance  : OpenAI Decisions API (/v1/decisions) & System One (/v1/systemone)
   Safety Invariant : Monotonic Safety Floor (Can only RAISE friction, never lower)
 """)
+
+
+def show_recycle_bin():
+    info = query_recycle_bin_win32()
+    items = list_recycle_bin_items(max_items=10)
+    print("\n\033[1;34m╔══════════════════════════════════════════════════════════════════════════════╗\033[0m")
+    print(f"\033[1;34m║\033[0m  \033[1;36mWINDOWS RECYCLE BIN SUBSYSTEM (Native Win32 Inspection)\033[0m                    \033[1;34m║\033[0m")
+    print("\033[1;34m╠══════════════════════════════════════════════════════════════════════════════╣\033[0m")
+    print(f"  \033[1;37mHost Subsystem    :\033[0m Win32 Shell API (SHQueryRecycleBinW)")
+    print(f"  \033[1;37mTotal Items in Bin:\033[0m \033[1;33m{info.get('num_items', 0)} item(s)\033[0m")
+    print(f"  \033[1;37mAllocated Disk    :\033[0m \033[1;32m{info.get('size_mb', 0.0):.2f} MB\033[0m ({info.get('size_bytes', 0):,} bytes)")
+    print(f"  \033[1;37mSafety Floor      :\033[0m Governed by CIEAV (Irreversible OS Action)")
+    if items:
+        print(f"\n  \033[1;33mFiles Discovered in Recycle Bin (Preview):\033[0m")
+        for idx, it in enumerate(items[:8], 1):
+            print(f"    [{idx}] {it['name'][:60]}")
+        if len(items) > 8:
+            print(f"    ... and {info.get('num_items', 0) - 8} more items.")
+    else:
+        print("\n  \033[1;32mRecycle Bin is currently clean and empty.\033[0m")
+    print(f"\n  \033[38;5;246mType 'empty recycle bin' to request governed purge (requires typed COMMIT)\033[0m")
+    print("\033[1;34m╚══════════════════════════════════════════════════════════════════════════════╝\033[0m\n")
 
 
 def show_status():
@@ -419,17 +454,25 @@ def process_user_input(text: str):
     elif lower in ("/model", "model", "/models", "models"):
         show_model_info()
         return
+    elif lower in ("/recyclebin", "recyclebin", "/bin", "bin", "check recycle bin", "find recycle bin", "show recycle bin", "inspect recycle bin", "check recyclebin", "find recyclebin"):
+        show_recycle_bin()
+        return
+    elif lower in ("empty recycle bin", "empty recyclebin", "/empty-bin", "clear recycle bin", "purge recycle bin", "clean recycle bin"):
+        execute_governed_action("empty_recycle_bin", {})
+        return
     elif lower in ("/help", "help"):
         print("""
 Available Governed Commands:
-  /decide <cmd> - Query local decision model probabilities (<3ms)
-  /status       - Inspect Commit Layer state and Ed25519 signing key
-  /model        - Inspect local decision engine architecture
-  /receipts     - View recent cryptographic Ed25519 hash-chained receipts
-  /undo         - Instantly rollback the last committed action
-  /jobs         - View real-world multi-platform job application tracker
-  /reset        - Clean the receipts ledger
-  exit / quit   - Close session
+  recyclebin        - Inspect real Windows Recycle Bin files & disk space
+  empty recycle bin - Governed CRITICAL purge of Recycle Bin (requires typed COMMIT)
+  /decide <cmd>     - Query local decision model probabilities (<3ms)
+  /status           - Inspect Commit Layer state and Ed25519 signing key
+  /model            - Inspect local decision engine architecture
+  /receipts         - View recent cryptographic Ed25519 hash-chained receipts
+  /undo             - Instantly rollback the last committed action
+  /jobs             - View real-world multi-platform job application tracker
+  /reset            - Clean the receipts ledger
+  exit / quit       - Close session
 
 4 Real-World Governed Agent Scenarios:
   1. Autonomous Career Search & Application (Alma Style):
@@ -534,6 +577,14 @@ Available Governed Commands:
 
     # Fallback to smart intent matching
     words = lower.split()
+    if "recycle" in words or "recyclebin" in words:
+        if any(w in words for w in ("empty", "clear", "purge", "wipe", "clean", "destroy")):
+            execute_governed_action("empty_recycle_bin", {})
+            return
+        else:
+            show_recycle_bin()
+            return
+
     if any(k in words for k in ("job", "jobs", "resume", "apply", "linkedin", "career", "alma")):
         run_alma_job_search_workflow(query_text=cmd)
         return
