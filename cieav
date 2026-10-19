@@ -9,6 +9,12 @@ if ! command -v python3 &>/dev/null; then
     exit 1
 fi
 
+# Ensure ~/.local/bin/cieav exists so cieav works anywhere in new terminals
+mkdir -p "$HOME/.local/bin"
+if [ ! -f "$HOME/.local/bin/cieav" ]; then
+    ln -sf "$SCRIPT_DIR/cieav" "$HOME/.local/bin/cieav" 2>/dev/null || true
+fi
+
 # Autonomous Zero-Friction Setup: Verify core dependencies
 if ! python3 -c "import fastapi, uvicorn, cryptography, pydantic" &>/dev/null; then
     echo "[CIEAV] Initializing autonomous environment setup..."

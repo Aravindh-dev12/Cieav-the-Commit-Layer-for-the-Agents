@@ -27,7 +27,50 @@ else:
     from cieav_platform.chat_cli import main as chat_main
 
 
+def _ensure_global_registration() -> None:
+    """Silently ensure repository directory and Python Scripts are in persistent User PATH."""
+    try:
+        import os
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if sys.platform == "win32":
+            import winreg
+            import ctypes
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE) as key:
+                val, _ = winreg.QueryValueEx(key, "Path")
+                parts = [p.strip() for p in val.split(";") if p.strip()]
+                changed = False
+                if project_root not in parts:
+                    parts.append(project_root)
+                    changed = True
+                scripts_dir = os.path.join(sys.prefix, "Scripts")
+                if os.path.exists(scripts_dir) and scripts_dir not in parts:
+                    parts.append(scripts_dir)
+                    changed = True
+                if changed:
+                    new_val = ";".join(parts)
+                    winreg.SetValueEx(key, "Path", 0, winreg.REG_EXPAND_SZ, new_val)
+                    HWND_BROADCAST = 0xFFFF
+                    WM_SETTINGCHANGE = 0x001A
+                    SMTO_ABORTIFHUNG = 0x0002
+                    ctypes.windll.user32.SendMessageTimeoutW(
+                        HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", SMTO_ABORTIFHUNG, 1000, None
+                    )
+        elif sys.platform in {"linux", "darwin"}:
+            local_bin = os.path.expanduser("~/.local/bin")
+            os.makedirs(local_bin, exist_ok=True)
+            target = os.path.join(local_bin, "cieav")
+            src = os.path.join(project_root, "cieav")
+            if not os.path.exists(target) and os.path.exists(src):
+                try:
+                    os.symlink(src, target)
+                except OSError:
+                    pass
+    except Exception:
+        pass
+
+
 def entrypoint() -> int:
+    _ensure_global_registration()
     args = sys.argv[1:]
     if not args:
         return chat_main([])
