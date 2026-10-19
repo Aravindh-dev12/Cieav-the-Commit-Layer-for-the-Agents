@@ -10,7 +10,7 @@ import {verifyPhysicalProvenanceSet} from "./verify-physical-provenance.mjs";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),".."),physicalDir=path.join(ROOT,"release","reports","physical"),tmp=path.join(ROOT,"release","reports","provenance-smoke-tmp");
 mkdirSync(physicalDir,{recursive:true});mkdirSync(tmp,{recursive:true});
 const git=(...args)=>{const r=spawnSync("git",args,{cwd:ROOT,encoding:"utf8",shell:false});if(r.status!==0)throw new Error("git failed");return r.stdout.trim()};
-const commit=git("rev-parse","HEAD"),version=JSON.parse(readFileSync(path.join(ROOT,"package.json"),"utf8")).version,repo="Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Internet";
+const commit=git("rev-parse","HEAD"),version=JSON.parse(readFileSync(path.join(ROOT,"package.json"),"utf8")).version,repo="Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Agents";
 const js=path.join(tmp,"fake-gh.mjs"),log=path.join(tmp,"args.json");
 writeFileSync(js,`import{writeFileSync}from"node:fs";const a=process.argv.slice(2);writeFileSync(${JSON.stringify(log)},JSON.stringify(a));if(process.env.CIEAV_FAKE_GH_FAIL==="1")process.exit(2);console.log(JSON.stringify([{verificationResult:{statement:{}}}]));\n`,`utf8`);
 const fakeGh={command:process.execPath,args:[js]};

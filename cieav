@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# CIEAV -- Sovereign Agent OS (A2A Runtime)
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if ! command -v python3 &>/dev/null; then
+    echo "[ERROR] python3 is not found in PATH. Please install Python 3.10+"
+    exit 1
+fi
+
+# Autonomous Zero-Friction Setup: Verify core dependencies
+if ! python3 -c "import fastapi, uvicorn, cryptography, pydantic" &>/dev/null; then
+    echo "[CIEAV] Initializing autonomous environment setup..."
+    pip install -q -r "$SCRIPT_DIR/commit_layer/requirements.txt"
+    pip install -q -e "$SCRIPT_DIR"
+    echo "[CIEAV] Autonomous setup complete!"
+fi
+
+python3 "$SCRIPT_DIR/python/cieav_platform/chat_cli.py" "$@"

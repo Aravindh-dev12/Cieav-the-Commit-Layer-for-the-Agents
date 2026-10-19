@@ -29,21 +29,22 @@ def find_local_resume() -> Optional[str]:
     """Scan local filesystem to locate user's real resume file (PDF or HTML)."""
     # 1. Primary check in Downloads folder
     primary_downloads = [
-        os.path.join(DOWNLOADS_DIR, "Aravindh_Resume.pdf"),
-        os.path.join(DOWNLOADS_DIR, "CV.pdf"),
         os.path.join(DOWNLOADS_DIR, "resume.pdf"),
+        os.path.join(DOWNLOADS_DIR, "cv.pdf"),
+        os.path.join(DOWNLOADS_DIR, "CV.pdf"),
+        os.path.join(DOWNLOADS_DIR, "Resume.pdf"),
         os.path.join(DOWNLOADS_DIR, "resume.html"),
     ]
     for p in primary_downloads:
         if os.path.exists(p) and os.path.isfile(p):
             return os.path.abspath(p)
 
-    # 2. Check Desktop portfolio paths
+    # 2. Check Desktop and Document paths
     desktop_paths = [
-        os.path.join(DESKTOP_DIR, "Aravindh", "public", "resume.pdf"),
-        os.path.join(DESKTOP_DIR, "Aravindh", "public", "resume.html"),
-        os.path.join(DESKTOP_DIR, "Aravindh", "dist", "resume.pdf"),
-        os.path.join(DESKTOP_DIR, "Aravindh", "dist", "resume.html"),
+        os.path.join(DESKTOP_DIR, "resume.pdf"),
+        os.path.join(DESKTOP_DIR, "resume.html"),
+        os.path.join(DOCUMENTS_DIR, "resume.pdf"),
+        os.path.join(DOCUMENTS_DIR, "resume.html"),
     ]
     for p in desktop_paths:
         if os.path.exists(p) and os.path.isfile(p):
@@ -67,21 +68,21 @@ def parse_resume(file_path: Optional[str] = None) -> dict[str, Any]:
         file_path = find_local_resume() or ""
 
     profile: dict[str, Any] = {
-        "name": "Aravindhan B",
-        "headline": "Full Stack AI Engineer | Agentic Systems",
-        "email": "aravindh1653@gmail.com",
-        "phone": "+91 6379580068",
-        "location": "Bengaluru, India",
-        "github": "https://github.com/Aravindh-dev12",
-        "linkedin": "https://www.linkedin.com/in/aravindhanb/",
-        "portfolio": "https://aravindhb.vercel.app",
+        "name": "Candidate Operator",
+        "headline": "Full Stack AI Engineer | Autonomous Agent Architect",
+        "email": "candidate@cieav.internal",
+        "phone": "+1 (555) 019-2834",
+        "location": "Global / Remote",
+        "github": "https://github.com/cieav-agent",
+        "linkedin": "https://www.linkedin.com/company/cieav",
+        "portfolio": "https://cieav.internal",
         "summary": "Full Stack AI Engineer with production experience delivering AI systems, agentic retrieval workflows, and privacy governance.",
         "skills": [
             "Python", "FastAPI", "React", "Next.js", "TypeScript", "LLM pipelines",
             "RAG", "Agentic Workflows", "Two-Phase Commit Architecture", "Ed25519 Cryptography",
             "SQLite", "PyTorch", "Docker", "Web BLE"
         ],
-        "experience": "Nuclei Tech Solutions (Part Time) - Remote: Automated hardware test platform & Web BLE integration",
+        "experience": "Autonomous Agent Systems Engineer: High-reliability commit layer & secure tool governance",
         "file_path": file_path
     }
 

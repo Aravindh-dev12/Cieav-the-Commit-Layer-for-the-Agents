@@ -749,7 +749,7 @@ new_landing_view = """  <!-- ===================================================
             <div class="os-domain-icon icon-career">💼</div>
             <h3 class="os-domain-title">Autonomous Career Agent</h3>
             <p class="os-domain-body">
-              Scans your local filesystem for candidate PDF resume (<code>Aravindh_Resume.pdf</code>), parses skills and profiles, queries live job feeds on LinkedIn, RemoteOK, and Arbeitnow, redacts PII, and intercepts outbound legal intent.
+              Scans your local filesystem for candidate PDF resume (<code>candidate_resume.pdf</code>), parses skills and profiles, queries live job feeds on LinkedIn, RemoteOK, and Arbeitnow, redacts PII, and intercepts outbound legal intent.
             </p>
           </div>
           <div>
@@ -989,9 +989,9 @@ sim_script = """
 <span style="color:#f8fafc;">   Autonomous Job Search &amp; Application Governance</span><br>
 <span style="color:#64748b;">============================================================================</span><br>
 <span style="color:#38bdf8;">[1/4] Scanning local Windows filesystem for candidate resume...</span><br>
-  ✅ Located resume: <span style="color:#34d399;">C:\\Users\\ADMIN\\Downloads\\Aravindh_Resume.pdf</span><br>
-  👤 Candidate : Aravindhan B (Full Stack AI Engineer | Agentic system)<br>
-  📍 Location  : Bengaluru, India | 📞 Phone: +91 6379580068<br>
+  ✅ Located resume: <span style="color:#34d399;">C:\\Users\\Operator\\Documents\\resume.pdf</span><br>
+  👤 Candidate : Autonomous Candidate Agent (Full Stack AI &amp; Agentic Systems)<br>
+  📍 Location  : Global / Remote | 📞 Phone: [PHONE_REDACTED]<br>
   🛠️  Skills    : Python, FastAPI, React, Next.js, TypeScript, LLM pipelines...<br><br>
 <span style="color:#38bdf8;">[2/4] Researching live jobs across LinkedIn, RemoteOK, and Arbeitnow feeds...</span><br>
   [1] <span style="color:#34d399;">Tether</span> - Senior Full Stack AI &amp; Agentic Systems Engineer (Match: 97%)<br>
@@ -1002,7 +1002,7 @@ sim_script = """
   Target Company : Tether<br>
   Role           : Senior Full Stack AI &amp; Agentic Systems Engineer<br>
   Risk Level     : <span style="color:#f59e0b; font-weight:700;">HIGH (Policy Floor: Outbound PII &amp; Legal Intent)</span><br>
-  Redacted PII   : {'candidate': 'Aravindhan B', 'email': '<span style="color:#ef4444;">[EMAIL_REDACTED]</span>', 'phone': '+91 6379580068'}<br>
+  Redacted PII   : {'candidate': 'Autonomous Candidate', 'email': '<span style="color:#ef4444;">[EMAIL_REDACTED]</span>', 'phone': '<span style="color:#ef4444;">[PHONE_REDACTED]</span>'}<br>
   Permit Token   : Ephemeral 60s single-use cryptographic permit<br>
   Status         : <span style="color:#34d399; font-weight:700;">COMMITTED</span> | Receipt ID: <span style="color:#38bdf8;">5c3b8353</span> (Ed25519 Signed)<br><br>
 <span style="color:#10b981;">✅ Application logged in persistent tracker (cieav /jobs). Type /undo to recall anytime.</span>

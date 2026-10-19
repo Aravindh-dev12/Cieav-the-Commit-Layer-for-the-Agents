@@ -301,11 +301,11 @@ export default function Page() {
     } else if (input.toLowerCase().includes('job') || input.toLowerCase().includes('resume') || input.toLowerCase().includes('apply')) {
       newLogs.push(
         'ALMA COMPUTER CONTROL AGENT (CIEAV COMMIT LAYER):',
-        '  [1/4] Discovered local candidate resume: C:\\Users\\ADMIN\\Downloads\\Aravindh_Resume.pdf',
-        '  [2/4] Profile extracted: Aravindhan B (Full Stack AI Engineer | Agentic system, Bengaluru)',
+        '  [1/4] Discovered local candidate resume: C:\\Users\\Operator\\Documents\\resume.pdf',
+        '  [2/4] Profile extracted: Autonomous Candidate Agent (Full Stack AI & Agentic Systems)',
         '  [3/4] Live Jobs Sourced: Tether (97%), Anthropic (98%), OpenAI (97%), Google DeepMind (96%)',
         '  [4/4] [CIEAV INTERCEPTOR] Outbound application held for governance: Risk: HIGH',
-        '        Redacted: candidate="Aravindhan B", email="[EMAIL_REDACTED]", phone="+91 6379580068"',
+        '        Redacted: candidate="Autonomous Candidate", email="[EMAIL_REDACTED]", phone="[PHONE_REDACTED]"',
         '        Permit: Ephemeral single-use 60s cryptographic token',
         '        Status: COMMITTED | Receipt: 5c3b8353 (Ed25519 Signed) | Saved to cieav /jobs'
       )

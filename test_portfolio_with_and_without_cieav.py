@@ -2,9 +2,9 @@
 CIEAV — Live Real-World Comparative Test:
 WITH CIEAV vs WITHOUT CIEAV on Real Portfolio Repository
 
-Target Repository: c:\\Users\\ADMIN\\Desktop\\Aravindh
+Target Repository: demo_portfolio in workspace
 
-Run directly on your laptop for live video recording:
+Run directly on your laptop:
     python test_portfolio_with_and_without_cieav.py
 """
 import os
@@ -23,16 +23,16 @@ from commit_layer.tools.repo import RealRepoFileTool
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-PORTFOLIO_DIR = r"c:\Users\ADMIN\Desktop\Aravindh"
+PORTFOLIO_DIR = os.path.join(WORKSPACE_DIR, "demo_portfolio")
 TARGET_FILE = os.path.join(PORTFOLIO_DIR, "src", "portfolio_live_test.json")
 INITIAL_CONTENT = json.dumps({
-    "portfolio_name": "Aravindh Developer Portfolio",
+    "portfolio_name": "Developer Production Portfolio",
     "version": "1.0.0",
     "status": "production-ready",
     "critical_settings": {
         "analytics_enabled": True,
         "theme": "dark",
-        "api_endpoint": "https://api.aravindh.dev"
+        "api_endpoint": "https://api.internal.dev"
     }
 }, indent=2)
 
