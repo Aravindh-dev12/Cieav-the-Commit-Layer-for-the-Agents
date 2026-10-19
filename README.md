@@ -187,42 +187,64 @@ CIEAV is designed from the ground up to be **100% local-first and privacy-preser
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Internet.git
-cd Cieav-the-Commit-Layer-for-the-Internet
+git clone https://github.com/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Agents.git
+cd Cieav-the-Commit-Layer-for-the-Agents
 
-# Install Python dependencies
+# Install dependencies and register 'cieav' global command
 pip install -r commit_layer/requirements.txt
-```
-
-### Environment Configuration (Optional)
-Copy `.env.example` to `.env` to configure optional cloud integrations (AWS Bedrock, Crustdata, Neatlogs):
-```env
-# Optional cloud enhancements (all features work offline without these)
-ENABLE_AWS_BEDROCK=0
-NEATLOGS_API_KEY=your-neatlogs-key
-CRUSTDATA_API_KEY=your-crustdata-key
+pip install -e .
 ```
 
 ### 1. Launch Governed Terminal Agent (`cieav`)
-Run the native command directly in PowerShell or CMD:
+Simply type `cieav` in PowerShell, CMD, or Windows Terminal (or double-click `Start-CIEAV.bat`):
 ```powershell
-# Interactive NLP terminal assistant
 cieav
-
-# Or run an autonomous task directly (Alma.inc computer-use):
-cieav "find engineering jobs matching my resume and apply"
 ```
+You will be greeted with the live **CIEAV A2A ASCII banner**, current host health, Ed25519 key ID, decision engine latency (<2ms), and Windows Recycle Bin status!
 
-### 2. Launch Local Gateway & Documentation Control Plane
+### 2. Autonomous Local Servicing vs. Manual `COMMIT` Duality
+CIEAV gives you the best of both worlds:
+- **Autonomous Local Operations**: Safe queries, status checks, directory indexing, resume parsing, job searches, and decision queries run **100% autonomously** without annoying interruptions.
+- **Consequential Mutations**: Irreversible host mutations—such as emptying the Windows Recycle Bin, permanent file deletions, or financial transactions—are **strictly intercepted** and require typed confirmation (`COMMIT`) or approval in the Web Dashboard.
+
 ```powershell
-python -m uvicorn commit_layer.app:app --host 0.0.0.0 --port 8000
-```
-Open **`http://127.0.0.1:8000`** in your browser:
-- Log in or click **"Launch Console ↗"** at the top right.
-- Lands directly on the **Developer Documentation & Local CLI Guide** page with an embedded interactive playground.
-- Explore **Pending Approvals**, **Alma Computer Control**, **Crustdata Screener**, and **Model Benchmarks**.
+# Autonomous Safe Queries (Run automatically)
+cieav recyclebin                              # Inspect real Windows Recycle Bin files & size
+cieav decide "rm -rf .git"                    # Instant offline Bayesian decision card (<2ms)
+cieav /jobs                                   # Multi-platform career agent application ledger
+cieav /status                                 # Cryptographic Ed25519 signing key & receipt status
 
-Live Hosted Cloud Interface: **[https://cieav.vercel.app/](https://cieav.vercel.app/)**
+# Governed Consequential Actions (Require typed COMMIT)
+cieav "empty recycle bin"                     # Intercepts Win32 SHEmptyRecycleBinW (CRITICAL)
+cieav delete critical_data.db                 # Intercepts deletion, snapshots file for /undo
+```
+
+### 3. Direct Web Dashboard Interaction (`cieav web` / `/web`)
+Launch the Web Console at `http://127.0.0.1:8000`:
+```powershell
+cieav web
+```
+Inside the interactive terminal agent, you can also simply type `/web` to instantly pop up the live browser dashboard. Any pending action intercepted in the terminal or by background agents can be reviewed, approved, or rejected visually!
+
+### 4. Run the 6-Domain Live Real-World Test Suite (100% Local)
+No synthetic mocks. The test suite executes directly against your local host environment:
+```powershell
+# Method 1: Double-click Run-Tests.bat
+.\Run-Tests.bat
+
+# Method 2: Via cieav CLI
+cieav test
+
+# Method 3: Via Python directly
+python test_real_world_cieav_live.py
+```
+**What gets tested:**
+1. **cieav-decider-mini Engine**: Offline Bayesian lexical AST inference (<4ms).
+2. **Real PDF Resume Parsing**: Discovers local candidate resume (`Aravindh_Resume.pdf`) and matches live postings across LinkedIn/RemoteOK.
+3. **Real Host Disk Mutation & /undo**: Real file deletion and lossless two-phase byte-for-byte restoration.
+4. **CFO Financial Caps**: Real-time spending limits ($100 max) and in-memory card PII redaction.
+5. **Ed25519 Merkle Hash-Chain**: Verifies canonical SQLite cryptographic signatures from Genesis to tip.
+6. **Windows Recycle Bin Subsystem**: Win32 `SHQueryRecycleBinW` live file inspection and `SHEmptyRecycleBinW` purge prevention.
 
 ---
 
@@ -231,15 +253,15 @@ Live Hosted Cloud Interface: **[https://cieav.vercel.app/](https://cieav.vercel.
 Run `cieav` in PowerShell to chat naturally with the agent:
 
 ```text
-cieav> find engineering jobs matching my resume and apply   # Alma.inc autonomous agent workflow
-cieav> read C:\Users\ADMIN\Desktop\Aravindh\public\resume.html # Lossless safe file inspection
-cieav> list C:\Users\ADMIN\Desktop\Aravindh                 # Safe directory exploration
-cieav> modify config.json '{"debug": false}'                # Atomic file modification with snapshot
-cieav> delete old_temp.db                                   # Intercepted as CRITICAL; requires typed COMMIT
-cieav> exec "uptime && free -m"                             # Governed command execution
-cieav> /undo                                                # Instant two-phase rollback of last action
-cieav> /receipts                                            # Inspect Ed25519-signed SQLite audit ledger
-cieav> /status                                              # View signing key ID, ledger health & safety floor
+cieav> recyclebin                                            # Win32 Recycle Bin inspection (items + MB)
+cieav> empty recycle bin                                     # Intercepted as CRITICAL; requires typed COMMIT
+cieav> /web                                                  # Open live Web Dashboard (http://127.0.0.1:8000)
+cieav> /test                                                 # Run 6-domain live real-world verification
+cieav> /decide rm -rf /                                      # Offline Bayesian decision consequence card
+cieav> /jobs                                                 # Autonomous career agent application tracker
+cieav> /status                                               # View signing key ID, ledger health & safety floor
+cieav> /undo                                                 # Instant two-phase rollback of last action
+cieav> find engineering jobs matching my resume and apply    # Career agent workflow
 ```
 
 

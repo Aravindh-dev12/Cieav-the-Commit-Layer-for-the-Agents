@@ -33,9 +33,36 @@ def entrypoint() -> int:
         return chat_main([])
     
     first = args[0].lower()
+    if first in {"web", "ui", "/web", "dashboard", "console"}:
+        import webbrowser
+        import urllib.request
+        import time
+        import subprocess
+        
+        server_running = False
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=1) as resp:
+                server_running = resp.status == 200
+        except Exception:
+            server_running = False
+
+        if not server_running:
+            print("[CIEAV] Starting background local gateway server on http://127.0.0.1:8000...")
+            subprocess.Popen([sys.executable, "-m", "uvicorn", "commit_layer.app:app", "--host", "127.0.0.1", "--port", "8000"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(1.5)
+
+        print("[CIEAV] Opening Web Console at http://127.0.0.1:8000 ...")
+        webbrowser.open("http://127.0.0.1:8000")
+        return 0
+
+    if first in {"test", "tests", "/test", "run-tests"}:
+        import subprocess
+        return subprocess.call([sys.executable, "test_real_world_cieav_live.py"])
+
     if first in {"chat", "code", "agent"}:
         return chat_main(args[1:])
-    if first in {"/status", "status", "/receipts", "receipts", "/undo", "undo", "/help", "help", "/reset", "reset", "/jobs", "jobs", "/report", "report"}:
+    if first in {"/status", "status", "/receipts", "receipts", "/undo", "undo", "/help", "help", "/reset", "reset", "/jobs", "jobs", "/report", "report", "recyclebin", "/recyclebin", "/decide", "decide", "/model", "model"}:
         return chat_main(args)
     if first == "mcp":
         return mcp_main(args[1:])

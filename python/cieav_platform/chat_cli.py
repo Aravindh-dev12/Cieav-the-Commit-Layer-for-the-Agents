@@ -63,6 +63,8 @@ def get_interactive_banner() -> str:
 [1;33mGoverned OS Actions and Interactive Commands:[0m
   recyclebin        - Inspect real Windows Recycle Bin files and disk space
   empty recycle bin - Governed CRITICAL purge of Recycle Bin (requires typed COMMIT)
+  /web              - Launch live Web Dashboard (http://127.0.0.1:8000)
+  /test             - Run 6-domain live real-world verification test suite
   /decide <cmd>     - Query local decision model probabilities (<3ms)
   /jobs             - View real-world multi-platform career agent tracker
   /status           - Inspect Commit Layer health, keys and receipts
@@ -444,7 +446,7 @@ def process_user_input(text: str):
     if lower in ("exit", "quit", "/quit", "/exit"):
         print("Goodbye!")
         sys.exit(0)
-    elif lower.startswith("/decide ") or lower.startswith("/eval "):
+    elif lower.startswith("/decide ") or lower.startswith("/eval ") or lower.startswith("decide ") or lower.startswith("eval "):
         query = cmd.split(" ", 1)[1].strip()
         render_decision_card(query)
         return
@@ -460,11 +462,23 @@ def process_user_input(text: str):
     elif lower in ("empty recycle bin", "empty recyclebin", "/empty-bin", "clear recycle bin", "purge recycle bin", "clean recycle bin"):
         execute_governed_action("empty_recycle_bin", {})
         return
+    elif lower in ("/web", "web", "/ui", "ui", "/dashboard", "dashboard"):
+        import webbrowser
+        print("\n[CIEAV] Opening Web Console at http://127.0.0.1:8000 ...")
+        webbrowser.open("http://127.0.0.1:8000")
+        return
+    elif lower in ("/test", "test", "/tests", "tests"):
+        import subprocess
+        print("\n[CIEAV] Launching 6-Domain Live Real-World Test Suite...\n")
+        subprocess.call([sys.executable, "test_real_world_cieav_live.py"])
+        return
     elif lower in ("/help", "help"):
         print("""
 Available Governed Commands:
   recyclebin        - Inspect real Windows Recycle Bin files & disk space
   empty recycle bin - Governed CRITICAL purge of Recycle Bin (requires typed COMMIT)
+  /web              - Open live Web Dashboard (http://127.0.0.1:8000)
+  /test             - Run 6-domain live real-world verification test suite
   /decide <cmd>     - Query local decision model probabilities (<3ms)
   /status           - Inspect Commit Layer state and Ed25519 signing key
   /model            - Inspect local decision engine architecture
