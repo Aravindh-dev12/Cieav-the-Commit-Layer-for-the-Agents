@@ -420,13 +420,12 @@ export default function Page() {
                 <span>Deterministic Safety Floors • Cryptographic Ed25519 Receipts • Two-Phase Rollback</span>
               </div>
 
-              <h1 className="mt-6 text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl lg:text-6xl leading-[1.08]">
-                The Commit Layer for the Internet & Autonomous Agents
+              <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-zinc-950 sm:text-5xl lg:text-6xl leading-[1.06]">
+                The Sovereign Computer-Control Agent OS
               </h1>
 
               <p className="mt-6 text-base sm:text-lg leading-relaxed text-zinc-600 max-w-xl">
-                CIEAV sits between humans, AI agents (Claude Code, Cursor, Alma.inc), and digital side-effects.
-                Cloud models interpret intent. Deterministic safety, PII redaction, and execution authority stay 100% local on your laptop.
+                Like <strong>Alma.inc</strong> and <strong>Claude Code</strong>, but with zero cloud lock-in and zero fear of data loss. Speak your intent in plain English directly in PowerShell. CIEAV executes across <strong>Career, Code, Finance, and DevOps</strong>, backed by single-use cryptographic permits and two-phase instant rollback.
               </p>
 
               <div className="mt-8 flex flex-wrap items-center gap-4">
