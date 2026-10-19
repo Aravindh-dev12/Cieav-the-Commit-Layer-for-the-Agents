@@ -175,7 +175,22 @@ We evaluated CIEAV's embedded engine (`cieav-decider-v2`) directly against **Jev
 9. **EXP-09: Cognitive Fatigue Step-Up**: User approves 4 actions in 60s. CIEAV friction engine steps up approval requirement to prevent rubber-stamping.
 10. **EXP-10: Cryptographic Ledger Audit**: Verification of SQLite audit chain. CIEAV proves mathematical tamper-detection.
 
+### Official Repository Contract & Benchmark Testing
+Run the official repository contract tests and empirical benchmarks locally:
+
+```bash
+# 1. Run official repository contract tests (TypeSafe Jev 1.14, Kev, pplx-decider):
+python -m pytest commit_layer/tests/test_official_repos.py -v
+
+# 2. Run the 5-model empirical benchmark evaluation (Jev 1.14, pplx-decider, Kev, Laya, CIEAV):
+python benchmark_decision_models_vs_cieav.py
+
+# 3. Run the full real-world laptop control test suite (6/6 domains):
+python test_real_world_cieav_live.py
+```
+
 ---
+
 
 ## 5. Zero-Friction Autonomous Setup (Just Clone & Run)
 
