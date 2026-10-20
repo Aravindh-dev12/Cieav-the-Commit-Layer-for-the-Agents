@@ -54,6 +54,9 @@ from commit_layer.tools.messaging_agent import whatsapp_agent
 from commit_layer.tools.os_automator import os_automator
 from commit_layer.code_healer import code_healer
 from commit_layer.super_agent import super_agent
+from commit_layer.multilingual import multilingual_engine
+from commit_layer.tools.media_studio import media_studio
+from commit_layer.gui_agent import gui_agent
 
 
 
@@ -644,7 +647,65 @@ def process_user_input(text: str):
         print("Goodbye!")
         sys.exit(0)
 
-    # Conversational Greeting Check
+    # 0. Multilingual Comprehension & Intent Dispatch
+    m_intent, m_lang = multilingual_engine.match_multilingual_intent(cmd)
+    if m_intent == "GREETING":
+        print("\n" + multilingual_engine.get_greeting(m_lang) + "\n")
+        return
+    elif m_intent == "OPEN_CHROME":
+        local_browser.open_chrome()
+        msg = "Google Chrome launched successfully!"
+        if m_lang == "HINDI":
+            msg = "गूगल क्रोम सफलतापूर्वक खोला गया!"
+        elif m_lang == "TELUGU":
+            msg = "గూగుల్ క్రోమ్ విజయవంతంగా తెరవబడింది!"
+        elif m_lang == "KANNADA":
+            msg = "ಗೂಗಲ್ ಕ್ರೋಮ್ ಯಶಸ್ವಿಯಾಗಿ ತೆರೆಯಲಾಗಿದೆ!"
+        elif m_lang == "MALAYALAM":
+            msg = "ഗൂഗിൾ ക്രോം വിജയകരമായി തുറന്നു!"
+        elif m_lang == "FRENCH":
+            msg = "Google Chrome a été ouvert avec succès !"
+        elif m_lang == "ARABIC":
+            msg = "تم فتح جوجل كروم بنجاح!"
+        elif m_lang == "CHINESE":
+            msg = "谷歌Chrome浏览器已成功启动！"
+        elif m_lang == "JAPANESE":
+            msg = "Google Chromeが正常に起動しました！"
+        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m {msg}\n")
+        return
+    elif m_intent == "SYSTEM_DIAGNOSTICS":
+        diag = os_automator.get_system_diagnostics()
+        print("\n" + os_automator.render_diagnostics_card(diag) + "\n")
+        return
+    elif m_intent == "CLEAN_TEMP":
+        res = os_automator.clean_temp_files(dry_run=False)
+        msg = f"Reclaimed {res['reclaimed_mb']} MB disk space across {res['deleted_count']} temporary files."
+        if m_lang == "HINDI":
+            msg = f"{res['reclaimed_mb']} MB डिस्क स्पेस खाली कर दिया गया ({res['deleted_count']} फाइलें साफ की गईं)."
+        elif m_lang == "TELUGU":
+            msg = f"{res['reclaimed_mb']} MB డిస్క్ స్థలం క్లీన్ చేయబడింది ({res['deleted_count']} ఫైళ్లు తొలగించబడ్డాయి)."
+        elif m_lang == "CHINESE":
+            msg = f"已成功释放 {res['reclaimed_mb']} MB 磁盘空间（清理了 {res['deleted_count']} 个临时文件）。"
+        elif m_lang == "JAPANESE":
+            msg = f"{res['reclaimed_mb']} MBのディスク領域を解放しました（{res['deleted_count']}個の一時ファイルを削除）。"
+        print(f"\n🧹 \033[1;32m[OS AUTOMATOR]\033[0m {msg}\n")
+        return
+    elif m_intent == "VIDEO_EDIT":
+        print(f"\n\033[38;2;168;85;247m[AUTONOMOUS VIDEO STUDIO]\033[0m Taking full control of video tools...")
+        res = gui_agent.execute_video_editing_mission(cmd)
+        print("\n" + gui_agent.render_gui_mission_card(res) + "\n")
+        return
+    elif m_intent == "HEAL_CODE":
+        res = code_healer.heal_and_verify("python -m pytest commit_layer/tests/test_commit_layer.py -q")
+        print("\n" + code_healer.render_healer_card(res) + "\n")
+        return
+    elif m_intent == "OFFICE_SWARM":
+        res = virtual_office.run_swarm_cycle()
+        print(f"\n  ✅ Swarm cycle complete: {res['executed_count']} tasks executed!\n")
+        print(virtual_office.render_board())
+        return
+
+    # Conversational Greeting Check (English Default)
     GREETINGS = (
         "hi", "hello", "hey", "hi cieav", "hello cieav", "hey cieav",
         "good morning", "good afternoon", "good evening",
@@ -652,6 +713,13 @@ def process_user_input(text: str):
     )
     if lower in GREETINGS:
         show_conversational_greeting()
+        return
+
+    # Hands-Free Video Studio & GUI Tool Control
+    if any(w in lower for w in ("video edit", "edit video", "trim video", "cut video", "create video", "video studio", "gui control", "clipchamp", "capcut")):
+        print(f"\n\033[38;2;168;85;247m[AUTONOMOUS VIDEO STUDIO]\033[0m Taking full control of desktop & media tools...")
+        res = gui_agent.execute_video_editing_mission(cmd)
+        print("\n" + gui_agent.render_gui_mission_card(res) + "\n")
         return
 
     # Direct App Launch Check (Chrome, Edge, Notepad, Calculator, Explorer, etc.)

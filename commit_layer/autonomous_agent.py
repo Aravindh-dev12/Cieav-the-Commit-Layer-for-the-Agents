@@ -34,6 +34,8 @@ from commit_layer.tools.messaging_agent import whatsapp_agent
 from commit_layer.tools.os_automator import os_automator
 from commit_layer.code_healer import code_healer
 from commit_layer.super_agent import super_agent
+from commit_layer.multilingual import multilingual_engine
+from commit_layer.gui_agent import gui_agent
 from commit_layer.workspace import get_workspace_root
 
 
@@ -49,6 +51,31 @@ class AutonomousLocalAgent:
         """
         p = user_prompt.strip()
         lower = p.lower()
+
+        # Multilingual & International Intent Routing
+        m_intent, m_lang = multilingual_engine.match_multilingual_intent(p)
+        if m_intent == "GREETING":
+            return {
+                "type": "greeting",
+                "message": multilingual_engine.get_greeting(m_lang),
+                "language": m_lang
+            }
+        elif m_intent == "VIDEO_EDIT":
+            res = gui_agent.execute_video_editing_mission(p)
+            return {
+                "type": "video_studio",
+                "message": gui_agent.render_gui_mission_card(res),
+                "data": res
+            }
+
+        # Hands-free Video Studio & GUI Automation
+        if any(w in lower for w in ("video edit", "edit video", "trim video", "cut video", "create video", "gui control", "clipchamp")):
+            res = gui_agent.execute_video_editing_mission(p)
+            return {
+                "type": "video_studio",
+                "message": gui_agent.render_gui_mission_card(res),
+                "data": res
+            }
 
         # 0. Conversational Greeting & Capability Intent
         if lower in ("hi", "hello", "hey", "hi cieav", "hello cieav", "hey cieav", "who are you", "what can you do", "help me"):
