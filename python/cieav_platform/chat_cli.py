@@ -746,9 +746,9 @@ Available Governed Commands:
     if lower.startswith("email ") or lower.startswith("send email ") or lower.startswith("write mail ") or lower.startswith("send mail "):
         email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', cmd)
         to_email = email_match.group(0) if email_match else "recipient@cieav.internal"
-        subj_match = re.search(r'subject\s*[:\-]?\s*['""]?([^'""]+)['""]?', cmd, re.IGNORECASE)
+        subj_match = re.search(r"""subject\s*[:\-]?\s*['"]?([^'"]+)['"]?""", cmd, re.IGNORECASE)
         subject = subj_match.group(1) if subj_match else "Notice from CIEAV Agent"
-        body_match = re.search(r'(?:body|message|saying)\s*[:\-]?\s*['""]?([^'""]+)['""]?', cmd, re.IGNORECASE)
+        body_match = re.search(r"""(?:body|message|saying)\s*[:\-]?\s*['"]?([^'"]+)['"]?""", cmd, re.IGNORECASE)
         body = body_match.group(1) if body_match else cmd
         res = email_agent.compose_and_send(to=to_email, subject=subject, body=body, launch_client=True)
         print(email_agent.render_cli_card(res))
@@ -765,7 +765,7 @@ Available Governed Commands:
     if lower.startswith("whatsapp ") or lower.startswith("send whatsapp ") or lower.startswith("wa "):
         phone_match = re.search(r'(?:\+?\d[\d\-\s\(\)]{8,15}\d)', cmd)
         phone = phone_match.group(0) if phone_match else "+14155552671"
-        msg_match = re.search(r'(?:saying|message|text)\s*[:\-]?\s*['""]?([^'""]+)['""]?', cmd, re.IGNORECASE)
+        msg_match = re.search(r"""(?:saying|message|text)\s*[:\-]?\s*['"]?([^'"]+)['"]?""", cmd, re.IGNORECASE)
         if not msg_match and len(cmd.split()) >= 3:
             msg = cmd.split(None, 2)[2]
         else:

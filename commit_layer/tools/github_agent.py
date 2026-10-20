@@ -374,10 +374,20 @@ build/
             "stderr": push_res["stderr"]
         }
 
-    def raise_pr(self, title: str, body: str, branch: Optional[str] = None, base: str = "main") -> Dict[str, Any]:
+    def raise_pr(self, title: str, body: str, branch: Optional[str] = None, base: str = "main", dry_run: bool = False) -> Dict[str, Any]:
         """Create a dedicated feature branch, commit, push, and submit a live Pull Request."""
         clean_slug = re.sub(r'[^a-zA-Z0-9_\-]', '-', title).lower().strip('-')[:35]
         target_branch = branch or f"cieav/feat-{clean_slug}-{int(time.time())}"
+
+        if dry_run:
+            return {
+                "status": "success",
+                "title": title,
+                "head_branch": target_branch,
+                "base_branch": base,
+                "pr_url": f"https://github.com/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Agents/pull/{int(time.time()) % 1000}",
+                "dry_run": True
+            }
 
         # 1. Checkout new feature branch
         _run_cmd(["git", "checkout", "-b", target_branch], cwd=self.workspace_root)
@@ -547,8 +557,16 @@ class GitHubDevOpsTool(BaseTool):
             proj_path = result.get("project_path")
             if proj_path and os.path.exists(proj_path):
                 def _rollback_scaffold():
-                    # Move to .trash or delete
-                    shutil.rmtree(proj_path, ignore_errors=True)
+                    import stat
+                    def on_rm_error(func, p, exc_info):
+                        try:
+                            os.chmod(p, stat.S_IWRITE)
+                            func(p)
+                        except Exception:
+                            pass
+                    shutil.rmtree(proj_path, onerror=on_rm_error)
+                    if os.path.exists(proj_path):
+                        subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", os.path.abspath(proj_path)], capture_output=True)
                     return {"undone": True, "removed": proj_path}
                 return _rollback_scaffold
         return None

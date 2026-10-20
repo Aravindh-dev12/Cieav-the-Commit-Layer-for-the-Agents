@@ -216,7 +216,7 @@ def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
         })
 
     elif re.search(r'\b(push\s+to\s+github|git\s+push)\b', p, re.IGNORECASE):
-        msg_match = re.search(r'(?:push\s+to\s+github|git\s+push)\s*(?:with\s+message\s+)?['"]?([^'"]+)?['"]?', p, re.IGNORECASE)
+        msg_match = re.search(r"""(?:push\s+to\s+github|git\s+push)\s*(?:with\s+message\s+)?['"]?([^'"]+)?['"]?""", p, re.IGNORECASE)
         commit_msg = msg_match.group(1).strip() if (msg_match and msg_match.group(1)) else "Update via CIEAV Agent"
         actions.append({
             "domain": "devops",
@@ -229,7 +229,7 @@ def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
     elif re.search(r'\b(whatsapp|send\s+wa|wa\s+message)\b', p, re.IGNORECASE):
         phone_match = re.search(r'(?:\+?\d[\d\-\s\(\)]{8,15}\d)', p)
         phone = phone_match.group(0) if phone_match else "+14155552671"
-        msg_match = re.search(r'(?:saying|message|text)\s*[:\-]?\s*['"]?([^'"]+)['"]?', p, re.IGNORECASE)
+        msg_match = re.search(r"""(?:saying|message|text)\s*[:\-]?\s*['"]?([^'"]+)['"]?""", p, re.IGNORECASE)
         msg = msg_match.group(1) if msg_match else "Notice from CIEAV"
         actions.append({
             "domain": "messaging",

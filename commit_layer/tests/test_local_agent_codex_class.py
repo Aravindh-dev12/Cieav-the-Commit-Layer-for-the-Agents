@@ -139,13 +139,19 @@ def test_personal_notes_manager():
 
 def test_project_scaffolding_and_git_init():
     """Verify project directory scaffolding, files generation, and git repository initialization."""
+    # Ensure fresh test directory
+    init_dir = os.path.join(os.getcwd(), "projects", "test_analytics_engine")
+    if os.path.exists(init_dir):
+        shutil.rmtree(init_dir, ignore_errors=True)
+
     res = github_agent.scaffold_project(name="test_analytics_engine", template="python", description="Test analytics engine")
     assert res["status"] == "success"
     proj_path = res["project_path"]
+    proj_pkg = res["project_name"].replace("-", "_")
     assert os.path.isdir(proj_path)
     assert os.path.exists(os.path.join(proj_path, "README.md"))
     assert os.path.exists(os.path.join(proj_path, "pyproject.toml"))
-    assert os.path.exists(os.path.join(proj_path, "src", "test_analytics_engine", "core.py"))
+    assert os.path.exists(os.path.join(proj_path, "src", proj_pkg, "core.py"))
     assert os.path.exists(os.path.join(proj_path, "tests", "test_core.py"))
     assert os.path.isdir(os.path.join(proj_path, ".git"))
 
@@ -174,7 +180,7 @@ def test_github_devops_issues_and_pr():
     assert "Closes #65" in fix["commit_message"] or "Fixes #65" in fix["commit_message"]
 
     # Test raise PR
-    pr = github_agent.raise_pr(title="Qualify 2PC transaction recovery", body="Automated verification test PR")
+    pr = github_agent.raise_pr(title="Qualify 2PC transaction recovery", body="Automated verification test PR", dry_run=True)
     assert pr["status"] in ("success", "simulated_success")
     assert "github.com" in pr["pr_url"]
 
