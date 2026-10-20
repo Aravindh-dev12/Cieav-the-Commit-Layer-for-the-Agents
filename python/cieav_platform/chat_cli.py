@@ -547,22 +547,24 @@ def run_alma_general_intent_workflow(prompt: str):
 
 def show_conversational_greeting():
     print("""
-\033[1;36m👋 Hello! I am CIEAV — Sovereign Computer-Control Agent OS.\033[0m
+\033[1;36m👋 Hello! I am CIEAV — World-Class Sovereign Computer-Control Agent OS.\033[0m
 \033[38;2;168;85;247m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m
-I operate \033[1;32m100% locally\033[0m on your CPU with \033[1;33mzero third-party cloud APIs\033[0m.
-Like Claude Code and Codex, I directly operate your operating system, browser,
-file system, and developer workflows with cryptographically verified commits:
+I operate \033[1;32m100% locally on your CPU\033[0m with \033[1;33m0% third-party cloud APIs\033[0m.
+Like Devin, Claude Code, and Codex, I eliminate manual computer work by autonomously
+planning, synthesizing code, controlling apps, and maintaining your operating system:
 
-  🌐 \033[1mLocal Browser & Apps\033[0m     : "open chrome", "open edge", "open notepad", "open calc"
-  🛒 \033[1mWeb Shopping & E-Commerce\033[0m: "buy clothes in amazon", "buy shoes on nike"
-  📁 \033[1mPersonal Notes Vault\033[0m    : "note deploy v2 tomorrow", "notes", "search notes"
-  🛠️  \033[1mDevOps & GitHub\033[0m         : "create project myapp", "issues", "fix issue 1", "push"
-  ✉️  \033[1mComms & Outbox\033[0m          : "send email to dev@corp.io", "whatsapp to +14155552671"
-  🏢 \033[1mVirtual Office\033[0m          : "office", "office add feature", "office done T1"
-  🎮 \033[1mCyber Simulator\033[0m         : "game" (interactive terminal defense simulation)
-  🔒 \033[1mGoverned Safety\033[0m         : Reversible Two-Phase Commits (\033[1;31mCOMMIT\033[0m) & Lossless \033[1;32m/undo\033[0m
+  🌟 \033[1mSuperAgent Goals\033[0m    : "goal clean temp files and inspect performance"
+  🩺 \033[1mSelf-Healing Code\033[0m   : "heal" (Devin-class autonomous traceback & bug repair)
+  🧹 \033[1mOS Maintenance\033[0m      : "system" (live CPU/RAM/disks), "clean temp", "organize <dir>"
+  🏢 \033[1mOffice Swarm\033[0m        : "office run" (Atlas, Codex, CFO, Crust & Ops execute tasks)
+  🌐 \033[1mNative Apps & Web\033[0m   : "open chrome", "open notepad", "open calc", "ports"
+  🛒 \033[1mWeb Shopping\033[0m        : "buy clothes in amazon", "buy shoes on nike"
+  📁 \033[1mEncrypted Vault\033[0m     : "note deploy v2 tomorrow", "notes", "search notes"
+  🛠️  \033[1mDevOps & GitHub\033[0m     : "create project myapp", "issues", "fix issue 1", "push"
+  ✉️  \033[1mOutbox Comms\033[0m        : "email to dev@corp.io", "whatsapp to +14155552671"
+  🔒 \033[1mGoverned Safety\033[0m     : Two-Phase Commits (\033[1;31mCOMMIT\033[0m) & Lossless \033[1;32m/undo\033[0m
 
-\033[90mTry typing: "open chrome", "buy clothes in amazon", "note meeting at 4pm", or "issues"\033[0m
+\033[90mTry typing: "system", "clean temp", "open chrome", "goal clean temp and write a note"\033[0m
 \033[38;2;168;85;247m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m
 """)
 
