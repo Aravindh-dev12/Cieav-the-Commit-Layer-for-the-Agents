@@ -72,10 +72,37 @@ def test_greeting_and_model_subscription_query():
         assert "cieav-decider-v2" in res["message"]
         assert res["data"]["total_tokens_billed"] > 0
 
-    # 3. Account and subscription discovery query
-    for q in ("check my claude subscription", "check my chatgpt subscription", "my subscriptions"):
-        res = autonomous_agent.process_instruction(q)
-        assert res["type"] == "account_discovery"
-        assert "ACCOUNT DISCOVERY" in res["message"]
-        assert "cieav-decider-v2" in res["message"]
+    # 3. Account and subscription discovery query - Strict isolated checks
+    # Gemini strict check: ONLY Gemini info, zero Claude or ChatGPT
+    res_gemini = autonomous_agent.process_instruction("check my gemini subscription")
+    assert res_gemini["type"] == "account_discovery"
+    assert "GEMINI" in res_gemini["message"]
+    assert "Claude" not in res_gemini["message"]
+    assert "ChatGPT" not in res_gemini["message"]
+    assert "cieav-decider-v2" not in res_gemini["message"]
+
+    # Claude strict check: ONLY Claude info, zero ChatGPT or Gemini
+    res_claude = autonomous_agent.process_instruction("check my claude subscription")
+    assert res_claude["type"] == "account_discovery"
+    assert "CLAUDE" in res_claude["message"]
+    assert "ChatGPT" not in res_claude["message"]
+    assert "Gemini" not in res_claude["message"]
+    assert "cieav-decider-v2" not in res_claude["message"]
+
+    # ChatGPT strict check: ONLY ChatGPT info, zero Claude or Gemini
+    res_chatgpt = autonomous_agent.process_instruction("check my chatgpt subscription")
+    assert res_chatgpt["type"] == "account_discovery"
+    assert "CHATGPT" in res_chatgpt["message"]
+    assert "Claude" not in res_chatgpt["message"]
+    assert "Gemini" not in res_chatgpt["message"]
+    assert "cieav-decider-v2" not in res_chatgpt["message"]
+
+    # General overview: contains all detected models + CIEAV sovereign core
+    res_general = autonomous_agent.process_instruction("my subscriptions")
+    assert res_general["type"] == "account_discovery"
+    assert "ACCOUNT DISCOVERY" in res_general["message"]
+    assert "Claude" in res_general["message"]
+    assert "ChatGPT" in res_general["message"]
+    assert "Gemini" in res_general["message"]
+    assert "cieav-decider-v2" in res_general["message"]
 

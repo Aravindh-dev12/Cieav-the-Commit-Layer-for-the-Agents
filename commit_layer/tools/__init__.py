@@ -14,4 +14,7 @@ from commit_layer.tools.github_agent import GitHubDevOpsAgent, github_agent, Git
 from commit_layer.tools.email_agent import EmailAgent, email_agent, EmailAgentTool
 from commit_layer.tools.messaging_agent import WhatsAppMessagingAgent, whatsapp_agent, WhatsAppMessagingTool
 
-from commit_layer.rea import REABilateralExchangeTool
+try:
+    from commit_layer.rea import REABilateralExchangeTool
+except (ImportError, AttributeError):
+    REABilateralExchangeTool = None

@@ -184,16 +184,32 @@ class TraceAnalyticsEngine:
             except Exception as e:
                 return {"status": "error", "message": f"Logout failed: {str(e)}"}
 
-        return {"status": "error", "message": f"Unknown provider '{provider}'. Specify 'chatgpt' or 'claude'."}
+        elif "gemini" in prov or "google" in prov:
+            if "GEMINI_API_KEY" in os.environ:
+                del os.environ["GEMINI_API_KEY"]
+            if "GOOGLE_API_KEY" in os.environ:
+                del os.environ["GOOGLE_API_KEY"]
+            return {
+                "status": "success",
+                "provider": "Google Gemini",
+                "message": (
+                    "\033[1;32m✅ Successfully reset Gemini session.\033[0m\n"
+                    "   • Active GEMINI_API_KEY removed from current session environment.\n"
+                    "   • To set a new subscription key: $env:GEMINI_API_KEY=\"AIza...\""
+                )
+            }
+
+        return {"status": "error", "message": f"Unknown provider '{provider}'. Specify 'gemini', 'chatgpt', or 'claude'."}
 
     def detect_local_ai_subscriptions(self) -> Dict[str, Any]:
         """
         Detect local AI accounts, emails, and active subscriptions across
-        Claude Code (~/.claude.json), Codex/ChatGPT (~/.codex/auth.json), and environment keys.
+        Claude Code (~/.claude.json), Codex/ChatGPT (~/.codex/auth.json), Gemini, and environment keys.
         """
         subs = {
             "claude": {"subscribed": False, "email": None, "plan": "None", "org": "", "source": None},
-            "chatgpt": {"subscribed": False, "email": None, "plan": "None", "source": None}
+            "chatgpt": {"subscribed": False, "email": None, "plan": "None", "source": None},
+            "gemini": {"subscribed": False, "email": None, "plan": "None", "source": None}
         }
         user_home = os.path.expanduser("~")
 
@@ -236,77 +252,141 @@ class TraceAnalyticsEngine:
             except Exception:
                 pass
 
+        # 3. Detect Google Gemini subscription / API key
+        gemini_api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        gcloud_adc = os.path.join(user_home, ".config", "gcloud", "application_default_credentials.json")
+        if gemini_api_key:
+            masked = gemini_api_key[:6] + "..." + gemini_api_key[-4:] if len(gemini_api_key) > 10 else "SET"
+            subs["gemini"] = {
+                "subscribed": True,
+                "email": f"API Key ({masked})",
+                "plan": "Google Gemini API (Active Key)",
+                "source": "Environment (GEMINI_API_KEY)"
+            }
+        elif os.path.exists(gcloud_adc):
+            try:
+                with open(gcloud_adc, "r", encoding="utf-8") as f:
+                    gdata = json.load(f)
+                email = gdata.get("client_email") or gdata.get("account")
+                subs["gemini"] = {
+                    "subscribed": True,
+                    "email": email or "gcloud-auth-profile",
+                    "plan": "Google Cloud ADC / Vertex AI",
+                    "source": "~/.config/gcloud/application_default_credentials.json"
+                }
+            except Exception:
+                pass
+
         return subs
 
     def explain_subscription_detection(self, focus: Optional[str] = None) -> str:
-        """Explain how CIEAV sovereignly detects local AI subscriptions and emails."""
+        """
+        Explain how CIEAV sovereignly detects local AI subscriptions and emails.
+        If focus is specified ('gemini', 'claude', 'chatgpt'), returns STRICTLY AND ONLY
+        the target model's details without dumping any other accounts or services.
+        """
         subs = self.detect_local_ai_subscriptions()
-        lines = []
-        lines.append("\033[1;36m[ACCOUNT DISCOVERY] Local Sovereign AI Subscription & Account Discovery\033[0m")
-        lines.append("─" * 74)
-        lines.append("CIEAV is 100% sovereign and local. It detects active AI accounts by reading")
-        lines.append("your machine's authenticated local configuration profiles with zero cloud APIs:\n")
-        
         c = subs.get("claude", {})
         g = subs.get("chatgpt", {})
+        gm = subs.get("gemini", {})
 
-        # If user specifically focused on Claude
+        # 1. Strict Target: Gemini
+        if focus == "gemini":
+            lines = [
+                "\033[1;36m[GEMINI SUBSCRIPTION STATUS]\033[0m",
+                "--------------------------------------------------------------------------",
+                "  Target Provider : Google Gemini (DeepMind / AI Studio)",
+            ]
+            if gm.get("subscribed"):
+                lines.append(f"  Subscribed Email : \033[1;37m{gm.get('email')}\033[0m")
+                lines.append(f"  Subscription Plan: {gm.get('plan')}")
+                lines.append("  Status           : \033[1;32mACTIVE & VERIFIED (Gemini)\033[0m")
+                lines.append(f"  Detected Via     : {gm.get('source')}")
+            else:
+                lines.append("  Status           : \033[1;33mNOT CONFIGURED / NO SUBSCRIPTION DETECTED\033[0m")
+                lines.append("  Local Detection  : No active GEMINI_API_KEY or Google AI credentials found.")
+                lines.append("  How to Connect   : Set your API key in environment:")
+                lines.append('                     $env:GEMINI_API_KEY="AIza..." (PowerShell)')
+                lines.append("                     set GEMINI_API_KEY=AIza... (CMD)")
+            lines.append("--------------------------------------------------------------------------")
+            return "\n".join(lines)
+
+        # 2. Strict Target: Claude
         if focus == "claude":
-            lines.append("⭐ \033[1;32mTarget Account: Anthropic Claude Pro\033[0m:")
+            lines = [
+                "\033[1;36m[CLAUDE SUBSCRIPTION STATUS]\033[0m",
+                "--------------------------------------------------------------------------",
+                "  Target Provider : Anthropic Claude",
+            ]
             if c.get("subscribed"):
-                lines.append(f"   • Subscribed Email : \033[1;37m{c.get('email')}\033[0m")
-                lines.append(f"   • Subscription Plan: {c.get('plan')}")
-                lines.append(f"   • Organization     : {c.get('org')}")
-                lines.append("   • Status           : \033[1;32mACTIVE & VERIFIED (Claude Pro)\033[0m")
-                lines.append(f"   • Detected Via     : {c.get('source')} (Local Claude CLI Auth Profile)\n")
+                lines.append(f"  Subscribed Email : \033[1;37m{c.get('email')}\033[0m")
+                lines.append(f"  Subscription Plan: {c.get('plan')}")
+                if c.get("org"):
+                    lines.append(f"  Organization     : {c.get('org')}")
+                lines.append("  Status           : \033[1;32mACTIVE & VERIFIED (Claude Pro)\033[0m")
+                lines.append(f"  Detected Via     : {c.get('source')} (Local Claude CLI Auth Profile)")
             else:
-                lines.append("   • Status           : No active Claude profile found in ~/.claude.json\n")
-            lines.append("• Other Local Accounts:")
-            if g.get("subscribed"):
-                lines.append(f"   - OpenAI ChatGPT   : {g.get('email')} ({g.get('plan')})")
-            lines.append("   - CIEAV Core       : cieav-decider-v2 (Local CPU Jev 1.14 Core • Free)\n")
-            lines.append("─" * 74)
+                lines.append("  Status           : \033[1;33mNOT CONFIGURED / NO SUBSCRIPTION DETECTED\033[0m")
+                lines.append("  Local Detection  : No active Claude profile found in ~/.claude.json")
+                lines.append("  How to Connect   : Run 'claude login' in your terminal.")
+            lines.append("--------------------------------------------------------------------------")
             return "\n".join(lines)
 
-        # If user specifically focused on ChatGPT
+        # 3. Strict Target: ChatGPT
         if focus == "chatgpt":
-            lines.append("⭐ \033[1;32mTarget Account: OpenAI ChatGPT\033[0m:")
+            lines = [
+                "\033[1;36m[CHATGPT SUBSCRIPTION STATUS]\033[0m",
+                "--------------------------------------------------------------------------",
+                "  Target Provider : OpenAI ChatGPT",
+            ]
             if g.get("subscribed"):
-                lines.append(f"   • Subscribed Email : \033[1;37m{g.get('email')}\033[0m")
-                lines.append(f"   • Auth Mode / Plan : {g.get('plan')}")
-                lines.append("   • Status           : \033[1;32mACTIVE & VERIFIED (ChatGPT OAuth)\033[0m")
-                lines.append(f"   • Detected Via     : {g.get('source')} (Local OpenAI/Codex OAuth Session)\n")
+                lines.append(f"  Subscribed Email : \033[1;37m{g.get('email')}\033[0m")
+                lines.append(f"  Auth Mode / Plan : {g.get('plan')}")
+                lines.append("  Status           : \033[1;32mACTIVE & VERIFIED (ChatGPT OAuth)\033[0m")
+                lines.append(f"  Detected Via     : {g.get('source')} (Local OpenAI/Codex OAuth Session)")
             else:
-                lines.append("   • Status           : No active ChatGPT session found in ~/.codex/auth.json\n")
-            lines.append("• Other Local Accounts:")
-            if c.get("subscribed"):
-                lines.append(f"   - Anthropic Claude : {c.get('email')} ({c.get('plan')})")
-            lines.append("   - CIEAV Core       : cieav-decider-v2 (Local CPU Jev 1.14 Core • Free)\n")
-            lines.append("─" * 74)
+                lines.append("  Status           : \033[1;33mNOT CONFIGURED / NO SUBSCRIPTION DETECTED\033[0m")
+                lines.append("  Local Detection  : No active ChatGPT session found in ~/.codex/auth.json")
+                lines.append("  How to Connect   : Run 'codex login' or authenticate with OpenAI.")
+            lines.append("--------------------------------------------------------------------------")
             return "\n".join(lines)
 
-        # General view (shows both)
+        # 4. General Overview (Only when user asks general questions like "my subscriptions" or "check all subscriptions")
+        lines = [
+            "\033[1;36m[ACCOUNT DISCOVERY] Local Sovereign AI Subscription & Account Discovery\033[0m",
+            "--------------------------------------------------------------------------",
+            "CIEAV is 100% sovereign and local. Real accounts detected on this system:\n",
+        ]
         if c.get("subscribed"):
             lines.append("1. \033[1;32mAnthropic Claude Account\033[0m:")
-            lines.append(f"   • Subscribed Email : \033[1;37m{c.get('email')}\033[0m")
-            lines.append(f"   • Subscription Plan: {c.get('plan')}")
-            lines.append(f"   • Organization     : {c.get('org')}")
-            lines.append(f"   • Detected Via     : {c.get('source')} (Local Claude CLI Auth Profile)\n")
+            lines.append(f"   - Subscribed Email : \033[1;37m{c.get('email')}\033[0m")
+            lines.append(f"   - Subscription Plan: {c.get('plan')}")
+            if c.get("org"):
+                lines.append(f"   - Organization     : {c.get('org')}")
+            lines.append(f"   - Detected Via     : {c.get('source')} (Local Claude CLI Auth Profile)\n")
         else:
-            lines.append("1. Anthropic Claude: No active ~/.claude.json profile detected.\n")
+            lines.append("1. Anthropic Claude: Not configured (No ~/.claude.json profile)\n")
 
         if g.get("subscribed"):
             lines.append("2. \033[1;32mOpenAI ChatGPT Account\033[0m:")
-            lines.append(f"   • Subscribed Email : \033[1;37m{g.get('email')}\033[0m")
-            lines.append(f"   • Auth Mode / Plan : {g.get('plan')}")
-            lines.append(f"   • Detected Via     : {g.get('source')} (Local OpenAI/Codex OAuth Session)\n")
+            lines.append(f"   - Subscribed Email : \033[1;37m{g.get('email')}\033[0m")
+            lines.append(f"   - Auth Mode / Plan : {g.get('plan')}")
+            lines.append(f"   - Detected Via     : {g.get('source')} (Local OpenAI/Codex OAuth Session)\n")
         else:
-            lines.append("2. OpenAI ChatGPT: No active ~/.codex/auth.json session detected.\n")
+            lines.append("2. OpenAI ChatGPT: Not configured (No ~/.codex/auth.json session)\n")
 
-        lines.append("3. \033[1;32mCIEAV Sovereign Core\033[0m:")
-        lines.append("   • Model Engine     : cieav-decider-v2 (100% Local CPU Jev 1.14 Core)")
-        lines.append("   • Cost & Cloud API : $0.00 / 0% Cloud Dependencies")
-        lines.append("─" * 74)
+        if gm.get("subscribed"):
+            lines.append("3. \033[1;32mGoogle Gemini Account\033[0m:")
+            lines.append(f"   - Subscribed Email : \033[1;37m{gm.get('email')}\033[0m")
+            lines.append(f"   - Subscription Plan: {gm.get('plan')}")
+            lines.append(f"   - Detected Via     : {gm.get('source')}\n")
+        else:
+            lines.append("3. Google Gemini: Not configured (No GEMINI_API_KEY detected)\n")
+
+        lines.append("4. \033[1;32mCIEAV Sovereign Core\033[0m:")
+        lines.append("   - Model Engine     : cieav-decider-v2 (100% Local CPU Jev 1.14 Core)")
+        lines.append("   - Cost & Cloud API : $0.00 / 0% Cloud Dependencies")
+        lines.append("--------------------------------------------------------------------------")
         return "\n".join(lines)
 
 

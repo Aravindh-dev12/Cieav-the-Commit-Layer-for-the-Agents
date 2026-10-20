@@ -724,6 +724,10 @@ def process_user_input(text: str):
         res = trace_analytics.logout_ai_account("claude")
         print("\n" + res["message"] + "\n")
         return
+    elif any(k in lower for k in ("logout gemini", "logout google", "switch gemini", "switch google")):
+        res = trace_analytics.logout_ai_account("gemini")
+        print("\n" + res["message"] + "\n")
+        return
 
     is_subscription_query = (
         ("token" not in lower and "spend" not in lower)
@@ -731,12 +735,14 @@ def process_user_input(text: str):
             "subscription" in lower
         or "subscriptions" in lower
         or "subscribed" in lower
-        or ("claude" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check")))
-        or ("chatgpt" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check")))
-        or ("openai" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check")))
+        or ("claude" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check", "subscription")))
+        or ("chatgpt" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check", "subscription")))
+        or ("openai" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check", "subscription")))
+        or ("gemini" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check", "subscription")))
+        or ("google" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check", "subscription")))
         or any(k in lower for k in (
             "how this cieav is know", "how cieav know", "how do you know", "how does it know",
-            "which email", "my email", "claude email", "chatgpt email", "account discovery",
+            "which email", "my email", "claude email", "chatgpt email", "gemini email", "account discovery",
             "who am i logged in", "current account", "active account", "which account", "switch account"
         ))
         or ("know" in lower and "mail" in lower)
@@ -744,7 +750,14 @@ def process_user_input(text: str):
         )
     )
     if is_subscription_query:
-        focus = "claude" if "claude" in lower else "chatgpt" if "chatgpt" in lower or "openai" in lower else None
+        if "gemini" in lower or "google" in lower:
+            focus = "gemini"
+        elif "claude" in lower or "anthropic" in lower:
+            focus = "claude"
+        elif "chatgpt" in lower or "openai" in lower or "codex" in lower:
+            focus = "chatgpt"
+        else:
+            focus = None
         print("\n" + trace_analytics.explain_subscription_detection(focus=focus) + "\n")
         return
 
