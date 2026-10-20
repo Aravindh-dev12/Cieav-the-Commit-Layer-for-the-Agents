@@ -332,6 +332,7 @@ Cieav-the-Commit-Layer-for-the-Internet/
 ├── commit_layer/
 │   ├── autonomous_agent.py      # Claude Code & Codex class local agent reasoning loop (0% APIs)
 │   ├── local_browser.py         # Native Edge/Chrome headless browser & DOM controller
+│   ├── web_commerce.py          # Autonomous e-commerce shopping agent (Amazon/Flipkart/Nike browser control)
 │   ├── virtual_office.py        # Virtual Office Kanban board & multi-agent workspace
 │   ├── cli_game.py              # Interactive terminal cyber simulation game engine
 │   ├── a2a.py                   # Agent-to-Agent (A2A) protocol & mutual Ed25519 attestation
@@ -364,7 +365,7 @@ Cieav-the-Commit-Layer-for-the-Internet/
 │   │   └── repo.py              # Real repository file tool with atomic snapshots
 │   ├── ui/
 │   │   └── index.html           # Unified landing page & interactive dashboard
-│   └── tests/                   # Complete Pytest test suite (76 unit tests across 7 domains + Codex Local Agent)
+│   └── tests/                   # Complete Pytest test suite (77 unit tests across 7 domains + E-Commerce Browser Agent)
 ├── python/cieav_platform/
 │   └── chat_cli.py              # Governed terminal assistant (Alma-style CLI)
 ├── benchmark_decision_models_vs_cieav.py  # 10-scenario empirical benchmark runner

@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import shlex
+import re
 import time
 from typing import Optional
 
@@ -34,6 +35,7 @@ from commit_layer.local_browser import local_browser
 from commit_layer.virtual_office import virtual_office
 from commit_layer.cli_game import cli_game
 from commit_layer.autonomous_agent import autonomous_agent
+from commit_layer.web_commerce import web_commerce
 
 
 
@@ -539,6 +541,62 @@ def process_user_input(text: str):
     if lower in ("exit", "quit", "/quit", "/exit"):
         print("Goodbye!")
         sys.exit(0)
+
+    # Check for direct item selection after shopping search
+    if web_commerce.last_search_results:
+        if cmd.isdigit() and 1 <= int(cmd) <= len(web_commerce.last_search_results):
+            idx = int(cmd) - 1
+            item = web_commerce.last_search_results[idx]
+            print(f"\n[LOCAL BROWSER] Opening product in native {local_browser.browser_name}: {item['title'][:55]}...")
+            local_browser.open_window(item["url"])
+            print(f"  ✅ Product URL opened: {item['url']}\n")
+            return
+        elif lower.startswith("open ") and lower[5:].strip().isdigit():
+            idx = int(lower[5:].strip()) - 1
+            if 0 <= idx < len(web_commerce.last_search_results):
+                item = web_commerce.last_search_results[idx]
+                print(f"\n[LOCAL BROWSER] Opening product in native {local_browser.browser_name}: {item['title'][:55]}...")
+                local_browser.open_window(item["url"])
+                print(f"  ✅ Product URL opened: {item['url']}\n")
+                return
+        elif lower.startswith("buy ") and lower[4:].strip().isdigit():
+            idx = int(lower[4:].strip()) - 1
+            if 0 <= idx < len(web_commerce.last_search_results):
+                item = web_commerce.last_search_results[idx]
+                execute_governed_action("send_payment", {
+                    "amount": item["price"],
+                    "to": f"amazon_merchant_{item['id'].lower()}",
+                    "item_name": item["title"],
+                    "item_url": item["url"]
+                })
+                return
+
+    # 0. E-Commerce & Web Shopping Intent (Amazon, Flipkart, Nike, etc.)
+    is_shopping_intent = (
+        any(k in lower for k in ("amazon", "flipkart", "shop", "order", "buy", "cart", "store", "nike"))
+        and any(k in lower for k in ("buy", "order", "search", "plan", "bugin", "clothes", "cloth", "shirt", "pant", "hoodie", "shoes", "laptop", "amazon", "flipkart"))
+    )
+    if is_shopping_intent:
+        plat = "amazon"
+        if "flipkart" in lower:
+            plat = "flipkart"
+        elif "nike" in lower:
+            plat = "nike"
+
+        clean_query = re.sub(
+            r'\b(i was|i am|planning to|plannign to|plan to|want to|looking to|trying to|bugin|buy|order|search|find|get|in|on|at|from|the|some|a|an|amazon|flipkart|store)\b',
+            '',
+            cmd,
+            flags=re.IGNORECASE
+        ).strip()
+        clean_query = re.sub(r'\s+', ' ', clean_query).strip()
+        if "cloth" in clean_query.lower() or not clean_query:
+            clean_query = "clothes"
+
+        print(f"\n\033[38;2;168;85;247m[CIEAV BROWSER AGENT]\033[0m Launching native {local_browser.browser_name} and searching {plat.capitalize()} for '{clean_query}'...")
+        res = web_commerce.search_store(query=clean_query, platform=plat, launch_browser=True)
+        print(web_commerce.render_cli_results(res))
+        return
     elif lower.startswith("/decide ") or lower.startswith("/eval ") or lower.startswith("decide ") or lower.startswith("eval "):
         query = cmd.split(" ", 1)[1].strip()
         render_decision_card(query)

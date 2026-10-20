@@ -80,3 +80,22 @@ def test_autonomous_agent_offline_instruction_cycle():
     res_game = autonomous_agent.process_instruction("play cyber commit")
     assert res_game["type"] == "game"
     assert "CYBER COMMIT" in res_game["message"]
+
+
+def test_web_commerce_shopping_agent():
+    """Verify autonomous web store search and product resolution."""
+    from commit_layer.web_commerce import web_commerce
+    res = web_commerce.search_store("clothes in amazon", platform="amazon", launch_browser=False)
+    assert res["status"] == "success"
+    assert res["platform"] == "Amazon"
+    assert len(res["items"]) >= 5
+    first = res["items"][0]
+    assert "price" in first
+    assert "url" in first
+    assert first["price"] > 0
+    assert "https://www.amazon.com/dp/" in first["url"]
+    
+    # Test rendering card in CLI
+    card = web_commerce.render_cli_results(res)
+    assert "LIVE WEB STORE AGENT" in card
+    assert "AMAZON" in card
