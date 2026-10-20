@@ -18,3 +18,4 @@ try:
     from commit_layer.rea import REABilateralExchangeTool
 except (ImportError, AttributeError):
     REABilateralExchangeTool = None
+from commit_layer.tools.app_launcher import AppLauncherTool, CloseApplicationTool, app_launcher, AppLauncherManager

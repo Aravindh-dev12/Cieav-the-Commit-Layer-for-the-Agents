@@ -159,6 +159,18 @@ def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
             "summary": f"Grant security privilege '{permission}' to user '{user}'"
         })
 
+    # 8.5 Desktop Application & Web Control (Hands-Free Computer Control)
+    elif re.search(r'\b(open|launch|start|run)\s+(my\s+)?(gmail|mail|youtube|chrome|vscode|code|notepad|calculator|calc|github|terminal|settings|explorer|browser|spotify|netflix|chatgpt|claude|reddit|twitter|x)\b', p, re.IGNORECASE) or re.search(r'^(?:hey\s+)?(?:cieav\s+)?(?:open|launch)\s+(.+)', p, re.IGNORECASE):
+        from commit_layer.tools.app_launcher import app_launcher
+        intent_data = app_launcher.detect_app_intent(p)
+        if intent_data:
+            actions.append({
+                "domain": "computer_control",
+                "tool": "open_application" if intent_data["action"] == "open" else "close_application",
+                "args": {"target": intent_data["target"]},
+                "summary": f"{intent_data['action'].title()} application/service '{intent_data['target']}'"
+            })
+
     # 9. Notes & Knowledge Vault
     elif re.search(r'\b(take\s+note|save\s+note|personal\s+note)\b', p, re.IGNORECASE):
         content = re.sub(r'^(?:take\s+note|save\s+note|personal\s+note)\s*[:\-]?\s*', '', p, flags=re.IGNORECASE).strip() or p
@@ -393,7 +405,13 @@ def plan_intent(prompt: str, context: Optional[dict[str, Any]] = None, agent_id:
         if action.risk > highest_risk:
             highest_risk = action.risk
 
-        if decision == Decision.PREVIEW_WITH_TYPED_CONFIRMATION:
+        # Truly critical, irreversible operations require typed confirmation
+        is_irreversible_critical = (
+            action.risk == RiskLevel.CRITICAL
+            and tool_name in ('empty_recycle_bin', 'delete_file', 'power_cycle_device', 'grant_access', 'deploy_service')
+            or (tool_name in ('send_payment', 'flaky_payment', 'payment') and float(action.args.get('amount', 0)) > 500)
+        )
+        if is_irreversible_critical:
             requires_typed_confirmation = True
 
         tool_inst = TOOL_REGISTRY.get(tool_name)

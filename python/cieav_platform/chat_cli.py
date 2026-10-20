@@ -60,6 +60,7 @@ from commit_layer.gui_agent import gui_agent
 from commit_layer.trace_analytics import trace_analytics
 from commit_layer.hybrid_brain import hybrid_brain
 from commit_layer.agent_tool_server import agent_tool_server
+from commit_layer.tools.app_launcher import app_launcher
 
 
 
@@ -106,9 +107,9 @@ def get_interactive_banner() -> str:
   {c_emerald}●{rst} {c_white}Reversible SLA  :{rst} Two-Phase Lossless Rollback (/undo byte-for-byte)
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
 
- {c_cyan}┌─ SUPERAGENT & DEVOPS ─────────┐ ┌─ OS MAINTENANCE & VAULT ────┐ ┌─ WORKSPACE & TOOLS ─────────┐{rst}
- {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}/hybrid{rst}        - 9B Model info  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}download-model{rst} - Fetch 9B GGUF  {c_cyan}│{rst}
+ {c_cyan}┌─ SUPERAGENT & DEVOPS ─────────┐ ┌─ OS MAINTENANCE & VAULT ────┐ ┌─ COMPUTER USE & APPS ───────┐{rst}
+ {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}open <app/url>{rst}  - Launch app/web {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}/tools{rst}          - Hermes tools   {c_cyan}│{rst}
  {c_cyan}│{rst} {c_white}create project{rst}  - Scaffolding   {c_cyan}│ │{rst} {c_white}organize <dir>{rst}  - Sort files   {c_cyan}│ │{rst} {c_white}office run{rst}     - Swarm execute  {c_cyan}│{rst}
  {c_cyan}│{rst} {c_white}issues / push{rst}   - GitHub ops    {c_cyan}│ │{rst} {c_white}duplicates{rst}      - Dedup files  {c_cyan}│ │{rst} {c_white}browser <url>{rst}  - Local browser  {c_cyan}│{rst}
  {c_cyan}│{rst} {c_white}fix issue <#>{rst}   - Bug patch     {c_cyan}│ │{rst} {c_white}note <text>{rst}     - Vault notes  {c_cyan}│ │{rst} {c_white}/undo{rst}          - Restore state  {c_cyan}│{rst}
@@ -375,15 +376,29 @@ def execute_governed_action(tool_name: str, args: dict, agent_id: str = "cieav-c
     eval_res = gateway.process(action)
 
     if eval_res.get("status") == "pending":
-        print(f"\n[CIEAV INTERCEPTOR] Action held for human governance:")
+        req_typed = eval_res.get("requires_typed_confirmation", False)
+        
+        # Non-critical, reversible actions auto-commit under 2PC safety SLA (zero friction)
+        if not req_typed and action.risk != RiskLevel.CRITICAL:
+            print(f"\n[CIEAV 2PC AUTONOMOUS COMMIT]")
+            print(f"  Tool     : {action.tool_name}")
+            print(f"  Target   : {args.get('file_path') or args.get('filename') or args.get('to') or args}")
+            print(f"  Risk     : {action.risk.name} (Governed under Ed25519 hash chain)")
+            appr = gateway.approve(action.id, approved_by="auto-governor")
+            print(f"  ✅ Status  : {appr.get('status').upper()}")
+            print(f"  ✅ Outcome : {appr.get('outcome')}")
+            print(f"  ✅ Signed  : {appr.get('receipt_id')[:8]} (Ed25519 Chain)")
+            print(f"  Two-Phase Rollback SLA: Reversible byte-for-byte anytime by typing: /undo\n")
+            last_committed_receipt_id = appr.get("receipt_id")
+            return
+
+        print(f"\n[CIEAV INTERCEPTOR] Critical action held for human governance:")
         print(f"  Tool     : {action.tool_name}")
         print(f"  Target   : {args.get('file_path') or args.get('filename') or args.get('to') or args}")
         print(f"  Risk     : {action.risk.name} (Policy Floor Enforced)")
         print(f"  Reasons  : {', '.join(action.reasons)}")
         
-        req_typed = eval_res.get("requires_typed_confirmation", False)
-        prompt_txt = "Type 'COMMIT' to approve or press Enter to cancel: " if req_typed else "Approve this action? (y/N): "
-        
+        prompt_txt = "Type 'COMMIT' to approve or press Enter to cancel: "
         try:
             choice = input(prompt_txt).strip()
         except (KeyboardInterrupt, EOFError):
@@ -391,7 +406,7 @@ def execute_governed_action(tool_name: str, args: dict, agent_id: str = "cieav-c
             gateway.cancel(action.id)
             return
 
-        if (req_typed and ("COMMIT" in choice.upper() or choice.upper() in ("YES", "Y", "CONFIRM", "C", "APPROVE"))) or (not req_typed and choice.lower() in ("y", "yes")):
+        if "COMMIT" in choice.upper() or choice.upper() in ("YES", "Y", "CONFIRM", "C", "APPROVE"):
             print("[CIEAV] Approving with single-use token...")
             appr = gateway.approve(action.id, approved_by="human-operator")
             print(f"  ✅ Status  : {appr.get('status').upper()}")
@@ -554,33 +569,40 @@ def run_alma_general_intent_workflow(prompt: str):
         print(f"      Rollback   : {'Available (Atomic snapshot inverse)' if act.get('can_rollback') else 'Irreversible'}")
 
     req_typed = plan.get("requires_typed_confirmation", False)
-    prompt_txt = f"\nType 'COMMIT' to approve plan or press Enter to cancel: " if req_typed else "\nApprove this plan? (y/N): "
     
-    try:
-        choice = input(prompt_txt).strip()
-    except (KeyboardInterrupt, EOFError):
-        choice = ""
+    if req_typed:
+        prompt_txt = f"\nType 'COMMIT' to approve plan or press Enter to cancel: "
+        try:
+            choice = input(prompt_txt).strip()
+        except (KeyboardInterrupt, EOFError):
+            choice = ""
 
-    if (req_typed and ("COMMIT" in choice.upper() or choice.upper() == plan.get("confirmation_phrase", "").upper())) or (not req_typed and choice.lower() in ("y", "yes")):
+        if not ("COMMIT" in choice.upper() or choice.upper() == plan.get("confirmation_phrase", "").upper()):
+            print("\n[CIEAV] Plan cancelled by operator. No state was mutated.\n")
+            for act in actions:
+                gateway.cancel(act["action_id"])
+            return
+
         print("\n[CIEAV] Committing actions under cryptographic governance...")
         res = intent.commit_plan(plan["plan_id"], approved_by="human-operator", typed_confirmation="COMMIT")
-        if "error" in res:
-            print(f"  ❌ Commit error: {res['error']}\n")
-            return
-        
-        for r in res.get("results", []):
-            rid = r.get("receipt_id", "N/A")
-            if rid and rid != "N/A":
-                last_committed_receipt_id = rid
-            print(f"  ✅ Executed: {r.get('status', '').upper()} | Outcome: {r.get('outcome', 'UNKNOWN')} | Receipt: {rid[:8] if rid != 'N/A' else 'NONE'}")
-            if "result" in r:
-                print(f"     Result  : {r.get('result')}")
-        print("\n[CIEAV] All operations committed and recorded in Ed25519 hash-chained ledger.")
-        print("  Type 'cieav /undo' to recall the committed action.\n")
     else:
-        print("\n[CIEAV] Plan cancelled by operator. No state was mutated.\n")
-        for act in actions:
-            gateway.cancel(act["action_id"])
+        # Autonomous 2PC execution for routine / multi-agent tasks (Reversible via /undo)
+        print("\n\033[1;32m[CIEAV 2PC AUTONOMOUS COMMIT]\033[0m Committing reversible plan under Two-Phase Commit safety...")
+        res = intent.commit_plan(plan["plan_id"], approved_by="auto-governor", typed_confirmation="COMMIT")
+
+    if "error" in res:
+        print(f"  ❌ Commit error: {res['error']}\n")
+        return
+    
+    for r in res.get("results", []):
+        rid = r.get("receipt_id", "N/A")
+        if rid and rid != "N/A":
+            last_committed_receipt_id = rid
+        print(f"  ✅ Executed: {r.get('status', '').upper()} | Outcome: {r.get('outcome', 'UNKNOWN')} | Receipt: {rid[:8] if rid != 'N/A' else 'NONE'}")
+        if "result" in r:
+            print(f"     Result  : {r.get('result')}")
+    print("\n[CIEAV] All operations committed and recorded in Ed25519 hash-chained ledger.")
+    print("  Type 'cieav /undo' to recall the committed action.\n")
 
 
 
@@ -600,6 +622,14 @@ def process_user_input(text: str):
     if lower in ("exit", "quit", "/quit", "/exit"):
         print("Goodbye!")
         sys.exit(0)
+
+    # Hands-Free Computer Control & App Launcher (e.g. "open my gmail", "open youtube", "launch calculator", "open vscode")
+    app_intent = app_launcher.detect_app_intent(cmd)
+    if app_intent:
+        res = app_launcher.launch_governed(app_intent, agent_id="cieav-user-agent")
+        last_committed_receipt_id = res.get("result", {}).get("receipt_id")
+        print("\n" + app_launcher.render_app_card(res) + "\n")
+        return
 
     # Hybrid SuperAgent Architecture / Telemetry
     if lower in ("/hybrid", "hybrid", "hybrid model", "models", "/models", "hybrid core", "dual core"):

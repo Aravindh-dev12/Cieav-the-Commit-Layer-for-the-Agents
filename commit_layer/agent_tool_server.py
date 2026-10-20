@@ -107,6 +107,20 @@ class AgentToolServer:
             {
                 "type": "function",
                 "function": {
+                    "name": "open_application",
+                    "description": "Launch desktop applications (Calculator, VS Code, Notepad) or web services (Gmail, YouTube, GitHub) under 2PC governance.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "target": {"type": "string", "description": "Target application name (e.g. 'gmail', 'calculator', 'vscode', 'youtube') or URL."}
+                        },
+                        "required": ["target"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "system_diagnostics",
                     "description": "Retrieve host CPU, RAM, active network ports, and telemetry status.",
                     "parameters": {

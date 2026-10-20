@@ -54,6 +54,10 @@ def classify(action: Action) -> tuple[RiskLevel | None, str]:
         except Exception as e:
             logger.warning("AWS Bedrock Converse failed: %s", e)
 
+    # 2.5 Safe user-directed application and web launching
+    if action.tool_name in ('open_application', 'close_application'):
+        return RiskLevel.LOW, "User-directed application control is safe and reversible"
+
     # 3. Embedded Local Decision Model (Always live, local-first, zero API keys required)
     try:
         from commit_layer.decision_model import local_decision_model, DecisionQuestion
