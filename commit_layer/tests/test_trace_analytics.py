@@ -57,7 +57,7 @@ def test_greeting_and_model_subscription_query():
     from commit_layer.autonomous_agent import autonomous_agent
 
     # 1. Short friendly greeting test (no long bullet list)
-    for g in ("hi ceiav", "hi cieav", "hi cieva", "hello", "hey"):
+    for g in ("hi ceiav", "hi cieav", "hi cieva", "hello", "hey", "hey hi", "hi there", "how are you", "good morning"):
         res = autonomous_agent.process_instruction(g)
         assert res["type"] == "greeting"
         assert res["message"] == "Hey! Great to see you. How can I help you today?"

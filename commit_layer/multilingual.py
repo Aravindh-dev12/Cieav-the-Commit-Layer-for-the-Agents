@@ -157,8 +157,36 @@ class MultilingualEngine:
                 "クラウドAPIを一切使用せず、100%ローカルCPUで動作します。\n"
                 "動画編集ツールの操作、アプリ起動、システム保守、コード自己修復を自動実行します！\n"
                 "\033[90m試してみてください：「クロームを開いて」「システム診断」「一時ファイルを削除」「動画を編集して」\033[0m"
-            )
+            ),
+            "ENGLISH": "Hey! Great to see you. How can I help you today?"
         }
+
+    def is_greeting(self, text: str) -> bool:
+        """Determines if the text is a conversational greeting or polite inquiry."""
+        cleaned = re.sub(r'[^\w\s]', ' ', text.lower()).strip()
+        words = cleaned.split()
+        if not words:
+            return False
+
+        GREETING_ROOTS = {
+            'hi', 'hey', 'hello', 'howdy', 'yo', 'sup', 'hola', 'namaste',
+            'bonjour', 'greetings', 'salut', 'pranam', 'vanakkam', 'good',
+            'morning', 'evening', 'afternoon'
+        }
+        GREETING_ALLOWLIST = GREETING_ROOTS | {
+            'cieav', 'cieva', 'ceiav', 'there', 'friend', 'bro', 'buddy', 'man', 'dude', 'mate', 'bot',
+            'day', 'how', 'are', 'you', 'doing', 'today', 'r', 'u', 'whats', 'what', 'is', 'up',
+            'going', 'who', 'can', 'do', 'help', 'all', 'everyone', 'nice', 'to', 'meet', 'it', 'me'
+        }
+
+        if cleaned in ('who are you', 'what are you', 'what can you do', 'how are you', 'how r u', 'how are you doing', 'help me', 'whats up', "what's up"):
+            return True
+
+        has_root = any(w in GREETING_ROOTS for w in words)
+        if not has_root:
+            return False
+
+        return all(w in GREETING_ALLOWLIST for w in words)
 
     def detect_language(self, text: str) -> str:
         """Identify language from Unicode characters and keyword patterns."""
@@ -191,7 +219,10 @@ class MultilingualEngine:
         lang = self.detect_language(text)
         lower = text.lower().strip()
 
-        # Check greetings
+        # Check greetings across all languages including English
+        if self.is_greeting(text):
+            return ("GREETING", lang)
+
         GREETING_WORDS = {
             "HINDI": ["नमस्ते", "namaste", "pranam", "kaise ho", "kya kar sakte ho"],
             "TELUGU": ["నమస్కారం", "namaskaram", "ela unnaru"],
@@ -201,9 +232,10 @@ class MultilingualEngine:
             "ARABIC": ["مرحبا", "سلام", "أهلا", "من أنت", "ماذا تستطيع أن تفعل"],
             "CHINESE": ["你好", "您好", "你是谁", "你能做什么"],
             "JAPANESE": ["こんにちは", "おはよう", "あなたは誰", "何ができますか"],
+            "ENGLISH": ["hi", "hello", "hey", "howdy", "yo", "sup", "good morning", "good evening", "how are you"]
         }
         for g_lang, words in GREETING_WORDS.items():
-            if any(w in lower for w in words):
+            if any(w in lower for w in words) and len(lower.split()) <= 4:
                 return ("GREETING", g_lang)
 
         # Check action lexicon

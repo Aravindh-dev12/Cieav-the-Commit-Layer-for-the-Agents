@@ -787,7 +787,7 @@ def process_user_input(text: str):
         "good morning", "good afternoon", "good evening",
         "who are you", "what are you", "what can you do"
     )
-    if lower in GREETINGS or stripped in GREETINGS:
+    if multilingual_engine.is_greeting(cmd) or lower in GREETINGS or stripped in GREETINGS:
         show_conversational_greeting()
         return
 

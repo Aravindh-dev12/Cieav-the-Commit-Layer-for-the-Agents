@@ -179,7 +179,7 @@ class AutonomousLocalAgent:
             "good morning", "good afternoon", "good evening",
             "who are you", "what are you", "what can you do", "help me"
         )
-        if lower in GREETINGS or stripped in GREETINGS:
+        if multilingual_engine.is_greeting(p) or lower in GREETINGS or stripped in GREETINGS:
             return {
                 "type": "greeting",
                 "message": "Hey! Great to see you. How can I help you today?"
