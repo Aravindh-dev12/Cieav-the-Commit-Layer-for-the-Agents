@@ -7,8 +7,12 @@ actions across:
 1. Code Synthesis, Refactoring & Real File Mutations (with snapshot /undo)
 2. Local Headless Browser & DOM Window Automation (Edge/Chrome native)
 3. Virtual Office Project Management & Multi-Agent Team Orchestration
-4. Local Shell & Host Operating System Execution
-5. Interactive Terminal Game & Cyber Simulation Engine
+4. Personalized Note-Taking & Markdown Knowledge Vault Management
+5. Project Scaffolding & Directory Hierarchy Generation
+6. GitHub DevOps: Live Issue Inspection, Autonomous Bug Fixing, PRs & Push
+7. Governed Outbound Email Authoring & Dispatch
+8. Governed WhatsApp Messaging via Sanitized Deep Links
+9. Interactive Terminal Game & Cyber Simulation Engine
 """
 
 from __future__ import annotations
@@ -23,6 +27,10 @@ from commit_layer.decision_model import local_decision_model
 from commit_layer.local_browser import local_browser
 from commit_layer.virtual_office import virtual_office
 from commit_layer.cli_game import cli_game
+from commit_layer.tools.notes_manager import notes_manager
+from commit_layer.tools.github_agent import github_agent
+from commit_layer.tools.email_agent import email_agent
+from commit_layer.tools.messaging_agent import whatsapp_agent
 
 
 class AutonomousLocalAgent:
@@ -38,29 +46,203 @@ class AutonomousLocalAgent:
         p = user_prompt.strip()
         lower = p.lower()
 
-        # 1. Virtual Office & Team Workspace Intent
+        # 1. Notes & Knowledge Vault Intent
+        if any(w in lower for w in ("note", "notes", "knowledge vault", "personal note")):
+            return self._handle_notes_intent(p)
+
+        # 2. Project Scaffolding & Creation Intent
+        if any(w in lower for w in ("create project", "scaffold project", "scaffold", "new project", "build project")):
+            return self._handle_scaffold_intent(p)
+
+        # 3. GitHub & DevOps Intent (Issues, PRs, Push)
+        if any(w in lower for w in ("github", "issue", "issues", "pr", "pull request", "push to github", "git push")):
+            return self._handle_github_intent(p)
+
+        # 4. Outbound Email Intent
+        if any(w in lower for w in ("write mail", "send mail", "send email", "email to", "compose mail")):
+            return self._handle_email_intent(p)
+
+        # 5. WhatsApp Messaging Intent
+        if any(w in lower for w in ("whatsapp", "send wa", "wa message")):
+            return self._handle_whatsapp_intent(p)
+
+        # 6. Virtual Office & Team Workspace Intent
         if any(w in lower for w in ("office", "workspace", "kanban", "standup", "team status", "assign task")):
             return self._handle_office_intent(p)
 
-        # 2. Local Browser Intent (Edge/Chrome Native • 0% APIs)
+        # 7. Local Browser Intent (Edge/Chrome Native • 0% APIs)
         if any(w in lower for w in ("browser", "dom", "screenshot", "webpage", "render web", "headless")):
             return self._handle_browser_intent(p)
 
-        # 3. Interactive Terminal Game Intent
+        # 8. Interactive Terminal Game Intent
         if any(w in lower for w in ("game", "play game", "cyber commit", "hack defend", "start game")):
             return self._handle_game_intent(p)
 
-        # 4. Code Generation / File Creation Intent
+        # 9. Code Generation / File Creation Intent
         if any(w in lower for w in ("write code", "create script", "generate code", "build script", "make file", "create file")):
             return self._handle_code_generation(p)
 
-        # 5. General Computer Control & Shell Intent (Claude Code / Codex style)
+        # 10. General Computer Control & Shell Intent (Claude Code / Codex style)
         return self._handle_general_intent(p)
+
+    def _handle_notes_intent(self, prompt: str) -> Dict[str, Any]:
+        lower = prompt.lower()
+        if "search" in lower or "find" in lower:
+            kw = re.sub(r'^(?:search|find)\s+(?:in\s+)?(?:notes|note)?\s*', '', prompt, flags=re.IGNORECASE).strip()
+            matches = notes_manager.search_notes(kw or "cieav")
+            card = notes_manager.render_cli_notes(matches, title_label=f"Search Results for '{kw}'")
+            return {
+                "type": "notes",
+                "message": card,
+                "matches": matches
+            }
+        elif lower in ("notes", "list notes", "my notes", "show notes", "all notes"):
+            all_notes = notes_manager.list_notes()
+            card = notes_manager.render_cli_notes(all_notes, title_label="Personal Notes Vault")
+            return {
+                "type": "notes",
+                "message": card,
+                "notes": all_notes
+            }
+        else:
+            # Taking a note
+            content = re.sub(r'^(?:take\s+note|save\s+note|write\s+note|note)\s*[:\-]?\s*', '', prompt, flags=re.IGNORECASE).strip()
+            if not content:
+                content = prompt
+            res = notes_manager.take_note(content=content)
+            all_notes = notes_manager.list_notes()
+            card = notes_manager.render_cli_notes(all_notes, title_label=f"Saved Note: {res['title']}")
+            return {
+                "type": "notes",
+                "message": f"✅ Note saved locally to '{res['filename']}' ({res['char_count']} chars • Reversible via /undo)\n" + card,
+                "note": res
+            }
+
+    def _handle_scaffold_intent(self, prompt: str) -> Dict[str, Any]:
+        # Extract project name
+        match = re.search(r'(?:create|scaffold|new|build)\s+project\s+([a-zA-Z0-9_\-]+)', prompt, re.IGNORECASE)
+        name = match.group(1) if match else "cieav_agent_app"
+        template = "python"
+        if "fastapi" in prompt.lower():
+            template = "fastapi"
+        elif "react" in prompt.lower() or "typescript" in prompt.lower():
+            template = "typescript"
+
+        res = github_agent.scaffold_project(name=name, template=template)
+        card = github_agent.render_cli_card(res, action_type="scaffold")
+        return {
+            "type": "devops",
+            "message": card,
+            "project": res
+        }
+
+    def _handle_github_intent(self, prompt: str) -> Dict[str, Any]:
+        lower = prompt.lower()
+        if "issue" in lower:
+            # Check for fix issue
+            fix_match = re.search(r'(?:fix|patch|resolve)\s+(?:issue\s+)?#?(\d+)', prompt, re.IGNORECASE)
+            if fix_match:
+                issue_num = int(fix_match.group(1))
+                desc = re.sub(r'.*(?:fix|patch|resolve)\s+(?:issue\s+)?#?\d+\s*[:\-]?\s*', '', prompt, flags=re.IGNORECASE).strip() or "Resolve bug and qualify"
+                res = github_agent.fix_issue(issue_number=issue_num, fix_description=desc)
+                return {
+                    "type": "devops",
+                    "message": (
+                        f"✅ Issue #{issue_num} resolved locally!\n"
+                        f"  • Title  : {res['issue_title']}\n"
+                        f"  • Commit : {res['commit_message']}\n"
+                        f"  • Patched: {res['patched_file']}\n"
+                        f"  • SLA    : Reversible via /undo"
+                    ),
+                    "fix": res
+                }
+            # View issue
+            view_match = re.search(r'(?:view|check|inspect)\s+issue\s+#?(\d+)', prompt, re.IGNORECASE)
+            if view_match:
+                issue_num = int(view_match.group(1))
+                res = github_agent.view_issue(issue_num)
+                issue = res.get("issue", {})
+                return {
+                    "type": "devops",
+                    "message": (
+                        f"🔍 GitHub Issue #{issue_num}: {issue.get('title')}\n"
+                        f"  • State  : {issue.get('state')}\n"
+                        f"  • Author : @{(issue.get('author') or {}).get('login', 'dev')}\n"
+                        f"  • URL    : {issue.get('url')}\n\n"
+                        f"{issue.get('body', 'No description provided')}"
+                    ),
+                    "issue": issue
+                }
+            # List issues
+            res = github_agent.list_issues()
+            card = github_agent.render_cli_card(res, action_type="issues")
+            return {
+                "type": "devops",
+                "message": card,
+                "issues": res
+            }
+
+        elif "pr" in lower or "pull request" in lower:
+            title_match = re.search(r'(?:raise|create|open)\s+(?:pr|pull\s+request)\s*[:\-]?\s*(.+)', prompt, re.IGNORECASE)
+            title = title_match.group(1).strip() if title_match else "Feat: Autonomous agent enhancements"
+            res = github_agent.raise_pr(title=title, body=f"Automated PR created from prompt: {prompt}")
+            card = github_agent.render_cli_card(res, action_type="pr")
+            return {
+                "type": "devops",
+                "message": card,
+                "pr": res
+            }
+
+        elif "push" in lower:
+            msg_match = re.search(r'(?:push|commit)\s+(?:to\s+github\s+)?(?:with\s+message\s+)?[\'"]?([^\'"]+)[\'"]?', prompt, re.IGNORECASE)
+            msg = msg_match.group(1).strip() if msg_match else "Automated update via CIEAV Agent"
+            res = github_agent.push_to_github(commit_msg=msg)
+            card = github_agent.render_cli_card(res, action_type="push")
+            return {
+                "type": "devops",
+                "message": card,
+                "push": res
+            }
+
+        res = github_agent.list_issues()
+        return {"type": "devops", "message": github_agent.render_cli_card(res, action_type="issues")}
+
+    def _handle_email_intent(self, prompt: str) -> Dict[str, Any]:
+        email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', prompt)
+        to_email = email_match.group(0) if email_match else "lead@cieav.internal"
+
+        subj_match = re.search(r'subject\s*[:\-]?\s*[\'"]?([^\'"]+)[\'"]?', prompt, re.IGNORECASE)
+        subject = subj_match.group(1) if subj_match else "CIEAV Autonomous Agent Notice"
+
+        body_match = re.search(r'(?:body|message|saying)\s*[:\-]?\s*[\'"]?([^\'"]+)[\'"]?', prompt, re.IGNORECASE)
+        body = body_match.group(1) if body_match else prompt
+
+        res = email_agent.compose_and_send(to=to_email, subject=subject, body=body, launch_client=True)
+        card = email_agent.render_cli_card(res)
+        return {
+            "type": "email",
+            "message": card,
+            "result": res
+        }
+
+    def _handle_whatsapp_intent(self, prompt: str) -> Dict[str, Any]:
+        phone_match = re.search(r'(?:\+?\d[\d\-\s\(\)]{8,15}\d)', prompt)
+        phone = phone_match.group(0) if phone_match else "+14155552671"
+
+        msg_match = re.search(r'(?:saying|message|text)\s*[:\-]?\s*[\'"]?([^\'"]+)[\'"]?', prompt, re.IGNORECASE)
+        msg = msg_match.group(1) if msg_match else "Hello from CIEAV Superintelligent Agent OS!"
+
+        res = whatsapp_agent.send_whatsapp(phone=phone, message=msg, launch_browser=True)
+        card = whatsapp_agent.render_cli_card(res)
+        return {
+            "type": "whatsapp",
+            "message": card,
+            "result": res
+        }
 
     def _handle_office_intent(self, prompt: str) -> Dict[str, Any]:
         lower = prompt.lower()
         if "add" in lower or "create task" in lower:
-            # Extract task title
             title = re.sub(r'^(?:office\s+)?(?:add|create task)\s+', '', prompt, flags=re.IGNORECASE).strip()
             task = virtual_office.add_task(title or "Implement feature specification")
             return {
@@ -85,7 +267,6 @@ class AutonomousLocalAgent:
             }
 
     def _handle_browser_intent(self, prompt: str) -> Dict[str, Any]:
-        # Extract target URL or default to localhost
         url_match = re.search(r'(https?://[^\s]+|localhost:\d+)', prompt)
         url = url_match.group(0) if url_match else "http://localhost:8000"
 
@@ -100,7 +281,6 @@ class AutonomousLocalAgent:
                 }
             return {"type": "browser", "message": f"❌ Browser screenshot error: {res.get('error')}"}
 
-        # Default: Headless DOM inspection
         dom_res = local_browser.dump_dom(url)
         if dom_res.get("status") == "success":
             return {
@@ -125,7 +305,6 @@ class AutonomousLocalAgent:
 
     def _handle_code_generation(self, prompt: str) -> Dict[str, Any]:
         """Synthesize local code and write with automatic snapshot backup for /undo."""
-        # Detect target filename or synthesize one
         file_match = re.search(r'([\w\/\.\-]+\.(?:py|js|ts|json|sh|rs|html))', prompt)
         filename = file_match.group(1) if file_match else "generated_task.py"
 
@@ -141,7 +320,6 @@ if __name__ == "__main__":
     result = execute_task()
     print("Task Result:", result)
 '''
-        # Govern through RealRepoFileTool with atomic snapshot
         from commit_layer.tools.repo import RealRepoFileTool
         tool = RealRepoFileTool()
         res = tool.execute({"file_path": filename, "operation": "create", "content": code_snippet})
@@ -174,12 +352,16 @@ if __name__ == "__main__":
                 f"  • Recommendation: {rec}\n"
                 f"  • Execution Mode: Governed Native OS Action\n\n"
                 f"Autonomous Agent Guidance:\n"
-                f"  - To run command directly   : exec {prompt}\n"
-                f"  - To synthesize script      : write code {prompt}\n"
-                f"  - To inspect local browser  : browser http://localhost:8000\n"
-                f"  - To check virtual office   : office\n"
-                f"  - To play cyber simulation  : game\n"
-                f"  - To reverse any mutation   : /undo"
+                f"  - Notes Vault   : note <content> | notes | search notes <query>\n"
+                f"  - Project Scaffold: create project <name> [template]\n"
+                f"  - GitHub DevOps : github issues | fix issue <#> | raise pr <title> | push\n"
+                f"  - Email Client  : send email to <user@domain> subject <subj> body <msg>\n"
+                f"  - WhatsApp      : send whatsapp to <phone> message <msg>\n"
+                f"  - Code Synth    : write code <file.py>\n"
+                f"  - Browser View  : browser http://localhost:8000\n"
+                f"  - Virtual Office: office\n"
+                f"  - Cyber Defense : game\n"
+                f"  - Lossless Undo : /undo"
             ),
             "decision": dec
         }
