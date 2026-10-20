@@ -94,7 +94,7 @@ def get_interactive_banner() -> str:
   {c_slate}100% Local • Devin, Claude Code & Codex Class • Zero Manual Work • 2PC Safety{rst}
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
   {c_emerald}●{rst} {c_white}Decision Model  :{rst} cieav-decider-v2 (Jev 1.14 CPU Class • {c_emerald}{lat:.2f}ms{rst} • 0% Cloud APIs)
-  {c_emerald}●{rst} {c_white}Cognitive Core  :{rst} Llama-3.2 + Qwen-2.5 Dual-Core (Hybrid SuperAgent • 100% Local CPU)
+  {c_emerald}●{rst} {c_white}Cognitive Core  :{rst} Qwen-3.5-9B Local Engine (5.29 GB GGUF • 100% In-Process CPU)
   {c_emerald}●{rst} {c_white}SuperAgent Goal :{rst} Autonomous Multi-Phase Pipeline (Goal ➔ Plan ➔ Act ➔ Self-Heal)
   {c_emerald}●{rst} {c_white}Code Healer     :{rst} Devin-Class Autonomous Bug Diagnostic & Self-Repair Engine
   {c_emerald}●{rst} {c_white}OS Maintenance  :{rst} Live Telemetry, Safe Temp Cleaner, Port & Duplicate Scanners

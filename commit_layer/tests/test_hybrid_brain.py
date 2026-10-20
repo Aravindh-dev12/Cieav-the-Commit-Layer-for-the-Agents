@@ -1,23 +1,29 @@
 """
-Unit Tests for CIEAV Native Hybrid SuperAgent Brain (Llama-3.2 + Qwen-2.5-Coder).
+Unit Tests for CIEAV Native SuperAgent Brain (Qwen-3.5-9B Local Engine).
 """
 import pytest
 from commit_layer.hybrid_brain import (
     hybrid_brain,
+    qwen35_engine,
     LlamaPersona,
     QwenCoderPersona,
     HybridSuperAgentBrain
 )
 
 
+def test_qwen35_engine_availability_and_metadata():
+    """Verify Qwen-3.5-9B GGUF file detection, size, and metadata."""
+    assert qwen35_engine.is_available is True
+    assert "Qwen3.5-9B-Q4_K_M.gguf" in qwen35_engine.model_path
+    assert qwen35_engine.model_size_gb >= 5.0
+
+
 def test_llama_persona_dag_planning():
-    """Verify Llama-3.2 persona decomposes complex user goals into strategic DAG phases."""
+    """Verify persona decomposes complex user goals into strategic DAG phases."""
     # Web / Landing Page
     plan_web = LlamaPersona.generate_plan("build an awwwards modern landing page")
     assert "Next.js" in plan_web["architecture"]
     assert len(plan_web["phases"]) >= 4
-    assert any("Llama-3.2" in p["role"] for p in plan_web["phases"])
-    assert any("Qwen-2.5" in p["role"] for p in plan_web["phases"])
 
     # API / Backend
     plan_api = LlamaPersona.generate_plan("create a fastapi microservice with database")
@@ -36,7 +42,7 @@ def test_llama_persona_dag_planning():
 
 
 def test_qwen_coder_persona_synthesis():
-    """Verify Qwen-2.5 persona synthesizes production code and precise JSON tool schemas."""
+    """Verify Qwen coder synthesizes production code and precise JSON tool schemas."""
     # FastAPI code generation
     gen_api = QwenCoderPersona.generate_code_snippet("create fastapi server")
     assert "FastAPI" in gen_api["code"]
@@ -71,11 +77,10 @@ def test_qwen_coder_persona_synthesis():
 
 
 def test_hybrid_brain_system_summary():
-    """Verify operational telemetry, sub-1.4GB RAM profile and offline sovereignty."""
+    """Verify operational telemetry and Qwen-3.5-9B offline sovereignty."""
     summary = hybrid_brain.get_system_summary()
-    assert "Llama-3.2" in summary["engine"]
-    assert "Qwen-2.5" in summary["engine"]
-    assert summary["memory_footprint_mb"] <= 1400.0
+    assert "Qwen-3.5-9B" in summary["engine"]
+    assert summary["model_size_gb"] >= 5.0
     assert summary["cloud_dependencies"] == "0% (Completely Sovereign Offline)"
     assert "cieav-decider-v2" in summary["components"]["router"]
 
@@ -83,10 +88,8 @@ def test_hybrid_brain_system_summary():
 def test_hybrid_brain_architecture_card_and_encoding():
     """Verify architecture card renders correctly and is 100% CP1252 / UTF-8 safe."""
     card = hybrid_brain.render_architecture_card()
-    assert "CIEAV NATIVE HYBRID SUPERAGENT CORE" in card
-    assert "Llama-3.2-1B" in card
-    assert "Qwen-2.5-Coder-1.5B" in card
-    assert "1380.0 MB RAM" in card
+    assert "CIEAV NATIVE SUPERAGENT CORE" in card
+    assert "Qwen-3.5-9B" in card
 
     # Encoding safety check
     card.encode("utf-8")
