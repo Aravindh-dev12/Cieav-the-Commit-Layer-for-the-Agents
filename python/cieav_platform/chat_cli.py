@@ -58,6 +58,7 @@ from commit_layer.multilingual import multilingual_engine
 from commit_layer.tools.media_studio import media_studio
 from commit_layer.gui_agent import gui_agent
 from commit_layer.trace_analytics import trace_analytics
+from commit_layer.hybrid_brain import hybrid_brain
 
 
 
@@ -93,6 +94,7 @@ def get_interactive_banner() -> str:
   {c_slate}100% Local • Devin, Claude Code & Codex Class • Zero Manual Work • 2PC Safety{rst}
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
   {c_emerald}●{rst} {c_white}Decision Model  :{rst} cieav-decider-v2 (Jev 1.14 CPU Class • {c_emerald}{lat:.2f}ms{rst} • 0% Cloud APIs)
+  {c_emerald}●{rst} {c_white}Cognitive Core  :{rst} Llama-3.2 + Qwen-2.5 Dual-Core (Hybrid SuperAgent • 100% Local CPU)
   {c_emerald}●{rst} {c_white}SuperAgent Goal :{rst} Autonomous Multi-Phase Pipeline (Goal ➔ Plan ➔ Act ➔ Self-Heal)
   {c_emerald}●{rst} {c_white}Code Healer     :{rst} Devin-Class Autonomous Bug Diagnostic & Self-Repair Engine
   {c_emerald}●{rst} {c_white}OS Maintenance  :{rst} Live Telemetry, Safe Temp Cleaner, Port & Duplicate Scanners
@@ -104,11 +106,11 @@ def get_interactive_banner() -> str:
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
 
  {c_cyan}┌─ SUPERAGENT & DEVOPS ─────────┐ ┌─ OS MAINTENANCE & VAULT ────┐ ┌─ WORKSPACE & TOOLS ─────────┐{rst}
- {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}office run{rst}     - Swarm execute  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}browser <url>{rst}  - Local browser  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}create project{rst}  - Scaffolding   {c_cyan}│ │{rst} {c_white}organize <dir>{rst}  - Sort files   {c_cyan}│ │{rst} {c_white}game{rst}           - Cyber simulator{c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}issues / push{rst}   - GitHub ops    {c_cyan}│ │{rst} {c_white}duplicates{rst}      - Dedup files  {c_cyan}│ │{rst} {c_white}/undo{rst}          - Restore state  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}fix issue <#>{rst}   - Bug patch     {c_cyan}│ │{rst} {c_white}note <text>{rst}     - Vault notes  {c_cyan}│ │{rst} {c_white}/jobs{rst}          - Career tracker {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}/hybrid{rst}        - Dual-Core info {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}office run{rst}     - Swarm execute  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}create project{rst}  - Scaffolding   {c_cyan}│ │{rst} {c_white}organize <dir>{rst}  - Sort files   {c_cyan}│ │{rst} {c_white}browser <url>{rst}  - Local browser  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}issues / push{rst}   - GitHub ops    {c_cyan}│ │{rst} {c_white}duplicates{rst}      - Dedup files  {c_cyan}│ │{rst} {c_white}game{rst}           - Cyber simulator{c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}fix issue <#>{rst}   - Bug patch     {c_cyan}│ │{rst} {c_white}note <text>{rst}     - Vault notes  {c_cyan}│ │{rst} {c_white}/undo{rst}          - Restore state  {c_cyan}│{rst}
  {c_cyan}└───────────────────────────────┘ └──────────────────────────────┘ └──────────────────────────────┘{rst}
 """
     return banner_art
@@ -422,12 +424,12 @@ def run_alma_job_search_workflow(query_text: str = ""):
         resume_path = ""
 
     profile = parse_resume(resume_path)
-    print(f"  👤 Candidate : {profile['name']} ({profile['headline']})")
-    print(f"  📍 Location  : {profile['location']}")
+    print(f"  * Candidate : {profile['name']} ({profile['headline']})")
+    print(f"  * Location  : {profile['location']}")
     if profile.get('phone'):
-        print(f"  📞 Phone     : {profile['phone']}")
-    print(f"  🛠️  Skills    : {', '.join(profile['skills'][:6])}...")
-    print(f"  🔗 Profiles  : {profile['github']} | {profile['linkedin']}")
+        print(f"  * Phone     : {profile['phone']}")
+    print(f"  * Skills    : {', '.join(profile['skills'][:6])}...")
+    print(f"  * Profiles  : {profile['github']} | {profile['linkedin']}")
 
     print("\n[2/4] Researching live jobs across LinkedIn, RemoteOK, and Arbeitnow feeds...")
     matched_jobs = search_matched_jobs(profile, query=query_text)
@@ -525,11 +527,11 @@ def run_alma_general_intent_workflow(prompt: str):
     print("   ALMA COMPUTER CONTROL AGENT (CIEAV COMMIT LAYER)")
     print("   Autonomous Multi-Domain Intent Execution")
     print("============================================================================")
-    print(f"🎯 Target Intent : \"{prompt}\"")
-    print(f"📋 Actions Planned : {len(actions)} atomic operation(s)")
-    print(f"🔒 Highest Risk    : {plan.get('highest_risk')} (Safety Floor Enforced)")
+    print(f"[*] Target Intent : \"{prompt}\"")
+    print(f"[*] Actions Planned : {len(actions)} atomic operation(s)")
+    print(f"[*] Highest Risk    : {plan.get('highest_risk')} (Safety Floor Enforced)")
     if plan.get("recalled_from_memorable"):
-        print(f"🧠 Memorable Cache : Recalled verified procedure (saved {plan.get('tokens_saved')} reasoning tokens)")
+        print(f"[*] Memorable Cache : Recalled verified procedure (saved {plan.get('tokens_saved')} reasoning tokens)")
 
     for idx, act in enumerate(actions, 1):
         print(f"\n  [{idx}/{len(actions)}] Action: {act.get('summary', act['tool'])}")
@@ -587,6 +589,11 @@ def process_user_input(text: str):
     if lower in ("exit", "quit", "/quit", "/exit"):
         print("Goodbye!")
         sys.exit(0)
+
+    # Hybrid SuperAgent Architecture / Telemetry
+    if lower in ("/hybrid", "hybrid", "hybrid model", "models", "/models", "hybrid core", "dual core"):
+        print("\n" + hybrid_brain.render_architecture_card() + "\n")
+        return
 
 
 
@@ -700,7 +707,7 @@ def process_user_input(text: str):
         target = cmd.split(" ", 1)[1].strip().strip('"').strip("'") if " " in cmd else "."
         print(f"\n[OS AUTOMATOR] Scanning '{target}' for cryptographic duplicates (SHA256)...")
         res = os_automator.find_duplicates(target)
-        print(f"  🔍 Found \033[1;33m{res['redundant_files_count']} redundant duplicate file(s)\033[0m across {res['duplicate_groups']} hash groups.\n")
+        print(f"  [*] Found \033[1;33m{res['redundant_files_count']} redundant duplicate file(s)\033[0m across {res['duplicate_groups']} hash groups.\n")
         return
 
     # 6. Listening Ports
@@ -891,7 +898,7 @@ Available Governed Commands:
         if num_str.isdigit():
             res = github_agent.view_issue(int(num_str))
             iss = res.get("issue", {})
-            print(f"\n🔍 GitHub Issue #{iss.get('number')}: {iss.get('title')}")
+            print(f"\n[*] GitHub Issue #{iss.get('number')}: {iss.get('title')}")
             print(f"  • Author : @{(iss.get('author') or {}).get('login', 'dev')}")
             print(f"  • URL    : {iss.get('url')}")
             print(f"  • State  : {iss.get('state')}\n\n{iss.get('body', 'No description')}\n")

@@ -1,0 +1,106 @@
+"""
+Unit Tests for CIEAV Native Hybrid SuperAgent Brain (Llama-3.2 + Qwen-2.5-Coder).
+"""
+import pytest
+from commit_layer.hybrid_brain import (
+    hybrid_brain,
+    LlamaPersona,
+    QwenCoderPersona,
+    HybridSuperAgentBrain
+)
+
+
+def test_llama_persona_dag_planning():
+    """Verify Llama-3.2 persona decomposes complex user goals into strategic DAG phases."""
+    # Web / Landing Page
+    plan_web = LlamaPersona.generate_plan("build an awwwards modern landing page")
+    assert "Next.js" in plan_web["architecture"]
+    assert len(plan_web["phases"]) >= 4
+    assert any("Llama-3.2" in p["role"] for p in plan_web["phases"])
+    assert any("Qwen-2.5" in p["role"] for p in plan_web["phases"])
+
+    # API / Backend
+    plan_api = LlamaPersona.generate_plan("create a fastapi microservice with database")
+    assert "FastAPI" in plan_api["architecture"]
+    assert len(plan_api["phases"]) >= 4
+
+    # Code Healer
+    plan_heal = LlamaPersona.generate_plan("fix bug in pytest test_suite")
+    assert "Devin-Class" in plan_heal["architecture"]
+    assert len(plan_heal["phases"]) >= 4
+
+    # General Mission
+    plan_gen = LlamaPersona.generate_plan("audit security posture of repository")
+    assert "Autonomous Sovereign" in plan_gen["architecture"]
+    assert len(plan_gen["phases"]) >= 3
+
+
+def test_qwen_coder_persona_synthesis():
+    """Verify Qwen-2.5 persona synthesizes production code and precise JSON tool schemas."""
+    # FastAPI code generation
+    gen_api = QwenCoderPersona.generate_code_snippet("create fastapi server")
+    assert "FastAPI" in gen_api["code"]
+    assert gen_api["filename"] == "app_api.py"
+
+    # Fibonacci algorithm
+    gen_fib = QwenCoderPersona.generate_code_snippet("write fibonacci sequence")
+    assert "fibonacci_sequence" in gen_fib["code"]
+    assert gen_fib["filename"] == "fibonacci.py"
+
+    # Tool Call: Empty Recycle Bin
+    tool_bin = QwenCoderPersona.synthesize_tool_call("empty recycle bin")
+    assert tool_bin is not None
+    assert tool_bin["tool"] == "empty_recycle_bin"
+
+    # Tool Call: Clean Temp
+    tool_temp = QwenCoderPersona.synthesize_tool_call("clean temp cache")
+    assert tool_temp is not None
+    assert tool_temp["tool"] == "run_terminal_command"
+
+    # Tool Call: Explicit File Creation
+    tool_file = QwenCoderPersona.synthesize_tool_call("create test_script.py with print('hello world')")
+    assert tool_file is not None
+    assert tool_file["tool"] == "repo_file_action"
+    assert tool_file["args"]["file_path"] == "test_script.py"
+
+    # Tool Call: Terminal Command
+    tool_cmd = QwenCoderPersona.synthesize_tool_call("run git status")
+    assert tool_cmd is not None
+    assert tool_cmd["tool"] == "run_terminal_command"
+    assert tool_cmd["args"]["command"] == "git status"
+
+
+def test_hybrid_brain_system_summary():
+    """Verify operational telemetry, sub-1.4GB RAM profile and offline sovereignty."""
+    summary = hybrid_brain.get_system_summary()
+    assert "Llama-3.2" in summary["engine"]
+    assert "Qwen-2.5" in summary["engine"]
+    assert summary["memory_footprint_mb"] <= 1400.0
+    assert summary["cloud_dependencies"] == "0% (Completely Sovereign Offline)"
+    assert "cieav-decider-v2" in summary["components"]["router"]
+
+
+def test_hybrid_brain_architecture_card_and_encoding():
+    """Verify architecture card renders correctly and is 100% CP1252 / UTF-8 safe."""
+    card = hybrid_brain.render_architecture_card()
+    assert "CIEAV NATIVE HYBRID SUPERAGENT CORE" in card
+    assert "Llama-3.2-1B" in card
+    assert "Qwen-2.5-Coder-1.5B" in card
+    assert "1380.0 MB RAM" in card
+
+    # Encoding safety check
+    card.encode("utf-8")
+    card.encode("cp1252", errors="strict")
+
+
+def test_hybrid_brain_process_query_planning():
+    """Verify end-to-end query processing for architectural planning."""
+    res = hybrid_brain.process_query("design modern portfolio website")
+    assert res["type"] == "strategic_plan"
+    assert "Next.js" in res["plan"]["architecture"]
+    assert "message" in res
+    assert res["decision"]["latency_ms"] >= 0.0
+
+    # Encoding check on output message
+    res["message"].encode("utf-8")
+    res["message"].encode("cp1252", errors="strict")

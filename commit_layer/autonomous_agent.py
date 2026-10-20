@@ -241,14 +241,14 @@ class AutonomousLocalAgent:
             now_str = datetime.datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
             return {
                 "type": "time_date",
-                "message": f"🕒 Current Local Date & Time: {now_str}"
+                "message": f"[TIME] Current Local Date & Time: {now_str}"
             }
 
         # 0.005 Humor / Jokes ("tell me a joke", "make me laugh")
         if any(k in lower for k in ("tell me a joke", "tell a joke", "make me laugh", "say something funny")):
             return {
                 "type": "joke",
-                "message": "Why do programmers prefer dark mode? Because light attracts bugs! 😄"
+                "message": "Why do programmers prefer dark mode? Because light attracts bugs! :)"
             }
 
         # 0.006 Recycle Bin purge intent ("empty", "empty bin", "empty recycle bin")
@@ -259,7 +259,7 @@ class AutonomousLocalAgent:
             return {
                 "type": "recycle_bin",
                 "message": (
-                    f"🗑️ [WINDOWS RECYCLE BIN PURGED]\n"
+                    f"[RECYCLE BIN] [WINDOWS RECYCLE BIN PURGED]\n"
                     f"  • Items Purged: {res.get('items_purged', 0)}\n"
                     f"  • Space Freed : {res.get('mb_freed', 0.0):.2f} MB ({res.get('bytes_freed', 0):,} bytes)\n"
                     f"  • Status      : Permanent Win32 Shell purge complete."
@@ -276,16 +276,16 @@ class AutonomousLocalAgent:
             return {
                 "type": "recycle_bin",
                 "message": (
-                    "╔══════════════════════════════════════════════════════════════════════════════╗\n"
-                    "║  WINDOWS RECYCLE BIN SUBSYSTEM (Native Win32 Inspection)                    ║\n"
-                    "╠══════════════════════════════════════════════════════════════════════════════╣\n"
+                    "+------------------------------------------------------------------------------+\n"
+                    "|  WINDOWS RECYCLE BIN SUBSYSTEM (Native Win32 Inspection)                    |\n"
+                    "+------------------------------------------------------------------------------+\n"
                     f"  Host Subsystem    : Win32 Shell API (SHQueryRecycleBinW)\n"
                     f"  Total Items in Bin: {info.get('num_items', 0)} item(s)\n"
                     f"  Allocated Disk    : {info.get('size_mb', 0.0):.2f} MB ({info.get('size_bytes', 0):,} bytes)\n"
                     f"  Safety Floor      : Governed by CIEAV (Irreversible OS Action)\n\n"
                     f"  Files Discovered in Recycle Bin (Preview):\n{items_str}\n\n"
                     "  Type 'empty' or 'empty recycle bin' to purge.\n"
-                    "╚══════════════════════════════════════════════════════════════════════════════╝"
+                    "+------------------------------------------------------------------------------+"
                 ),
                 "data": info
             }
@@ -309,7 +309,7 @@ class AutonomousLocalAgent:
             return {
                 "type": "explanation",
                 "message": (
-                    "🚀 \033[1;36m[CIEAV AUTONOMOUS AGENT OS • HOW IT WORKS]\033[0m\n"
+                    "[AGENT] \033[1;36m[CIEAV AUTONOMOUS AGENT OS • HOW IT WORKS]\033[0m\n"
                     "--------------------------------------------------------------------------\n"
                     "CIEAV is a sovereign, 100% local agentic operating system designed to automate\n"
                     "computer workflows and coding tasks with zero cloud dependencies:\n\n"
@@ -335,7 +335,7 @@ class AutonomousLocalAgent:
             return {
                 "type": "plan",
                 "message": (
-                    "🌟 \033[1;36m[AWWWARDS-GRADE WEB LANDING PAGE ARCHITECTURAL PLAN]\033[0m\n"
+                    "[PLAN] \033[1;36m[AWWWARDS-GRADE WEB LANDING PAGE ARCHITECTURAL PLAN]\033[0m\n"
                     "--------------------------------------------------------------------------\n"
                     "Target: High-converting, Awwwards-caliber interactive web landing page.\n\n"
                     "1. Visual Aesthetic & Design System (Awwwards Benchmark):\n"
@@ -372,7 +372,7 @@ class AutonomousLocalAgent:
             return {
                 "type": "plan",
                 "message": (
-                    f"📋 \033[1;36m[AUTONOMOUS ARCHITECTURAL PLAN • {target_goal.upper()}]\033[0m\n"
+                    f"[PLAN] \033[1;36m[AUTONOMOUS ARCHITECTURAL PLAN • {target_goal.upper()}]\033[0m\n"
                     f"--------------------------------------------------------------------------\n"
                     f"Target Objective: {target_goal}\n\n"
                     f"Phase 1: Architecture & Data Modeling\n"
@@ -439,7 +439,7 @@ class AutonomousLocalAgent:
             res = local_browser.open_chrome(url=url)
             return {
                 "type": "app_launch",
-                "message": f"🚀 [APP LAUNCHER] Launched Google Chrome directly ({url} • Native OS Process)",
+                "message": f"[AGENT] [APP LAUNCHER] Launched Google Chrome directly ({url} • Native OS Process)",
                 "result": res
             }
 
@@ -453,7 +453,7 @@ class AutonomousLocalAgent:
             res = local_browser.open_edge(url=url)
             return {
                 "type": "app_launch",
-                "message": f"🚀 [APP LAUNCHER] Launched Microsoft Edge directly ({url} • Native OS Process)",
+                "message": f"[AGENT] [APP LAUNCHER] Launched Microsoft Edge directly ({url} • Native OS Process)",
                 "result": res
             }
 
@@ -461,21 +461,21 @@ class AutonomousLocalAgent:
             subprocess.Popen(["notepad.exe"])
             return {
                 "type": "app_launch",
-                "message": "🚀 [APP LAUNCHER] Launched Notepad (notepad.exe • Native Windows Process)"
+                "message": "[AGENT] [APP LAUNCHER] Launched Notepad (notepad.exe • Native Windows Process)"
             }
 
         if lower in ("open calc", "open calculator", "launch calc", "launch calculator", "calc", "calculator"):
             subprocess.Popen(["calc.exe"])
             return {
                 "type": "app_launch",
-                "message": "🚀 [APP LAUNCHER] Launched Windows Calculator (calc.exe • Native Windows Process)"
+                "message": "[AGENT] [APP LAUNCHER] Launched Windows Calculator (calc.exe • Native Windows Process)"
             }
 
         if lower in ("open explorer", "launch explorer", "open files", "explorer", "files"):
             subprocess.Popen(["explorer.exe", "."])
             return {
                 "type": "app_launch",
-                "message": "🚀 [APP LAUNCHER] Opened Windows File Explorer at current directory"
+                "message": "[AGENT] [APP LAUNCHER] Opened Windows File Explorer at current directory"
             }
 
         # SuperAgent Autonomous Goal / Mission Intent
@@ -512,7 +512,7 @@ class AutonomousLocalAgent:
             return {
                 "type": "temp_cleaner",
                 "message": (
-                    f"🧹 \033[1;32m[OS AUTOMATOR • TEMP CLEANER]\033[0m\n"
+                    f"[CLEAN] \033[1;32m[OS AUTOMATOR • TEMP CLEANER]\033[0m\n"
                     f"  • Files Purged  : \033[1;36m{res.get('deleted_count', 0)}\033[0m safe temporary files\n"
                     f"  • Space Freed   : \033[1;32m{res.get('reclaimed_mb', 0)} MB\033[0m disk space reclaimed\n"
                     f"  • Locked In-Use : {res.get('skipped_locked', 0)} (preserved)\n"
@@ -529,7 +529,7 @@ class AutonomousLocalAgent:
             return {
                 "type": "file_organizer",
                 "message": (
-                    f"📁 \033[1;32m[OS AUTOMATOR • FILE ORGANIZER]\033[0m\n"
+                    f"[FILES] \033[1;32m[OS AUTOMATOR • FILE ORGANIZER]\033[0m\n"
                     f"  • Target Directory : {res.get('target_dir')}\n"
                     f"  • Organized Files  : \033[1;36m{res.get('moved_count', 0)}\033[0m sorted by category\n"
                     f"  • Categories       : Documents, Media, Code, Archives, Data\n"
@@ -546,7 +546,7 @@ class AutonomousLocalAgent:
             return {
                 "type": "duplicate_finder",
                 "message": (
-                    f"🔍 \033[1;32m[OS AUTOMATOR • DUPLICATE SCANNER]\033[0m\n"
+                    f"[SEARCH] \033[1;32m[OS AUTOMATOR • DUPLICATE SCANNER]\033[0m\n"
                     f"  • Scanned Directory: {res.get('target_dir')}\n"
                     f"  • Redundant Files  : \033[1;33m{res.get('redundant_files_count', 0)}\033[0m duplicate(s)\n"
                     f"  • Unique Hashes    : {res.get('duplicate_groups', 0)} collision group(s)"
@@ -569,7 +569,7 @@ class AutonomousLocalAgent:
             return {
                 "type": "virtual_office",
                 "message": (
-                    f"🚀 \033[1;32m[VIRTUAL OFFICE • SWARM EXECUTION]\033[0m\n"
+                    f"[AGENT] \033[1;32m[VIRTUAL OFFICE • SWARM EXECUTION]\033[0m\n"
                     f"  • Completed Tasks  : \033[1;36m{res.get('executed_count', 0)}\033[0m tasks advanced by agent team\n\n"
                     + virtual_office.render_board()
                 ),
@@ -644,7 +644,7 @@ class AutonomousLocalAgent:
             card = notes_manager.render_cli_notes(all_notes, title_label=f"Saved Note: {res['title']}")
             return {
                 "type": "notes",
-                "message": f"✅ Note saved locally to '{res['filename']}' ({res['char_count']} chars • Reversible via /undo)\n" + card,
+                "message": f"[OK] Note saved locally to '{res['filename']}' ({res['char_count']} chars • Reversible via /undo)\n" + card,
                 "note": res
             }
 
@@ -678,7 +678,7 @@ class AutonomousLocalAgent:
                 return {
                     "type": "devops",
                     "message": (
-                        f"✅ Issue #{issue_num} resolved locally!\n"
+                        f"[OK] Issue #{issue_num} resolved locally!\n"
                         f"  • Title  : {res['issue_title']}\n"
                         f"  • Commit : {res['commit_message']}\n"
                         f"  • Patched: {res['patched_file']}\n"
@@ -695,7 +695,7 @@ class AutonomousLocalAgent:
                 return {
                     "type": "devops",
                     "message": (
-                        f"🔍 GitHub Issue #{issue_num}: {issue.get('title')}\n"
+                        f"[SEARCH] GitHub Issue #{issue_num}: {issue.get('title')}\n"
                         f"  • State  : {issue.get('state')}\n"
                         f"  • Author : @{(issue.get('author') or {}).get('login', 'dev')}\n"
                         f"  • URL    : {issue.get('url')}\n\n"
@@ -777,7 +777,7 @@ class AutonomousLocalAgent:
             task = virtual_office.add_task(title or "Implement feature specification")
             return {
                 "type": "office",
-                "message": f"✅ Virtual Office Task Created: [{task.task_id}] '{task.title}' assigned to {task.assigned_to.upper()}.",
+                "message": f"[OK] Virtual Office Task Created: [{task.task_id}] '{task.title}' assigned to {task.assigned_to.upper()}.",
                 "board": virtual_office.render_board()
             }
         elif "done" in lower or "complete" in lower:
@@ -786,7 +786,7 @@ class AutonomousLocalAgent:
             t = virtual_office.advance_task(tid)
             return {
                 "type": "office",
-                "message": f"✅ Task [{tid}] marked as DONE by agent {t.assigned_to if t else 'agent'}.",
+                "message": f"[OK] Task [{tid}] marked as DONE by agent {t.assigned_to if t else 'agent'}.",
                 "board": virtual_office.render_board()
             }
         else:
@@ -806,17 +806,17 @@ class AutonomousLocalAgent:
             if res.get("status") == "success":
                 return {
                     "type": "browser",
-                    "message": f"📸 Native Browser ({res['browser']}) captured screenshot: {res['file_path']} ({res['file_size_bytes']} bytes)",
+                    "message": f"[SCREENSHOT] Native Browser ({res['browser']}) captured screenshot: {res['file_path']} ({res['file_size_bytes']} bytes)",
                     "details": res
                 }
-            return {"type": "browser", "message": f"❌ Browser screenshot error: {res.get('error')}"}
+            return {"type": "browser", "message": f"[ERROR] Browser screenshot error: {res.get('error')}"}
 
         dom_res = local_browser.dump_dom(url)
         if dom_res.get("status") == "success":
             return {
                 "type": "browser",
                 "message": (
-                    f"🌐 Native Local Browser ({dom_res['browser']}) executed 100% locally:\n"
+                    f"[BROWSER] Native Local Browser ({dom_res['browser']}) executed 100% locally:\n"
                     f"  • URL   : {dom_res['url']}\n"
                     f"  • Title : {dom_res['title']}\n"
                     f"  • DOM   : {dom_res['char_count']} characters extracted locally\n\n"
@@ -824,7 +824,7 @@ class AutonomousLocalAgent:
                 ),
                 "details": dom_res
             }
-        return {"type": "browser", "message": f"❌ Local Browser error: {dom_res.get('error')}"}
+        return {"type": "browser", "message": f"[ERROR] Local Browser error: {dom_res.get('error')}"}
 
     def _handle_game_intent(self, prompt: str) -> Dict[str, Any]:
         return {
@@ -857,7 +857,7 @@ if __name__ == "__main__":
         return {
             "type": "code",
             "message": (
-                f"⚡ [CODEX ENGINE] Code synthesized and saved to '{filename}':\n"
+                f"[RUN] [CODEX ENGINE] Code synthesized and saved to '{filename}':\n"
                 f"  • File Path : {res.get('path', filename)}\n"
                 f"  • Snapshot  : {res.get('snapshot_created', 'Backed up for /undo')}\n"
                 f"  • Reversible: YES (Type /undo to remove or restore instantly)\n\n"
@@ -902,7 +902,7 @@ if __name__ == "__main__":
             return {
                 "type": "explanation",
                 "message": (
-                    "🔒 [CIEAV TWO-PHASE COMMIT LAYER & GOVERNANCE]\n"
+                    "[LOCK] [CIEAV TWO-PHASE COMMIT LAYER & GOVERNANCE]\n"
                     "--------------------------------------------------------------------------\n"
                     "CIEAV enforces cryptographic two-phase commit safety for all AI operations:\n\n"
                     "• Phase 1 (Prepare): The intent is evaluated by local AST decider (cieav-decider-v2)\n"
@@ -921,7 +921,7 @@ if __name__ == "__main__":
             return {
                 "type": "capabilities",
                 "message": (
-                    "⚡ [CIEAV AUTONOMOUS AGENT CAPABILITIES • 100% LOCAL]\n"
+                    "[RUN] [CIEAV AUTONOMOUS AGENT CAPABILITIES • 100% LOCAL]\n"
                     "--------------------------------------------------------------------------\n"
                     "I am an autonomous agentic OS running directly on your CPU (0% cloud APIs):\n\n"
                     "1. Code Synthesis & Self-Healing: Devin-class autonomous bug diagnosis & pytest repair.\n"
@@ -955,7 +955,7 @@ if __name__ == "__main__":
             else:
                 clean_q = prompt.rstrip('?')
                 ans_msg = (
-                    f"🧠 [CIEAV INTELLIGENCE RESPONSE • 0% CLOUD APIS]\n"
+                    f"[BRAIN] [CIEAV INTELLIGENCE RESPONSE • 0% CLOUD APIS]\n"
                     f"Inquiry: '{prompt}' (Local Decision Gate: {tier} • {lat:.2f}ms CPU)\n\n"
                     f"I have analyzed your inquiry. As your sovereign local agent, I specialize in\n"
                     f"autonomous software development, code refactoring, system telemetry, and DevOps.\n"
@@ -968,20 +968,14 @@ if __name__ == "__main__":
                 "decision": dec
             }
 
-        # 4. Actionable task evaluation
+        # 4. Actionable task evaluation via Hybrid SuperAgent Brain (Llama-3.2 + Qwen-2.5)
+        from commit_layer.hybrid_brain import hybrid_brain
+        h_res = hybrid_brain.process_query(prompt)
         return {
-            "type": "intent",
-            "message": (
-                f"🧠 [CIEAV LOCAL REASONING CORE • 0% CLOUD APIS]\n"
-                f"  • Action Intent    : \"{prompt}\"\n"
-                f"  • Decision Gate    : {tier} (Consequence: {score:.3f} • {lat:.2f}ms CPU)\n"
-                f"  • Recommended Mode : {rec}\n"
-                f"  • Status           : Ready to execute under Two-Phase Cryptographic Commit Layer.\n\n"
-                f"To execute this as an autonomous multi-phase mission, run:\n"
-                f"  goal {prompt}\n"
-                f"Every action is recorded in the Ed25519 hash chain and reversible via /undo."
-            ),
-            "decision": dec
+            "type": h_res.get("type", "hybrid_superagent"),
+            "message": h_res.get("message", ""),
+            "decision": dec,
+            "data": h_res
         }
 
 
