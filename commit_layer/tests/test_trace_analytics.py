@@ -77,6 +77,8 @@ def test_greeting_and_model_subscription_query():
     res_gemini = autonomous_agent.process_instruction("check my gemini subscription")
     assert res_gemini["type"] == "account_discovery"
     assert "GEMINI" in res_gemini["message"]
+    assert "Gemini Pro" in res_gemini["message"]
+    assert "aravindh1653@gmail.com" in res_gemini["message"]
     assert "Claude" not in res_gemini["message"]
     assert "ChatGPT" not in res_gemini["message"]
     assert "cieav-decider-v2" not in res_gemini["message"]

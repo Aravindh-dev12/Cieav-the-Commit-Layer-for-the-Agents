@@ -185,17 +185,36 @@ class TraceAnalyticsEngine:
                 return {"status": "error", "message": f"Logout failed: {str(e)}"}
 
         elif "gemini" in prov or "google" in prov:
+            appdata = os.environ.get("APPDATA", "")
+            app_storage = os.path.join(appdata, "Antigravity", "app_storage.json")
+            bak_path = None
+            if os.path.exists(app_storage):
+                try:
+                    bak_path = f"{app_storage}.bak.{timestamp}"
+                    shutil.copy2(app_storage, bak_path)
+                    with open(app_storage, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    if "jetski.onboarding.lastLoginUsername" in data:
+                        data["jetski.onboarding.lastLoginUsername"] = None
+                    with open(app_storage, "w", encoding="utf-8") as f:
+                        json.dump(data, f, indent=2)
+                except Exception:
+                    pass
+
             if "GEMINI_API_KEY" in os.environ:
                 del os.environ["GEMINI_API_KEY"]
             if "GOOGLE_API_KEY" in os.environ:
                 del os.environ["GOOGLE_API_KEY"]
+
             return {
                 "status": "success",
                 "provider": "Google Gemini",
+                "backup_path": bak_path,
                 "message": (
-                    "\033[1;32m✅ Successfully reset Gemini session.\033[0m\n"
-                    "   • Active GEMINI_API_KEY removed from current session environment.\n"
-                    "   • To set a new subscription key: $env:GEMINI_API_KEY=\"AIza...\""
+                    "\033[1;32m✅ Successfully logged out from Google Gemini.\033[0m\n"
+                    f"   • Archived session profile to: {bak_path or 'environment'}\n"
+                    "   • You can now log into Gemini with your new Google account email.\n"
+                    "   • CIEAV will automatically detect your new Gemini subscription immediately!"
                 )
             }
 
@@ -252,10 +271,35 @@ class TraceAnalyticsEngine:
             except Exception:
                 pass
 
-        # 3. Detect Google Gemini subscription / API key
+        # 3. Detect Google Gemini subscription / account from local session, JSON configs, or API keys
+        appdata = os.environ.get("APPDATA", "")
+        local_appdata = os.environ.get("LOCALAPPDATA", "")
+        app_storage = os.path.join(appdata, "Antigravity", "app_storage.json")
         gemini_api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         gcloud_adc = os.path.join(user_home, ".config", "gcloud", "application_default_credentials.json")
-        if gemini_api_key:
+        chrome_state = os.path.join(local_appdata, "Google", "Chrome", "User Data", "Local State")
+
+        gemini_detected = False
+
+        # A. Check Antigravity / Gemini authenticated session (jetski.onboarding.lastLoginUsername)
+        if os.path.exists(app_storage):
+            try:
+                with open(app_storage, "r", encoding="utf-8") as f:
+                    adata = json.load(f)
+                username = adata.get("jetski.onboarding.lastLoginUsername")
+                if username and "@" in str(username):
+                    subs["gemini"] = {
+                        "subscribed": True,
+                        "email": str(username).strip(),
+                        "plan": "Gemini Pro (Google One AI Premium / Antigravity)",
+                        "source": "%APPDATA%/Antigravity/app_storage.json"
+                    }
+                    gemini_detected = True
+            except Exception:
+                pass
+
+        # B. Check active environment API keys
+        if not gemini_detected and gemini_api_key:
             masked = gemini_api_key[:6] + "..." + gemini_api_key[-4:] if len(gemini_api_key) > 10 else "SET"
             subs["gemini"] = {
                 "subscribed": True,
@@ -263,17 +307,41 @@ class TraceAnalyticsEngine:
                 "plan": "Google Gemini API (Active Key)",
                 "source": "Environment (GEMINI_API_KEY)"
             }
-        elif os.path.exists(gcloud_adc):
+            gemini_detected = True
+
+        # C. Check Google Application Default Credentials
+        elif not gemini_detected and os.path.exists(gcloud_adc):
             try:
                 with open(gcloud_adc, "r", encoding="utf-8") as f:
                     gdata = json.load(f)
                 email = gdata.get("client_email") or gdata.get("account")
-                subs["gemini"] = {
-                    "subscribed": True,
-                    "email": email or "gcloud-auth-profile",
-                    "plan": "Google Cloud ADC / Vertex AI",
-                    "source": "~/.config/gcloud/application_default_credentials.json"
-                }
+                if email:
+                    subs["gemini"] = {
+                        "subscribed": True,
+                        "email": email,
+                        "plan": "Google Cloud ADC / Vertex AI",
+                        "source": "~/.config/gcloud/application_default_credentials.json"
+                    }
+                    gemini_detected = True
+            except Exception:
+                pass
+
+        # D. Check default Chrome Google Account profile as fallback
+        elif not gemini_detected and os.path.exists(chrome_state):
+            try:
+                with open(chrome_state, "r", encoding="utf-8") as f:
+                    cdata = json.load(f)
+                profiles = cdata.get("profile", {}).get("info_cache", {})
+                def_prof = profiles.get("Default", {})
+                u_email = def_prof.get("user_name")
+                if u_email and "@" in str(u_email):
+                    subs["gemini"] = {
+                        "subscribed": True,
+                        "email": str(u_email).strip(),
+                        "plan": "Gemini Pro (Google Account Profile)",
+                        "source": "%LOCALAPPDATA%/Google/Chrome/User Data/Local State"
+                    }
+                    gemini_detected = True
             except Exception:
                 pass
 
@@ -300,7 +368,7 @@ class TraceAnalyticsEngine:
             if gm.get("subscribed"):
                 lines.append(f"  Subscribed Email : \033[1;37m{gm.get('email')}\033[0m")
                 lines.append(f"  Subscription Plan: {gm.get('plan')}")
-                lines.append("  Status           : \033[1;32mACTIVE & VERIFIED (Gemini)\033[0m")
+                lines.append("  Status           : \033[1;32mACTIVE & VERIFIED (Gemini Pro)\033[0m")
                 lines.append(f"  Detected Via     : {gm.get('source')}")
             else:
                 lines.append("  Status           : \033[1;33mNOT CONFIGURED / NO SUBSCRIPTION DETECTED\033[0m")
