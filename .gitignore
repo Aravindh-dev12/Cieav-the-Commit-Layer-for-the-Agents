@@ -35,8 +35,8 @@ commit_layer/.repo_snapshots/
 *.egg-info/
 python/*.egg-info/
 
-
-
 demo_portfolio/
 personal_notes/
 projects/
+personal_messages/
+personal_outbox/
