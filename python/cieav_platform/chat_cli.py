@@ -388,7 +388,7 @@ def execute_governed_action(tool_name: str, args: dict, agent_id: str = "cieav-c
             gateway.cancel(action.id)
             return
 
-        if (req_typed and choice == "COMMIT") or (not req_typed and choice.lower() in ("y", "yes")):
+        if (req_typed and ("COMMIT" in choice.upper() or choice.upper() in ("YES", "Y", "CONFIRM", "C", "APPROVE"))) or (not req_typed and choice.lower() in ("y", "yes")):
             print("[CIEAV] Approving with single-use token...")
             appr = gateway.approve(action.id, approved_by="human-operator")
             print(f"  ✅ Status  : {appr.get('status').upper()}")
@@ -795,7 +795,7 @@ def process_user_input(text: str):
     elif lower in ("/recyclebin", "recyclebin", "/bin", "bin", "check recycle bin", "find recycle bin", "show recycle bin", "inspect recycle bin", "check recyclebin", "find recyclebin"):
         show_recycle_bin()
         return
-    elif lower in ("empty recycle bin", "empty recyclebin", "/empty-bin", "clear recycle bin", "purge recycle bin", "clean recycle bin"):
+    elif lower in ("empty", "empty bin", "empty recycle bin", "empty recyclebin", "/empty-bin", "clear recycle bin", "purge recycle bin", "clean recycle bin", "clear bin", "purge bin", "empty trash"):
         execute_governed_action("empty_recycle_bin", {})
         return
     elif lower in ("/web", "web", "/ui", "ui", "/dashboard", "dashboard"):

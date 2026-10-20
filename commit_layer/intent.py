@@ -37,7 +37,7 @@ def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
     actions = []
 
     # 0. Windows OS: Recycle Bin Operations
-    if re.search(r'\b(empty|clear|purge|wipe)\s+(?:the\s+)?recycle\s*bin\b', p, re.IGNORECASE):
+    if re.search(r'^(empty|clear|purge|wipe)$', p, re.IGNORECASE) or re.search(r'\b(empty|clear|purge|wipe)\s+(?:the\s+)?(?:recycle\s*bin|bin|trash)\b', p, re.IGNORECASE):
         actions.append({
             "domain": "system",
             "tool": "empty_recycle_bin",

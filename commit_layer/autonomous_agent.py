@@ -191,6 +191,105 @@ class AutonomousLocalAgent:
                 "message": "Hey! Great to see you. How can I help you today?"
             }
 
+        # 0.001 Identity & Name Queries ("what ur name", "what is your name", "who are you")
+        if any(k in lower for k in (
+            "what ur name", "what is ur name", "what is your name", "whats your name",
+            "what's your name", "who are you", "what are you", "your name", "tell me about yourself",
+            "who created you", "who made you", "introduce yourself"
+        )):
+            return {
+                "type": "identity",
+                "message": (
+                    "I am CIEAV (The Commit Layer for Autonomous Agents), your sovereign agentic operating system.\n"
+                    "I run 100% locally on your machine with 0% cloud APIs, automating software engineering,\n"
+                    "OS maintenance, and DevOps workflows under cryptographic two-phase commit (/undo) safety."
+                )
+            }
+
+        # 0.002 Well-being & Conversational Check ("how it is going", "how are you", "what's up")
+        if any(k in lower for k in (
+            "how it is going", "how is it going", "hows it going", "how's it going",
+            "how are you", "how are u", "how r u", "how you doing", "how are you doing",
+            "how do you do", "what's up", "whats up", "wassup", "how is everything",
+            "hows everything", "how goes it"
+        )):
+            return {
+                "type": "conversational",
+                "message": (
+                    "Everything is running smoothly! All local subsystems, telemetry monitors, and the\n"
+                    "Two-Phase Cryptographic Commit Layer are active and healthy with 0% cloud APIs.\n"
+                    "How can I help you today?"
+                )
+            }
+
+        # 0.003 Gratitude & Pleasantries ("thank you", "thanks", "great job", "awesome")
+        if any(k == stripped or lower.startswith(k + " ") for k in (
+            "thank you", "thanks", "thank u", "ty", "thx", "appreciate it",
+            "great job", "good job", "awesome", "perfect", "cool", "nice", "well done"
+        )):
+            return {
+                "type": "conversational",
+                "message": "You're very welcome! Always here to assist. What would you like to build or inspect next?"
+            }
+
+        # 0.004 Time & Date Queries ("what time is it", "what is the date", "today's date")
+        if any(k in lower for k in (
+            "what time is it", "what is the time", "current time", "what time",
+            "what is the date", "today's date", "todays date", "what day is it", "current date"
+        )):
+            import datetime
+            now_str = datetime.datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+            return {
+                "type": "time_date",
+                "message": f"🕒 Current Local Date & Time: {now_str}"
+            }
+
+        # 0.005 Humor / Jokes ("tell me a joke", "make me laugh")
+        if any(k in lower for k in ("tell me a joke", "tell a joke", "make me laugh", "say something funny")):
+            return {
+                "type": "joke",
+                "message": "Why do programmers prefer dark mode? Because light attracts bugs! 😄"
+            }
+
+        # 0.006 Recycle Bin purge intent ("empty", "empty bin", "empty recycle bin")
+        if lower in ("empty", "empty bin", "empty recycle bin", "empty recyclebin", "clear bin", "purge bin", "clean bin", "empty trash", "clear recycle bin", "purge recycle bin"):
+            from commit_layer.tools.windows_recycle_bin import EmptyRecycleBinTool
+            tool = EmptyRecycleBinTool()
+            res = tool.execute({})
+            return {
+                "type": "recycle_bin",
+                "message": (
+                    f"🗑️ [WINDOWS RECYCLE BIN PURGED]\n"
+                    f"  • Items Purged: {res.get('items_purged', 0)}\n"
+                    f"  • Space Freed : {res.get('mb_freed', 0.0):.2f} MB ({res.get('bytes_freed', 0):,} bytes)\n"
+                    f"  • Status      : Permanent Win32 Shell purge complete."
+                ),
+                "data": res
+            }
+
+        # 0.007 Recycle Bin inspect intent ("check my recyclebin", "check recycle bin")
+        if any(k in lower for k in ("recycle bin", "recyclebin", "check bin", "inspect bin", "show bin")):
+            from commit_layer.tools.windows_recycle_bin import query_recycle_bin_win32, list_recycle_bin_items
+            info = query_recycle_bin_win32()
+            items = list_recycle_bin_items(max_items=8)
+            items_str = "\n".join([f"    [{i}] {it['name'][:60]}" for i, it in enumerate(items, 1)]) if items else "    (Recycle Bin is currently clean and empty)"
+            return {
+                "type": "recycle_bin",
+                "message": (
+                    "╔══════════════════════════════════════════════════════════════════════════════╗\n"
+                    "║  WINDOWS RECYCLE BIN SUBSYSTEM (Native Win32 Inspection)                    ║\n"
+                    "╠══════════════════════════════════════════════════════════════════════════════╣\n"
+                    f"  Host Subsystem    : Win32 Shell API (SHQueryRecycleBinW)\n"
+                    f"  Total Items in Bin: {info.get('num_items', 0)} item(s)\n"
+                    f"  Allocated Disk    : {info.get('size_mb', 0.0):.2f} MB ({info.get('size_bytes', 0):,} bytes)\n"
+                    f"  Safety Floor      : Governed by CIEAV (Irreversible OS Action)\n\n"
+                    f"  Files Discovered in Recycle Bin (Preview):\n{items_str}\n\n"
+                    "  Type 'empty' or 'empty recycle bin' to purge.\n"
+                    "╚══════════════════════════════════════════════════════════════════════════════╝"
+                ),
+                "data": info
+            }
+
         # 0.01 Conversational Availability Check ("are you free", "can you help")
         if any(k in lower for k in ("are you free", "are u free", "u free", "you free", "are you busy", "are you ready", "can you help me", "can u help me")):
             return {
@@ -204,7 +303,7 @@ class AutonomousLocalAgent:
         # 0.02 Architecture & How It Works ("how do you work", "what is your work", "how u works")
         if any(k in lower for k in (
             "how you work", "how u work", "how do you work", "how does it work", "how it works",
-            "what is your work", "what is ru work", "what is ur work", "what is cieav",
+            "what is your work", "what is ru work", "what is ur work", "what is ur works", "what is your works", "what ur works", "what is cieav",
             "how does cieav work", "explain how you work", "tell me how you work"
         )):
             return {
@@ -837,16 +936,49 @@ if __name__ == "__main__":
                 "decision": dec
             }
 
-        # 3. Default contextual evaluation response (Clean, intelligent, NO static checklist)
+        # 3. Question / Inquiry Handling vs Actionable Task Handling
+        is_question = (
+            prompt.strip().endswith("?")
+            or lower.startswith(("what", "how", "why", "who", "when", "where", "can you", "can u", "are you", "is it", "is there", "do you", "will you", "should i", "tell me"))
+        )
+
+        if is_question:
+            if lower.startswith(("can you", "can u", "are you able to", "could you")):
+                task_part = re.sub(r'^(?:can\s+you|can\s+u|are\s+you\s+able\s+to|could\s+you)\s+', '', prompt, flags=re.IGNORECASE).rstrip("?").strip()
+                ans_msg = (
+                    f"Yes! I am fully capable of handling '{task_part}'.\n"
+                    f"All operations run locally with 0% cloud APIs and are governed by the Commit Layer.\n"
+                    f"To execute this autonomously right now, run:\n"
+                    f"  goal {task_part}\n"
+                    f"Or tell me to 'proceed' and I will begin the execution workflow."
+                )
+            else:
+                clean_q = prompt.rstrip('?')
+                ans_msg = (
+                    f"🧠 [CIEAV INTELLIGENCE RESPONSE • 0% CLOUD APIS]\n"
+                    f"Inquiry: '{prompt}' (Local Decision Gate: {tier} • {lat:.2f}ms CPU)\n\n"
+                    f"I have analyzed your inquiry. As your sovereign local agent, I specialize in\n"
+                    f"autonomous software development, code refactoring, system telemetry, and DevOps.\n"
+                    f"If you'd like to perform an action or build something related to this, let me know\n"
+                    f"or run 'goal {clean_q}' to start an autonomous mission!"
+                )
+            return {
+                "type": "answer",
+                "message": ans_msg,
+                "decision": dec
+            }
+
+        # 4. Actionable task evaluation
         return {
             "type": "intent",
             "message": (
                 f"🧠 [CIEAV LOCAL REASONING CORE • 0% CLOUD APIS]\n"
-                f"  • Intent Evaluated : \"{prompt}\"\n"
+                f"  • Action Intent    : \"{prompt}\"\n"
                 f"  • Decision Gate    : {tier} (Consequence: {score:.3f} • {lat:.2f}ms CPU)\n"
                 f"  • Recommended Mode : {rec}\n"
-                f"  • Status           : Analyzed and ready to execute under Two-Phase Cryptographic Commit Layer.\n\n"
-                f"To execute this as an autonomous multi-phase mission, run: goal {prompt}\n"
+                f"  • Status           : Ready to execute under Two-Phase Cryptographic Commit Layer.\n\n"
+                f"To execute this as an autonomous multi-phase mission, run:\n"
+                f"  goal {prompt}\n"
                 f"Every action is recorded in the Ed25519 hash chain and reversible via /undo."
             ),
             "decision": dec
