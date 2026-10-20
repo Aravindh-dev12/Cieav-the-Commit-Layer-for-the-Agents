@@ -50,3 +50,27 @@ def test_turn_errors_into_dataset():
     finally:
         if os.path.exists(test_out):
             os.remove(test_out)
+
+
+def test_greeting_and_model_subscription_query():
+    """Verify short friendly greeting and subscribed models monitoring queries."""
+    from commit_layer.autonomous_agent import autonomous_agent
+
+    # 1. Short friendly greeting test (no long bullet list)
+    for g in ("hi ceiav", "hi cieav", "hi cieva", "hello", "hey"):
+        res = autonomous_agent.process_instruction(g)
+        assert res["type"] == "greeting"
+        assert res["message"] == "Hey! Great to see you. How can I help you today?"
+        assert "Whether you want to:" not in res["message"]
+        assert "•" not in res["message"]
+
+    # 2. Subscribed models and token usage query
+    for q in ("modle token used", "model token used", "tokens used", "what models", "subscribed models"):
+        res = autonomous_agent.process_instruction(q)
+        assert res["type"] == "cfo_spend"
+        assert "Subscribed Models" in res["message"]
+        assert "cieav-decider-v2" in res["message"]
+        assert "claude-3-5-sonnet" in res["message"]
+        assert "claude-3-5-haiku" in res["message"]
+        assert res["data"]["total_tokens_billed"] > 0
+

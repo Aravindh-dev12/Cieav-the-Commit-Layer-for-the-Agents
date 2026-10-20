@@ -550,20 +550,8 @@ def run_alma_general_intent_workflow(prompt: str):
 
 
 def show_conversational_greeting():
-    print("""
-Hey! Great to see you. I'm right here on your machine, 100% local and ready to help.
+    print("\nHey! Great to see you. How can I help you today?\n")
 
-Whether you want to:
-• Inspect real telemetry ("Which traces had the highest latency yesterday?")
-• Review your model budget ("What's my token spend this week, by model?")
-• Synthesize error datasets ("Turn last week's errors into a dataset")
-• Edit videos hands-free ("edit video from 00:00:01 to 00:00:05")
-• Automate your OS ("system", "clean temp", "organize files")
-• Launch local apps ("open chrome", "open notepad")
-• Self-heal code and fix bugs ("heal")
-
-What are we working on today?
-""")
 
 def handle_app_launch(cmd: str) -> bool:
     """Detect and launch native Windows applications directly without friction."""
@@ -705,7 +693,14 @@ def process_user_input(text: str):
         print("\n" + trace_analytics.render_latency_card(data) + "\n")
         return
 
-    if any(k in lower for k in ("token spend", "spend by model", "tokens this week", "model spend", "my token")):
+    TOKEN_QUERY_KEYS = (
+        "modle token", "model token", "token used", "tokens used", "token usage",
+        "tokens usage", "model usage", "models usage", "token spend", "spend by model",
+        "tokens this week", "model spend", "my token", "models subscribed", "subscribed model",
+        "subscribed models", "models i subscribed", "what models", "which models",
+        "check model", "check models", "token count", "tokens count"
+    )
+    if any(k in lower for k in TOKEN_QUERY_KEYS) or lower in ("tokens", "token"):
         data = trace_analytics.get_token_spend_by_model()
         print("\n" + trace_analytics.render_token_spend_card(data) + "\n")
         return
@@ -715,14 +710,16 @@ def process_user_input(text: str):
         print("\n" + trace_analytics.render_dataset_card(data) + "\n")
         return
 
-    # Conversational Friendly Greeting Check (Accepts cieav and cieva typos)
+    # Conversational Friendly Greeting Check (Accepts cieav, cieva, and ceiav typos)
+    stripped = re.sub(r'[^\w\s]', '', lower).strip()
     GREETINGS = (
         "hi", "hello", "hey", "hi cieav", "hello cieav", "hey cieav",
-        "hi cieva", "hello cieva", "hey cieva", "cieva",
+        "hi cieva", "hello cieva", "hey cieva", "hi ceiav", "hello ceiav", "hey ceiav",
+        "cieva", "ceiav", "cieav",
         "good morning", "good afternoon", "good evening",
-        "who are you", "what are you", "what can you do", "cieav"
+        "who are you", "what are you", "what can you do"
     )
-    if lower in GREETINGS:
+    if lower in GREETINGS or stripped in GREETINGS:
         show_conversational_greeting()
         return
 

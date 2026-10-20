@@ -87,7 +87,14 @@ class AutonomousLocalAgent:
                 "data": data
             }
 
-        if any(k in lower for k in ("token spend", "spend by model", "tokens this week", "model spend", "my token")):
+        TOKEN_QUERY_KEYS = (
+            "modle token", "model token", "token used", "tokens used", "token usage",
+            "tokens usage", "model usage", "models usage", "token spend", "spend by model",
+            "tokens this week", "model spend", "my token", "models subscribed", "subscribed model",
+            "subscribed models", "models i subscribed", "what models", "which models",
+            "check model", "check models", "token count", "tokens count"
+        )
+        if any(k in lower for k in TOKEN_QUERY_KEYS) or lower in ("tokens", "token"):
             data = trace_analytics.get_token_spend_by_model()
             return {
                 "type": "cfo_spend",
@@ -103,19 +110,19 @@ class AutonomousLocalAgent:
                 "data": data
             }
 
-        # 0. Conversational Friendly Greeting Intent
-        if lower in ("hi", "hello", "hey", "hi cieav", "hello cieav", "hey cieav", "hi cieva", "hello cieva", "hey cieva", "cieva", "who are you", "what can you do", "help me"):
+        # 0. Conversational Friendly Greeting Intent (Short & Warm)
+        stripped = re.sub(r'[^\w\s]', '', lower).strip()
+        GREETINGS = (
+            "hi", "hello", "hey", "hi cieav", "hello cieav", "hey cieav",
+            "hi cieva", "hello cieva", "hey cieva", "hi ceiav", "hello ceiav", "hey ceiav",
+            "cieva", "ceiav", "cieav",
+            "good morning", "good afternoon", "good evening",
+            "who are you", "what are you", "what can you do", "help me"
+        )
+        if lower in GREETINGS or stripped in GREETINGS:
             return {
                 "type": "greeting",
-                "message": (
-                    "👋 Hello! I am CIEAV — Your Sovereign Computer-Control Agent OS.\n"
-                    "Operating 100% locally on your CPU with zero third-party cloud APIs.\n\n"
-                    "I can launch native apps ('open chrome', 'open notepad', 'open calc'),\n"
-                    "search e-commerce stores ('buy clothes in amazon'), scaffold projects,\n"
-                    "inspect and fix GitHub issues, manage your personal encrypted notes vault,\n"
-                    "and coordinate multi-agent virtual office tasks.\n\n"
-                    "Consequential actions are safely guarded by Two-Phase Cryptographic Commits (COMMIT) and lossless /undo."
-                )
+                "message": "Hey! Great to see you. How can I help you today?"
             }
 
         # App Launch Intent (Chrome, Edge, Notepad, Calc, Explorer)
