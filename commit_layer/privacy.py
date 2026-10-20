@@ -9,9 +9,13 @@ CARD_REGEX = re.compile(r'\b(?:\d{4}[ -]?){3}\d{1,7}\b|\b\d{13,19}\b')
 EMAIL_REGEX = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
 
 def redact_text(text: str) -> str:
-    """Redacts credit card numbers and emails from text."""
+    """Redacts credit card numbers, emails, and sensitive credential tokens from text."""
     text = CARD_REGEX.sub("[CARD_REDACTED]", text)
     text = EMAIL_REGEX.sub("[EMAIL_REDACTED]", text)
+    # Redact passwords, secrets, tokens, api keys
+    text = re.sub(r'(?i)\b(password|passwd|secret|token|api_key|bearer)\s*[:=]?\s*([A-Za-z0-9_\-]+)', r'\1 [REDACTED]', text)
+    text = re.sub(r'(?i)\b(pass(?:word)?\s+is\s+)([A-Za-z0-9_\-]+)', r'\1[REDACTED]', text)
+    text = re.sub(r'(?i)\bsecret_[a-z0-9_]+', '[REDACTED]', text)
     return text
 
 def redact_value(key: str, value: Any) -> Any:
