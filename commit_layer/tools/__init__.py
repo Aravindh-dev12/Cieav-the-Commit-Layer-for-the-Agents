@@ -9,4 +9,7 @@ from commit_layer.tools.headroom import HeadroomCompressTool, HeadroomRetrieveTo
 from commit_layer.tools.repo import RealRepoFileTool
 from commit_layer.tools.jobs import JobApplicationTool
 from commit_layer.tools.windows_recycle_bin import InspectRecycleBinTool, EmptyRecycleBinTool
-
+from commit_layer.tools.notes_manager import NotesManager, notes_manager, NotesManagerTool
+from commit_layer.tools.github_agent import GitHubDevOpsAgent, github_agent, GitHubDevOpsTool
+from commit_layer.tools.email_agent import EmailAgent, email_agent, EmailAgentTool
+from commit_layer.tools.messaging_agent import WhatsAppMessagingAgent, whatsapp_agent, WhatsAppMessagingTool
