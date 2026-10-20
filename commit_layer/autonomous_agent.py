@@ -36,6 +36,7 @@ from commit_layer.code_healer import code_healer
 from commit_layer.super_agent import super_agent
 from commit_layer.multilingual import multilingual_engine
 from commit_layer.gui_agent import gui_agent
+from commit_layer.trace_analytics import trace_analytics
 from commit_layer.workspace import get_workspace_root
 
 
@@ -77,8 +78,33 @@ class AutonomousLocalAgent:
                 "data": res
             }
 
-        # 0. Conversational Greeting & Capability Intent
-        if lower in ("hi", "hello", "hey", "hi cieav", "hello cieav", "hey cieav", "who are you", "what can you do", "help me"):
+        # Grounded Telemetry & Real Audit Data (No Hallucination)
+        if any(k in lower for k in ("highest latency", "slowest trace", "trace latency", "latency yesterday")):
+            data = trace_analytics.get_highest_latency_traces()
+            return {
+                "type": "telemetry",
+                "message": trace_analytics.render_latency_card(data),
+                "data": data
+            }
+
+        if any(k in lower for k in ("token spend", "spend by model", "tokens this week", "model spend", "my token")):
+            data = trace_analytics.get_token_spend_by_model()
+            return {
+                "type": "cfo_spend",
+                "message": trace_analytics.render_token_spend_card(data),
+                "data": data
+            }
+
+        if any(k in lower for k in ("errors into a dataset", "error dataset", "turn errors", "make dataset")):
+            data = trace_analytics.turn_errors_into_dataset()
+            return {
+                "type": "dataset",
+                "message": trace_analytics.render_dataset_card(data),
+                "data": data
+            }
+
+        # 0. Conversational Friendly Greeting Intent
+        if lower in ("hi", "hello", "hey", "hi cieav", "hello cieav", "hey cieav", "hi cieva", "hello cieva", "hey cieva", "cieva", "who are you", "what can you do", "help me"):
             return {
                 "type": "greeting",
                 "message": (
