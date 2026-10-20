@@ -570,69 +570,7 @@ def run_alma_general_intent_workflow(prompt: str):
             gateway.cancel(act["action_id"])
 
 
-def show_conversational_greeting():
-    print("\nHey! Great to see you. How can I help you today?\n")
 
-
-def handle_app_launch(cmd: str) -> bool:
-    """Detect and launch native Windows applications directly without friction."""
-    lower = cmd.lower().strip()
-    
-    # Chrome
-    if lower in ("open chrome", "launch chrome", "chrome", "start chrome") or lower.startswith("open chrome ") or lower.startswith("launch chrome "):
-        url = "https://www.google.com"
-        parts = cmd.split(None, 2)
-        if len(parts) >= 3 and "." in parts[2]:
-            url = parts[2].strip()
-            if not url.startswith("http"):
-                url = f"https://{url}"
-        res = local_browser.open_chrome(url=url)
-        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched Google Chrome directly ({url} • Native OS Process)\n")
-        return True
-
-    # Edge
-    if lower in ("open edge", "launch edge", "edge", "start edge", "msedge") or lower.startswith("open edge ") or lower.startswith("launch edge "):
-        url = "https://www.bing.com"
-        parts = cmd.split(None, 2)
-        if len(parts) >= 3 and "." in parts[2]:
-            url = parts[2].strip()
-            if not url.startswith("http"):
-                url = f"https://{url}"
-        res = local_browser.open_edge(url=url)
-        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched Microsoft Edge directly ({url} • Native OS Process)\n")
-        return True
-
-    # Generic browser
-    if lower in ("open browser", "launch browser", "start browser"):
-        local_browser.open_window("https://www.google.com")
-        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched default browser (Native OS Process)\n")
-        return True
-
-    # Notepad
-    if lower in ("open notepad", "launch notepad", "notepad", "start notepad"):
-        subprocess.Popen(["notepad.exe"])
-        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched Notepad (notepad.exe • Native Windows Process)\n")
-        return True
-
-    # Calculator
-    if lower in ("open calc", "open calculator", "launch calc", "launch calculator", "calc", "calculator", "start calc"):
-        subprocess.Popen(["calc.exe"])
-        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched Windows Calculator (calc.exe • Native Windows Process)\n")
-        return True
-
-    # File Explorer
-    if lower in ("open explorer", "launch explorer", "open files", "explorer", "files"):
-        subprocess.Popen(["explorer.exe", "."])
-        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Opened Windows File Explorer at current directory\n")
-        return True
-
-    # PowerShell / Terminal
-    if lower in ("open terminal", "launch terminal", "open powershell", "open cmd", "terminal"):
-        subprocess.Popen(["powershell.exe"])
-        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched PowerShell terminal\n")
-        return True
-
-    return False
 
 def process_user_input(text: str):
     cmd = text.strip()
@@ -650,63 +588,8 @@ def process_user_input(text: str):
         print("Goodbye!")
         sys.exit(0)
 
-    # 0. Multilingual Comprehension & Intent Dispatch
-    m_intent, m_lang = multilingual_engine.match_multilingual_intent(cmd)
-    if m_intent == "GREETING":
-        print("\n" + multilingual_engine.get_greeting(m_lang) + "\n")
-        return
-    elif m_intent == "OPEN_CHROME":
-        local_browser.open_chrome()
-        msg = "Google Chrome launched successfully!"
-        if m_lang == "HINDI":
-            msg = "गूगल क्रोम सफलतापूर्वक खोला गया!"
-        elif m_lang == "TELUGU":
-            msg = "గూగుల్ క్రోమ్ విజయవంతంగా తెరవబడింది!"
-        elif m_lang == "KANNADA":
-            msg = "ಗೂಗಲ್ ಕ್ರೋಮ್ ಯಶಸ್ವಿಯಾಗಿ ತೆರೆಯಲಾಗಿದೆ!"
-        elif m_lang == "MALAYALAM":
-            msg = "ഗൂഗിൾ ക്രോം വിജയകരമായി തുറന്നു!"
-        elif m_lang == "FRENCH":
-            msg = "Google Chrome a été ouvert avec succès !"
-        elif m_lang == "ARABIC":
-            msg = "تم فتح جوجل كروم بنجاح!"
-        elif m_lang == "CHINESE":
-            msg = "谷歌Chrome浏览器已成功启动！"
-        elif m_lang == "JAPANESE":
-            msg = "Google Chromeが正常に起動しました！"
-        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m {msg}\n")
-        return
-    elif m_intent == "SYSTEM_DIAGNOSTICS":
-        diag = os_automator.get_system_diagnostics()
-        print("\n" + os_automator.render_diagnostics_card(diag) + "\n")
-        return
-    elif m_intent == "CLEAN_TEMP":
-        res = os_automator.clean_temp_files(dry_run=False)
-        msg = f"Reclaimed {res['reclaimed_mb']} MB disk space across {res['deleted_count']} temporary files."
-        if m_lang == "HINDI":
-            msg = f"{res['reclaimed_mb']} MB डिस्क स्पेस खाली कर दिया गया ({res['deleted_count']} फाइलें साफ की गईं)."
-        elif m_lang == "TELUGU":
-            msg = f"{res['reclaimed_mb']} MB డిస్క్ స్థలం క్లీన్ చేయబడింది ({res['deleted_count']} ఫైళ్లు తొలగించబడ్డాయి)."
-        elif m_lang == "CHINESE":
-            msg = f"已成功释放 {res['reclaimed_mb']} MB 磁盘空间（清理了 {res['deleted_count']} 个临时文件）。"
-        elif m_lang == "JAPANESE":
-            msg = f"{res['reclaimed_mb']} MBのディスク領域を解放しました（{res['deleted_count']}個の一時ファイルを削除）。"
-        print(f"\n🧹 \033[1;32m[OS AUTOMATOR]\033[0m {msg}\n")
-        return
-    elif m_intent == "VIDEO_EDIT":
-        print(f"\n\033[38;2;168;85;247m[AUTONOMOUS VIDEO STUDIO]\033[0m Taking full control of video tools...")
-        res = gui_agent.execute_video_editing_mission(cmd)
-        print("\n" + gui_agent.render_gui_mission_card(res) + "\n")
-        return
-    elif m_intent == "HEAL_CODE":
-        res = code_healer.heal_and_verify("python -m pytest commit_layer/tests/test_commit_layer.py -q")
-        print("\n" + code_healer.render_healer_card(res) + "\n")
-        return
-    elif m_intent == "OFFICE_SWARM":
-        res = virtual_office.run_swarm_cycle()
-        print(f"\n  ✅ Swarm cycle complete: {res['executed_count']} tasks executed!\n")
-        print(virtual_office.render_board())
-        return
+
+
 
     # Grounded Telemetry, Traces, Token Spend & Dataset Synthesis (Zero Hallucination)
     if any(k in lower for k in ("highest latency", "slowest trace", "trace latency", "latency yesterday", "traces latency")):
@@ -778,29 +661,7 @@ def process_user_input(text: str):
         print("\n" + trace_analytics.render_dataset_card(data) + "\n")
         return
 
-    # Conversational Friendly Greeting Check (Accepts cieav, cieva, and ceiav typos)
-    stripped = re.sub(r'[^\w\s]', '', lower).strip()
-    GREETINGS = (
-        "hi", "hello", "hey", "hi cieav", "hello cieav", "hey cieav",
-        "hi cieva", "hello cieva", "hey cieva", "hi ceiav", "hello ceiav", "hey ceiav",
-        "cieva", "ceiav", "cieav",
-        "good morning", "good afternoon", "good evening",
-        "who are you", "what are you", "what can you do"
-    )
-    if multilingual_engine.is_greeting(cmd) or lower in GREETINGS or stripped in GREETINGS:
-        show_conversational_greeting()
-        return
 
-    # Hands-Free Video Studio & GUI Tool Control
-    if any(w in lower for w in ("video edit", "edit video", "trim video", "cut video", "create video", "video studio", "gui control", "clipchamp", "capcut")):
-        print(f"\n\033[38;2;168;85;247m[AUTONOMOUS VIDEO STUDIO]\033[0m Taking full control of desktop & media tools...")
-        res = gui_agent.execute_video_editing_mission(cmd)
-        print("\n" + gui_agent.render_gui_mission_card(res) + "\n")
-        return
-
-    # Direct App Launch Check (Chrome, Edge, Notepad, Calculator, Explorer, etc.)
-    if handle_app_launch(cmd):
-        return
 
     # 1. SuperAgent Autonomous Goal / Mission
     if lower.startswith("goal ") or lower.startswith("/goal ") or lower.startswith("auto ") or lower.startswith("/auto "):
