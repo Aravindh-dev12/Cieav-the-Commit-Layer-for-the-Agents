@@ -18,6 +18,16 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+# If launched from protected Windows system directories (e.g. C:\WINDOWS\System32), switch to project root
+windir = os.environ.get("WINDIR", r"C:\Windows").lower()
+system_root = os.environ.get("SystemRoot", r"C:\Windows").lower()
+cwd_lower = os.getcwd().lower()
+if cwd_lower.startswith(windir) or cwd_lower.startswith(system_root):
+    try:
+        os.chdir(PROJECT_ROOT)
+    except (PermissionError, OSError):
+        pass
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 

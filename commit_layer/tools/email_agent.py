@@ -26,11 +26,15 @@ from commit_layer import privacy
 
 logger = logging.getLogger(__name__)
 
-OUTBOX_DIR = os.path.join(os.getcwd(), "personal_outbox")
+from commit_layer.workspace import get_data_dir
+OUTBOX_DIR = get_data_dir("personal_outbox")
 
 
 def _ensure_outbox_dir():
-    os.makedirs(OUTBOX_DIR, exist_ok=True)
+    try:
+        os.makedirs(OUTBOX_DIR, exist_ok=True)
+    except (PermissionError, OSError):
+        pass
 
 
 class EmailAgent:

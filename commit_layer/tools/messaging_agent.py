@@ -25,11 +25,15 @@ from commit_layer.local_browser import local_browser
 
 logger = logging.getLogger(__name__)
 
-MESSAGES_DIR = os.path.join(os.getcwd(), "personal_messages")
+from commit_layer.workspace import get_data_dir
+MESSAGES_DIR = get_data_dir("personal_messages")
 
 
 def _ensure_messages_dir():
-    os.makedirs(MESSAGES_DIR, exist_ok=True)
+    try:
+        os.makedirs(MESSAGES_DIR, exist_ok=True)
+    except (PermissionError, OSError):
+        pass
 
 
 class WhatsAppMessagingAgent:

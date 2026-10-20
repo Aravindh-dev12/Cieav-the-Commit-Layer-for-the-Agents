@@ -16,11 +16,15 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-NOTES_DIR = os.path.join(os.getcwd(), "personal_notes")
+from commit_layer.workspace import get_data_dir
+NOTES_DIR = get_data_dir("personal_notes")
 
 
 def _ensure_notes_dir():
-    os.makedirs(NOTES_DIR, exist_ok=True)
+    try:
+        os.makedirs(NOTES_DIR, exist_ok=True)
+    except (PermissionError, OSError):
+        pass
 
 
 class NotesManager:

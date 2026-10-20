@@ -31,13 +31,14 @@ from commit_layer.tools.notes_manager import notes_manager
 from commit_layer.tools.github_agent import github_agent
 from commit_layer.tools.email_agent import email_agent
 from commit_layer.tools.messaging_agent import whatsapp_agent
+from commit_layer.workspace import get_workspace_root
 
 
 class AutonomousLocalAgent:
     """Claude Code & Codex Class Local Agent Runtime."""
 
     def __init__(self):
-        self.workspace_root = os.getcwd()
+        self.workspace_root = get_workspace_root()
 
     def process_instruction(self, user_prompt: str) -> Dict[str, Any]:
         """

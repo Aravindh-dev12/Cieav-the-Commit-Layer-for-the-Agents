@@ -26,7 +26,8 @@ from commit_layer.models import Outcome
 
 logger = logging.getLogger(__name__)
 
-PROJECTS_DIR = os.path.join(os.getcwd(), "projects")
+from commit_layer.workspace import get_data_dir, get_workspace_root
+PROJECTS_DIR = get_data_dir("projects")
 
 
 def _run_cmd(cmd_args: List[str], cwd: Optional[str] = None, timeout: int = 25) -> Dict[str, Any]:
@@ -34,7 +35,7 @@ def _run_cmd(cmd_args: List[str], cwd: Optional[str] = None, timeout: int = 25) 
     try:
         proc = subprocess.run(
             cmd_args,
-            cwd=cwd or os.getcwd(),
+            cwd=cwd or get_workspace_root(),
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -60,7 +61,7 @@ class GitHubDevOpsAgent:
     """Autonomous GitHub & DevOps lifecycle controller."""
 
     def __init__(self, workspace_root: Optional[str] = None):
-        self.workspace_root = workspace_root or os.getcwd()
+        self.workspace_root = workspace_root or get_workspace_root()
         os.makedirs(PROJECTS_DIR, exist_ok=True)
 
     def list_issues(self, limit: int = 10, state: str = "open") -> Dict[str, Any]:
