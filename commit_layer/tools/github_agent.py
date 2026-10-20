@@ -547,8 +547,16 @@ class GitHubDevOpsTool(BaseTool):
             proj_path = result.get("project_path")
             if proj_path and os.path.exists(proj_path):
                 def _rollback_scaffold():
-                    # Move to .trash or delete
-                    shutil.rmtree(proj_path, ignore_errors=True)
+                    import stat
+                    def on_rm_error(func, p, exc_info):
+                        try:
+                            os.chmod(p, stat.S_IWRITE)
+                            func(p)
+                        except Exception:
+                            pass
+                    shutil.rmtree(proj_path, onerror=on_rm_error)
+                    if os.path.exists(proj_path):
+                        subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", proj_path], capture_output=True)
                     return {"undone": True, "removed": proj_path}
                 return _rollback_scaffold
         return None
