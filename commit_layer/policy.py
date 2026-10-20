@@ -15,11 +15,15 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
     if tool.startswith(('read_', 'get_', 'list_', 'headroom_')):
         return RiskLevel.LOW, ["Read-only / context optimization tool"]
 
-    # ── Notes & Knowledge Vault ─────────────────────────────────
     # ── Application & Web Service Control (Hands-Free Computer Use) ─
     if tool in ('open_application', 'close_application', 'launch_app'):
         return RiskLevel.LOW, ["User-directed application or web service control (safe and reversible)"]
 
+    # ── Email Intelligence & Inspection ─────────────────────────
+    if tool in ('inspect_gmail_application_views', 'inspect_email', 'search_email'):
+        return RiskLevel.LOW, ["Read-only email intelligence and search query inspection"]
+
+    # ── Notes & Knowledge Vault ─────────────────────────────────
     if tool == 'take_note':
         return RiskLevel.LOW, ["Personal markdown knowledge vault mutation (reversible)"]
 

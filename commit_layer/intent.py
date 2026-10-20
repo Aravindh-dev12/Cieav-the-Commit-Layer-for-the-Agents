@@ -36,6 +36,25 @@ def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
     p = prompt.strip()
     actions = []
 
+    # 0. Gmail & LinkedIn Application View Intelligence
+    try:
+        from commit_layer.tools.gmail_agent import gmail_agent
+        g_intent = gmail_agent.detect_gmail_application_intent(p)
+        if g_intent:
+            actions.append({
+                "domain": "email_intelligence",
+                "tool": "inspect_gmail_application_views",
+                "args": {
+                    "launch_browser": True,
+                    "query": g_intent.get("query", "LinkedIn viewed your application"),
+                    "company_filter": g_intent.get("company_filter")
+                },
+                "summary": "Autonomously open Gmail, search for LinkedIn application views, and synthesize viewed companies"
+            })
+            return actions
+    except Exception:
+        pass
+
     # 0. Windows OS: Recycle Bin Operations
     if re.search(r'^(empty|clear|purge|wipe)$', p, re.IGNORECASE) or re.search(r'\b(empty|clear|purge|wipe)\s+(?:the\s+)?(?:recycle\s*bin|bin|trash)\b', p, re.IGNORECASE):
         actions.append({

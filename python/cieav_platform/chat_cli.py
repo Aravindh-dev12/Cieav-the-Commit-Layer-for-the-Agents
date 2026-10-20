@@ -61,6 +61,7 @@ from commit_layer.trace_analytics import trace_analytics
 from commit_layer.hybrid_brain import hybrid_brain
 from commit_layer.agent_tool_server import agent_tool_server
 from commit_layer.tools.app_launcher import app_launcher
+from commit_layer.tools.gmail_agent import gmail_agent
 
 
 
@@ -622,6 +623,28 @@ def process_user_input(text: str):
     if lower in ("exit", "quit", "/quit", "/exit"):
         print("Goodbye!")
         sys.exit(0)
+
+    # Autonomous Gmail LinkedIn Application Inspector & Intelligence (100% Local CPU • Zero Friction • 2PC Safety)
+    gmail_intent = gmail_agent.detect_gmail_application_intent(cmd)
+    if gmail_intent:
+        from commit_layer import gateway
+        action = gateway.intercept(
+            tool_name="inspect_gmail_application_views",
+            args={
+                "launch_browser": True,
+                "query": gmail_intent.get("query", "LinkedIn viewed your application"),
+                "company_filter": gmail_intent.get("company_filter")
+            },
+            agent_id="cieav-user-agent"
+        )
+        res = gateway.process(action)
+        if res.get("status") == "pending":
+            res = gateway.approve(action.id, approved_by="auto-user")
+
+        last_committed_receipt_id = res.get("receipt_id")
+        inspection_data = res.get("result", {})
+        print("\n" + gmail_agent.render_cli_dossier(inspection_data, receipt_id=res.get("receipt_id", "AUTO")) + "\n")
+        return
 
     # Hands-Free Computer Control & App Launcher (e.g. "open my gmail", "open youtube", "launch calculator", "open vscode")
     app_intent = app_launcher.detect_app_intent(cmd)
