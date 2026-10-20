@@ -12,6 +12,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import shutil
 import sqlite3
 import time
 from typing import Any, Dict, List, Optional
@@ -120,6 +121,70 @@ class TraceAnalyticsEngine:
 
         lines.append("─" * 70)
         return "\n".join(lines)
+
+    def logout_ai_account(self, provider: str) -> Dict[str, Any]:
+        """
+        Safely log out of a local AI provider (ChatGPT or Claude) so you can
+        switch or link a new email subscription. Archives existing tokens.
+        """
+        user_home = os.path.expanduser("~")
+        prov = provider.lower().strip()
+        timestamp = int(time.time())
+
+        if "chatgpt" in prov or "openai" in prov or "codex" in prov:
+            codex_auth = os.path.join(user_home, ".codex", "auth.json")
+            if not os.path.exists(codex_auth):
+                return {"status": "info", "message": "No active ChatGPT credentials found on this machine."}
+            bak_path = f"{codex_auth}.bak.{timestamp}"
+            shutil.copy2(codex_auth, bak_path)
+            try:
+                with open(codex_auth, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                data["tokens"] = {}
+                data["auth_mode"] = "none"
+                with open(codex_auth, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                return {
+                    "status": "success",
+                    "provider": "ChatGPT / OpenAI",
+                    "backup_path": bak_path,
+                    "message": (
+                        "\033[1;32m✅ Successfully logged out from ChatGPT.\033[0m\n"
+                        f"   • Archived session to: {bak_path}\n"
+                        "   • You can now log into ChatGPT with your new email address.\n"
+                        "   • CIEAV will automatically detect and monitor your new email immediately!"
+                    )
+                }
+            except Exception as e:
+                return {"status": "error", "message": f"Logout failed: {str(e)}"}
+
+        elif "claude" in prov or "anthropic" in prov:
+            claude_cfg = os.path.join(user_home, ".claude.json")
+            if not os.path.exists(claude_cfg):
+                return {"status": "info", "message": "No active Claude credentials found on this machine."}
+            bak_path = f"{claude_cfg}.bak.{timestamp}"
+            shutil.copy2(claude_cfg, bak_path)
+            try:
+                with open(claude_cfg, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                data["oauthAccount"] = None
+                with open(claude_cfg, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                return {
+                    "status": "success",
+                    "provider": "Claude (Anthropic)",
+                    "backup_path": bak_path,
+                    "message": (
+                        "\033[1;32m✅ Successfully logged out from Claude.\033[0m\n"
+                        f"   • Archived profile to: {bak_path}\n"
+                        "   • You can now log into Claude with your new email address.\n"
+                        "   • CIEAV will automatically detect your new Claude subscription immediately!"
+                    )
+                }
+            except Exception as e:
+                return {"status": "error", "message": f"Logout failed: {str(e)}"}
+
+        return {"status": "error", "message": f"Unknown provider '{provider}'. Specify 'chatgpt' or 'claude'."}
 
     def detect_local_ai_subscriptions(self) -> Dict[str, Any]:
         """

@@ -88,11 +88,28 @@ class AutonomousLocalAgent:
             }
 
         # Subscription Discovery Explanation Intent
+        # Logout / Switch AI Account Intent
+        if any(k in lower for k in ("logout chatgpt", "logout openai", "switch chatgpt", "switch openai")):
+            res = trace_analytics.logout_ai_account("chatgpt")
+            return {
+                "type": "account_logout",
+                "message": res["message"],
+                "data": res
+            }
+        elif any(k in lower for k in ("logout claude", "logout anthropic", "switch claude", "switch anthropic")):
+            res = trace_analytics.logout_ai_account("claude")
+            return {
+                "type": "account_logout",
+                "message": res["message"],
+                "data": res
+            }
+
         SUBSCRIPTION_DISCOVERY_KEYS = (
             "how this cieav is know", "how cieav know", "how do you know", "how does it know",
             "which email", "mail subcibre", "mail subscribe", "mail subscribed", "email subscribed",
             "subscribed on claude", "subscribed on chatgpt", "my email", "claude email", "chatgpt email",
-            "account discovery", "check subscription", "subscription email"
+            "account discovery", "check subscription", "subscription email", "another email", "another mail",
+            "switch email", "change email", "switch account"
         )
         if any(k in lower for k in SUBSCRIPTION_DISCOVERY_KEYS) or ("know" in lower and "mail" in lower) or ("know" in lower and "email" in lower):
             msg = trace_analytics.explain_subscription_detection()
