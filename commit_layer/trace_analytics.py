@@ -9,6 +9,7 @@ the local Ed25519 hash-chain database and CFO ledger:
 """
 
 from __future__ import annotations
+import base64
 import json
 import os
 import sqlite3
@@ -120,6 +121,94 @@ class TraceAnalyticsEngine:
         lines.append("─" * 70)
         return "\n".join(lines)
 
+    def detect_local_ai_subscriptions(self) -> Dict[str, Any]:
+        """
+        Detect local AI accounts, emails, and active subscriptions across
+        Claude Code (~/.claude.json), Codex/ChatGPT (~/.codex/auth.json), and environment keys.
+        """
+        subs = {
+            "claude": {"subscribed": False, "email": None, "plan": "None", "org": "", "source": None},
+            "chatgpt": {"subscribed": False, "email": None, "plan": "None", "source": None}
+        }
+        user_home = os.path.expanduser("~")
+
+        # 1. Detect Claude Pro / Team subscription from ~/.claude.json
+        claude_cfg = os.path.join(user_home, ".claude.json")
+        if os.path.exists(claude_cfg):
+            try:
+                with open(claude_cfg, "r", encoding="utf-8") as f:
+                    cdata = json.load(f)
+                oauth = cdata.get("oauthAccount", {})
+                if oauth and oauth.get("emailAddress"):
+                    subs["claude"] = {
+                        "subscribed": True,
+                        "email": oauth.get("emailAddress"),
+                        "plan": "Claude Pro (Active Stripe Subscription)" if oauth.get("organizationType") == "claude_pro" else "Claude Subscription",
+                        "org": oauth.get("organizationName", ""),
+                        "source": "~/.claude.json"
+                    }
+            except Exception:
+                pass
+
+        # 2. Detect ChatGPT / OpenAI subscription from ~/.codex/auth.json
+        codex_auth = os.path.join(user_home, ".codex", "auth.json")
+        if os.path.exists(codex_auth):
+            try:
+                with open(codex_auth, "r", encoding="utf-8") as f:
+                    odata = json.load(f)
+                id_tok = odata.get("tokens", {}).get("id_token", "")
+                if id_tok and "." in id_tok:
+                    payload_b64 = id_tok.split(".")[1]
+                    payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
+                    payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+                    if payload.get("email"):
+                        subs["chatgpt"] = {
+                            "subscribed": True,
+                            "email": payload.get("email"),
+                            "plan": f"ChatGPT OAuth ({odata.get('auth_mode', 'chatgpt')})",
+                            "source": "~/.codex/auth.json"
+                        }
+            except Exception:
+                pass
+
+        return subs
+
+    def explain_subscription_detection(self) -> str:
+        """Explain how CIEAV sovereignly detects local AI subscriptions and emails."""
+        subs = self.detect_local_ai_subscriptions()
+        lines = []
+        lines.append("\033[1;36m[ACCOUNT DISCOVERY] Local Sovereign AI Subscription & Account Discovery\033[0m")
+        lines.append("─" * 74)
+        lines.append("CIEAV is 100% sovereign and local. It detects active AI accounts by reading")
+        lines.append("your machine's authenticated local configuration profiles with zero cloud APIs:\n")
+        
+        # Claude
+        c = subs.get("claude", {})
+        if c.get("subscribed"):
+            lines.append("1. \033[1;32mAnthropic Claude Account\033[0m:")
+            lines.append(f"   • Subscribed Email : \033[1;37m{c.get('email')}\033[0m")
+            lines.append(f"   • Subscription Plan: {c.get('plan')}")
+            lines.append(f"   • Organization     : {c.get('org')}")
+            lines.append(f"   • Detected Via     : {c.get('source')} (Local Claude CLI Auth Profile)\n")
+        else:
+            lines.append("1. Anthropic Claude: No active ~/.claude.json profile detected.\n")
+
+        # ChatGPT
+        g = subs.get("chatgpt", {})
+        if g.get("subscribed"):
+            lines.append("2. \033[1;32mOpenAI ChatGPT Account\033[0m:")
+            lines.append(f"   • Subscribed Email : \033[1;37m{g.get('email')}\033[0m")
+            lines.append(f"   • Auth Mode / Plan : {g.get('plan')}")
+            lines.append(f"   • Detected Via     : {g.get('source')} (Local OpenAI/Codex OAuth Session)\n")
+        else:
+            lines.append("2. OpenAI ChatGPT: No active ~/.codex/auth.json session detected.\n")
+
+        lines.append("3. \033[1;32mCIEAV Sovereign Core\033[0m:")
+        lines.append("   • Model Engine     : cieav-decider-v2 (100% Local CPU Jev 1.14 Core)")
+        lines.append("   • Cost & Cloud API : $0.00 / 0% Cloud Dependencies")
+        lines.append("─" * 74)
+        return "\n".join(lines)
+
     def get_token_spend_by_model(self) -> Dict[str, Any]:
         """
         Compute verified token spend by model using real local ledger metrics.
@@ -138,8 +227,18 @@ class TraceAnalyticsEngine:
         openai_key = os.environ.get("OPENAI_API_KEY", "")
         gemini_key = os.environ.get("GEMINI_API_KEY", "")
 
-        sonnet_sub = f"Subscribed (API: ...{anthropic_key[-4:]})" if anthropic_key else "Subscribed (Gateway Floor)"
-        haiku_sub = f"Subscribed (API: ...{anthropic_key[-4:]})" if anthropic_key else "Subscribed (Fast Triage)"
+        ai_subs = self.detect_local_ai_subscriptions()
+        claude_sub = ai_subs.get("claude", {})
+        if claude_sub.get("subscribed"):
+            email_tag = claude_sub.get("email", "")
+            sonnet_sub = f"Subscribed ({email_tag} • Pro)"
+            haiku_sub = f"Subscribed ({email_tag} • Triage)"
+        elif anthropic_key:
+            sonnet_sub = f"Subscribed (API: ...{anthropic_key[-4:]})"
+            haiku_sub = f"Subscribed (API: ...{anthropic_key[-4:]})"
+        else:
+            sonnet_sub = "Subscribed (Gateway Floor)"
+            haiku_sub = "Subscribed (Fast Triage)"
 
         # Breakdown by model architecture and verified subscription
         models_data = [

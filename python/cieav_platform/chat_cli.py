@@ -714,6 +714,17 @@ def process_user_input(text: str):
         print("\n" + trace_analytics.render_latency_card(data) + "\n")
         return
 
+    # Account & Subscription Discovery Explanation Intent
+    SUBSCRIPTION_DISCOVERY_KEYS = (
+        "how this cieav is know", "how cieav know", "how do you know", "how does it know",
+        "which email", "mail subcibre", "mail subscribe", "mail subscribed", "email subscribed",
+        "subscribed on claude", "subscribed on chatgpt", "my email", "claude email", "chatgpt email",
+        "account discovery", "check subscription", "subscription email"
+    )
+    if any(k in lower for k in SUBSCRIPTION_DISCOVERY_KEYS) or ("know" in lower and "mail" in lower) or ("know" in lower and "email" in lower):
+        print("\n" + trace_analytics.explain_subscription_detection() + "\n")
+        return
+
     TOKEN_QUERY_KEYS = (
         "modle token", "model token", "token used", "tokens used", "token usage",
         "tokens usage", "model usage", "models usage", "token spend", "spend by model",
