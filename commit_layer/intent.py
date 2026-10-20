@@ -159,8 +159,87 @@ def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
             "summary": f"Grant security privilege '{permission}' to user '{user}'"
         })
 
-    # 9. Email
-    elif re.search(r'\b(email|mail|notify|message)\b', p, re.IGNORECASE):
+    # 9. Notes & Knowledge Vault
+    elif re.search(r'\b(take\s+note|save\s+note|personal\s+note)\b', p, re.IGNORECASE):
+        content = re.sub(r'^(?:take\s+note|save\s+note|personal\s+note)\s*[:\-]?\s*', '', p, flags=re.IGNORECASE).strip() or p
+        actions.append({
+            "domain": "notes",
+            "tool": "take_note",
+            "args": {"content": content},
+            "summary": "Save personal note to knowledge vault"
+        })
+
+    # 10. Project Scaffolding
+    elif re.search(r'\b(create|scaffold|new|build)\s+project\b', p, re.IGNORECASE):
+        name_match = re.search(r'(?:create|scaffold|new|build)\s+project\s+([a-zA-Z0-9_\-]+)', p, re.IGNORECASE)
+        proj_name = name_match.group(1) if name_match else "app"
+        template = "python"
+        if "fastapi" in p.lower():
+            template = "fastapi"
+        elif "react" in p.lower() or "typescript" in p.lower():
+            template = "typescript"
+        actions.append({
+            "domain": "devops",
+            "tool": "github_devops",
+            "args": {"operation": "scaffold_project", "name": proj_name, "template": template},
+            "summary": f"Scaffold project '{proj_name}' with git repository and tests"
+        })
+
+    # 11. GitHub & DevOps (Issues, PRs, Push)
+    elif re.search(r'\b(check\s+issues|list\s+issues|github\s+issues)\b', p, re.IGNORECASE):
+        actions.append({
+            "domain": "devops",
+            "tool": "github_devops",
+            "args": {"operation": "list_issues"},
+            "summary": "Query live GitHub issues via native gh CLI"
+        })
+
+    elif re.search(r'\b(fix|patch|resolve)\s+(?:issue\s+)?#?(\d+)\b', p, re.IGNORECASE):
+        fix_match = re.search(r'(?:fix|patch|resolve)\s+(?:issue\s+)?#?(\d+)', p, re.IGNORECASE)
+        issue_num = int(fix_match.group(1)) if fix_match else 1
+        desc = re.sub(r'.*(?:fix|patch|resolve)\s+(?:issue\s+)?#?\d+\s*[:\-]?\s*', '', p, flags=re.IGNORECASE).strip() or "Bugfix resolution"
+        actions.append({
+            "domain": "devops",
+            "tool": "github_devops",
+            "args": {"operation": "fix_issue", "issue_number": issue_num, "description": desc},
+            "summary": f"Apply bugfix patch for GitHub issue #{issue_num}"
+        })
+
+    elif re.search(r'\b(raise|create|open)\s+(?:pr|pull\s+request)\b', p, re.IGNORECASE):
+        title_match = re.search(r'(?:raise|create|open)\s+(?:pr|pull\s+request)\s*[:\-]?\s*(.+)', p, re.IGNORECASE)
+        title = title_match.group(1).strip() if title_match else "Automated pull request"
+        actions.append({
+            "domain": "devops",
+            "tool": "github_devops",
+            "args": {"operation": "raise_pr", "title": title, "body": p},
+            "summary": f"Submit Pull Request: '{title}'"
+        })
+
+    elif re.search(r'\b(push\s+to\s+github|git\s+push)\b', p, re.IGNORECASE):
+        msg_match = re.search(r'(?:push\s+to\s+github|git\s+push)\s*(?:with\s+message\s+)?['"]?([^'"]+)?['"]?', p, re.IGNORECASE)
+        commit_msg = msg_match.group(1).strip() if (msg_match and msg_match.group(1)) else "Update via CIEAV Agent"
+        actions.append({
+            "domain": "devops",
+            "tool": "github_devops",
+            "args": {"operation": "push", "commit_msg": commit_msg},
+            "summary": "Stage and push commits to remote GitHub origin"
+        })
+
+    # 12. WhatsApp Messaging
+    elif re.search(r'\b(whatsapp|send\s+wa|wa\s+message)\b', p, re.IGNORECASE):
+        phone_match = re.search(r'(?:\+?\d[\d\-\s\(\)]{8,15}\d)', p)
+        phone = phone_match.group(0) if phone_match else "+14155552671"
+        msg_match = re.search(r'(?:saying|message|text)\s*[:\-]?\s*['"]?([^'"]+)['"]?', p, re.IGNORECASE)
+        msg = msg_match.group(1) if msg_match else "Notice from CIEAV"
+        actions.append({
+            "domain": "messaging",
+            "tool": "whatsapp_message",
+            "args": {"phone": phone, "message": msg},
+            "summary": f"Send WhatsApp message to {phone}"
+        })
+
+    # 13. Email
+    elif re.search(r'\b(email|mail|notify)\b', p, re.IGNORECASE):
         to_match = re.search(r'[\w\.-]+@[\w\.-]+', p)
         recipient = to_match.group(0) if to_match else "team@cieav.internal"
         actions.append({
@@ -173,7 +252,6 @@ def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
             },
             "summary": f"Send notification email to '{recipient}'"
         })
-
     else:
         # Default fallback: safe terminal info command
         actions.append({

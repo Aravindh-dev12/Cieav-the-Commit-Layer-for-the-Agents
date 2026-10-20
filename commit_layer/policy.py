@@ -15,10 +15,25 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
     if tool.startswith(('read_', 'get_', 'list_', 'headroom_')):
         return RiskLevel.LOW, ["Read-only / context optimization tool"]
 
+    # ── Notes & Knowledge Vault ─────────────────────────────────
+    if tool == 'take_note':
+        return RiskLevel.LOW, ["Personal markdown knowledge vault mutation (reversible)"]
 
-    # ── Email ───────────────────────────────────────────────────
-    if tool == 'send_email':
-        return RiskLevel.MEDIUM, ["Sending email (new address assumed for safety)"]
+    # ── Email & WhatsApp ────────────────────────────────────────
+    if tool in ('send_email', 'email_dispatch'):
+        return RiskLevel.MEDIUM, ["Sending email (outbound communication)"]
+
+    if tool == 'whatsapp_message':
+        return RiskLevel.MEDIUM, ["Governed WhatsApp communication via native deep link"]
+
+    # ── GitHub & DevOps ─────────────────────────────────────────
+    if tool == 'github_devops':
+        op = args.get('operation', 'list_issues')
+        if op in ('list_issues', 'view_issue'):
+            return RiskLevel.LOW, ["Read-only GitHub issue query"]
+        if op == 'scaffold_project':
+            return RiskLevel.LOW, ["Local project directory and template scaffolding (reversible)"]
+        return RiskLevel.HIGH, [f"Remote DevOps operation ({op})"]
 
     # ── Payments ────────────────────────────────────────────────
     if tool in ('send_payment', 'flaky_payment', 'payment'):
@@ -74,5 +89,3 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
 
     # ── Unknown tool → HIGH ─────────────────────────────────────
     return RiskLevel.HIGH, [f"Unknown tool: {tool}"]
-
-

@@ -36,6 +36,10 @@ from commit_layer.virtual_office import virtual_office
 from commit_layer.cli_game import cli_game
 from commit_layer.autonomous_agent import autonomous_agent
 from commit_layer.web_commerce import web_commerce
+from commit_layer.tools.notes_manager import notes_manager
+from commit_layer.tools.github_agent import github_agent
+from commit_layer.tools.email_agent import email_agent
+from commit_layer.tools.messaging_agent import whatsapp_agent
 
 
 
@@ -72,6 +76,8 @@ def get_interactive_banner() -> str:
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
   {c_emerald}●{rst} {c_white}Decision Model  :{rst} cieav-decider-v2 (Jev 1.14 CPU Class • {c_emerald}{lat:.2f}ms{rst} • 0% Cloud APIs)
   {c_emerald}●{rst} {c_white}Local Browser   :{rst} Native Edge/Chrome Engine (Headless DOM & Screenshots • No APIs)
+  {c_emerald}●{rst} {c_white}DevOps & GitHub :{rst} Native Git/gh Subsystems (Issues, PRs, Push & Scaffolding)
+  {c_emerald}●{rst} {c_white}Personal Vault  :{rst} Markdown Notes & Outbox Communications (100% On-Disk)
   {c_emerald}●{rst} {c_white}Virtual Office  :{rst} Multi-Agent Workspace (Atlas, Codex-Lead, CFO, Crust, Ops)
   {c_emerald}●{rst} {c_white}Cyber Simulator :{rst} Interactive Terminal Game Engine (Hack & Defend)
   {c_emerald}●{rst} {c_white}Cryptography    :{rst} Ed25519 Hash-Chained Key ID [{c_amber}{key_id}{rst}]
@@ -79,12 +85,13 @@ def get_interactive_banner() -> str:
   {c_emerald}●{rst} {c_white}Reversible SLA  :{rst} Two-Phase Lossless Rollback (/undo byte-for-byte)
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
 
- {c_cyan}┌─ CODEX & COMPUTER-USE ────────┐ ┌─ A2A & REA ECONOMY ─────────┐ ┌─ WORKSPACE & TOOLS ─────────┐{rst}
- {c_cyan}│{rst} {c_white}exec <cmd>{rst}   - Run local bash {c_cyan}│ │{rst} {c_white}/a2a{rst}       - Peer discovery {c_cyan}│ │{rst} {c_white}office{rst}     - Virtual office {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}write <file>{rst} - Synthesize code{c_cyan}│ │{rst} {c_white}/a2a ping{rst}  - Ed25519 auth   {c_cyan}│ │{rst} {c_white}browser{rst}    - Local browser  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}delete <file>{rst}- Governed purge {c_cyan}│ │{rst} {c_white}/a2a trade{rst} - 2PC procurement{c_cyan}│ │{rst} {c_white}game{rst}       - Play simulation{c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}/jobs{rst}        - Career agent   {c_cyan}│ │{rst} {c_white}/rea{rst}       - REA balance    {c_cyan}│ │{rst} {c_white}/undo{rst}      - Restore state  {c_cyan}│{rst}
- {c_cyan}└───────────────────────────────┘ └─────────────────────────────┘ └──────────────────────────────┘{rst}
+ {c_cyan}┌─ CODEX & DEVOPS ──────────────┐ ┌─ PERSONAL VAULT & COMMS ──────┐ ┌─ WORKSPACE & TOOLS ─────────┐{rst}
+ {c_cyan}│{rst} {c_white}create project <name>{rst} - Scaffold {c_cyan}│ │{rst} {c_white}note <text>{rst}    - Save note    {c_cyan}│ │{rst} {c_white}office{rst}     - Virtual office {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}issues{rst}        - GitHub issues  {c_cyan}│ │{rst} {c_white}notes{rst}          - List notes   {c_cyan}│ │{rst} {c_white}browser{rst}    - Local browser  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}fix issue <#>{rst} - Bug patch      {c_cyan}│ │{rst} {c_white}email to <..>{rst} - Governed mail{c_cyan}│ │{rst} {c_white}game{rst}       - Play simulation{c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}raise pr <..>{rst} - Create live PR  {c_cyan}│ │{rst} {c_white}whatsapp <..>{rst} - Native chat {c_cyan}│ │{rst} {c_white}/undo{rst}      - Restore state  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}push{rst}          - Git push origin{c_cyan}│ │{rst} {c_white}/jobs{rst}        - Career agent {c_cyan}│ │{rst} {c_white}/a2a{rst}       - A2A peer net   {c_cyan}│{rst}
+ {c_cyan}└───────────────────────────────┘ └──────────────────────────────┘ └──────────────────────────────┘{rst}
 """
     return banner_art
 
@@ -667,6 +674,106 @@ Available Governed Commands:
     elif lower in ("/undo", "undo"):
         handle_undo()
         return
+    # Personal Notes Vault Commands
+    if lower.startswith("note ") or lower.startswith("/note "):
+        content = cmd.split(" ", 1)[1].strip()
+        res = notes_manager.take_note(content)
+        print(f"\n  ✅ Note saved locally to '{res['filename']}' ({res['char_count']} chars • Reversible via /undo)")
+        print(notes_manager.render_cli_notes(notes_manager.list_notes(), title_label="Updated Notes Vault"))
+        return
+    elif lower in ("/notes", "notes", "list notes", "my notes", "all notes"):
+        print(notes_manager.render_cli_notes(notes_manager.list_notes()))
+        return
+    elif lower.startswith("search notes ") or lower.startswith("notes search ") or lower.startswith("/notes search "):
+        kw = re.sub(r'^(?:search\s+notes|notes\s+search|/notes\s+search)\s*', '', cmd, flags=re.IGNORECASE).strip()
+        matches = notes_manager.search_notes(kw)
+        print(notes_manager.render_cli_notes(matches, title_label=f"Search Results for '{kw}'"))
+        return
+
+    # Project Scaffolding Commands
+    if lower.startswith("create project ") or lower.startswith("scaffold project ") or lower.startswith("scaffold "):
+        parts = cmd.split()
+        proj_name = parts[2] if len(parts) >= 3 else parts[1]
+        template = "python"
+        if "fastapi" in lower:
+            template = "fastapi"
+        elif "typescript" in lower or "react" in lower:
+            template = "typescript"
+        res = github_agent.scaffold_project(name=proj_name, template=template)
+        print(github_agent.render_cli_card(res, action_type="scaffold"))
+        return
+
+    # GitHub & DevOps Commands
+    if lower in ("issues", "/issues", "github issues", "list issues", "check issues"):
+        res = github_agent.list_issues()
+        print(github_agent.render_cli_card(res, action_type="issues"))
+        return
+    elif lower.startswith("issue ") or lower.startswith("view issue "):
+        num_str = re.sub(r'^(?:issue|view\s+issue)\s*#?', '', cmd, flags=re.IGNORECASE).strip()
+        if num_str.isdigit():
+            res = github_agent.view_issue(int(num_str))
+            iss = res.get("issue", {})
+            print(f"\n🔍 GitHub Issue #{iss.get('number')}: {iss.get('title')}")
+            print(f"  • Author : @{(iss.get('author') or {}).get('login', 'dev')}")
+            print(f"  • URL    : {iss.get('url')}")
+            print(f"  • State  : {iss.get('state')}\n\n{iss.get('body', 'No description')}\n")
+            return
+    elif lower.startswith("fix issue ") or lower.startswith("patch issue "):
+        fix_match = re.search(r'(?:fix|patch)\s+issue\s+#?(\d+)', cmd, re.IGNORECASE)
+        if fix_match:
+            issue_num = int(fix_match.group(1))
+            desc = re.sub(r'.*(?:fix|patch)\s+issue\s+#?\d+\s*[:\-]?\s*', '', cmd, flags=re.IGNORECASE).strip() or "Resolve bug and qualify"
+            res = github_agent.fix_issue(issue_number=issue_num, fix_description=desc)
+            print(f"\n  ✅ Issue #{issue_num} resolved locally!")
+            print(f"  • Title  : {res['issue_title']}")
+            print(f"  • Commit : {res['commit_message']}")
+            print(f"  • Patched: {res['patched_file']}\n")
+            return
+    elif lower.startswith("raise pr ") or lower.startswith("create pr ") or lower.startswith("pr "):
+        title = re.sub(r'^(?:raise\s+pr|create\s+pr|pr)\s*[:\-]?\s*', '', cmd, flags=re.IGNORECASE).strip() or "Feat: Autonomous agent update"
+        res = github_agent.raise_pr(title=title, body=f"Automated PR from CLI: {cmd}")
+        print(github_agent.render_cli_card(res, action_type="pr"))
+        return
+    elif lower in ("push", "/push", "push to github", "git push") or lower.startswith("push "):
+        msg = "Update via CIEAV Agent"
+        if cmd.lower().startswith("push ") and len(cmd.split(" ", 1)[1].strip()) > 0 and cmd.lower() != "push to github":
+            msg = cmd.split(" ", 1)[1].strip().strip('"').strip("'")
+        res = github_agent.push_to_github(commit_msg=msg)
+        print(github_agent.render_cli_card(res, action_type="push"))
+        return
+
+    # Governed Email Commands
+    if lower.startswith("email ") or lower.startswith("send email ") or lower.startswith("write mail ") or lower.startswith("send mail "):
+        email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', cmd)
+        to_email = email_match.group(0) if email_match else "recipient@cieav.internal"
+        subj_match = re.search(r'subject\s*[:\-]?\s*['""]?([^'""]+)['""]?', cmd, re.IGNORECASE)
+        subject = subj_match.group(1) if subj_match else "Notice from CIEAV Agent"
+        body_match = re.search(r'(?:body|message|saying)\s*[:\-]?\s*['""]?([^'""]+)['""]?', cmd, re.IGNORECASE)
+        body = body_match.group(1) if body_match else cmd
+        res = email_agent.compose_and_send(to=to_email, subject=subject, body=body, launch_client=True)
+        print(email_agent.render_cli_card(res))
+        return
+    elif lower in ("/outbox", "outbox", "list outbox"):
+        emails = email_agent.list_outbox()
+        print(f"\n[PERSONAL OUTBOX VAULT] ({len(emails)} dispatched emails):")
+        for e in emails[:8]:
+            print(f"  • To: {e['to']} | Subj: {e['subject']} | Date: {e['date']}")
+        print()
+        return
+
+    # Governed WhatsApp Commands
+    if lower.startswith("whatsapp ") or lower.startswith("send whatsapp ") or lower.startswith("wa "):
+        phone_match = re.search(r'(?:\+?\d[\d\-\s\(\)]{8,15}\d)', cmd)
+        phone = phone_match.group(0) if phone_match else "+14155552671"
+        msg_match = re.search(r'(?:saying|message|text)\s*[:\-]?\s*['""]?([^'""]+)['""]?', cmd, re.IGNORECASE)
+        if not msg_match and len(cmd.split()) >= 3:
+            msg = cmd.split(None, 2)[2]
+        else:
+            msg = msg_match.group(1) if msg_match else "Hello from CIEAV Agent OS!"
+        res = whatsapp_agent.send_whatsapp(phone=phone, message=msg, launch_browser=True)
+        print(whatsapp_agent.render_cli_card(res))
+        return
+
     elif lower in ("/office", "office", "/workspace", "workspace", "virtual office", "office status"):
         print("\n" + virtual_office.render_board())
         return
