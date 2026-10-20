@@ -145,7 +145,8 @@ def test_project_scaffolding_and_git_init():
     assert os.path.isdir(proj_path)
     assert os.path.exists(os.path.join(proj_path, "README.md"))
     assert os.path.exists(os.path.join(proj_path, "pyproject.toml"))
-    assert os.path.exists(os.path.join(proj_path, "src", "test_analytics_engine", "core.py"))
+    proj_pkg = res["project_name"].replace("-", "_")
+    assert os.path.exists(os.path.join(proj_path, "src", proj_pkg, "core.py"))
     assert os.path.exists(os.path.join(proj_path, "tests", "test_core.py"))
     assert os.path.isdir(os.path.join(proj_path, ".git"))
 
