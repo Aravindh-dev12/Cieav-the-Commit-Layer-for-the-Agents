@@ -31,6 +31,9 @@ from commit_layer.tools.notes_manager import notes_manager
 from commit_layer.tools.github_agent import github_agent
 from commit_layer.tools.email_agent import email_agent
 from commit_layer.tools.messaging_agent import whatsapp_agent
+from commit_layer.tools.os_automator import os_automator
+from commit_layer.code_healer import code_healer
+from commit_layer.super_agent import super_agent
 from commit_layer.workspace import get_workspace_root
 
 
@@ -110,6 +113,104 @@ class AutonomousLocalAgent:
             return {
                 "type": "app_launch",
                 "message": "🚀 [APP LAUNCHER] Opened Windows File Explorer at current directory"
+            }
+
+        # SuperAgent Autonomous Goal / Mission Intent
+        if lower.startswith("goal ") or lower.startswith("/goal ") or lower.startswith("auto ") or lower.startswith("/auto ") or any(w in lower for w in ("autonomous mission", "execute goal", "super agent")):
+            goal_text = re.sub(r'^(?:goal|/goal|auto|/auto)\s+', '', p, flags=re.IGNORECASE).strip() or p
+            res = super_agent.execute_goal(goal_text)
+            return {
+                "type": "super_agent",
+                "message": super_agent.render_mission_card(res),
+                "data": res
+            }
+
+        # Autonomous Code Healer Intent
+        if any(w in lower for w in ("heal code", "repair code", "heal tests", "fix tests", "self heal", "debug tests", "auto heal")):
+            res = code_healer.heal_and_verify("python -m pytest commit_layer/tests/test_commit_layer.py -q")
+            return {
+                "type": "code_healer",
+                "message": code_healer.render_healer_card(res),
+                "data": res
+            }
+
+        # OS Diagnostics & System Telemetry Intent
+        if any(w in lower for w in ("system status", "diagnostics", "telemetry", "cpu load", "ram usage", "memory usage", "disk space", "check system", "inspect system")):
+            diag = os_automator.get_system_diagnostics()
+            return {
+                "type": "diagnostics",
+                "message": os_automator.render_diagnostics_card(diag),
+                "data": diag
+            }
+
+        # Safe Temp & Cache Cleaner Intent
+        if any(w in lower for w in ("clean temp", "clean cache", "clean junk", "purge temp", "free disk", "empty temp")):
+            res = os_automator.clean_temp_files(dry_run=False)
+            return {
+                "type": "temp_cleaner",
+                "message": (
+                    f"🧹 \033[1;32m[OS AUTOMATOR • TEMP CLEANER]\033[0m\n"
+                    f"  • Files Purged  : \033[1;36m{res.get('deleted_count', 0)}\033[0m safe temporary files\n"
+                    f"  • Space Freed   : \033[1;32m{res.get('reclaimed_mb', 0)} MB\033[0m disk space reclaimed\n"
+                    f"  • Locked In-Use : {res.get('skipped_locked', 0)} (preserved)\n"
+                    f"  • Status        : Cleaned safely without impacting running processes"
+                ),
+                "data": res
+            }
+
+        # Workspace File Organizer Intent
+        if any(w in lower for w in ("organize directory", "organize folder", "sort files", "organize files")):
+            target_match = re.search(r'(?:directory|folder|in)\s+([A-Za-z]:\\[^\s"\'<>]+|\/[^\s"\'<>]+)', p)
+            target = target_match.group(1) if target_match else "."
+            res = os_automator.organize_directory(target)
+            return {
+                "type": "file_organizer",
+                "message": (
+                    f"📁 \033[1;32m[OS AUTOMATOR • FILE ORGANIZER]\033[0m\n"
+                    f"  • Target Directory : {res.get('target_dir')}\n"
+                    f"  • Organized Files  : \033[1;36m{res.get('moved_count', 0)}\033[0m sorted by category\n"
+                    f"  • Categories       : Documents, Media, Code, Archives, Data\n"
+                    f"  • Rollback SLA     : 100% reversible via /undo"
+                ),
+                "data": res
+            }
+
+        # Duplicate File Finder Intent
+        if any(w in lower for w in ("find duplicates", "check duplicates", "duplicate files", "dedup")):
+            target_match = re.search(r'(?:in|for)\s+([A-Za-z]:\\[^\s"\'<>]+|\/[^\s"\'<>]+)', p)
+            target = target_match.group(1) if target_match else "."
+            res = os_automator.find_duplicates(target)
+            return {
+                "type": "duplicate_finder",
+                "message": (
+                    f"🔍 \033[1;32m[OS AUTOMATOR • DUPLICATE SCANNER]\033[0m\n"
+                    f"  • Scanned Directory: {res.get('target_dir')}\n"
+                    f"  • Redundant Files  : \033[1;33m{res.get('redundant_files_count', 0)}\033[0m duplicate(s)\n"
+                    f"  • Unique Hashes    : {res.get('duplicate_groups', 0)} collision group(s)"
+                ),
+                "data": res
+            }
+
+        # Listening Ports Inspector Intent
+        if any(w in lower for w in ("ports", "listening ports", "active ports", "check ports")):
+            ports_data = os_automator.inspect_ports()
+            return {
+                "type": "ports",
+                "message": os_automator.render_ports_card(ports_data),
+                "data": ports_data
+            }
+
+        # Swarm Office Execution Intent
+        if lower in ("office run", "office swarm", "run swarm", "run office", "swarm execute", "/office run"):
+            res = virtual_office.run_swarm_cycle()
+            return {
+                "type": "virtual_office",
+                "message": (
+                    f"🚀 \033[1;32m[VIRTUAL OFFICE • SWARM EXECUTION]\033[0m\n"
+                    f"  • Completed Tasks  : \033[1;36m{res.get('executed_count', 0)}\033[0m tasks advanced by agent team\n\n"
+                    + virtual_office.render_board()
+                ),
+                "data": res
             }
 
         # 1. Notes & Knowledge Vault Intent

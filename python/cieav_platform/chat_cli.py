@@ -51,6 +51,9 @@ from commit_layer.tools.notes_manager import notes_manager
 from commit_layer.tools.github_agent import github_agent
 from commit_layer.tools.email_agent import email_agent
 from commit_layer.tools.messaging_agent import whatsapp_agent
+from commit_layer.tools.os_automator import os_automator
+from commit_layer.code_healer import code_healer
+from commit_layer.super_agent import super_agent
 
 
 
@@ -82,26 +85,26 @@ def get_interactive_banner() -> str:
 {c_emerald} ╚██████╗ ██║███████╗██║  ██║ ╚████╔╝ {rst}
 {c_amber}  ╚═════╝ ╚═╝╚══════╝╚═╝  ╚═╝  ╚═══╝  {rst}
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
-  {c_white}S O V E R E I G N   C O M P U T E R - C O N T R O L   A G E N T   O S{rst}
-  {c_slate}100% Local • Claude Code & Codex Class • Reversible Two-Phase Commits (2PC){rst}
+  {c_white}W O R L D - C L A S S   A U T O N O M O U S   A G E N T I C   O S{rst}
+  {c_slate}100% Local • Devin, Claude Code & Codex Class • Zero Manual Work • 2PC Safety{rst}
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
   {c_emerald}●{rst} {c_white}Decision Model  :{rst} cieav-decider-v2 (Jev 1.14 CPU Class • {c_emerald}{lat:.2f}ms{rst} • 0% Cloud APIs)
-  {c_emerald}●{rst} {c_white}Local Browser   :{rst} Native Edge/Chrome Engine (Headless DOM & Screenshots • No APIs)
+  {c_emerald}●{rst} {c_white}SuperAgent Goal :{rst} Autonomous Multi-Phase Pipeline (Goal ➔ Plan ➔ Act ➔ Self-Heal)
+  {c_emerald}●{rst} {c_white}Code Healer     :{rst} Devin-Class Autonomous Bug Diagnostic & Self-Repair Engine
+  {c_emerald}●{rst} {c_white}OS Maintenance  :{rst} Live Telemetry, Safe Temp Cleaner, Port & Duplicate Scanners
+  {c_emerald}●{rst} {c_white}Virtual Office  :{rst} Multi-Agent Swarm (Atlas, Codex-Lead, CFO, Crust, Ops)
+  {c_emerald}●{rst} {c_white}Local Browser   :{rst} Native Edge/Chrome Engine (DOM Extraction & Screenshots)
   {c_emerald}●{rst} {c_white}DevOps & GitHub :{rst} Native Git/gh Subsystems (Issues, PRs, Push & Scaffolding)
-  {c_emerald}●{rst} {c_white}Personal Vault  :{rst} Markdown Notes & Outbox Communications (100% On-Disk)
-  {c_emerald}●{rst} {c_white}Virtual Office  :{rst} Multi-Agent Workspace (Atlas, Codex-Lead, CFO, Crust, Ops)
-  {c_emerald}●{rst} {c_white}Cyber Simulator :{rst} Interactive Terminal Game Engine (Hack & Defend)
   {c_emerald}●{rst} {c_white}Cryptography    :{rst} Ed25519 Hash-Chained Key ID [{c_amber}{key_id}{rst}]
-  {c_emerald}●{rst} {c_white}OS Storage Guard:{rst} Windows Recycle Bin: {c_magenta}{rb_str}{rst} (Governed)
   {c_emerald}●{rst} {c_white}Reversible SLA  :{rst} Two-Phase Lossless Rollback (/undo byte-for-byte)
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
 
- {c_cyan}┌─ CODEX & DEVOPS ──────────────┐ ┌─ PERSONAL VAULT & COMMS ──────┐ ┌─ WORKSPACE & TOOLS ─────────┐{rst}
- {c_cyan}│{rst} {c_white}create project <name>{rst} - Scaffold {c_cyan}│ │{rst} {c_white}note <text>{rst}    - Save note    {c_cyan}│ │{rst} {c_white}office{rst}     - Virtual office {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}issues{rst}        - GitHub issues  {c_cyan}│ │{rst} {c_white}notes{rst}          - List notes   {c_cyan}│ │{rst} {c_white}browser{rst}    - Local browser  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}fix issue <#>{rst} - Bug patch      {c_cyan}│ │{rst} {c_white}email to <..>{rst} - Governed mail{c_cyan}│ │{rst} {c_white}game{rst}       - Play simulation{c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}raise pr <..>{rst} - Create live PR  {c_cyan}│ │{rst} {c_white}whatsapp <..>{rst} - Native chat {c_cyan}│ │{rst} {c_white}/undo{rst}      - Restore state  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}push{rst}          - Git push origin{c_cyan}│ │{rst} {c_white}/jobs{rst}        - Career agent {c_cyan}│ │{rst} {c_white}/a2a{rst}       - A2A peer net   {c_cyan}│{rst}
+ {c_cyan}┌─ SUPERAGENT & DEVOPS ─────────┐ ┌─ OS MAINTENANCE & VAULT ────┐ ┌─ WORKSPACE & TOOLS ─────────┐{rst}
+ {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}office run{rst}     - Swarm execute  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}browser <url>{rst}  - Local browser  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}create project{rst}  - Scaffolding   {c_cyan}│ │{rst} {c_white}organize <dir>{rst}  - Sort files   {c_cyan}│ │{rst} {c_white}game{rst}           - Cyber simulator{c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}issues / push{rst}   - GitHub ops    {c_cyan}│ │{rst} {c_white}duplicates{rst}      - Dedup files  {c_cyan}│ │{rst} {c_white}/undo{rst}          - Restore state  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}fix issue <#>{rst}   - Bug patch     {c_cyan}│ │{rst} {c_white}note <text>{rst}     - Vault notes  {c_cyan}│ │{rst} {c_white}/jobs{rst}          - Career tracker {c_cyan}│{rst}
  {c_cyan}└───────────────────────────────┘ └──────────────────────────────┘ └──────────────────────────────┘{rst}
 """
     return banner_art
@@ -651,6 +654,70 @@ def process_user_input(text: str):
 
     # Direct App Launch Check (Chrome, Edge, Notepad, Calculator, Explorer, etc.)
     if handle_app_launch(cmd):
+        return
+
+    # 1. SuperAgent Autonomous Goal / Mission
+    if lower.startswith("goal ") or lower.startswith("/goal ") or lower.startswith("auto ") or lower.startswith("/auto "):
+        goal_text = re.sub(r'^(?:goal|/goal|auto|/auto)\s+', '', cmd, flags=re.IGNORECASE).strip()
+        print(f"\n\033[38;2;168;85;247m[SUPERAGENT GOAL ENGINE]\033[0m Decomposing mission: '{goal_text}'...")
+        def progress_cb(cur, total, title):
+            print(f"  \033[1;36m[{cur}/{total}]\033[0m ⚡ Executing: {title}...")
+        res = super_agent.execute_goal(goal_text, stream_callback=progress_cb)
+        print("\n" + super_agent.render_mission_card(res) + "\n")
+        return
+
+    # 2. OS Diagnostics & Telemetry
+    if lower in ("system", "diagnostics", "telemetry", "sysinfo", "/system", "cpu", "ram"):
+        diag = os_automator.get_system_diagnostics()
+        print("\n" + os_automator.render_diagnostics_card(diag) + "\n")
+        return
+
+    # 3. Temp File Cleaner
+    if lower in ("clean temp", "clean cache", "clean junk", "purge temp", "/clean"):
+        print("\n[OS AUTOMATOR] Scanning %TEMP% for safe removable files...")
+        res = os_automator.clean_temp_files(dry_run=False)
+        print(f"  ✅ Reclaimed \033[1;32m{res['reclaimed_mb']} MB\033[0m disk space across {res['deleted_count']} temporary files.\n")
+        return
+
+    # 4. Workspace File Organizer
+    if lower.startswith("organize ") or lower in ("organize", "sort files"):
+        target = cmd.split(" ", 1)[1].strip().strip('"').strip("'") if " " in cmd else "."
+        print(f"\n[OS AUTOMATOR] Organizing files in '{target}' by category...")
+        res = os_automator.organize_directory(target)
+        print(f"  ✅ Organized \033[1;32m{res['moved_count']} files\033[0m into Documents, Media, Code, Archives, Data.")
+        print(f"  Type 'cieav /undo' to revert file moves.\n")
+        return
+
+    # 5. Duplicate File Scanner
+    if lower.startswith("duplicates ") or lower.startswith("dedup ") or lower in ("duplicates", "dedup", "find duplicates"):
+        target = cmd.split(" ", 1)[1].strip().strip('"').strip("'") if " " in cmd else "."
+        print(f"\n[OS AUTOMATOR] Scanning '{target}' for cryptographic duplicates (SHA256)...")
+        res = os_automator.find_duplicates(target)
+        print(f"  🔍 Found \033[1;33m{res['redundant_files_count']} redundant duplicate file(s)\033[0m across {res['duplicate_groups']} hash groups.\n")
+        return
+
+    # 6. Listening Ports
+    if lower in ("ports", "listening ports", "active ports", "/ports"):
+        pdata = os_automator.inspect_ports()
+        print("\n" + os_automator.render_ports_card(pdata) + "\n")
+        return
+
+    # 7. Autonomous Code Healer
+    if lower.startswith("heal") or lower in ("heal", "self heal", "fix tests", "repair code"):
+        cmd_to_heal = "python -m pytest commit_layer/tests/test_commit_layer.py -q"
+        if len(cmd.split(" ", 1)) > 1:
+            cmd_to_heal = cmd.split(" ", 1)[1].strip()
+        print(f"\n\033[38;2;168;85;247m[AUTONOMOUS CODE HEALER]\033[0m Running verification loop for: `{cmd_to_heal}`...")
+        res = code_healer.heal_and_verify(cmd_to_heal)
+        print("\n" + code_healer.render_healer_card(res) + "\n")
+        return
+
+    # 8. Virtual Office Swarm Cycle
+    if lower in ("office run", "office swarm", "run swarm", "swarm"):
+        print("\n\033[38;2;168;85;247m[VIRTUAL OFFICE SWARM]\033[0m Dispatching Atlas, Codex, CFO, Crust & Ops across pending tasks...")
+        res = virtual_office.run_swarm_cycle()
+        print(f"  ✅ Completed \033[1;32m{res['executed_count']} tasks\033[0m autonomously!\n")
+        print(virtual_office.render_board())
         return
 
     # Check for direct item selection after shopping search
