@@ -67,6 +67,8 @@ def get_interactive_banner() -> str:
   /test             - Run 6-domain live real-world verification test suite
   /decide <cmd>     - Query local decision model probabilities (<3ms)
   /jobs             - View real-world multi-platform career agent tracker
+   /a2a              - Futuristic Agent-to-Agent network & mutual attestation
+  /rea              - Resource-Event-Agent (REA) double-entry economic ledger
   /status           - Inspect Commit Layer health, keys and receipts
   /undo             - Instantly rollback the last committed action
   exit / quit       - Close session
@@ -237,6 +239,48 @@ def handle_undo():
         print("  Receipt state updated to UNDONE in cryptographic ledger.\n")
         job_tracker.update_application_status(last_committed_receipt_id, status="UNDONE", undo_state="UNDONE")
 
+
+
+def show_a2a_network():
+    from commit_layer.a2a import a2a_network
+    agents = a2a_network.list_agents()
+    print("\n\033[1;34m╔══════════════════════════════════════════════════════════════════════════════╗\033[0m")
+    print(f"\033[1;34m║\033[0m  \033[1;36mFUTURISTIC AGENT-TO-AGENT (A2A) FEDERATION & REA ECONOMIC DIRECTORY\033[0m         \033[1;34m║\033[0m")
+    print(f"\033[1;34m╠══════════════════════════════════════════════════════════════════════════════╣\033[0m")
+    print("  \033[1;37mProtocol\033[0m : \033[1;32mcieav-a2a/v1.0\033[0m (Ed25519 Mutual Attestation + REA Bilateral 2PC)")
+    print(f"  \033[1;37mDiscovered Network Agents\033[0m : \033[1;33m{len(agents)} Active Peers\033[0m\n")
+
+    rows = []
+    for a in agents:
+        aid = a['agent_id']
+        role = a['role']
+        caps = ', '.join(a['capabilities'][:2])
+        res_summary = ', '.join(f"{k}:{v['available']:.0f}" for k, v in a['resources'].items())
+        rows.append([aid, role, caps, res_summary])
+
+    print(format_table(rows, ['AGENT ID', 'ROLE', 'PRIMARY CAPABILITIES', 'REA PORTFOLIO']))
+    print("\n  \033[1;33mCommands:\033[0m")
+    print("    /a2a ping <agent_id>                  - Mutual cryptographic Ed25519 handshake")
+    print("    /a2a exchange <resource> <amount>     - Bilateral REA procurement (e.g. GPU_HOURS 5)")
+    print("    /rea                                  - Inspect double-entry REA balance sheet\n")
+
+
+def show_rea_ledger():
+    from commit_layer.rea import rea_ledger
+    portfolios = rea_ledger.get_all_agents_portfolios()
+    print("\n\033[1;34m╔══════════════════════════════════════════════════════════════════════════════╗\033[0m")
+    print(f"\033[1;34m║\033[0m  \033[1;36mRESOURCE-EVENT-AGENT (REA) DOUBLE-ENTRY ECONOMIC BALANCE SHEET\033[0m               \033[1;34m║\033[0m")
+    print(f"\033[1;34m╠══════════════════════════════════════════════════════════════════════════════╣\033[0m")
+    print("  \033[1;37mStandard\033[0m : \033[1;32mISO/IEC 15944-4 REA Duality + Ed25519 Hash-Chained Audit\033[0m\n")
+
+    rows = []
+    for agent_id, res_map in portfolios.items():
+        for res_type, vals in res_map.items():
+            rows.append([agent_id, res_type, f"{vals['total']:.2f}", f"{vals['escrowed']:.2f}", f"{vals['available']:.2f}"])
+
+    print(format_table(rows, ['AGENT ID', 'RESOURCE', 'TOTAL', 'ESCROWED', 'AVAILABLE']))
+    print(f"\n  Total Economic Events Recorded: \033[1;33m{len(rea_ledger.events)}\033[0m")
+    print(f"  Active Two-Phase Commitments  : \033[1;33m{len(rea_ledger.commitments)}\033[0m\n")
 
 def execute_governed_action(tool_name: str, args: dict, agent_id: str = "cieav-chat-agent"):
     global last_committed_receipt_id
@@ -535,6 +579,45 @@ Available Governed Commands:
         return
     elif lower in ("/undo", "undo"):
         handle_undo()
+        return
+    elif lower in ("/a2a", "a2a", "/agents", "agents"):
+        show_a2a_network()
+        return
+    elif lower in ("/rea", "rea", "/ledger", "ledger"):
+        show_rea_ledger()
+        return
+    elif cmd.startswith("/a2a ping ") or cmd.startswith("a2a ping "):
+        target_agent = cmd.split("ping", 1)[1].strip()
+        from commit_layer.a2a import a2a_network
+        try:
+            res = a2a_network.mutual_handshake("agent-atlas-personal", target_agent)
+            print(f"\n  ✅ Handshake SUCCESS with {target_agent}!")
+            print(f"  Channel: \033[1;32m{res['channel_id']}\033[0m | Attestation: \033[1;36m{res['attestation']}\033[0m\n")
+        except Exception as e:
+            print(f"\n  ❌ Handshake failed: {e}\n")
+        return
+    elif cmd.startswith("/a2a exchange ") or cmd.startswith("a2a exchange "):
+        parts = cmd.split()
+        if len(parts) >= 4:
+            res_type = parts[2].upper()
+            amt = float(parts[3])
+            seller = "agent-hyperbolic-compute" if "GPU" in res_type else "agent-crust-intel"
+            from commit_layer.a2a import a2a_network
+            try:
+                res = a2a_network.execute_a2a_bilateral_exchange(
+                    buyer_id="agent-atlas-personal",
+                    seller_id=seller,
+                    resource_needed=res_type,
+                    amount_needed=amt
+                )
+                print(f"\n  ✅ Bilateral REA Exchange COMMITTED!")
+                print(f"  Procured: \033[1;32m{res['exchange']['received']}\033[0m for \033[1;33m{res['exchange']['paid']}\033[0m from \033[1;36m{seller}\033[0m")
+                print(f"  Commitment ID: {res['commitment_id']} | Receipt: {res['receipt_id'][:8]} (Ed25519)")
+                print(f"  Two-Phase Rollback SLA: Reversible via /undo\n")
+            except Exception as e:
+                print(f"\n  ❌ A2A Exchange failed: {e}\n")
+        else:
+            print("Usage: /a2a exchange <RESOURCE_TYPE> <AMOUNT> (e.g. /a2a exchange GPU_HOURS 5)")
         return
     elif lower in ("/jobs", "jobs", "/report", "report"):
         print("\n" + job_tracker.format_cli_report() + "\n")

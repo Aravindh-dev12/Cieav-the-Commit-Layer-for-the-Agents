@@ -24,9 +24,10 @@ Video : https://www.loom.com/share/5e0c06f2fe1d4f02852c4dd5f9ff5c01?t=4
 2. [How CIEAV Works: The 6-Stage Commit Pipeline](#2-how-cieav-works-the-6-stage-commit-pipeline)
 3. [Autonomous Laptop Control: Safe Computer-Use (Like Alma)](#3-autonomous-laptop-control-safe-computer-use-like-alma)
 4. [Empirical Benchmarks: CIEAV vs. System 1 Decision Models (Jev 1.13, Kev, Laya)](#4-empirical-benchmarks-cieav-vs-system-1-decision-models-jev-113-kev-laya)
-5. [Local Installation & Quickstart](#5-local-installation--quickstart)
-6. [Interactive CLI & Computer-Use Commands](#6-interactive-cli--computer-use-commands)
-7. [Directory Structure](#7-directory-structure)
+5. [Futuristic Agent-to-Agent (A2A) Communications & REA Economic Ledger](#5-futuristic-agent-to-agent-a2a-communications--rea-economic-ledger)
+6. [Zero-Friction Autonomous Setup (Just Clone & Run)](#6-zero-friction-autonomous-setup-just-clone--run)
+7. [Interactive CLI & Computer-Use Commands](#7-interactive-cli--computer-use-commands)
+8. [Directory Structure](#8-directory-structure)
 
 ---
 
@@ -191,8 +192,56 @@ python test_real_world_cieav_live.py
 
 ---
 
+## 5. Futuristic Agent-to-Agent (A2A) Communications & REA Economic Ledger
 
-## 5. Zero-Friction Autonomous Setup (Just Clone & Run)
+CIEAV introduces **`cieav-a2a/v1.0`**, a sovereign Agent-to-Agent economic protocol designed for autonomous machine-to-machine coordination, resource procurement, and bilateral settlement without central clearinghouses.
+
+```
+┌─────────────────────────────────┐                 ┌─────────────────────────────────┐
+│     BUYER AGENT (e.g. Atlas)    │                 │   PROVIDER (e.g. Hyperbolic)    │
+│  ed25519_130ce62f ($1000 USD)   │                 │   ed25519_hyp_8812a0f1 (GPU)    │
+└────────────────┬────────────────┘                 └────────────────┬────────────────┘
+                 │                                                   │
+                 │ 1. Mutual Challenge Nonce (Ed25519 Handshake)    │
+                 │◄─────────────────────────────────────────────────►│
+                 │    Channel: chan_a2a_... (Mutual Attestation)     │
+                 │                                                   │
+                 │ 2. REA Two-Phase Commit Escrow Reservation        │
+                 │    • Locks $18.00 USD_CREDITS (Quarantine)        │
+                 │    • CFO Fiduciary Cap Check (<$100 bound: PASS)  │
+                 │    • Issues Single-Use Permit (60s TTL)           │
+                 │                                                   │
+                 │ 3. Phase 2: Atomic Bilateral Swap                 │
+                 │──────────────────────────────────────────────────►│
+                 │   Swaps $18.00 USD ⇄ 4.0 NVIDIA H100 GPU Hours    │
+                 │   Linked by Reciprocal Dual Event ID (ISO 15944-4)│
+                 │                                                   │
+                 │ 4. Ed25519 Signed Canonical Receipt               │
+                 │    Anchored into append-only SQLite Hash Chain    │
+                 ▼                                                   ▼
+```
+
+### ISO/IEC 15944-4 Resource-Event-Agent (REA) Ontology
+Traditional agent networks exchange unilateral messages without strict conservation of value. CIEAV enforces the formal **REA economic ontology**:
+1. **Double-Entry Value Conservation**: Resources (`USD_CREDITS`, `GPU_HOURS`, `INTEL_QUERIES`) cannot be created or destroyed during transfers. Total global value is strictly invariant.
+2. **Bilateral Reciprocal Duality**: Every transfer produces paired twin events—a `DISBURSE` event on the sender and a `RECEIVE` event on the recipient—cryptographically linked by a shared `dual_event_id`.
+3. **Two-Phase Commit (2PC) Atomic Settlement**:
+   - **Phase 1 (Prepare / Escrow)**: Funds are sequestered in escrow. Double-spending is mathematically prohibited while counterparties prepare deliverables.
+   - **Phase 2 (Commit)**: Escrow releases atomically across both ledgers simultaneously, producing an Ed25519 signed receipt anchored to genesis hash.
+4. **Lossless Two-Phase Rollback (`/undo`)**: If a provider fails to deliver SLA compute or an agent detects fraud, issuing `/undo` or `POST /api/a2a/rea/commitments/{id}/rollback` triggers reciprocal duality compensation, returning 100% of escrowed balances and marking the receipt `UNDONE`.
+
+### Terminal & CLI Commands for A2A
+```powershell
+cieav /a2a                          # View discovered autonomous peers & REA portfolios
+cieav /rea                          # Inspect global double-entry balance sheets & escrow state
+cieav /a2a ping agent-hyperbolic    # Mutual Ed25519 challenge-response handshake
+cieav /a2a exchange GPU_HOURS 4     # Procure 4 H100 GPU hours ($18.00) under 2PC guarantee
+cieav /undo                         # Instant bilateral rollback reversing both ledgers
+```
+
+---
+
+## 6. Zero-Friction Autonomous Setup (Just Clone & Run)
 
 CIEAV is built for instant autonomous onboarding. **No multi-step installation ceremony required.**
 
@@ -253,7 +302,7 @@ python test_real_world_cieav_live.py
 
 ---
 
-## 6. Interactive CLI & Computer-Use Commands
+## 7. Interactive CLI & Computer-Use Commands
 
 Run `cieav` in PowerShell to chat naturally with the agent:
 
@@ -272,11 +321,13 @@ cieav> find engineering jobs matching my resume and apply    # Career agent work
 
 ---
 
-## 7. Directory Structure
+## 8. Directory Structure
 
 ```text
 Cieav-the-Commit-Layer-for-the-Internet/
 ├── commit_layer/
+│   ├── a2a.py                   # Agent-to-Agent (A2A) protocol & mutual Ed25519 attestation
+│   ├── rea.py                   # REA Economic Ontology ledger (ISO/IEC 15944-4 double-entry)
 │   ├── app.py                   # FastAPI application & REST/WebSocket routes
 │   ├── decision_model.py        # Embedded local decision engine (/v1/decisions)
 │   ├── gateway.py               # Central interception and approval pipeline
@@ -305,7 +356,7 @@ Cieav-the-Commit-Layer-for-the-Internet/
 │   │   └── repo.py              # Real repository file tool with atomic snapshots
 │   ├── ui/
 │   │   └── index.html           # Unified landing page & interactive dashboard
-│   └── tests/                   # Pytest test suite (43 unit tests)
+│   └── tests/                   # Complete Pytest test suite (72 unit tests across 6 domains + A2A/REA)
 ├── python/cieav_platform/
 │   └── chat_cli.py              # Governed terminal assistant (Alma-style CLI)
 ├── benchmark_decision_models_vs_cieav.py  # 10-scenario empirical benchmark runner

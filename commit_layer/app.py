@@ -818,3 +818,117 @@ async def api_benchmark_run():
 
 
 
+
+
+# =========================================================================
+# Futuristic Agent-to-Agent (A2A) Communications & REA Economic Ledger Endpoints
+# =========================================================================
+
+class A2AHandshakeRequest(BaseModel):
+    initiator_id: str = "agent-atlas-personal"
+    responder_id: str = "agent-hyperbolic-compute"
+
+
+class A2AExchangeRequest(BaseModel):
+    buyer_id: str = "agent-atlas-personal"
+    seller_id: str = "agent-hyperbolic-compute"
+    resource_needed: str = "GPU_HOURS"
+    amount_needed: float = 10.0
+    currency_offered: str = "USD_CREDITS"
+    total_payment: Optional[float] = None
+    typed_confirmation: str = ""
+
+
+class REARollbackRequest(BaseModel):
+    reason: str = "Manual operator rollback"
+
+
+@app.get("/api/a2a/agents")
+async def api_a2a_list_agents(capability: Optional[str] = None):
+    """Discover registered autonomous agents and their capability manifests."""
+    from commit_layer.a2a import a2a_network
+    return {
+        "status": "success",
+        "protocol": "cieav-a2a/v1.0",
+        "agents": a2a_network.list_agents(capability=capability)
+    }
+
+
+@app.get("/api/a2a/agents/{agent_id}")
+async def api_a2a_get_agent(agent_id: str):
+    """Retrieve an individual agent manifest & public key attestation."""
+    from commit_layer.a2a import a2a_network
+    agent = a2a_network.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+    return agent.to_manifest()
+
+
+@app.post("/api/a2a/handshake")
+async def api_a2a_handshake(req: A2AHandshakeRequest):
+    """Execute 3-way Ed25519 challenge-response mutual attestation between two agents."""
+    from commit_layer.a2a import a2a_network
+    try:
+        return a2a_network.mutual_handshake(req.initiator_id, req.responder_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/a2a/exchange")
+async def api_a2a_exchange(req: A2AExchangeRequest):
+    """Orchestrate an end-to-end bilateral REA economic exchange under CIEAV commit governance."""
+    from commit_layer.a2a import a2a_network
+    try:
+        return a2a_network.execute_a2a_bilateral_exchange(
+            buyer_id=req.buyer_id,
+            seller_id=req.seller_id,
+            resource_needed=req.resource_needed,
+            amount_needed=req.amount_needed,
+            currency_offered=req.currency_offered,
+            total_payment=req.total_payment,
+            operator_typed_confirmation=req.typed_confirmation
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/a2a/rea/ledger")
+async def api_rea_ledger():
+    """Retrieve global REA double-entry economic resource ledger."""
+    from commit_layer.rea import rea_ledger
+    import dataclasses
+    return {
+        "status": "success",
+        "portfolios": rea_ledger.get_all_agents_portfolios(),
+        "active_commitments": [
+            dataclasses.asdict(c) for c in rea_ledger.commitments.values()
+        ]
+    }
+
+
+@app.get("/api/a2a/rea/events")
+async def api_rea_events():
+    """Stream signed REA economic events and bilateral duality links."""
+    from commit_layer.rea import rea_ledger
+    import dataclasses
+    return {
+        "status": "success",
+        "total_events": len(rea_ledger.events),
+        "events": [dataclasses.asdict(e) for e in rea_ledger.events.values()]
+    }
+
+
+@app.post("/api/a2a/rea/commitments/{commitment_id}/rollback")
+async def api_rea_rollback(commitment_id: str, req: REARollbackRequest):
+    """Execute lossless two-phase rollback (/undo) of a committed REA exchange."""
+    from commit_layer.rea import rea_ledger
+    import dataclasses
+    try:
+        res = rea_ledger.rollback_committed_exchange(commitment_id, reason=req.reason)
+        return {
+            "status": "success",
+            "commitment": dataclasses.asdict(res),
+            "portfolios": rea_ledger.get_all_agents_portfolios()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

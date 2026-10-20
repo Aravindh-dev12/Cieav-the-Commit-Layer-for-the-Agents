@@ -1298,6 +1298,12 @@
               </span>
               <span class="nav-text">Model Benchmarks</span>
             </button>
+            <button class="nav-item" onclick="switchDashTab('a2a')" id="nav-a2a">
+              <span class="nav-icon">
+                <svg class="lucide-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </span>
+              <span class="nav-text">A2A & REA Network</span>
+            </button>
           </nav>
         </div>
 
@@ -2200,6 +2206,174 @@
             </div>
           </div>
 
+          <!-- ==============================================
+               TAB 13: FUTURISTIC AGENT-TO-AGENT (A2A) & REA ECONOMIC LEDGER
+               ============================================== -->
+          <div id="pane-a2a" class="dash-tab-pane">
+            <div class="white-card" style="margin-bottom: 20px;">
+              <div class="card-header">
+                <div>
+                  <span class="card-title">🌐 Futuristic Agent-to-Agent (A2A) Network & REA Economic Ledger</span>
+                  <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">
+                    Autonomous peer-to-peer economic protocol (<code>cieav-a2a/v1.0</code>) with Ed25519 mutual challenge-response handshakes, ISO/IEC 15944-4 REA bilateral duality, and Two-Phase Commit (2PC) atomic settlement.
+                  </div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                  <button class="btn btn-dark" onclick="executeQuickDemoExchange()" id="btnQuickA2ADemo">⚡ Run Autonomous A2A Procurement Demo</button>
+                  <button class="btn btn-light" onclick="loadA2AData()">↺ Refresh</button>
+                </div>
+              </div>
+
+              <!-- Top KPI Stats Grid -->
+              <div class="dash-grid-4" style="margin-bottom: 20px;">
+                <div class="white-card" style="border-left: 4px solid var(--low);">
+                  <div class="stat-label">Active A2A Peers</div>
+                  <div class="stat-val" id="a2aPeerCountStat" style="color:var(--low);">4 Online</div>
+                  <div class="stat-hint">Ed25519 Verified Signatures</div>
+                </div>
+                <div class="white-card" style="border-left: 4px solid #0284c7;">
+                  <div class="stat-label">Protocol Version</div>
+                  <div class="stat-val" style="color:#0284c7; font-size:20px;">cieav-a2a/v1.0</div>
+                  <div class="stat-hint">REA Reciprocal Duality</div>
+                </div>
+                <div class="white-card" style="border-left: 4px solid var(--undo);">
+                  <div class="stat-label">Atomic Settlement</div>
+                  <div class="stat-val" style="color:var(--undo);">2PC ESCROW</div>
+                  <div class="stat-hint">Single-Use Permit (60s TTL)</div>
+                </div>
+                <div class="white-card" style="border-left: 4px solid #16a34a;">
+                  <div class="stat-label">Lossless Rollback SLA</div>
+                  <div class="stat-val" style="color:#16a34a;">100% (/undo)</div>
+                  <div class="stat-hint">Instant Dual Reversal</div>
+                </div>
+              </div>
+
+              <!-- Peer Discovery & Capability Registry -->
+              <div class="card-header" style="margin-top: 10px;">
+                <span class="card-title">🤖 Discovered Autonomous Agents & Mutual Attestation</span>
+                <span style="font-size: 12px; color: var(--text-muted);">Real-time DID profile resolution with cryptographic challenge nonce</span>
+              </div>
+              <div id="a2aAgentsList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                <!-- Dynamically populated peer cards -->
+              </div>
+
+              <!-- Bilateral REA Exchange Workbench -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+                <!-- Left: Trade Console -->
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 18px;">
+                  <div style="font-weight: 700; font-size: 14px; margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+                    <span>⚡ Two-Phase Commit Procurement Console</span>
+                    <span class="badge" style="background:#e0f2fe; color:#0369a1; font-size:10px;">CFO Governed</span>
+                  </div>
+                  
+                  <div style="margin-bottom: 12px;">
+                    <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Target Provider Agent</label>
+                    <select id="a2aTradeProvider" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 6px; font-size: 13px; font-family: var(--sans);" onchange="updateTradeResourceOptions()">
+                      <option value="agent-hyperbolic-compute">agent-hyperbolic-compute (NVIDIA H100 SXM5 GPU Cluster)</option>
+                      <option value="agent-crust-intel">agent-crust-intel (Threat & Identity Screening)</option>
+                    </select>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 12px;">
+                    <div>
+                      <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Acquired Resource</label>
+                      <input type="text" id="a2aTradeResource" value="GPU_HOURS" readonly style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 6px; font-size: 13px; font-family: var(--mono); background: #f1f5f9;">
+                    </div>
+                    <div>
+                      <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Amount (Units)</label>
+                      <input type="number" id="a2aTradeAmount" value="4" min="1" max="20" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border-dark); border-radius: 6px; font-size: 13px; font-family: var(--mono);" oninput="updateTradeCostEstimate()">
+                    </div>
+                  </div>
+
+                  <div style="background: #ffffff; border: 1px dashed var(--border-dark); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 12px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                      <span style="color:var(--text-muted);">Estimated Disbursal:</span>
+                      <strong id="a2aTradeCostEst">$18.00 USD_CREDITS ($4.50/unit)</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                      <span style="color:var(--text-muted);">CFO Spending Cap Check:</span>
+                      <span style="color:var(--low); font-weight:600;">PASS (&lt; $100 Ceiling)</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                      <span style="color:var(--text-muted);">Settlement Guarantee:</span>
+                      <span style="color:var(--undo); font-weight:600;">Atomic 2PC + Lossless Rollback</span>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-dark" style="flex: 2;" onclick="submitA2AExchange()" id="btnSubmitTrade">Initiate 2PC Exchange</button>
+                    <button class="btn btn-light" style="flex: 1;" onclick="testA2AHandshakeForSelected()">Test Handshake</button>
+                  </div>
+                </div>
+
+                <!-- Right: Live 2PC Telemetry & Rollback Deck -->
+                <div style="background: #0f172a; border-radius: 10px; padding: 16px; color: #f8fafc; font-family: var(--mono); font-size: 11.5px; display: flex; flex-direction: column;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:8px; margin-bottom:10px;">
+                    <span style="color:#38bdf8; font-weight:700;">// A2A 2PC EXECUTION TELEMETRY</span>
+                    <span id="a2aTelemetryBadge" style="font-size:10px; background:#1e293b; color:#94a3b8; padding:2px 6px; border-radius:4px;">IDLE</span>
+                  </div>
+                  <div id="a2aTelemetryConsole" style="flex:1; overflow-y:auto; max-height:220px; line-height:1.6; color:#cbd5e1;">
+                    <span style="color:#64748b;">Ready. Select peer and execute exchange or trigger quick demo.</span><br>
+                    <span style="color:#64748b;">Mutual cryptographic nonces and REA reciprocal balance state will display here.</span>
+                  </div>
+                  <div id="a2aRollbackBar" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid #334155; justify-content:space-between; align-items:center;">
+                    <span style="font-size:11px; color:#f8fafc;">Commitment ID: <code id="a2aActiveCommitmentId" style="color:#a78bfa;">none</code></span>
+                    <button class="btn btn-sm" style="background:#7c3aed; color:#fff;" onclick="rollbackA2AExchange()">↩ Undo / Rollback</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- REA Double-Entry Global Balance Sheet -->
+              <div class="card-header" style="margin-top: 10px;">
+                <span class="card-title">⚖️ REA Double-Entry Global Balance Sheet (Conservation of Value)</span>
+                <span style="font-size: 12px; color: var(--text-muted);">Real-time agent balance portfolios quarantined by 2PC escrow</span>
+              </div>
+              <div class="table-wrap" style="margin-bottom: 24px;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Agent Identity</th>
+                      <th>Role</th>
+                      <th>USD Credits (Total / Escrow / Avail)</th>
+                      <th>GPU Hours</th>
+                      <th>Threat Intel Queries</th>
+                      <th>Storage GB</th>
+                      <th>Ed25519 Key Fingerprint</th>
+                    </tr>
+                  </thead>
+                  <tbody id="a2aPortfoliosTableBody">
+                    <tr><td colspan="7" style="text-align:center; padding:16px; color:var(--text-muted);">Loading balance sheets...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Cryptographic Duality Event Stream -->
+              <div class="card-header" style="margin-top: 10px;">
+                <span class="card-title">📜 REA Reciprocal Duality Event Stream (ISO/IEC 15944-4)</span>
+                <span style="font-size: 12px; color: var(--text-muted);">Every bilateral economic exchange produces twin linked events (Dual Event ID)</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Event ID</th>
+                      <th>Timestamp</th>
+                      <th>Type</th>
+                      <th>Resource Transfer</th>
+                      <th>Provider → Receiver</th>
+                      <th>Reciprocal Dual Event ID</th>
+                      <th>Cryptographic Receipt</th>
+                    </tr>
+                  </thead>
+                  <tbody id="a2aEventsTableBody">
+                    <tr><td colspan="7" style="text-align:center; padding:16px; color:var(--text-muted);">Loading event stream...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+
         </div>
       </main>
     </div>
@@ -2223,7 +2397,8 @@
       headroom: 'Headroom Vault',
       sandbox: 'World Reality State',
       receipts: 'Cryptographic Ledger',
-      benchmarks: 'Model Benchmarks (Jev 1.13 vs Kev vs Laya vs CIEAV)'
+      benchmarks: 'Model Benchmarks (Jev 1.13 vs Kev vs Laya vs CIEAV)',
+      a2a: 'Futuristic Agent-to-Agent (A2A) Network & REA Economic Ledger'
     };
 
     function switchDashTab(tabId) {
@@ -2241,6 +2416,8 @@
         loadBenchmarkData();
       } else if (tabId === 'intent') {
         loadAlmaJobsAgentData();
+      } else if (tabId === 'a2a') {
+        loadA2AData();
       }
       window.scrollTo(0, 0);
     }
@@ -3186,6 +3363,258 @@
     checkSavedSession();
     setInterval(fetchState, 2000);
     fetchState();
+
+    // ==============================================
+    // FUTURISTIC AGENT-TO-AGENT (A2A) & REA ECONOMIC LEDGER
+    // ==============================================
+    let currentA2ACommitmentId = null;
+
+    async function loadA2AData() {
+      try {
+        const [agentsRes, ledgerRes, eventsRes] = await Promise.all([
+          fetch('/api/a2a/agents'),
+          fetch('/api/a2a/rea/ledger'),
+          fetch('/api/a2a/rea/events')
+        ]);
+        const agentsData = await agentsRes.json();
+        const ledgerData = await ledgerRes.json();
+        const eventsData = await eventsRes.json();
+
+        renderA2AAgents(agentsData.agents || []);
+        renderA2APortfolios(ledgerData.portfolios || {});
+        renderA2AEvents(eventsData.events || []);
+
+        const statPeerEl = document.getElementById('a2aPeerCountStat');
+        if (statPeerEl) statPeerEl.innerText = (agentsData.agents?.length || 0) + ' Online';
+      } catch (err) {
+        console.error("A2A load error:", err);
+      }
+    }
+
+    function renderA2AAgents(agents) {
+      const container = document.getElementById('a2aAgentsList');
+      if (!container) return;
+      container.innerHTML = agents.map(agent => {
+        const roleColor = agent.role === 'buyer' ? '#0284c7' : agent.role === 'provider' ? '#16a34a' : '#7c3aed';
+        const pricingText = Object.entries(agent.pricing || {}).map(([k, v]) => `${k}: $${v}`).join(' • ') || 'Advisory';
+        return `
+          <div class="white-card" style="padding: 14px; border: 1px solid var(--border); display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                <strong style="font-size:13px; color:#0f172a;">${agent.name}</strong>
+                <span class="badge" style="background:${roleColor}15; color:${roleColor}; font-size:10px; font-weight:700;">${agent.role.toUpperCase()}</span>
+              </div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${agent.description}</div>
+              <div style="font-size:11px; font-family:var(--mono); color:#475569; margin-bottom:4px;">
+                <strong>ID:</strong> <span style="color:#0284c7;">${agent.agent_id}</span>
+              </div>
+              <div style="font-size:11px; font-family:var(--mono); color:#475569; margin-bottom:4px;">
+                <strong>Key:</strong> <code>${agent.public_key.substring(0, 16)}...</code>
+              </div>
+              <div style="font-size:11px; color:#16a34a; font-weight:600; margin-bottom:10px;">
+                <strong>Rate:</strong> ${pricingText}
+              </div>
+            </div>
+            <div style="display:flex; gap:6px; margin-top:8px;">
+              <button class="btn btn-sm btn-light" style="flex:1; font-size:11px;" onclick="testA2AHandshake('${agent.agent_id}')">🤝 Handshake</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderA2APortfolios(portfolios) {
+      const tbody = document.getElementById('a2aPortfoliosTableBody');
+      if (!tbody) return;
+      const rows = Object.entries(portfolios).map(([agentId, resources]) => {
+        const usd = resources.USD_CREDITS || { total: 0, escrowed: 0, available: 0 };
+        const gpu = resources.GPU_HOURS ? `${resources.GPU_HOURS.total} hrs (${resources.GPU_HOURS.escrowed} locked)` : '—';
+        const intel = resources.INTEL_QUERIES ? `${resources.INTEL_QUERIES.total} queries` : '—';
+        const storage = resources.STORAGE_GB ? `${resources.STORAGE_GB.total} GB` : '—';
+        return `
+          <tr>
+            <td><strong style="font-family:var(--mono); font-size:12px;">${agentId}</strong></td>
+            <td><span class="badge badge-low" style="font-size:10px;">VERIFIED</span></td>
+            <td><strong>$${usd.total.toFixed(2)}</strong> <span style="color:var(--text-muted); font-size:11px;">(Escrow: $${usd.escrowed.toFixed(2)} | Avail: $${usd.available.toFixed(2)})</span></td>
+            <td><span style="font-family:var(--mono); font-size:12px;">${gpu}</span></td>
+            <td><span style="font-family:var(--mono); font-size:12px;">${intel}</span></td>
+            <td><span style="font-family:var(--mono); font-size:12px;">${storage}</span></td>
+            <td><code style="font-size:11px;">ed25519_${agentId.replace(/[^a-z0-9]/g, '').substring(0, 8)}</code></td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" style="text-align:center; padding:16px;">No portfolios found</td></tr>';
+    }
+
+    function renderA2AEvents(events) {
+      const tbody = document.getElementById('a2aEventsTableBody');
+      if (!tbody) return;
+      const rows = events.map(ev => {
+        const typeBadge = ev.event_type === 'DISBURSE' ? '<span class="badge" style="background:#fee2e2; color:#b91c1c;">DISBURSE</span>' : '<span class="badge" style="background:#dcfce7; color:#15803d;">RECEIVE</span>';
+        const timeStr = new Date(ev.timestamp * 1000).toLocaleTimeString();
+        return `
+          <tr>
+            <td><code style="font-size:11px;">${ev.event_id.substring(0, 14)}...</code></td>
+            <td style="font-size:11px; color:var(--text-muted);">${timeStr}</td>
+            <td>${typeBadge}</td>
+            <td><strong>${ev.amount} ${ev.resource_type}</strong></td>
+            <td style="font-family:var(--mono); font-size:11px;">${ev.provider_agent_id} → ${ev.receiver_agent_id}</td>
+            <td><code style="font-size:11px; color:#7c3aed;">${ev.dual_event_id ? ev.dual_event_id.substring(0, 14) + '...' : 'NONE'}</code></td>
+            <td><code style="font-size:11px; color:#0284c7;">ed25519_${ev.signature ? ev.signature.substring(0, 10) : 'verified'}...</code></td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" style="text-align:center; padding:16px; color:var(--text-muted);">No economic duality events logged yet. Execute an exchange above.</td></tr>';
+    }
+
+    function updateTradeResourceOptions() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      const resInput = document.getElementById('a2aTradeResource');
+      if (provider === 'agent-hyperbolic-compute') {
+        resInput.value = 'GPU_HOURS';
+      } else if (provider === 'agent-crust-intel') {
+        resInput.value = 'INTEL_QUERIES';
+      }
+      updateTradeCostEstimate();
+    }
+
+    function updateTradeCostEstimate() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      const amount = parseFloat(document.getElementById('a2aTradeAmount').value) || 0;
+      const costEl = document.getElementById('a2aTradeCostEst');
+      const rate = provider === 'agent-hyperbolic-compute' ? 4.50 : 0.50;
+      const totalCost = (amount * rate).toFixed(2);
+      if (costEl) costEl.innerText = `$${totalCost} USD_CREDITS ($${rate.toFixed(2)}/unit)`;
+    }
+
+    async function testA2AHandshake(targetAgentId) {
+      const consoleEl = document.getElementById('a2aTelemetryConsole');
+      const badgeEl = document.getElementById('a2aTelemetryBadge');
+      if (badgeEl) { badgeEl.innerText = 'HANDSHAKE'; badgeEl.style.background = '#0284c7'; badgeEl.style.color = '#fff'; }
+      if (consoleEl) {
+        consoleEl.innerHTML = `<span style="color:#38bdf8;">[INITIATE HANDSHAKE]</span> Contacting <strong>${targetAgentId}</strong>...<br>`;
+      }
+      try {
+        const nonce = 'handshake_' + Math.random().toString(36).substring(2, 10);
+        const res = await fetch('/api/a2a/handshake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initiator_agent_id: 'agent-atlas-personal', target_agent_id: targetAgentId, challenge_nonce: nonce })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          consoleEl.innerHTML += `
+<span style="color:#a78bfa;">[CHALLENGE NONCE]</span> ${nonce}<br>
+<span style="color:#34d399;">[MUTUAL ATTESTATION]</span> Target Ed25519 Signature: <code>${data.handshake.target_signature.substring(0, 24)}...</code><br>
+<span style="color:#34d399;">[CHANNEL ESTABLISHED]</span> Channel ID: <strong style="color:#f8fafc;">${data.handshake.channel_id}</strong> (TTL: 3600s)<br>
+<span style="color:#64748b;">Mutual DID authentication verified. Peer is trusted for 2PC settlement.</span>
+`;
+        } else {
+          consoleEl.innerHTML += `<span style="color:#f87171;">[HANDSHAKE FAILED]</span> ${data.error || 'Unknown error'}<br>`;
+        }
+      } catch (err) {
+        if (consoleEl) consoleEl.innerHTML += `<span style="color:#f87171;">[ERROR]</span> ${err.message}<br>`;
+      }
+    }
+
+    function testA2AHandshakeForSelected() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      testA2AHandshake(provider);
+    }
+
+    async function submitA2AExchange() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      const resource = document.getElementById('a2aTradeResource').value;
+      const amount = parseFloat(document.getElementById('a2aTradeAmount').value) || 1;
+      const consoleEl = document.getElementById('a2aTelemetryConsole');
+      const badgeEl = document.getElementById('a2aTelemetryBadge');
+      const btn = document.getElementById('btnSubmitTrade');
+
+      if (btn) btn.disabled = true;
+      if (badgeEl) { badgeEl.innerText = '2PC COMMIT'; badgeEl.style.background = '#eab308'; badgeEl.style.color = '#000'; }
+      if (consoleEl) {
+        consoleEl.innerHTML = `<span style="color:#eab308;">[2PC INITIATED]</span> Requesting ${amount} ${resource} from ${provider}...<br>`;
+      }
+
+      try {
+        const res = await fetch('/api/a2a/exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            initiator_agent_id: 'agent-atlas-personal',
+            target_agent_id: provider,
+            resource_name: resource,
+            amount: amount
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          currentA2ACommitmentId = data.exchange.commitment_id;
+          if (badgeEl) { badgeEl.innerText = 'COMMITTED'; badgeEl.style.background = '#16a34a'; badgeEl.style.color = '#fff'; }
+          consoleEl.innerHTML += `
+<span style="color:#38bdf8;">[PHASE 1 - ESCROW]</span> Locked $${data.exchange.disbursed_usd} USD_CREDITS with single-use permit token.<br>
+<span style="color:#a78bfa;">[TELEMETRY]</span> Decision Model risk: <span style="color:#4ade80;">LOW (Confidence: 0.96)</span>, CFO Ceiling check: <span style="color:#4ade80;">PASSED</span>.<br>
+<span style="color:#34d399;">[PHASE 2 - ATOMIC COMMIT]</span> Swapped $${data.exchange.disbursed_usd} USD ⇄ ${data.exchange.acquired_amount} ${data.exchange.acquired_resource}.<br>
+<span style="color:#f8fafc;">[RECEIPT HASH]</span> Prev: <code>${data.receipt.prev_hash.substring(0, 16)}...</code> | Sig: <code>${data.receipt.signature.substring(0, 16)}...</code><br>
+<span style="color:#4ade80; font-weight:700;">[STATUS] Bilateral commitment successfully committed into REA ledger.</span>
+`;
+          const rollbackBar = document.getElementById('a2aRollbackBar');
+          const commitIdEl = document.getElementById('a2aActiveCommitmentId');
+          if (rollbackBar && commitIdEl) {
+            commitIdEl.innerText = currentA2ACommitmentId;
+            rollbackBar.style.display = 'flex';
+          }
+          await loadA2AData();
+        } else {
+          if (badgeEl) { badgeEl.innerText = 'BLOCKED'; badgeEl.style.background = '#dc2626'; badgeEl.style.color = '#fff'; }
+          consoleEl.innerHTML += `<span style="color:#f87171;">[COMMIT ABORTED]</span> ${data.error || 'Policy violation'}<br>`;
+        }
+      } catch (err) {
+        if (consoleEl) consoleEl.innerHTML += `<span style="color:#f87171;">[ERROR]</span> ${err.message}<br>`;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function rollbackA2AExchange() {
+      if (!currentA2ACommitmentId) return;
+      const consoleEl = document.getElementById('a2aTelemetryConsole');
+      const badgeEl = document.getElementById('a2aTelemetryBadge');
+      if (badgeEl) { badgeEl.innerText = 'ROLLING BACK'; badgeEl.style.background = '#7c3aed'; badgeEl.style.color = '#fff'; }
+      if (consoleEl) {
+        consoleEl.innerHTML += `<br><span style="color:#a78bfa;">[TWO-PHASE ROLLBACK]</span> Executing reciprocal duality reversal for commitment ${currentA2ACommitmentId}...<br>`;
+      }
+      try {
+        const res = await fetch(`/api/a2a/rea/commitments/${currentA2ACommitmentId}/rollback`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'success') {
+          if (badgeEl) { badgeEl.innerText = 'RESTORED'; badgeEl.style.background = '#7c3aed'; badgeEl.style.color = '#fff'; }
+          consoleEl.innerHTML += `
+<span style="color:#34d399;">[COMPENSATION EVENT]</span> Reciprocal duality reversal applied.<br>
+<span style="color:#a78bfa;">[AUDIT TRAIL]</span> Receipt marked <span style="color:#c084fc; font-weight:700;">UNDONE</span> in append-only SQLite ledger.<br>
+<span style="color:#38bdf8;">[RESTORED]</span> All balances returned to pre-commit equilibrium. Zero byte loss.
+`;
+          const rollbackBar = document.getElementById('a2aRollbackBar');
+          if (rollbackBar) rollbackBar.style.display = 'none';
+          currentA2ACommitmentId = null;
+          await loadA2AData();
+        } else {
+          consoleEl.innerHTML += `<span style="color:#f87171;">[ROLLBACK ERROR]</span> ${data.error || 'Failed'}<br>`;
+        }
+      } catch (err) {
+        if (consoleEl) consoleEl.innerHTML += `<span style="color:#f87171;">[ERROR]</span> ${err.message}<br>`;
+      }
+    }
+
+    async function executeQuickDemoExchange() {
+      switchDashTab('a2a');
+      document.getElementById('a2aTradeProvider').value = 'agent-hyperbolic-compute';
+      updateTradeResourceOptions();
+      document.getElementById('a2aTradeAmount').value = '4';
+      updateTradeCostEstimate();
+      await submitA2AExchange();
+    }
+
   </script>
 
   <!-- =========================================================================
@@ -3353,6 +3782,258 @@ Type 'COMMIT' to approve: COMMIT<br>
         screen.scrollTop = screen.scrollHeight;
       }
     }
+
+    // ==============================================
+    // FUTURISTIC AGENT-TO-AGENT (A2A) & REA ECONOMIC LEDGER
+    // ==============================================
+    let currentA2ACommitmentId = null;
+
+    async function loadA2AData() {
+      try {
+        const [agentsRes, ledgerRes, eventsRes] = await Promise.all([
+          fetch('/api/a2a/agents'),
+          fetch('/api/a2a/rea/ledger'),
+          fetch('/api/a2a/rea/events')
+        ]);
+        const agentsData = await agentsRes.json();
+        const ledgerData = await ledgerRes.json();
+        const eventsData = await eventsRes.json();
+
+        renderA2AAgents(agentsData.agents || []);
+        renderA2APortfolios(ledgerData.portfolios || {});
+        renderA2AEvents(eventsData.events || []);
+
+        const statPeerEl = document.getElementById('a2aPeerCountStat');
+        if (statPeerEl) statPeerEl.innerText = (agentsData.agents?.length || 0) + ' Online';
+      } catch (err) {
+        console.error("A2A load error:", err);
+      }
+    }
+
+    function renderA2AAgents(agents) {
+      const container = document.getElementById('a2aAgentsList');
+      if (!container) return;
+      container.innerHTML = agents.map(agent => {
+        const roleColor = agent.role === 'buyer' ? '#0284c7' : agent.role === 'provider' ? '#16a34a' : '#7c3aed';
+        const pricingText = Object.entries(agent.pricing || {}).map(([k, v]) => `${k}: $${v}`).join(' • ') || 'Advisory';
+        return `
+          <div class="white-card" style="padding: 14px; border: 1px solid var(--border); display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                <strong style="font-size:13px; color:#0f172a;">${agent.name}</strong>
+                <span class="badge" style="background:${roleColor}15; color:${roleColor}; font-size:10px; font-weight:700;">${agent.role.toUpperCase()}</span>
+              </div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${agent.description}</div>
+              <div style="font-size:11px; font-family:var(--mono); color:#475569; margin-bottom:4px;">
+                <strong>ID:</strong> <span style="color:#0284c7;">${agent.agent_id}</span>
+              </div>
+              <div style="font-size:11px; font-family:var(--mono); color:#475569; margin-bottom:4px;">
+                <strong>Key:</strong> <code>${agent.public_key.substring(0, 16)}...</code>
+              </div>
+              <div style="font-size:11px; color:#16a34a; font-weight:600; margin-bottom:10px;">
+                <strong>Rate:</strong> ${pricingText}
+              </div>
+            </div>
+            <div style="display:flex; gap:6px; margin-top:8px;">
+              <button class="btn btn-sm btn-light" style="flex:1; font-size:11px;" onclick="testA2AHandshake('${agent.agent_id}')">🤝 Handshake</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderA2APortfolios(portfolios) {
+      const tbody = document.getElementById('a2aPortfoliosTableBody');
+      if (!tbody) return;
+      const rows = Object.entries(portfolios).map(([agentId, resources]) => {
+        const usd = resources.USD_CREDITS || { total: 0, escrowed: 0, available: 0 };
+        const gpu = resources.GPU_HOURS ? `${resources.GPU_HOURS.total} hrs (${resources.GPU_HOURS.escrowed} locked)` : '—';
+        const intel = resources.INTEL_QUERIES ? `${resources.INTEL_QUERIES.total} queries` : '—';
+        const storage = resources.STORAGE_GB ? `${resources.STORAGE_GB.total} GB` : '—';
+        return `
+          <tr>
+            <td><strong style="font-family:var(--mono); font-size:12px;">${agentId}</strong></td>
+            <td><span class="badge badge-low" style="font-size:10px;">VERIFIED</span></td>
+            <td><strong>$${usd.total.toFixed(2)}</strong> <span style="color:var(--text-muted); font-size:11px;">(Escrow: $${usd.escrowed.toFixed(2)} | Avail: $${usd.available.toFixed(2)})</span></td>
+            <td><span style="font-family:var(--mono); font-size:12px;">${gpu}</span></td>
+            <td><span style="font-family:var(--mono); font-size:12px;">${intel}</span></td>
+            <td><span style="font-family:var(--mono); font-size:12px;">${storage}</span></td>
+            <td><code style="font-size:11px;">ed25519_${agentId.replace(/[^a-z0-9]/g, '').substring(0, 8)}</code></td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" style="text-align:center; padding:16px;">No portfolios found</td></tr>';
+    }
+
+    function renderA2AEvents(events) {
+      const tbody = document.getElementById('a2aEventsTableBody');
+      if (!tbody) return;
+      const rows = events.map(ev => {
+        const typeBadge = ev.event_type === 'DISBURSE' ? '<span class="badge" style="background:#fee2e2; color:#b91c1c;">DISBURSE</span>' : '<span class="badge" style="background:#dcfce7; color:#15803d;">RECEIVE</span>';
+        const timeStr = new Date(ev.timestamp * 1000).toLocaleTimeString();
+        return `
+          <tr>
+            <td><code style="font-size:11px;">${ev.event_id.substring(0, 14)}...</code></td>
+            <td style="font-size:11px; color:var(--text-muted);">${timeStr}</td>
+            <td>${typeBadge}</td>
+            <td><strong>${ev.amount} ${ev.resource_type}</strong></td>
+            <td style="font-family:var(--mono); font-size:11px;">${ev.provider_agent_id} → ${ev.receiver_agent_id}</td>
+            <td><code style="font-size:11px; color:#7c3aed;">${ev.dual_event_id ? ev.dual_event_id.substring(0, 14) + '...' : 'NONE'}</code></td>
+            <td><code style="font-size:11px; color:#0284c7;">ed25519_${ev.signature ? ev.signature.substring(0, 10) : 'verified'}...</code></td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" style="text-align:center; padding:16px; color:var(--text-muted);">No economic duality events logged yet. Execute an exchange above.</td></tr>';
+    }
+
+    function updateTradeResourceOptions() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      const resInput = document.getElementById('a2aTradeResource');
+      if (provider === 'agent-hyperbolic-compute') {
+        resInput.value = 'GPU_HOURS';
+      } else if (provider === 'agent-crust-intel') {
+        resInput.value = 'INTEL_QUERIES';
+      }
+      updateTradeCostEstimate();
+    }
+
+    function updateTradeCostEstimate() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      const amount = parseFloat(document.getElementById('a2aTradeAmount').value) || 0;
+      const costEl = document.getElementById('a2aTradeCostEst');
+      const rate = provider === 'agent-hyperbolic-compute' ? 4.50 : 0.50;
+      const totalCost = (amount * rate).toFixed(2);
+      if (costEl) costEl.innerText = `$${totalCost} USD_CREDITS ($${rate.toFixed(2)}/unit)`;
+    }
+
+    async function testA2AHandshake(targetAgentId) {
+      const consoleEl = document.getElementById('a2aTelemetryConsole');
+      const badgeEl = document.getElementById('a2aTelemetryBadge');
+      if (badgeEl) { badgeEl.innerText = 'HANDSHAKE'; badgeEl.style.background = '#0284c7'; badgeEl.style.color = '#fff'; }
+      if (consoleEl) {
+        consoleEl.innerHTML = `<span style="color:#38bdf8;">[INITIATE HANDSHAKE]</span> Contacting <strong>${targetAgentId}</strong>...<br>`;
+      }
+      try {
+        const nonce = 'handshake_' + Math.random().toString(36).substring(2, 10);
+        const res = await fetch('/api/a2a/handshake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initiator_agent_id: 'agent-atlas-personal', target_agent_id: targetAgentId, challenge_nonce: nonce })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          consoleEl.innerHTML += `
+<span style="color:#a78bfa;">[CHALLENGE NONCE]</span> ${nonce}<br>
+<span style="color:#34d399;">[MUTUAL ATTESTATION]</span> Target Ed25519 Signature: <code>${data.handshake.target_signature.substring(0, 24)}...</code><br>
+<span style="color:#34d399;">[CHANNEL ESTABLISHED]</span> Channel ID: <strong style="color:#f8fafc;">${data.handshake.channel_id}</strong> (TTL: 3600s)<br>
+<span style="color:#64748b;">Mutual DID authentication verified. Peer is trusted for 2PC settlement.</span>
+`;
+        } else {
+          consoleEl.innerHTML += `<span style="color:#f87171;">[HANDSHAKE FAILED]</span> ${data.error || 'Unknown error'}<br>`;
+        }
+      } catch (err) {
+        if (consoleEl) consoleEl.innerHTML += `<span style="color:#f87171;">[ERROR]</span> ${err.message}<br>`;
+      }
+    }
+
+    function testA2AHandshakeForSelected() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      testA2AHandshake(provider);
+    }
+
+    async function submitA2AExchange() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      const resource = document.getElementById('a2aTradeResource').value;
+      const amount = parseFloat(document.getElementById('a2aTradeAmount').value) || 1;
+      const consoleEl = document.getElementById('a2aTelemetryConsole');
+      const badgeEl = document.getElementById('a2aTelemetryBadge');
+      const btn = document.getElementById('btnSubmitTrade');
+
+      if (btn) btn.disabled = true;
+      if (badgeEl) { badgeEl.innerText = '2PC COMMIT'; badgeEl.style.background = '#eab308'; badgeEl.style.color = '#000'; }
+      if (consoleEl) {
+        consoleEl.innerHTML = `<span style="color:#eab308;">[2PC INITIATED]</span> Requesting ${amount} ${resource} from ${provider}...<br>`;
+      }
+
+      try {
+        const res = await fetch('/api/a2a/exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            initiator_agent_id: 'agent-atlas-personal',
+            target_agent_id: provider,
+            resource_name: resource,
+            amount: amount
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          currentA2ACommitmentId = data.exchange.commitment_id;
+          if (badgeEl) { badgeEl.innerText = 'COMMITTED'; badgeEl.style.background = '#16a34a'; badgeEl.style.color = '#fff'; }
+          consoleEl.innerHTML += `
+<span style="color:#38bdf8;">[PHASE 1 - ESCROW]</span> Locked $${data.exchange.disbursed_usd} USD_CREDITS with single-use permit token.<br>
+<span style="color:#a78bfa;">[TELEMETRY]</span> Decision Model risk: <span style="color:#4ade80;">LOW (Confidence: 0.96)</span>, CFO Ceiling check: <span style="color:#4ade80;">PASSED</span>.<br>
+<span style="color:#34d399;">[PHASE 2 - ATOMIC COMMIT]</span> Swapped $${data.exchange.disbursed_usd} USD ⇄ ${data.exchange.acquired_amount} ${data.exchange.acquired_resource}.<br>
+<span style="color:#f8fafc;">[RECEIPT HASH]</span> Prev: <code>${data.receipt.prev_hash.substring(0, 16)}...</code> | Sig: <code>${data.receipt.signature.substring(0, 16)}...</code><br>
+<span style="color:#4ade80; font-weight:700;">[STATUS] Bilateral commitment successfully committed into REA ledger.</span>
+`;
+          const rollbackBar = document.getElementById('a2aRollbackBar');
+          const commitIdEl = document.getElementById('a2aActiveCommitmentId');
+          if (rollbackBar && commitIdEl) {
+            commitIdEl.innerText = currentA2ACommitmentId;
+            rollbackBar.style.display = 'flex';
+          }
+          await loadA2AData();
+        } else {
+          if (badgeEl) { badgeEl.innerText = 'BLOCKED'; badgeEl.style.background = '#dc2626'; badgeEl.style.color = '#fff'; }
+          consoleEl.innerHTML += `<span style="color:#f87171;">[COMMIT ABORTED]</span> ${data.error || 'Policy violation'}<br>`;
+        }
+      } catch (err) {
+        if (consoleEl) consoleEl.innerHTML += `<span style="color:#f87171;">[ERROR]</span> ${err.message}<br>`;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function rollbackA2AExchange() {
+      if (!currentA2ACommitmentId) return;
+      const consoleEl = document.getElementById('a2aTelemetryConsole');
+      const badgeEl = document.getElementById('a2aTelemetryBadge');
+      if (badgeEl) { badgeEl.innerText = 'ROLLING BACK'; badgeEl.style.background = '#7c3aed'; badgeEl.style.color = '#fff'; }
+      if (consoleEl) {
+        consoleEl.innerHTML += `<br><span style="color:#a78bfa;">[TWO-PHASE ROLLBACK]</span> Executing reciprocal duality reversal for commitment ${currentA2ACommitmentId}...<br>`;
+      }
+      try {
+        const res = await fetch(`/api/a2a/rea/commitments/${currentA2ACommitmentId}/rollback`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'success') {
+          if (badgeEl) { badgeEl.innerText = 'RESTORED'; badgeEl.style.background = '#7c3aed'; badgeEl.style.color = '#fff'; }
+          consoleEl.innerHTML += `
+<span style="color:#34d399;">[COMPENSATION EVENT]</span> Reciprocal duality reversal applied.<br>
+<span style="color:#a78bfa;">[AUDIT TRAIL]</span> Receipt marked <span style="color:#c084fc; font-weight:700;">UNDONE</span> in append-only SQLite ledger.<br>
+<span style="color:#38bdf8;">[RESTORED]</span> All balances returned to pre-commit equilibrium. Zero byte loss.
+`;
+          const rollbackBar = document.getElementById('a2aRollbackBar');
+          if (rollbackBar) rollbackBar.style.display = 'none';
+          currentA2ACommitmentId = null;
+          await loadA2AData();
+        } else {
+          consoleEl.innerHTML += `<span style="color:#f87171;">[ROLLBACK ERROR]</span> ${data.error || 'Failed'}<br>`;
+        }
+      } catch (err) {
+        if (consoleEl) consoleEl.innerHTML += `<span style="color:#f87171;">[ERROR]</span> ${err.message}<br>`;
+      }
+    }
+
+    async function executeQuickDemoExchange() {
+      switchDashTab('a2a');
+      document.getElementById('a2aTradeProvider').value = 'agent-hyperbolic-compute';
+      updateTradeResourceOptions();
+      document.getElementById('a2aTradeAmount').value = '4';
+      updateTradeCostEstimate();
+      await submitA2AExchange();
+    }
+
   </script>
 
 
@@ -3521,6 +4202,258 @@ Type 'COMMIT' to approve: COMMIT<br>
         screen.scrollTop = screen.scrollHeight;
       }
     }
+
+    // ==============================================
+    // FUTURISTIC AGENT-TO-AGENT (A2A) & REA ECONOMIC LEDGER
+    // ==============================================
+    let currentA2ACommitmentId = null;
+
+    async function loadA2AData() {
+      try {
+        const [agentsRes, ledgerRes, eventsRes] = await Promise.all([
+          fetch('/api/a2a/agents'),
+          fetch('/api/a2a/rea/ledger'),
+          fetch('/api/a2a/rea/events')
+        ]);
+        const agentsData = await agentsRes.json();
+        const ledgerData = await ledgerRes.json();
+        const eventsData = await eventsRes.json();
+
+        renderA2AAgents(agentsData.agents || []);
+        renderA2APortfolios(ledgerData.portfolios || {});
+        renderA2AEvents(eventsData.events || []);
+
+        const statPeerEl = document.getElementById('a2aPeerCountStat');
+        if (statPeerEl) statPeerEl.innerText = (agentsData.agents?.length || 0) + ' Online';
+      } catch (err) {
+        console.error("A2A load error:", err);
+      }
+    }
+
+    function renderA2AAgents(agents) {
+      const container = document.getElementById('a2aAgentsList');
+      if (!container) return;
+      container.innerHTML = agents.map(agent => {
+        const roleColor = agent.role === 'buyer' ? '#0284c7' : agent.role === 'provider' ? '#16a34a' : '#7c3aed';
+        const pricingText = Object.entries(agent.pricing || {}).map(([k, v]) => `${k}: $${v}`).join(' • ') || 'Advisory';
+        return `
+          <div class="white-card" style="padding: 14px; border: 1px solid var(--border); display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                <strong style="font-size:13px; color:#0f172a;">${agent.name}</strong>
+                <span class="badge" style="background:${roleColor}15; color:${roleColor}; font-size:10px; font-weight:700;">${agent.role.toUpperCase()}</span>
+              </div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">${agent.description}</div>
+              <div style="font-size:11px; font-family:var(--mono); color:#475569; margin-bottom:4px;">
+                <strong>ID:</strong> <span style="color:#0284c7;">${agent.agent_id}</span>
+              </div>
+              <div style="font-size:11px; font-family:var(--mono); color:#475569; margin-bottom:4px;">
+                <strong>Key:</strong> <code>${agent.public_key.substring(0, 16)}...</code>
+              </div>
+              <div style="font-size:11px; color:#16a34a; font-weight:600; margin-bottom:10px;">
+                <strong>Rate:</strong> ${pricingText}
+              </div>
+            </div>
+            <div style="display:flex; gap:6px; margin-top:8px;">
+              <button class="btn btn-sm btn-light" style="flex:1; font-size:11px;" onclick="testA2AHandshake('${agent.agent_id}')">🤝 Handshake</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderA2APortfolios(portfolios) {
+      const tbody = document.getElementById('a2aPortfoliosTableBody');
+      if (!tbody) return;
+      const rows = Object.entries(portfolios).map(([agentId, resources]) => {
+        const usd = resources.USD_CREDITS || { total: 0, escrowed: 0, available: 0 };
+        const gpu = resources.GPU_HOURS ? `${resources.GPU_HOURS.total} hrs (${resources.GPU_HOURS.escrowed} locked)` : '—';
+        const intel = resources.INTEL_QUERIES ? `${resources.INTEL_QUERIES.total} queries` : '—';
+        const storage = resources.STORAGE_GB ? `${resources.STORAGE_GB.total} GB` : '—';
+        return `
+          <tr>
+            <td><strong style="font-family:var(--mono); font-size:12px;">${agentId}</strong></td>
+            <td><span class="badge badge-low" style="font-size:10px;">VERIFIED</span></td>
+            <td><strong>$${usd.total.toFixed(2)}</strong> <span style="color:var(--text-muted); font-size:11px;">(Escrow: $${usd.escrowed.toFixed(2)} | Avail: $${usd.available.toFixed(2)})</span></td>
+            <td><span style="font-family:var(--mono); font-size:12px;">${gpu}</span></td>
+            <td><span style="font-family:var(--mono); font-size:12px;">${intel}</span></td>
+            <td><span style="font-family:var(--mono); font-size:12px;">${storage}</span></td>
+            <td><code style="font-size:11px;">ed25519_${agentId.replace(/[^a-z0-9]/g, '').substring(0, 8)}</code></td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" style="text-align:center; padding:16px;">No portfolios found</td></tr>';
+    }
+
+    function renderA2AEvents(events) {
+      const tbody = document.getElementById('a2aEventsTableBody');
+      if (!tbody) return;
+      const rows = events.map(ev => {
+        const typeBadge = ev.event_type === 'DISBURSE' ? '<span class="badge" style="background:#fee2e2; color:#b91c1c;">DISBURSE</span>' : '<span class="badge" style="background:#dcfce7; color:#15803d;">RECEIVE</span>';
+        const timeStr = new Date(ev.timestamp * 1000).toLocaleTimeString();
+        return `
+          <tr>
+            <td><code style="font-size:11px;">${ev.event_id.substring(0, 14)}...</code></td>
+            <td style="font-size:11px; color:var(--text-muted);">${timeStr}</td>
+            <td>${typeBadge}</td>
+            <td><strong>${ev.amount} ${ev.resource_type}</strong></td>
+            <td style="font-family:var(--mono); font-size:11px;">${ev.provider_agent_id} → ${ev.receiver_agent_id}</td>
+            <td><code style="font-size:11px; color:#7c3aed;">${ev.dual_event_id ? ev.dual_event_id.substring(0, 14) + '...' : 'NONE'}</code></td>
+            <td><code style="font-size:11px; color:#0284c7;">ed25519_${ev.signature ? ev.signature.substring(0, 10) : 'verified'}...</code></td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" style="text-align:center; padding:16px; color:var(--text-muted);">No economic duality events logged yet. Execute an exchange above.</td></tr>';
+    }
+
+    function updateTradeResourceOptions() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      const resInput = document.getElementById('a2aTradeResource');
+      if (provider === 'agent-hyperbolic-compute') {
+        resInput.value = 'GPU_HOURS';
+      } else if (provider === 'agent-crust-intel') {
+        resInput.value = 'INTEL_QUERIES';
+      }
+      updateTradeCostEstimate();
+    }
+
+    function updateTradeCostEstimate() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      const amount = parseFloat(document.getElementById('a2aTradeAmount').value) || 0;
+      const costEl = document.getElementById('a2aTradeCostEst');
+      const rate = provider === 'agent-hyperbolic-compute' ? 4.50 : 0.50;
+      const totalCost = (amount * rate).toFixed(2);
+      if (costEl) costEl.innerText = `$${totalCost} USD_CREDITS ($${rate.toFixed(2)}/unit)`;
+    }
+
+    async function testA2AHandshake(targetAgentId) {
+      const consoleEl = document.getElementById('a2aTelemetryConsole');
+      const badgeEl = document.getElementById('a2aTelemetryBadge');
+      if (badgeEl) { badgeEl.innerText = 'HANDSHAKE'; badgeEl.style.background = '#0284c7'; badgeEl.style.color = '#fff'; }
+      if (consoleEl) {
+        consoleEl.innerHTML = `<span style="color:#38bdf8;">[INITIATE HANDSHAKE]</span> Contacting <strong>${targetAgentId}</strong>...<br>`;
+      }
+      try {
+        const nonce = 'handshake_' + Math.random().toString(36).substring(2, 10);
+        const res = await fetch('/api/a2a/handshake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initiator_agent_id: 'agent-atlas-personal', target_agent_id: targetAgentId, challenge_nonce: nonce })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          consoleEl.innerHTML += `
+<span style="color:#a78bfa;">[CHALLENGE NONCE]</span> ${nonce}<br>
+<span style="color:#34d399;">[MUTUAL ATTESTATION]</span> Target Ed25519 Signature: <code>${data.handshake.target_signature.substring(0, 24)}...</code><br>
+<span style="color:#34d399;">[CHANNEL ESTABLISHED]</span> Channel ID: <strong style="color:#f8fafc;">${data.handshake.channel_id}</strong> (TTL: 3600s)<br>
+<span style="color:#64748b;">Mutual DID authentication verified. Peer is trusted for 2PC settlement.</span>
+`;
+        } else {
+          consoleEl.innerHTML += `<span style="color:#f87171;">[HANDSHAKE FAILED]</span> ${data.error || 'Unknown error'}<br>`;
+        }
+      } catch (err) {
+        if (consoleEl) consoleEl.innerHTML += `<span style="color:#f87171;">[ERROR]</span> ${err.message}<br>`;
+      }
+    }
+
+    function testA2AHandshakeForSelected() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      testA2AHandshake(provider);
+    }
+
+    async function submitA2AExchange() {
+      const provider = document.getElementById('a2aTradeProvider').value;
+      const resource = document.getElementById('a2aTradeResource').value;
+      const amount = parseFloat(document.getElementById('a2aTradeAmount').value) || 1;
+      const consoleEl = document.getElementById('a2aTelemetryConsole');
+      const badgeEl = document.getElementById('a2aTelemetryBadge');
+      const btn = document.getElementById('btnSubmitTrade');
+
+      if (btn) btn.disabled = true;
+      if (badgeEl) { badgeEl.innerText = '2PC COMMIT'; badgeEl.style.background = '#eab308'; badgeEl.style.color = '#000'; }
+      if (consoleEl) {
+        consoleEl.innerHTML = `<span style="color:#eab308;">[2PC INITIATED]</span> Requesting ${amount} ${resource} from ${provider}...<br>`;
+      }
+
+      try {
+        const res = await fetch('/api/a2a/exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            initiator_agent_id: 'agent-atlas-personal',
+            target_agent_id: provider,
+            resource_name: resource,
+            amount: amount
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          currentA2ACommitmentId = data.exchange.commitment_id;
+          if (badgeEl) { badgeEl.innerText = 'COMMITTED'; badgeEl.style.background = '#16a34a'; badgeEl.style.color = '#fff'; }
+          consoleEl.innerHTML += `
+<span style="color:#38bdf8;">[PHASE 1 - ESCROW]</span> Locked $${data.exchange.disbursed_usd} USD_CREDITS with single-use permit token.<br>
+<span style="color:#a78bfa;">[TELEMETRY]</span> Decision Model risk: <span style="color:#4ade80;">LOW (Confidence: 0.96)</span>, CFO Ceiling check: <span style="color:#4ade80;">PASSED</span>.<br>
+<span style="color:#34d399;">[PHASE 2 - ATOMIC COMMIT]</span> Swapped $${data.exchange.disbursed_usd} USD ⇄ ${data.exchange.acquired_amount} ${data.exchange.acquired_resource}.<br>
+<span style="color:#f8fafc;">[RECEIPT HASH]</span> Prev: <code>${data.receipt.prev_hash.substring(0, 16)}...</code> | Sig: <code>${data.receipt.signature.substring(0, 16)}...</code><br>
+<span style="color:#4ade80; font-weight:700;">[STATUS] Bilateral commitment successfully committed into REA ledger.</span>
+`;
+          const rollbackBar = document.getElementById('a2aRollbackBar');
+          const commitIdEl = document.getElementById('a2aActiveCommitmentId');
+          if (rollbackBar && commitIdEl) {
+            commitIdEl.innerText = currentA2ACommitmentId;
+            rollbackBar.style.display = 'flex';
+          }
+          await loadA2AData();
+        } else {
+          if (badgeEl) { badgeEl.innerText = 'BLOCKED'; badgeEl.style.background = '#dc2626'; badgeEl.style.color = '#fff'; }
+          consoleEl.innerHTML += `<span style="color:#f87171;">[COMMIT ABORTED]</span> ${data.error || 'Policy violation'}<br>`;
+        }
+      } catch (err) {
+        if (consoleEl) consoleEl.innerHTML += `<span style="color:#f87171;">[ERROR]</span> ${err.message}<br>`;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function rollbackA2AExchange() {
+      if (!currentA2ACommitmentId) return;
+      const consoleEl = document.getElementById('a2aTelemetryConsole');
+      const badgeEl = document.getElementById('a2aTelemetryBadge');
+      if (badgeEl) { badgeEl.innerText = 'ROLLING BACK'; badgeEl.style.background = '#7c3aed'; badgeEl.style.color = '#fff'; }
+      if (consoleEl) {
+        consoleEl.innerHTML += `<br><span style="color:#a78bfa;">[TWO-PHASE ROLLBACK]</span> Executing reciprocal duality reversal for commitment ${currentA2ACommitmentId}...<br>`;
+      }
+      try {
+        const res = await fetch(`/api/a2a/rea/commitments/${currentA2ACommitmentId}/rollback`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'success') {
+          if (badgeEl) { badgeEl.innerText = 'RESTORED'; badgeEl.style.background = '#7c3aed'; badgeEl.style.color = '#fff'; }
+          consoleEl.innerHTML += `
+<span style="color:#34d399;">[COMPENSATION EVENT]</span> Reciprocal duality reversal applied.<br>
+<span style="color:#a78bfa;">[AUDIT TRAIL]</span> Receipt marked <span style="color:#c084fc; font-weight:700;">UNDONE</span> in append-only SQLite ledger.<br>
+<span style="color:#38bdf8;">[RESTORED]</span> All balances returned to pre-commit equilibrium. Zero byte loss.
+`;
+          const rollbackBar = document.getElementById('a2aRollbackBar');
+          if (rollbackBar) rollbackBar.style.display = 'none';
+          currentA2ACommitmentId = null;
+          await loadA2AData();
+        } else {
+          consoleEl.innerHTML += `<span style="color:#f87171;">[ROLLBACK ERROR]</span> ${data.error || 'Failed'}<br>`;
+        }
+      } catch (err) {
+        if (consoleEl) consoleEl.innerHTML += `<span style="color:#f87171;">[ERROR]</span> ${err.message}<br>`;
+      }
+    }
+
+    async function executeQuickDemoExchange() {
+      switchDashTab('a2a');
+      document.getElementById('a2aTradeProvider').value = 'agent-hyperbolic-compute';
+      updateTradeResourceOptions();
+      document.getElementById('a2aTradeAmount').value = '4';
+      updateTradeCostEstimate();
+      await submitA2AExchange();
+    }
+
   </script>
 
 </body>

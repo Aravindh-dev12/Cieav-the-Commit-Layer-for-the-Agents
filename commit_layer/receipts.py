@@ -193,9 +193,22 @@ def verify_signature(receipt_dict: Dict[str, Any]) -> bool:
         return False
 
 
-def create_receipt(action: Dict[str, Any], status: str, approved_by: str = '') -> Dict[str, Any]:
+def create_receipt(action: Any, status: str, approved_by: str = '') -> Dict[str, Any]:
     """Create a new receipt and append it to the ledger."""
     prev_hash = get_last_hash()
+    if hasattr(action, "__dict__"):
+        import dataclasses
+        if dataclasses.is_dataclass(action):
+            action_dict = dataclasses.asdict(action)
+        else:
+            action_dict = dict(action.__dict__)
+        if hasattr(action, "tool_name") and "tool" not in action_dict:
+            action_dict["tool"] = action.tool_name
+        if hasattr(action, "risk"):
+            action_dict["risk"] = action.risk.name if hasattr(action.risk, "name") else str(action.risk)
+        if hasattr(action, "decision"):
+            action_dict["decision"] = action.decision.value if hasattr(action.decision, "value") else str(action.decision)
+        action = action_dict
     receipt_id = action.get("id", str(uuid.uuid4()))
     
     receipt = {
@@ -204,7 +217,7 @@ def create_receipt(action: Dict[str, Any], status: str, approved_by: str = '') -
         "timestamp": time.time(),
         "agent_id": action.get("agent_id", ""),
         "tool": action.get("tool", ""),
-        "args_redacted": json.dumps(action.get("args_redacted", {})),
+        "args_redacted": json.dumps(action.get("args_redacted") or action.get("args") or {}),
         "risk": action.get("risk", "UNKNOWN"),
         "decision": action.get("decision", ""),
         "approved_by": approved_by,
