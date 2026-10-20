@@ -92,6 +92,15 @@ class ProceduralMemoryStore:
         Record a verified sequence of tool calls that resulted in OBSERVED_SUCCESS.
         Prunes dead ends and converts them into an executable procedure graph.
         """
+        clean_intent = intent.lower().strip()
+        non_procedural_terms = {
+            "hi", "hello", "hey", "hey hi", "hi there", "how are you", "what ur name", "what is ur name",
+            "who are you", "what are you", "thanks", "thank you", "bye", "goodbye",
+            "good morning", "good evening", "good night", "cieav", "help"
+        }
+        if clean_intent in non_procedural_terms or len(clean_intent) < 6:
+            return None
+
         task_hash = self.compute_task_hash(intent, domain)
         procedure_id = f"proc_{task_hash}"
 
@@ -149,6 +158,15 @@ class ProceduralMemoryStore:
         2. Substring / lexical pattern match
         3. Domain + action prefix match
         """
+        clean_intent = intent.lower().strip()
+        non_procedural_terms = {
+            "hi", "hello", "hey", "hey hi", "hi there", "how are you", "what ur name", "what is ur name",
+            "who are you", "what are you", "thanks", "thank you", "bye", "goodbye",
+            "good morning", "good evening", "good night", "cieav", "help"
+        }
+        if clean_intent in non_procedural_terms or len(clean_intent) < 6:
+            return None
+
         task_hash = self.compute_task_hash(intent, domain)
 
         with sqlite3.connect(self.db_path) as conn:
@@ -159,7 +177,10 @@ class ProceduralMemoryStore:
 
             # 2. Lexical fallback
             if not row:
-                cursor.execute("SELECT * FROM procedural_graphs WHERE ? LIKE '%' || intent_pattern || '%' OR intent_pattern LIKE '%' || ? || '%'", (intent, intent))
+                if len(clean_intent) >= 10 and len(clean_intent.split()) >= 2:
+                    cursor.execute("SELECT * FROM procedural_graphs WHERE ? LIKE '%' || intent_pattern || '%' AND length(intent_pattern) >= 8", (intent,))
+                else:
+                    cursor.execute("SELECT 1 WHERE 0")
                 row = cursor.fetchone()
 
             if not row:

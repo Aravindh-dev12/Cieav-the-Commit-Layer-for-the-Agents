@@ -62,3 +62,22 @@ def test_opendots_workspace_byom_sessions():
     session = opendots_workspace.create_session(model_provider="ollama", model_name="llama3.3:70b")
     assert session.session_id.startswith("dots_sess_")
     assert session.model_name == "llama3.3:70b"
+
+
+def test_memorable_rejects_greetings_and_conversational_intents():
+    db_path = f"commit_layer/test_mem_greetings_{int(time.time()*1000)}.db"
+    mem = ProceduralMemoryStore(db_path=db_path)
+
+    # 1. Recording a greeting must be rejected (returns None)
+    res = mem.record_successful_run(
+        intent="hi",
+        domain="general",
+        steps=[{"tool_name": "run_terminal_command", "args": {"command": "echo hi"}}]
+    )
+    assert res is None
+
+    # 2. Recalling a greeting must return None
+    assert mem.recall("hi") is None
+    assert mem.recall("hello") is None
+    assert mem.recall("hey") is None
+    assert mem.recall("what ur name") is None

@@ -508,6 +508,16 @@ def run_alma_general_intent_workflow(prompt: str):
     global last_committed_receipt_id
     from commit_layer import intent
     
+    # Fast-Path: Conversational & Informational intents (Greetings, Identity, Questions, Explanations)
+    # Never execute OS commands or prompt cards for conversational small-talk
+    res = autonomous_agent.process_instruction(prompt)
+    if res.get("type") in ("greeting", "identity", "answer", "explanation", "capabilities", "cfo_spend", "llm_response"):
+        if "board" in res and res["board"]:
+            print("\n" + res["board"] + "\n")
+        elif "message" in res and res["message"]:
+            print("\n" + res["message"] + "\n")
+        return
+
     try:
         plan = intent.plan_intent(prompt)
     except Exception as e:
