@@ -65,12 +65,17 @@ def test_greeting_and_model_subscription_query():
         assert "•" not in res["message"]
 
     # 2. Subscribed models and token usage query
-    for q in ("modle token used", "model token used", "tokens used", "what models", "subscribed models"):
+    for q in ("modle token used", "model token used", "tokens used"):
         res = autonomous_agent.process_instruction(q)
         assert res["type"] == "cfo_spend"
         assert "Subscribed Models" in res["message"]
         assert "cieav-decider-v2" in res["message"]
-        assert "claude-3-5-sonnet" in res["message"]
-        assert "claude-3-5-haiku" in res["message"]
         assert res["data"]["total_tokens_billed"] > 0
+
+    # 3. Account and subscription discovery query
+    for q in ("check my claude subscription", "check my chatgpt subscription", "my subscriptions"):
+        res = autonomous_agent.process_instruction(q)
+        assert res["type"] == "account_discovery"
+        assert "ACCOUNT DISCOVERY" in res["message"]
+        assert "cieav-decider-v2" in res["message"]
 

@@ -725,15 +725,27 @@ def process_user_input(text: str):
         print("\n" + res["message"] + "\n")
         return
 
-    SUBSCRIPTION_DISCOVERY_KEYS = (
-        "how this cieav is know", "how cieav know", "how do you know", "how does it know",
-        "which email", "mail subcibre", "mail subscribe", "mail subscribed", "email subscribed",
-        "subscribed on claude", "subscribed on chatgpt", "my email", "claude email", "chatgpt email",
-        "account discovery", "check subscription", "subscription email", "another email", "another mail",
-        "switch email", "change email", "switch account"
+    is_subscription_query = (
+        ("token" not in lower and "spend" not in lower)
+        and (
+            "subscription" in lower
+        or "subscriptions" in lower
+        or "subscribed" in lower
+        or ("claude" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check")))
+        or ("chatgpt" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check")))
+        or ("openai" in lower and any(w in lower for w in ("account", "email", "login", "sub", "plan", "tier", "status", "check")))
+        or any(k in lower for k in (
+            "how this cieav is know", "how cieav know", "how do you know", "how does it know",
+            "which email", "my email", "claude email", "chatgpt email", "account discovery",
+            "who am i logged in", "current account", "active account", "which account", "switch account"
+        ))
+        or ("know" in lower and "mail" in lower)
+        or ("know" in lower and "email" in lower)
+        )
     )
-    if any(k in lower for k in SUBSCRIPTION_DISCOVERY_KEYS) or ("know" in lower and "mail" in lower) or ("know" in lower and "email" in lower):
-        print("\n" + trace_analytics.explain_subscription_detection() + "\n")
+    if is_subscription_query:
+        focus = "claude" if "claude" in lower else "chatgpt" if "chatgpt" in lower or "openai" in lower else None
+        print("\n" + trace_analytics.explain_subscription_detection(focus=focus) + "\n")
         return
 
     TOKEN_QUERY_KEYS = (

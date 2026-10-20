@@ -238,7 +238,7 @@ class TraceAnalyticsEngine:
 
         return subs
 
-    def explain_subscription_detection(self) -> str:
+    def explain_subscription_detection(self, focus: Optional[str] = None) -> str:
         """Explain how CIEAV sovereignly detects local AI subscriptions and emails."""
         subs = self.detect_local_ai_subscriptions()
         lines = []
@@ -247,8 +247,45 @@ class TraceAnalyticsEngine:
         lines.append("CIEAV is 100% sovereign and local. It detects active AI accounts by reading")
         lines.append("your machine's authenticated local configuration profiles with zero cloud APIs:\n")
         
-        # Claude
         c = subs.get("claude", {})
+        g = subs.get("chatgpt", {})
+
+        # If user specifically focused on Claude
+        if focus == "claude":
+            lines.append("⭐ \033[1;32mTarget Account: Anthropic Claude Pro\033[0m:")
+            if c.get("subscribed"):
+                lines.append(f"   • Subscribed Email : \033[1;37m{c.get('email')}\033[0m")
+                lines.append(f"   • Subscription Plan: {c.get('plan')}")
+                lines.append(f"   • Organization     : {c.get('org')}")
+                lines.append("   • Status           : \033[1;32mACTIVE & VERIFIED (Claude Pro)\033[0m")
+                lines.append(f"   • Detected Via     : {c.get('source')} (Local Claude CLI Auth Profile)\n")
+            else:
+                lines.append("   • Status           : No active Claude profile found in ~/.claude.json\n")
+            lines.append("• Other Local Accounts:")
+            if g.get("subscribed"):
+                lines.append(f"   - OpenAI ChatGPT   : {g.get('email')} ({g.get('plan')})")
+            lines.append("   - CIEAV Core       : cieav-decider-v2 (Local CPU Jev 1.14 Core • Free)\n")
+            lines.append("─" * 74)
+            return "\n".join(lines)
+
+        # If user specifically focused on ChatGPT
+        if focus == "chatgpt":
+            lines.append("⭐ \033[1;32mTarget Account: OpenAI ChatGPT\033[0m:")
+            if g.get("subscribed"):
+                lines.append(f"   • Subscribed Email : \033[1;37m{g.get('email')}\033[0m")
+                lines.append(f"   • Auth Mode / Plan : {g.get('plan')}")
+                lines.append("   • Status           : \033[1;32mACTIVE & VERIFIED (ChatGPT OAuth)\033[0m")
+                lines.append(f"   • Detected Via     : {g.get('source')} (Local OpenAI/Codex OAuth Session)\n")
+            else:
+                lines.append("   • Status           : No active ChatGPT session found in ~/.codex/auth.json\n")
+            lines.append("• Other Local Accounts:")
+            if c.get("subscribed"):
+                lines.append(f"   - Anthropic Claude : {c.get('email')} ({c.get('plan')})")
+            lines.append("   - CIEAV Core       : cieav-decider-v2 (Local CPU Jev 1.14 Core • Free)\n")
+            lines.append("─" * 74)
+            return "\n".join(lines)
+
+        # General view (shows both)
         if c.get("subscribed"):
             lines.append("1. \033[1;32mAnthropic Claude Account\033[0m:")
             lines.append(f"   • Subscribed Email : \033[1;37m{c.get('email')}\033[0m")
@@ -258,8 +295,6 @@ class TraceAnalyticsEngine:
         else:
             lines.append("1. Anthropic Claude: No active ~/.claude.json profile detected.\n")
 
-        # ChatGPT
-        g = subs.get("chatgpt", {})
         if g.get("subscribed"):
             lines.append("2. \033[1;32mOpenAI ChatGPT Account\033[0m:")
             lines.append(f"   • Subscribed Email : \033[1;37m{g.get('email')}\033[0m")
@@ -273,6 +308,7 @@ class TraceAnalyticsEngine:
         lines.append("   • Cost & Cloud API : $0.00 / 0% Cloud Dependencies")
         lines.append("─" * 74)
         return "\n".join(lines)
+
 
     def get_token_spend_by_model(self) -> Dict[str, Any]:
         """
