@@ -13,3 +13,5 @@ from commit_layer.tools.notes_manager import NotesManager, notes_manager, NotesM
 from commit_layer.tools.github_agent import GitHubDevOpsAgent, github_agent, GitHubDevOpsTool
 from commit_layer.tools.email_agent import EmailAgent, email_agent, EmailAgentTool
 from commit_layer.tools.messaging_agent import WhatsAppMessagingAgent, whatsapp_agent, WhatsAppMessagingTool
+
+from commit_layer.rea import REABilateralExchangeTool

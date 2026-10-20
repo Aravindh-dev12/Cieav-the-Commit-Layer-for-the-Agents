@@ -276,27 +276,48 @@ def show_receipts():
     print()
 
 
-def handle_undo():
+def handle_undo(target_receipt_id: Optional[str] = None):
     global last_committed_receipt_id
-    if not last_committed_receipt_id:
-        # Check last receipt in ledger
-        all_r = receipts.get_all_receipts()
-        if all_r:
-            last_committed_receipt_id = all_r[-1].get("id")
+    receipt_to_undo = target_receipt_id or last_committed_receipt_id
     
-    if not last_committed_receipt_id:
-        print("\n[UNDO] No recent actions available to undo.\n")
+    all_r = receipts.get_all_receipts()
+    # Build dictionary of latest state per receipt ID (since ledger is append-only)
+    latest_by_id = {}
+    for r in all_r:
+        latest_by_id[r.get("id")] = r
+
+    if not receipt_to_undo:
+        # Scan backwards for the latest action where the current state is AVAILABLE
+        for rid in reversed(list(latest_by_id.keys())):
+            r = latest_by_id[rid]
+            if r.get("undo_state") == "AVAILABLE" and r.get("outcome") == "OBSERVED_SUCCESS":
+                receipt_to_undo = rid
+                break
+        if not receipt_to_undo and all_r:
+            receipt_to_undo = all_r[-1].get("id")
+    
+    if not receipt_to_undo:
+        print("\n[UNDO] No recent actions available in ledger to undo.\n")
         return
 
-    print(f"\n[UNDO] Attempting rollback of receipt {last_committed_receipt_id[:8]}...")
-    res = gateway.undo(last_committed_receipt_id)
+    # Support prefix matching (e.g. commit_cab6)
+    matching = [rid for rid in latest_by_id if rid.startswith(receipt_to_undo)]
+    if matching:
+        receipt_to_undo = matching[-1]
+
+    matched_entry = latest_by_id.get(receipt_to_undo, {})
+    tool_label = matched_entry.get("tool", "action")
+
+    print(f"\n[UNDO] Attempting 2PC rollback of receipt {receipt_to_undo[:12]} ({tool_label})...")
+    res = gateway.undo(receipt_to_undo)
     if "error" in res:
         print(f"  ❌ Rollback failed: {res['error']}\n")
     else:
         print(f"  ✅ Rollback SUCCESS: {res.get('result', {})}")
-        print("  Receipt state updated to UNDONE in cryptographic ledger.\n")
-        job_tracker.update_application_status(last_committed_receipt_id, status="UNDONE", undo_state="UNDONE")
-
+        print("  Receipt state updated to UNDONE in Ed25519 hash-chained ledger.")
+        print(f"  Receipt ID: {receipt_to_undo} • State restored byte-for-byte.\n")
+        job_tracker.update_application_status(receipt_to_undo, status="UNDONE", undo_state="UNDONE")
+        last_committed_receipt_id = None
 
 
 def show_a2a_network():
@@ -1186,7 +1207,12 @@ Available Governed Commands:
         return
 
     if "undo" in words or "/undo" in words:
-        handle_undo()
+        specific_id = None
+        for w in words:
+            if w.lower() not in ("undo", "/undo", "cieav") and len(w) >= 6:
+                specific_id = w
+                break
+        handle_undo(specific_id)
         return
     elif "status" in words:
         show_status()

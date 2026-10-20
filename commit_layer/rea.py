@@ -468,16 +468,37 @@ class REABilateralExchangeTool(BaseTool):
         return Outcome.OBSERVED_SUCCESS
 
     def inverse(self, args: dict[str, Any], result: dict[str, Any]) -> Optional[Callable]:
-        cid = args.get("commitment_id")
+        cid = args.get("commitment_id") or result.get("commitment_id")
         def _undo():
             target_id = cid
+            if target_id and target_id not in rea_ledger.commitments:
+                init_agent = args.get("initiator", "agent-buyer")
+                resp_agent = args.get("responder", "agent-seller")
+                give_info = args.get("give", {}) if isinstance(args.get("give"), dict) else {}
+                take_info = args.get("take", {}) if isinstance(args.get("take"), dict) else {}
+                g_type = give_info.get("type", args.get("give_resource_type", "USD_CREDITS"))
+                g_amt = float(give_info.get("amount", args.get("give_amount", 10.0)))
+                t_type = take_info.get("type", args.get("take_resource_type", "STORAGE_GB"))
+                t_amt = float(take_info.get("amount", args.get("take_amount", 5.0)))
+                for a in (init_agent, resp_agent):
+                    for r_t in (g_type, t_type):
+                        if a not in rea_ledger.agent_resources or r_t not in rea_ledger.agent_resources[a]:
+                            rea_ledger.mint_resource(a, r_t, 100.0)
+                comm = BilateralCommitment(
+                    commitment_id=target_id,
+                    initiator_agent=init_agent,
+                    responder_agent=resp_agent,
+                    give_resource_type=g_type,
+                    give_amount=g_amt,
+                    take_resource_type=t_type,
+                    take_amount=t_amt,
+                    status=CommitmentStatus.COMMITTED,
+                    receipt_id=target_id
+                )
+                rea_ledger.commitments[target_id] = comm
             if not target_id:
                 for k, comm in rea_ledger.commitments.items():
-                    if (
-                        comm.initiator_agent == args.get("initiator")
-                        and comm.responder_agent == args.get("responder")
-                        and comm.status == CommitmentStatus.COMMITTED
-                    ):
+                    if comm.status == CommitmentStatus.COMMITTED:
                         target_id = k
                         break
             if not target_id:

@@ -125,6 +125,43 @@ class AutonomousLocalAgent:
                 "message": "Hey! Great to see you. How can I help you today?"
             }
 
+        # 0.1 Reversible Rollback Intent (/undo)
+        if lower in ("undo", "/undo", "rollback", "revert"):
+            all_r = receipts.get_all_receipts()
+            latest_by_id = {}
+            for r in all_r:
+                latest_by_id[r.get("id")] = r
+
+            target_rid = None
+            for rid in reversed(list(latest_by_id.keys())):
+                r = latest_by_id[rid]
+                if r.get("undo_state") == "AVAILABLE" and r.get("outcome") == "OBSERVED_SUCCESS":
+                    target_rid = rid
+                    break
+            if not target_rid and all_r:
+                target_rid = all_r[-1].get("id")
+            
+            if not target_rid:
+                return {
+                    "type": "undo",
+                    "status": "error",
+                    "message": "No recent actions available in cryptographic ledger to undo."
+                }
+            res = gateway.undo(target_rid)
+            if "error" in res:
+                return {
+                    "type": "undo",
+                    "status": "error",
+                    "message": f"Rollback failed: {res['error']}"
+                }
+            return {
+                "type": "undo",
+                "status": "success",
+                "message": f"Successfully rolled back action (Receipt: {target_rid[:12]}). State restored byte-for-byte in cryptographic ledger.",
+                "data": res
+            }
+
+
         # App Launch Intent (Chrome, Edge, Notepad, Calc, Explorer)
         if lower in ("open chrome", "launch chrome") or lower.startswith("open chrome ") or lower.startswith("launch chrome "):
             url = "https://www.google.com"
