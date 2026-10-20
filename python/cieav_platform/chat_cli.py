@@ -30,6 +30,10 @@ from commit_layer.agents.alma_job_agent import (
     search_matched_jobs,
     prepare_and_govern_application
 )
+from commit_layer.local_browser import local_browser
+from commit_layer.virtual_office import virtual_office
+from commit_layer.cli_game import cli_game
+from commit_layer.autonomous_agent import autonomous_agent
 
 
 
@@ -42,40 +46,67 @@ def get_interactive_banner() -> str:
     local_decision_model.evaluate_predicate("status", "safe")
     lat = (time.perf_counter() - t0) * 1000
 
-    return f"""[1;36m
-  ██████╗██╗███████╗ █████╗ ██╗   ██╗
- ██╔════╝██║██╔════╝██╔══██╗██║   ██║
- ██║     ██║█████╗  ███████║██║   ██║
- ██║     ██║██╔══╝  ██╔══██║╚██╗ ██╔╝
- ╚██████╗██║███████╗██║  ██║ ╚████╔╝ 
-  ╚═════╝╚═╝╚══════╝╚═╝  ╚═╝  ╚═══╝  [0m
-[1;34m══════════════════════════════════════════════════════════════════════════════[0m
- [1;37mA G E N T - T O - A G E N T   ( A 2 A )   S O V E R E I G N   R U N T I M E[0m
- [38;5;246mThe Local Operating System for Autonomous Agents and Computer Control[0m
-[1;34m══════════════════════════════════════════════════════════════════════════════[0m
- [1;32m●[0m [1;37mHost Identity   :[0m Agent-Node-01 (Windows 11 Native Win32 Loopback)
- [1;32m●[0m [1;37mDecision Engine :[0m cieav-decider-mini (Bayesian AST Prior • [1;32m{lat:.2f}ms[0m Latency)
- [1;32m●[0m [1;37mCryptography    :[0m Ed25519 Hash-Chained Key ID [[1;33m{key_id}[0m]
- [1;32m●[0m [1;37mOS Storage Guard:[0m Windows Recycle Bin: [1;35m{rb_str}[0m (Governed)
- [1;32m●[0m [1;37mReversible SLA  :[0m Two-Phase Atomic Rollback (/undo) Active
-[1;34m══════════════════════════════════════════════════════════════════════════════[0m
+    c_purple = "\033[38;2;168;85;247m"
+    c_magenta = "\033[38;2;217;70;239m"
+    c_indigo = "\033[38;2;129;140;248m"
+    c_cyan = "\033[38;2;6;182;212m"
+    c_emerald = "\033[38;2;16;185;129m"
+    c_amber = "\033[38;2;245;158;11m"
+    c_slate = "\033[38;2;148;163;184m"
+    c_white = "\033[1;37m"
+    c_border = "\033[38;2;147;51;234m"
+    rst = "\033[0m"
 
-[1;33mGoverned OS Actions and Interactive Commands:[0m
-  recyclebin        - Inspect real Windows Recycle Bin files and disk space
-  empty recycle bin - Governed CRITICAL purge of Recycle Bin (requires typed COMMIT)
-  /web              - Launch live Web Dashboard (http://127.0.0.1:8000)
-  /test             - Run 6-domain live real-world verification test suite
-  /decide <cmd>     - Query local decision model probabilities (<3ms)
-  /jobs             - View real-world multi-platform career agent tracker
-   /a2a              - Futuristic Agent-to-Agent network & mutual attestation
-  /rea              - Resource-Event-Agent (REA) double-entry economic ledger
-  /status           - Inspect Commit Layer health, keys and receipts
-  /undo             - Instantly rollback the last committed action
-  exit / quit       - Close session
-[1;34m------------------------------------------------------------------------------[0m
+    banner_art = f"""
+{c_purple}  ██████╗ ██╗███████╗ █████╗ ██╗   ██╗{rst}
+{c_magenta} ██╔════╝ ██║██╔════╝██╔══██╗██║   ██║{rst}
+{c_indigo} ██║      ██║█████╗  ███████║██║   ██║{rst}
+{c_cyan} ██║      ██║██╔══╝  ██╔══██║╚██╗ ██╔╝{rst}
+{c_emerald} ╚██████╗ ██║███████╗██║  ██║ ╚████╔╝ {rst}
+{c_amber}  ╚═════╝ ╚═╝╚══════╝╚═╝  ╚═╝  ╚═══╝  {rst}
+{c_border}══════════════════════════════════════════════════════════════════════════════{rst}
+  {c_white}S O V E R E I G N   C O M P U T E R - C O N T R O L   A G E N T   O S{rst}
+  {c_slate}100% Local • Claude Code & Codex Class • Reversible Two-Phase Commits (2PC){rst}
+{c_border}══════════════════════════════════════════════════════════════════════════════{rst}
+  {c_emerald}●{rst} {c_white}Decision Model  :{rst} cieav-decider-v2 (Jev 1.14 CPU Class • {c_emerald}{lat:.2f}ms{rst} • 0% Cloud APIs)
+  {c_emerald}●{rst} {c_white}Local Browser   :{rst} Native Edge/Chrome Engine (Headless DOM & Screenshots • No APIs)
+  {c_emerald}●{rst} {c_white}Virtual Office  :{rst} Multi-Agent Workspace (Atlas, Codex-Lead, CFO, Crust, Ops)
+  {c_emerald}●{rst} {c_white}Cyber Simulator :{rst} Interactive Terminal Game Engine (Hack & Defend)
+  {c_emerald}●{rst} {c_white}Cryptography    :{rst} Ed25519 Hash-Chained Key ID [{c_amber}{key_id}{rst}]
+  {c_emerald}●{rst} {c_white}OS Storage Guard:{rst} Windows Recycle Bin: {c_magenta}{rb_str}{rst} (Governed)
+  {c_emerald}●{rst} {c_white}Reversible SLA  :{rst} Two-Phase Lossless Rollback (/undo byte-for-byte)
+{c_border}══════════════════════════════════════════════════════════════════════════════{rst}
+
+ {c_cyan}┌─ CODEX & COMPUTER-USE ────────┐ ┌─ A2A & REA ECONOMY ─────────┐ ┌─ WORKSPACE & TOOLS ─────────┐{rst}
+ {c_cyan}│{rst} {c_white}exec <cmd>{rst}   - Run local bash {c_cyan}│ │{rst} {c_white}/a2a{rst}       - Peer discovery {c_cyan}│ │{rst} {c_white}office{rst}     - Virtual office {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}write <file>{rst} - Synthesize code{c_cyan}│ │{rst} {c_white}/a2a ping{rst}  - Ed25519 auth   {c_cyan}│ │{rst} {c_white}browser{rst}    - Local browser  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}delete <file>{rst}- Governed purge {c_cyan}│ │{rst} {c_white}/a2a trade{rst} - 2PC procurement{c_cyan}│ │{rst} {c_white}game{rst}       - Play simulation{c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}/jobs{rst}        - Career agent   {c_cyan}│ │{rst} {c_white}/rea{rst}       - REA balance    {c_cyan}│ │{rst} {c_white}/undo{rst}      - Restore state  {c_cyan}│{rst}
+ {c_cyan}└───────────────────────────────┘ └─────────────────────────────┘ └──────────────────────────────┘{rst}
 """
+    return banner_art
 
 BANNER = get_interactive_banner()
+
+def launch_interactive_game():
+    print(cli_game.render_hud())
+    while True:
+        try:
+            cmd = input("\033[38;2;245;158;11mcyber-defense\033[0m \033[38;2;6;182;212m❯\033[0m ").strip()
+            if not cmd:
+                continue
+            res = cli_game.play_turn(cmd)
+            if res == "EXIT":
+                print("\n[GAME] Exiting simulation. Returning to CIEAV Terminal OS.\n")
+                break
+            print("\n" + res)
+            if cli_game.health <= 0:
+                print("\n\033[38;2;239;68;68m[NODE BREACHED] Critical node failure! Type 'undo' to roll back time or 'quit' to exit.\033[0m\n")
+            print(cli_game.render_hud())
+        except (KeyboardInterrupt, EOFError):
+            print("\n[GAME] Simulation paused.\n")
+            break
+
 
 
 last_committed_receipt_id: Optional[str] = None
@@ -440,15 +471,13 @@ def run_alma_general_intent_workflow(prompt: str):
 
     actions = plan.get("actions", [])
     if not actions:
-        print(f"\n[AI AGENT INTERPRETER] Instruction received: '{prompt}'")
-        print("Tip: To control your computer safely via CIEAV (like Alma / Claude Code):")
-        print("  exec <shell_cmd>              -> Governed command execution")
-        print("  create <file> <content>       -> Governed file creation with snapshot")
-        print("  modify <file> <content>       -> Governed file modification with snapshot")
-        print("  delete <filepath>             -> Intercepted as CRITICAL with 2-Phase Undo")
-        print("  pay <amount> <recipient>      -> Governed financial transfer with spend bounds")
-        print("  cieav \"find jobs and apply\"   -> Autonomous career search and application")
-        print("  /undo                         -> Instant cryptographic rollback of last action\n")
+        # Full Agentic Cycle: Dispatches to local autonomous agent running on CPU
+        print(f"\n\033[38;2;168;85;247m[CIEAV LOCAL AGENT • CLAUDE CODE & CODEX CLASS]\033[0m Running autonomous cycle for: '{prompt}'")
+        res = autonomous_agent.process_instruction(prompt)
+        if "board" in res:
+            print("\n" + res["board"] + "\n")
+        elif "message" in res:
+            print("\n" + res["message"] + "\n")
         return
 
     print(f"📋 Actions Planned : {len(actions)} atomic operation(s)")
@@ -579,6 +608,42 @@ Available Governed Commands:
         return
     elif lower in ("/undo", "undo"):
         handle_undo()
+        return
+    elif lower in ("/office", "office", "/workspace", "workspace", "virtual office", "office status"):
+        print("\n" + virtual_office.render_board())
+        return
+    elif lower.startswith("office add ") or lower.startswith("office task "):
+        task_title = cmd.split(" ", 2)[2].strip()
+        t = virtual_office.add_task(task_title)
+        print(f"\n  ✅ Virtual Office Task Created: [{t.task_id}] '{t.title}' assigned to {t.assigned_to.upper()}\n")
+        return
+    elif lower.startswith("office done ") or lower.startswith("office complete "):
+        tid = cmd.split()[-1].upper()
+        t = virtual_office.advance_task(tid)
+        print(f"\n  ✅ Task [{tid}] marked as DONE by agent {t.assigned_to if t else 'agent'}\n")
+        return
+    elif lower in ("/game", "game", "play game", "cyber commit", "/play"):
+        launch_interactive_game()
+        return
+    elif lower.startswith("browser ") or lower.startswith("/browser ") or lower.startswith("dom "):
+        url = cmd.split(" ", 1)[1].strip()
+        print(f"\n[LOCAL BROWSER] Headlessly inspecting '{url}' with native {local_browser.browser_name} (0% APIs)...")
+        dom_res = local_browser.dump_dom(url)
+        if dom_res.get("status") == "success":
+            print(f"  ✅ Title     : {dom_res.get('title')}")
+            print(f"  ✅ DOM Chars : {dom_res.get('char_count')} bytes extracted")
+            print(f"\n--- DOM TEXT PREVIEW ---\n{dom_res.get('text_summary')}\n")
+        else:
+            print(f"  ❌ Browser error: {dom_res.get('error')}\n")
+        return
+    elif lower.startswith("screenshot ") or lower.startswith("/screenshot "):
+        url = cmd.split(" ", 1)[1].strip()
+        print(f"\n[LOCAL BROWSER] Capturing screenshot of '{url}' with native {local_browser.browser_name}...")
+        res = local_browser.capture_screenshot(url)
+        if res.get("status") == "success":
+            print(f"  ✅ Screenshot saved: {res['file_path']} ({res['file_size_bytes']} bytes)\n")
+        else:
+            print(f"  ❌ Screenshot error: {res.get('error')}\n")
         return
     elif lower in ("/a2a", "a2a", "/agents", "agents"):
         show_a2a_network()
@@ -762,7 +827,7 @@ def main(argv: list[str] | None = None) -> int:
     print(BANNER)
     while True:
         try:
-            user_input = input("cieav> ").strip()
+            user_input = input("\033[38;2;168;85;247mcieav\033[0m \033[38;2;6;182;212m❯\033[0m ").strip()
             process_user_input(user_input)
         except (KeyboardInterrupt, EOFError):
             print("\nExiting CIEAV Chat.")

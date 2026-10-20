@@ -313,6 +313,10 @@ cieav> /web                                                  # Open live Web Das
 cieav> /test                                                 # Run 6-domain live real-world verification
 cieav> /decide rm -rf /                                      # Offline Bayesian decision consequence card
 cieav> /jobs                                                 # Autonomous career agent application tracker
+cieav> office                                                # Virtual Office Kanban Board & Multi-Agent Team (Codex Class)
+cieav> office add Build real-time AST parser                 # Assign task to Codex/Atlas agents
+cieav> browser http://localhost:8000                         # Native Edge/Chrome headless DOM inspection (0% Cloud APIs)
+cieav> game                                                  # Interactive terminal cyber defense simulation game
 cieav> /status                                               # View signing key ID, ledger health & safety floor
 cieav> /undo                                                 # Instant two-phase rollback of last action
 cieav> find engineering jobs matching my resume and apply    # Career agent workflow
@@ -326,6 +330,10 @@ cieav> find engineering jobs matching my resume and apply    # Career agent work
 ```text
 Cieav-the-Commit-Layer-for-the-Internet/
 ├── commit_layer/
+│   ├── autonomous_agent.py      # Claude Code & Codex class local agent reasoning loop (0% APIs)
+│   ├── local_browser.py         # Native Edge/Chrome headless browser & DOM controller
+│   ├── virtual_office.py        # Virtual Office Kanban board & multi-agent workspace
+│   ├── cli_game.py              # Interactive terminal cyber simulation game engine
 │   ├── a2a.py                   # Agent-to-Agent (A2A) protocol & mutual Ed25519 attestation
 │   ├── rea.py                   # REA Economic Ontology ledger (ISO/IEC 15944-4 double-entry)
 │   ├── app.py                   # FastAPI application & REST/WebSocket routes
@@ -356,7 +364,7 @@ Cieav-the-Commit-Layer-for-the-Internet/
 │   │   └── repo.py              # Real repository file tool with atomic snapshots
 │   ├── ui/
 │   │   └── index.html           # Unified landing page & interactive dashboard
-│   └── tests/                   # Complete Pytest test suite (72 unit tests across 6 domains + A2A/REA)
+│   └── tests/                   # Complete Pytest test suite (76 unit tests across 7 domains + Codex Local Agent)
 ├── python/cieav_platform/
 │   └── chat_cli.py              # Governed terminal assistant (Alma-style CLI)
 ├── benchmark_decision_models_vs_cieav.py  # 10-scenario empirical benchmark runner
