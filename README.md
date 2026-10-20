@@ -25,7 +25,7 @@ Video : https://www.loom.com/share/5e0c06f2fe1d4f02852c4dd5f9ff5c01?t=4
 3. [Autonomous Laptop Control: Safe Computer-Use (Like Alma)](#3-autonomous-laptop-control-safe-computer-use-like-alma)
 4. [Empirical Benchmarks: CIEAV vs. System 1 Decision Models (Jev 1.13, Kev, Laya)](#4-empirical-benchmarks-cieav-vs-system-1-decision-models-jev-113-kev-laya)
 5. [Futuristic Agent-to-Agent (A2A) Communications & REA Economic Ledger](#5-futuristic-agent-to-agent-a2a-communications--rea-economic-ledger)
-6. [Zero-Friction Autonomous Setup (Just Clone & Run)](#6-zero-friction-autonomous-setup-just-clone--run)
+6. [Zero-Friction Autonomous Setup & Hugging Face Qwen-3.5-9B Engine](#6-zero-friction-autonomous-setup--hugging-face-qwen-35-9b-engine)
 7. [Interactive CLI & Computer-Use Commands](#7-interactive-cli--computer-use-commands)
 8. [Directory Structure](#8-directory-structure)
 
@@ -241,7 +241,7 @@ cieav /undo                         # Instant bilateral rollback reversing both 
 
 ---
 
-## 6. Zero-Friction Autonomous Setup (Just Clone & Run)
+## 6. Zero-Friction Autonomous Setup & Hugging Face Qwen-3.5-9B Engine
 
 CIEAV is built for instant autonomous onboarding. **No multi-step installation ceremony required.**
 
@@ -255,6 +255,62 @@ cieav
 *(On first run, `cieav` autonomously detects missing dependencies, installs them in the background, registers the global command, and launches the live terminal OS with the big ASCII banner!)*
 
 Alternatively, simply double-click **`Start-CIEAV.bat`** (or double-click **`Run-Tests.bat`** to run the 6-domain live verification suite).
+
+---
+
+### Native Local Qwen-3.5-9B Cognitive Core (Auto-Downloaded from Hugging Face)
+
+CIEAV features an in-process **Qwen-3.5-9B** local cognitive engine (5.29 GB Q4_K_M GGUF) running directly on your CPU via `llama-cpp-python` with memory-mapping (`use_mmap=True`). It requires **0% cloud APIs, 0 external daemons, and zero Ollama**.
+
+#### Automatic Hugging Face Model Acquisition
+When you clone CIEAV and run it, you do not need to manually download or configure external weights:
+- **Hugging Face Repository**: [`unsloth/Qwen3.5-9B-GGUF`](https://huggingface.co/unsloth/Qwen3.5-9B-GGUF)
+- **Model File**: `Qwen3.5-9B-Q4_K_M.gguf` (~5.29 GB, 4-bit quantization)
+- **Automatic Auto-Download**: If the model is not found on your machine, CIEAV automatically pulls it from Hugging Face Hub using `huggingface_hub` directly into `./models/qwen3.5-9b/Qwen3.5-9B-Q4_K_M.gguf` on your first generative request!
+- **One-Command Pre-Download**: You can also pre-download and verify the weights anytime by running:
+  ```powershell
+  cieav download-model
+  ```
+  Or inside the interactive chat shell:
+  ```text
+  cieav ❯ download-model
+  ```
+
+#### Auto-Detection of Pre-Downloaded Weights
+If you already have Qwen-3.5-9B downloaded anywhere on your system, CIEAV automatically discovers it with zero download time:
+- `./models/qwen3.5-9b/Qwen3.5-9B-Q4_K_M.gguf`
+- `C:\Users\<User>\Sor\models\gguf-9b\Qwen3.5-9B-Q4_K_M.gguf`
+- `C:\Users\<User>\Desktop\Sor\models\gguf-9b\Qwen3.5-9B-Q4_K_M.gguf`
+- Or via environment variable override:
+  ```powershell
+  $env:CIEAV_QWEN_MODEL_PATH = "C:\path\to\Qwen3.5-9B-Q4_K_M.gguf"
+  ```
+
+#### Inspect Active Model Status (`/hybrid`)
+Check the real-time memory profile, model path, and role allocations:
+```powershell
+cieav /hybrid
+```
+Output:
+```text
+================================================================================
+  CIEAV NATIVE SUPERAGENT CORE (Qwen-3.5-9B Local Engine)
+  100% In-Process Local Inference • Zero Ollama • Zero Cloud • 2PC Safety
+================================================================================
+  * Engine Architecture : Sovereign Local Mixture-of-Agents (MoA) with System 1 AST Consequence Router
+  * Generative Backbone : Qwen-3.5-9B (5.29 GB Q4_K_M GGUF)
+  * Hugging Face Source : unsloth/Qwen3.5-9B-GGUF (Qwen3.5-9B-Q4_K_M.gguf)
+  * Model Storage Path  : C:\Users\ADMIN\Sor\models\gguf-9b\Qwen3.5-9B-Q4_K_M.gguf
+  * System 1 Router     : cieav-decider-v2 (Jev 1.14 CPU class • sub-2ms • deterministic safety floor)
+  * Strategic Planner   : Llama / Qwen Multi-Phase DAG Mission Decomposer
+  * Cryptographic SLA   : CIEAV Cryptographic 2PC (Two-Phase Commit, Ed25519 hash-chain, /undo)
+  * Runtime Status      : STANDBY (Mmap Ready)
+  * Auto-Downloader     : Enabled (huggingface_hub -> models/qwen3.5-9b)
+  * Execution Runtime   : 100% In-Process Native CPU (0% Cloud APIs • Zero Ollama Daemon)
+================================================================================
+```
+
+---
 
 ### 2. Autonomous Local Servicing vs. Manual `COMMIT` Duality
 CIEAV gives you the best of both worlds:
@@ -309,6 +365,8 @@ Run `cieav` in PowerShell to chat naturally with the agent:
 ```text
 cieav> recyclebin                                            # Win32 Recycle Bin inspection (items + MB)
 cieav> empty recycle bin                                     # Intercepted as CRITICAL; requires typed COMMIT
+cieav> download-model                                         # Auto-download Qwen-3.5-9B GGUF from Hugging Face
+cieav> /hybrid                                               # Inspect Qwen-3.5-9B engine status & RAM budget
 cieav> /web                                                  # Open live Web Dashboard (http://127.0.0.1:8000)
 cieav> /test                                                 # Run 6-domain live real-world verification
 cieav> /decide rm -rf /                                      # Offline Bayesian decision consequence card
@@ -330,6 +388,7 @@ cieav> find engineering jobs matching my resume and apply    # Career agent work
 ```text
 Cieav-the-Commit-Layer-for-the-Internet/
 ├── commit_layer/
+│   ├── hybrid_brain.py          # Native Qwen-3.5-9B GGUF local engine & Hugging Face auto-downloader
 │   ├── autonomous_agent.py      # Claude Code & Codex class local agent reasoning loop (0% APIs)
 │   ├── local_browser.py         # Native Edge/Chrome headless browser & DOM controller
 │   ├── web_commerce.py          # Autonomous e-commerce shopping agent (Amazon/Flipkart/Nike browser control)

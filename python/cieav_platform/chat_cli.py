@@ -106,10 +106,10 @@ def get_interactive_banner() -> str:
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
 
  {c_cyan}┌─ SUPERAGENT & DEVOPS ─────────┐ ┌─ OS MAINTENANCE & VAULT ────┐ ┌─ WORKSPACE & TOOLS ─────────┐{rst}
- {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}/hybrid{rst}        - Dual-Core info {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}office run{rst}     - Swarm execute  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}create project{rst}  - Scaffolding   {c_cyan}│ │{rst} {c_white}organize <dir>{rst}  - Sort files   {c_cyan}│ │{rst} {c_white}browser <url>{rst}  - Local browser  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}issues / push{rst}   - GitHub ops    {c_cyan}│ │{rst} {c_white}duplicates{rst}      - Dedup files  {c_cyan}│ │{rst} {c_white}game{rst}           - Cyber simulator{c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}/hybrid{rst}        - 9B Model info  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}download-model{rst} - Fetch 9B GGUF  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}create project{rst}  - Scaffolding   {c_cyan}│ │{rst} {c_white}organize <dir>{rst}  - Sort files   {c_cyan}│ │{rst} {c_white}office run{rst}     - Swarm execute  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}issues / push{rst}   - GitHub ops    {c_cyan}│ │{rst} {c_white}duplicates{rst}      - Dedup files  {c_cyan}│ │{rst} {c_white}browser <url>{rst}  - Local browser  {c_cyan}│{rst}
  {c_cyan}│{rst} {c_white}fix issue <#>{rst}   - Bug patch     {c_cyan}│ │{rst} {c_white}note <text>{rst}     - Vault notes  {c_cyan}│ │{rst} {c_white}/undo{rst}          - Restore state  {c_cyan}│{rst}
  {c_cyan}└───────────────────────────────┘ └──────────────────────────────┘ └──────────────────────────────┘{rst}
 """
@@ -593,6 +593,24 @@ def process_user_input(text: str):
     # Hybrid SuperAgent Architecture / Telemetry
     if lower in ("/hybrid", "hybrid", "hybrid model", "models", "/models", "hybrid core", "dual core"):
         print("\n" + hybrid_brain.render_architecture_card() + "\n")
+        return
+
+    # Hugging Face Model Acquisition Engine (Qwen-3.5-9B)
+    if lower in ("download-model", "download model", "/download-model", "pull-model", "setup-model"):
+        print("\n" + "="*80)
+        print("  CIEAV HUGGING FACE MODEL ACQUISITION ENGINE (Qwen-3.5-9B)")
+        print("="*80)
+        print(f"  * Hugging Face Repo : {hybrid_brain.engine.HF_REPO_ID}")
+        print(f"  * Target File       : {hybrid_brain.engine.HF_FILENAME}")
+        if hybrid_brain.engine.is_available:
+            print(f"  [*] Model already exists locally at: {hybrid_brain.engine.model_path}")
+            print(f"  [*] Size: {hybrid_brain.engine.model_size_gb} GB • Status: READY FOR LOCAL INFERENCE\n")
+        else:
+            try:
+                dest = hybrid_brain.engine.download_model()
+                print(f"  [*] Model successfully installed to: {dest}\n")
+            except Exception as e:
+                print(f"  [!] Download error: {e}\n")
         return
 
 

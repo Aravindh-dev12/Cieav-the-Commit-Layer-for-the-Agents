@@ -30,11 +30,19 @@ from commit_layer.decision_model import local_decision_model
 from commit_layer.tools.base import TOOL_REGISTRY
 
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 class Qwen35LocalEngine:
     """Local inference engine for Qwen-3.5-9B using llama_cpp and memory-mapping."""
 
+    HF_REPO_ID = "unsloth/Qwen3.5-9B-GGUF"
+    HF_FILENAME = "Qwen3.5-9B-Q4_K_M.gguf"
+
     CANDIDATE_PATHS = [
         os.environ.get("CIEAV_QWEN_MODEL_PATH", ""),
+        os.path.join(PROJECT_ROOT, "models", "qwen3.5-9b", "Qwen3.5-9B-Q4_K_M.gguf"),
+        os.path.join(PROJECT_ROOT, "models", "Qwen3.5-9B-Q4_K_M.gguf"),
         r"C:\Users\ADMIN\Sor\models\gguf-9b\Qwen3.5-9B-Q4_K_M.gguf",
         os.path.expanduser(r"~\Sor\models\gguf-9b\Qwen3.5-9B-Q4_K_M.gguf"),
         os.path.expanduser(r"~\Desktop\Sor\models\gguf-9b\Qwen3.5-9B-Q4_K_M.gguf"),
@@ -69,12 +77,44 @@ class Qwen35LocalEngine:
             return round(os.path.getsize(self._model_path) / (1024 ** 3), 2)
         return 0.0
 
-    def load(self, n_ctx: int = 2048, threads: int = 4):
+    def download_model(self, target_dir: Optional[str] = None, force: bool = False) -> str:
+        """Download Qwen3.5-9B-Q4_K_M.gguf directly from Hugging Face Hub."""
+        if self.is_available and not force:
+            return self._model_path
+
+        dest_dir = target_dir or os.path.join(PROJECT_ROOT, "models", "qwen3.5-9b")
+        os.makedirs(dest_dir, exist_ok=True)
+        print(f"\n[*] Initiating Hugging Face download for {self.HF_REPO_ID}/{self.HF_FILENAME}...")
+        print(f"[*] Target directory: {dest_dir}")
+        print("[*] Model size: ~5.29 GB (4-bit quant • 100% offline local inference)")
+
+        try:
+            from huggingface_hub import hf_hub_download
+            downloaded_path = hf_hub_download(
+                repo_id=self.HF_REPO_ID,
+                filename=self.HF_FILENAME,
+                local_dir=dest_dir,
+                local_dir_use_symlinks=False
+            )
+            self._model_path = os.path.abspath(downloaded_path)
+            print(f"[*] Model successfully downloaded and verified at: {self._model_path}\n")
+            return self._model_path
+        except Exception as e:
+            print(f"[!] Hugging Face download error: {e}")
+            raise
+
+    def load(self, n_ctx: int = 2048, threads: int = 4, auto_download: bool = False):
         """Lazy load the model on first generative call using memory-mapping."""
         if self._llm is not None:
             return self._llm
         if not self.is_available:
-            return None
+            if auto_download:
+                try:
+                    self.download_model()
+                except Exception:
+                    return None
+            else:
+                return None
         try:
             import llama_cpp
             self._llm = llama_cpp.Llama(
@@ -370,6 +410,8 @@ class HybridSuperAgentBrain:
             "architecture": "Sovereign Local Mixture-of-Agents (MoA) with System 1 AST Consequence Router",
             "model_path": path,
             "model_size_gb": size_gb,
+            "hf_repo_id": self.engine.HF_REPO_ID,
+            "hf_filename": self.engine.HF_FILENAME,
             "status": status,
             "components": {
                 "router": "cieav-decider-v2 (Jev 1.14 CPU class • sub-2ms • deterministic safety floor)",
@@ -392,11 +434,13 @@ class HybridSuperAgentBrain:
             f"\033[1;35m================================================================================\033[0m\n"
             f"  \033[1;32m*\033[0m \033[1;37mEngine Architecture :\033[0m {info['architecture']}\n"
             f"  \033[1;32m*\033[0m \033[1;37mGenerative Backbone :\033[0m \033[1;33mQwen-3.5-9B\033[0m ({info['model_size_gb']} GB Q4_K_M GGUF)\n"
-            f"  \033[1;32m*\033[0m \033[1;37mModel Storage Path  :\033[0m {info['model_path'] or 'Auto-Configured'}\n"
+            f"  \033[1;32m*\033[0m \033[1;37mHugging Face Source :\033[0m {info['hf_repo_id']} ({info['hf_filename']})\n"
+            f"  \033[1;32m*\033[0m \033[1;37mModel Storage Path  :\033[0m {info['model_path'] or 'Auto-Downloadable on demand'}\n"
             f"  \033[1;32m*\033[0m \033[1;37mSystem 1 Router     :\033[0m {c['router']}\n"
             f"  \033[1;32m*\033[0m \033[1;37mStrategic Planner   :\033[0m {c['strategic_planner']}\n"
             f"  \033[1;32m*\033[0m \033[1;37mCryptographic SLA   :\033[0m {c['governance']}\n"
             f"  \033[1;32m*\033[0m \033[1;37mRuntime Status      :\033[0m \033[1;32m{info['status']}\033[0m\n"
+            f"  \033[1;32m*\033[0m \033[1;37mAuto-Downloader     :\033[0m Enabled (huggingface_hub -> models/qwen3.5-9b)\n"
             f"  \033[1;32m*\033[0m \033[1;37mExecution Runtime   :\033[0m {info['inference_mode']}\n"
             f"\033[1;35m================================================================================\033[0m\n"
             f"  \033[1;33mCapabilities & Role Allocations:\033[0m\n"
