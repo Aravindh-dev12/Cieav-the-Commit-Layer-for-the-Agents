@@ -383,6 +383,32 @@ cieav> find engineering jobs matching my resume and apply    # Career agent work
 
 ---
 
+### 7.6. Universal Agent Tool Server (Hermes & Instinct Interoperability)
+
+CIEAV functions as a **Universal Governed Tool Server** for other autonomous AI agents (such as **Nous Hermes**, **Instinct**, **AutoGPT**, and **Claude Code**). External agents query CIEAV's OpenAI-compatible JSON function calling schemas and dispatch tool executions through the Two-Phase Commit safety floor:
+
+```bash
+# In the CIEAV CLI:
+cieav /tools
+
+# Or via HTTP REST API:
+curl http://127.0.0.1:8000/v1/tools
+curl -X POST http://127.0.0.1:8000/v1/tools/execute \
+  -H "Content-Type: application/json" \
+  -d '{"name": "inspect_recycle_bin", "parameters": {}, "agent_id": "hermes-agent"}'
+```
+
+Every external agent tool execution is verified, cryptographically signed with Ed25519, recorded into the hash chain, and can be rolled back anytime via `/undo`.
+
+### 7.7. Frontier Intelligence & Live Grounding (0% Cloud APIs)
+
+CIEAV answers technical, conceptual, and general inquiries using the **local Qwen-3.5-9B GGUF model** coupled with **Live Web Intelligence** (`commit_layer/web_intel.py`):
+- **Verified Encyclopedia Grounding**: Zero-API-key Wikipedia REST integration dynamically provides live factual grounding.
+- **Native Browser Engine**: Edge/Chrome headless DOM extraction captures real-time web content.
+- **Zero Canned Answers**: Inquiries like `cieav "do u know AGI ?"` or `cieav "define AGI ?"` produce in-depth architectural analyses without canned boilerplate strings.
+
+---
+
 ## 8. Directory Structure
 
 ```text
@@ -390,6 +416,8 @@ Cieav-the-Commit-Layer-for-the-Internet/
 ├── commit_layer/
 │   ├── hybrid_brain.py          # Native Qwen-3.5-9B GGUF local engine & Hugging Face auto-downloader
 │   ├── autonomous_agent.py      # Claude Code & Codex class local agent reasoning loop (0% APIs)
+│   ├── agent_tool_server.py     # Universal Tool Server for Hermes, Instinct & external agents
+│   ├── web_intel.py             # Live encyclopedia grounding & real-time web intelligence
 │   ├── local_browser.py         # Native Edge/Chrome headless browser & DOM controller
 │   ├── web_commerce.py          # Autonomous e-commerce shopping agent (Amazon/Flipkart/Nike browser control)
 │   ├── virtual_office.py        # Virtual Office Kanban board & multi-agent workspace

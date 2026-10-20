@@ -59,6 +59,7 @@ from commit_layer.tools.media_studio import media_studio
 from commit_layer.gui_agent import gui_agent
 from commit_layer.trace_analytics import trace_analytics
 from commit_layer.hybrid_brain import hybrid_brain
+from commit_layer.agent_tool_server import agent_tool_server
 
 
 
@@ -595,6 +596,11 @@ def process_user_input(text: str):
         print("\n" + hybrid_brain.render_architecture_card() + "\n")
         return
 
+    # Agent Tool Server (Hermes / Instinct / Open Interop)
+    if lower in ("/tools", "tools", "/hermes", "hermes", "instinct", "/instinct", "agent tools", "list tools", "/agent-tools"):
+        print("\n" + agent_tool_server.render_hermes_card() + "\n")
+        return
+
     # Hugging Face Model Acquisition Engine (Qwen-3.5-9B)
     if lower in ("download-model", "download model", "/download-model", "pull-model", "setup-model"):
         print("\n" + "="*80)
@@ -841,6 +847,8 @@ Available Governed Commands:
   /web              - Open live Web Dashboard (http://127.0.0.1:8000)
   /test             - Run 6-domain live real-world verification test suite
   /decide <cmd>     - Query local decision model probabilities (<3ms)
+  /tools            - Hermes/Instinct agent tool server catalog & JSON schema
+  /hybrid           - 9B Hybrid reasoning core status & architecture
   /status           - Inspect Commit Layer state and Ed25519 signing key
   /model            - Inspect local decision engine architecture
   /receipts         - View recent cryptographic Ed25519 hash-chained receipts

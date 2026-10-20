@@ -650,6 +650,25 @@ async def api_decisions_models():
     }
 
 
+@app.get("/v1/tools")
+@app.get("/api/tools")
+async def api_list_tools():
+    """List all available tools in OpenAI / Hermes JSON Schema format."""
+    from commit_layer.agent_tool_server import agent_tool_server
+    return {"tools": agent_tool_server.list_tools()}
+
+
+@app.post("/v1/tools/execute")
+@app.post("/api/tools/execute")
+async def api_execute_tool(req: dict):
+    """Execute tool on behalf of external agent under CIEAV 2PC safety floor."""
+    from commit_layer.agent_tool_server import agent_tool_server
+    tool_name = req.get("tool") or req.get("name")
+    args = req.get("args") or req.get("parameters") or {}
+    agent_id = req.get("agent_id", "external-agent")
+    return agent_tool_server.execute_tool(tool_name, args, agent_id=agent_id)
+
+
 # =========================================================================
 # Alma.inc Computer Control & Autonomous Job Search Agent Endpoints
 # =========================================================================

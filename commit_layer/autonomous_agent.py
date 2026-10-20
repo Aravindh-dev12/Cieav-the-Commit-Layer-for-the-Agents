@@ -939,7 +939,7 @@ if __name__ == "__main__":
         # 3. Question / Inquiry Handling vs Actionable Task Handling
         is_question = (
             prompt.strip().endswith("?")
-            or lower.startswith(("what", "how", "why", "who", "when", "where", "can you", "can u", "are you", "is it", "is there", "do you", "will you", "should i", "tell me"))
+            or lower.startswith(("what", "how", "why", "who", "when", "where", "can you", "can u", "are you", "is it", "is there", "do you", "will you", "should i", "tell me", "define", "explain"))
         )
 
         if is_question:
@@ -952,21 +952,53 @@ if __name__ == "__main__":
                     f"  goal {task_part}\n"
                     f"Or tell me to 'proceed' and I will begin the execution workflow."
                 )
-            else:
-                clean_q = prompt.rstrip('?')
-                ans_msg = (
-                    f"[BRAIN] [CIEAV INTELLIGENCE RESPONSE • 0% CLOUD APIS]\n"
-                    f"Inquiry: '{prompt}' (Local Decision Gate: {tier} • {lat:.2f}ms CPU)\n\n"
-                    f"I have analyzed your inquiry. As your sovereign local agent, I specialize in\n"
-                    f"autonomous software development, code refactoring, system telemetry, and DevOps.\n"
-                    f"If you'd like to perform an action or build something related to this, let me know\n"
-                    f"or run 'goal {clean_q}' to start an autonomous mission!"
+                return {
+                    "type": "answer",
+                    "message": ans_msg,
+                    "decision": dec
+                }
+
+            # Real Frontier-Grade Intelligence via Native Qwen-3.5-9B Engine
+            from commit_layer.hybrid_brain import qwen35_engine
+            from commit_layer.web_intel import web_intel
+
+            # Live web / encyclopedia grounding
+            grounded_fact = web_intel.ground_query(prompt)
+
+            if qwen35_engine.is_available:
+                sys_prompt = (
+                    "You are CIEAV, a world-class superintelligent autonomous agent running 100% locally on CPU. "
+                    "Answer questions directly, concisely, and with frontier-level depth and technical precision. "
+                    "Provide comprehensive definitions, architectural breakdowns, and concrete facts without disclaimers."
                 )
-            return {
-                "type": "answer",
-                "message": ans_msg,
-                "decision": dec
-            }
+                user_msg = f"{prompt}\n\n[Live Grounding Context]:\n{grounded_fact}" if grounded_fact else prompt
+                generated = qwen35_engine.generate(user_prompt=user_msg, system_prompt=sys_prompt, max_tokens=180)
+                if generated and len(generated.strip()) > 10:
+                    ans_msg = (
+                        f"[BRAIN] [QWEN-3.5-9B SUPERINTELLIGENT RESPONSE • 100% LOCAL CPU]\n"
+                        f"Inquiry: '{prompt}' (Decision Gate: {tier} • {lat:.2f}ms CPU)\n"
+                        f"--------------------------------------------------------------------------\n"
+                        f"{generated.strip()}\n"
+                        f"--------------------------------------------------------------------------"
+                    )
+                    return {
+                        "type": "answer",
+                        "message": ans_msg,
+                        "decision": dec
+                    }
+
+            # Fallback to grounded encyclopedia if 9B is offline
+            if grounded_fact:
+                ans_msg = (
+                    f"[BRAIN] [CIEAV KNOWLEDGE BASE • 100% GROUNDED]\n"
+                    f"Inquiry: '{prompt}' (Local Decision Gate: {tier} • {lat:.2f}ms CPU)\n\n"
+                    f"{grounded_fact}\n"
+                )
+                return {
+                    "type": "answer",
+                    "message": ans_msg,
+                    "decision": dec
+                }
 
         # 4. Actionable task evaluation via Hybrid SuperAgent Brain (Llama-3.2 + Qwen-2.5)
         from commit_layer.hybrid_brain import hybrid_brain
