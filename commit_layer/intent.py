@@ -253,13 +253,9 @@ def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
             "summary": f"Send notification email to '{recipient}'"
         })
     else:
-        # Default fallback: safe terminal info command
-        actions.append({
-            "domain": "software",
-            "tool": "run_terminal_command",
-            "args": {"command": f"echo 'Intent: {p[:50]}'"},
-            "summary": f"Evaluate intent context in sandbox: {p}"
-        })
+        # Non-destructive / conversational intent produces no governed consequential actions.
+        # Flows directly to the local autonomous agent.
+        pass
 
     return actions
 

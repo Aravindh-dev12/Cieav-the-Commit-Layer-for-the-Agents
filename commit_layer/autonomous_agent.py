@@ -47,6 +47,71 @@ class AutonomousLocalAgent:
         p = user_prompt.strip()
         lower = p.lower()
 
+        # 0. Conversational Greeting & Capability Intent
+        if lower in ("hi", "hello", "hey", "hi cieav", "hello cieav", "hey cieav", "who are you", "what can you do", "help me"):
+            return {
+                "type": "greeting",
+                "message": (
+                    "👋 Hello! I am CIEAV — Your Sovereign Computer-Control Agent OS.\n"
+                    "Operating 100% locally on your CPU with zero third-party cloud APIs.\n\n"
+                    "I can launch native apps ('open chrome', 'open notepad', 'open calc'),\n"
+                    "search e-commerce stores ('buy clothes in amazon'), scaffold projects,\n"
+                    "inspect and fix GitHub issues, manage your personal encrypted notes vault,\n"
+                    "and coordinate multi-agent virtual office tasks.\n\n"
+                    "Consequential actions are safely guarded by Two-Phase Cryptographic Commits (COMMIT) and lossless /undo."
+                )
+            }
+
+        # App Launch Intent (Chrome, Edge, Notepad, Calc, Explorer)
+        if lower in ("open chrome", "launch chrome") or lower.startswith("open chrome ") or lower.startswith("launch chrome "):
+            url = "https://www.google.com"
+            parts = p.split(None, 2)
+            if len(parts) >= 3 and "." in parts[2]:
+                url = parts[2].strip()
+                if not url.startswith("http"):
+                    url = f"https://{url}"
+            res = local_browser.open_chrome(url=url)
+            return {
+                "type": "app_launch",
+                "message": f"🚀 [APP LAUNCHER] Launched Google Chrome directly ({url} • Native OS Process)",
+                "result": res
+            }
+
+        if lower in ("open edge", "launch edge") or lower.startswith("open edge ") or lower.startswith("launch edge "):
+            url = "https://www.bing.com"
+            parts = p.split(None, 2)
+            if len(parts) >= 3 and "." in parts[2]:
+                url = parts[2].strip()
+                if not url.startswith("http"):
+                    url = f"https://{url}"
+            res = local_browser.open_edge(url=url)
+            return {
+                "type": "app_launch",
+                "message": f"🚀 [APP LAUNCHER] Launched Microsoft Edge directly ({url} • Native OS Process)",
+                "result": res
+            }
+
+        if lower in ("open notepad", "launch notepad", "notepad"):
+            subprocess.Popen(["notepad.exe"])
+            return {
+                "type": "app_launch",
+                "message": "🚀 [APP LAUNCHER] Launched Notepad (notepad.exe • Native Windows Process)"
+            }
+
+        if lower in ("open calc", "open calculator", "launch calc", "launch calculator", "calc", "calculator"):
+            subprocess.Popen(["calc.exe"])
+            return {
+                "type": "app_launch",
+                "message": "🚀 [APP LAUNCHER] Launched Windows Calculator (calc.exe • Native Windows Process)"
+            }
+
+        if lower in ("open explorer", "launch explorer", "open files", "explorer", "files"):
+            subprocess.Popen(["explorer.exe", "."])
+            return {
+                "type": "app_launch",
+                "message": "🚀 [APP LAUNCHER] Opened Windows File Explorer at current directory"
+            }
+
         # 1. Notes & Knowledge Vault Intent
         if any(w in lower for w in ("note", "notes", "knowledge vault", "personal note")):
             return self._handle_notes_intent(p)

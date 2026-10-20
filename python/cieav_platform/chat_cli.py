@@ -10,6 +10,7 @@ import sys
 import json
 import shlex
 import re
+import subprocess
 import time
 from typing import Optional
 
@@ -476,12 +477,6 @@ def run_alma_general_intent_workflow(prompt: str):
     global last_committed_receipt_id
     from commit_layer import intent
     
-    print("\n============================================================================")
-    print("   ALMA COMPUTER CONTROL AGENT (CIEAV COMMIT LAYER)")
-    print("   Autonomous Multi-Domain Intent Execution")
-    print("============================================================================")
-    print(f"🎯 Target Intent : \"{prompt}\"")
-    
     try:
         plan = intent.plan_intent(prompt)
     except Exception as e:
@@ -491,7 +486,6 @@ def run_alma_general_intent_workflow(prompt: str):
     actions = plan.get("actions", [])
     if not actions:
         # Full Agentic Cycle: Dispatches to local autonomous agent running on CPU
-        print(f"\n\033[38;2;168;85;247m[CIEAV LOCAL AGENT • CLAUDE CODE & CODEX CLASS]\033[0m Running autonomous cycle for: '{prompt}'")
         res = autonomous_agent.process_instruction(prompt)
         if "board" in res:
             print("\n" + res["board"] + "\n")
@@ -499,6 +493,11 @@ def run_alma_general_intent_workflow(prompt: str):
             print("\n" + res["message"] + "\n")
         return
 
+    print("\n============================================================================")
+    print("   ALMA COMPUTER CONTROL AGENT (CIEAV COMMIT LAYER)")
+    print("   Autonomous Multi-Domain Intent Execution")
+    print("============================================================================")
+    print(f"🎯 Target Intent : \"{prompt}\"")
     print(f"📋 Actions Planned : {len(actions)} atomic operation(s)")
     print(f"🔒 Highest Risk    : {plan.get('highest_risk')} (Safety Floor Enforced)")
     if plan.get("recalled_from_memorable"):
@@ -543,6 +542,87 @@ def run_alma_general_intent_workflow(prompt: str):
             gateway.cancel(act["action_id"])
 
 
+def show_conversational_greeting():
+    print("""
+\033[1;36m👋 Hello! I am CIEAV — Sovereign Computer-Control Agent OS.\033[0m
+\033[38;2;168;85;247m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m
+I operate \033[1;32m100% locally\033[0m on your CPU with \033[1;33mzero third-party cloud APIs\033[0m.
+Like Claude Code and Codex, I directly operate your operating system, browser,
+file system, and developer workflows with cryptographically verified commits:
+
+  🌐 \033[1mLocal Browser & Apps\033[0m     : "open chrome", "open edge", "open notepad", "open calc"
+  🛒 \033[1mWeb Shopping & E-Commerce\033[0m: "buy clothes in amazon", "buy shoes on nike"
+  📁 \033[1mPersonal Notes Vault\033[0m    : "note deploy v2 tomorrow", "notes", "search notes"
+  🛠️  \033[1mDevOps & GitHub\033[0m         : "create project myapp", "issues", "fix issue 1", "push"
+  ✉️  \033[1mComms & Outbox\033[0m          : "send email to dev@corp.io", "whatsapp to +14155552671"
+  🏢 \033[1mVirtual Office\033[0m          : "office", "office add feature", "office done T1"
+  🎮 \033[1mCyber Simulator\033[0m         : "game" (interactive terminal defense simulation)
+  🔒 \033[1mGoverned Safety\033[0m         : Reversible Two-Phase Commits (\033[1;31mCOMMIT\033[0m) & Lossless \033[1;32m/undo\033[0m
+
+\033[90mTry typing: "open chrome", "buy clothes in amazon", "note meeting at 4pm", or "issues"\033[0m
+\033[38;2;168;85;247m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m
+""")
+
+def handle_app_launch(cmd: str) -> bool:
+    """Detect and launch native Windows applications directly without friction."""
+    lower = cmd.lower().strip()
+    
+    # Chrome
+    if lower in ("open chrome", "launch chrome", "chrome", "start chrome") or lower.startswith("open chrome ") or lower.startswith("launch chrome "):
+        url = "https://www.google.com"
+        parts = cmd.split(None, 2)
+        if len(parts) >= 3 and "." in parts[2]:
+            url = parts[2].strip()
+            if not url.startswith("http"):
+                url = f"https://{url}"
+        res = local_browser.open_chrome(url=url)
+        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched Google Chrome directly ({url} • Native OS Process)\n")
+        return True
+
+    # Edge
+    if lower in ("open edge", "launch edge", "edge", "start edge", "msedge") or lower.startswith("open edge ") or lower.startswith("launch edge "):
+        url = "https://www.bing.com"
+        parts = cmd.split(None, 2)
+        if len(parts) >= 3 and "." in parts[2]:
+            url = parts[2].strip()
+            if not url.startswith("http"):
+                url = f"https://{url}"
+        res = local_browser.open_edge(url=url)
+        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched Microsoft Edge directly ({url} • Native OS Process)\n")
+        return True
+
+    # Generic browser
+    if lower in ("open browser", "launch browser", "start browser"):
+        local_browser.open_window("https://www.google.com")
+        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched default browser (Native OS Process)\n")
+        return True
+
+    # Notepad
+    if lower in ("open notepad", "launch notepad", "notepad", "start notepad"):
+        subprocess.Popen(["notepad.exe"])
+        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched Notepad (notepad.exe • Native Windows Process)\n")
+        return True
+
+    # Calculator
+    if lower in ("open calc", "open calculator", "launch calc", "launch calculator", "calc", "calculator", "start calc"):
+        subprocess.Popen(["calc.exe"])
+        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched Windows Calculator (calc.exe • Native Windows Process)\n")
+        return True
+
+    # File Explorer
+    if lower in ("open explorer", "launch explorer", "open files", "explorer", "files"):
+        subprocess.Popen(["explorer.exe", "."])
+        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Opened Windows File Explorer at current directory\n")
+        return True
+
+    # PowerShell / Terminal
+    if lower in ("open terminal", "launch terminal", "open powershell", "open cmd", "terminal"):
+        subprocess.Popen(["powershell.exe"])
+        print(f"\n🚀 \033[1;32m[APP LAUNCHER]\033[0m Launched PowerShell terminal\n")
+        return True
+
+    return False
+
 def process_user_input(text: str):
     cmd = text.strip()
     if not cmd:
@@ -558,6 +638,20 @@ def process_user_input(text: str):
     if lower in ("exit", "quit", "/quit", "/exit"):
         print("Goodbye!")
         sys.exit(0)
+
+    # Conversational Greeting Check
+    GREETINGS = (
+        "hi", "hello", "hey", "hi cieav", "hello cieav", "hey cieav",
+        "good morning", "good afternoon", "good evening",
+        "who are you", "what are you", "what can you do", "cieav"
+    )
+    if lower in GREETINGS:
+        show_conversational_greeting()
+        return
+
+    # Direct App Launch Check (Chrome, Edge, Notepad, Calculator, Explorer, etc.)
+    if handle_app_launch(cmd):
+        return
 
     # Check for direct item selection after shopping search
     if web_commerce.last_search_results:
