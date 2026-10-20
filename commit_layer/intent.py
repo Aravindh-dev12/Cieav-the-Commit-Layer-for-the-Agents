@@ -269,8 +269,8 @@ def _heuristic_parse(prompt: str) -> list[dict[str, Any]]:
             "summary": f"Send WhatsApp message to {phone}"
         })
 
-    # 13. Email
-    elif re.search(r'\b(email|mail|notify)\b', p, re.IGNORECASE):
+    # 13. Outbound Email Dispatch (ONLY on explicit send/dispatch instructions)
+    elif re.search(r'\b(send\s+(?:an\s+)?email|dispatch\s+email|compose\s+email|write\s+email|email\s+to\s+[\w\.-]+@|send\s+mail\s+to)\b', p, re.IGNORECASE) and not re.search(r'\b(open|launch|check|view|read|inspect)\b', p, re.IGNORECASE):
         to_match = re.search(r'[\w\.-]+@[\w\.-]+', p)
         recipient = to_match.group(0) if to_match else "team@cieav.internal"
         actions.append({

@@ -2,7 +2,7 @@
 CIEAV Universal Desktop Application & Web Control Engine (100% Local).
 =====================================================================
 Automates hands-free application launching, system tools, and web service control:
-1. Native Web Apps (Gmail, YouTube, GitHub, ChatGPT, Claude, LinkedIn, etc.)
+1. Native Web Apps with Multi-Account & Specific Email Awareness (Gmail, YouTube, GitHub, etc.)
 2. Host System Apps (VS Code, Calculator, Notepad, Terminal, Settings, Explorer, etc.)
 3. Arbitrary URLs and Installed Software via Win32 Shell API.
 4. Two-Phase Commit Governance (2PC) with process inverse for atomic /undo.
@@ -81,18 +81,107 @@ DESKTOP_APPS: Dict[str, Dict[str, Any]] = {
 
 
 class AppLauncherTool(BaseTool):
-    """Tool to launch desktop applications, system utilities, or web services."""
+    """Tool to launch desktop applications, system utilities, or web services with multi-account support."""
     name = "open_application"
     description = "Launch local desktop applications, system tools, or web services under 2PC governance."
     has_inverse = True
 
     def execute(self, args: dict[str, Any]) -> dict[str, Any]:
         raw_target = args.get("target", "").strip()
-        clean = re.sub(r'^(?:hey\s+)?(?:cieav\s+)?(?:please\s+)?(?:can\s+you\s+)?(?:open|launch|start|run|go\s+to|navigate\s+to)\s+', '', raw_target, flags=re.IGNORECASE).strip()
+        clean = re.sub(r'^(?:hey\s+)?(?:cieav\s+)?(?:please\s+)?(?:can\s+you\s+)?(?:open|launch|start|run|go\s+to|navigate\s+to|switch\s+to)\s+', '', raw_target, flags=re.IGNORECASE).strip()
         clean = re.sub(r'^(?:my\s+|the\s+)', '', clean, flags=re.IGNORECASE).strip()
         lower_clean = clean.lower()
 
-        # 1. Web Application Check
+        # 0. Superintelligent Account & Multi-Account Email Service Handling (Gmail)
+        email_match = re.search(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)', clean)
+        if email_match:
+            email_addr = email_match.group(1).strip()
+            # If target specifies Gmail or an email address
+            if "gmail" in lower_clean or "mail" in lower_clean or email_addr.endswith("@gmail.com"):
+                url = f"https://mail.google.com/mail/u/?authuser={email_addr}"
+                webbrowser.open(url)
+                return {
+                    "status": "launched",
+                    "app_type": "web_service_account",
+                    "target": f"Gmail ({email_addr})",
+                    "email": email_addr,
+                    "url": url,
+                    "message": f"Opened Gmail for '{email_addr}' in default browser ({url})"
+                }
+
+        # Multi-Account Switcher / Another Account in Gmail
+        if any(k in lower_clean for k in (
+            "another account", "other account", "switch account", "switch mail",
+            "another mail", "different account", "change account", "switch gmail",
+            "another email", "other email"
+        )):
+            url = "https://accounts.google.com/AccountChooser?service=mail&continue=https://mail.google.com"
+            webbrowser.open(url)
+            return {
+                "status": "launched",
+                "app_type": "web_service_account_chooser",
+                "target": "Gmail Account Chooser (Switch Account)",
+                "url": url,
+                "message": f"Opened Google Account Chooser in default browser so you can select/switch your account ({url})"
+            }
+
+        # Account indices (account 1, account 2, 2nd account, etc.)
+        if "gmail" in lower_clean or "mail" in lower_clean:
+            if any(k in lower_clean for k in ("account 2", "second account", "2nd account", "account two")):
+                url = "https://mail.google.com/mail/u/1/"
+                webbrowser.open(url)
+                return {
+                    "status": "launched",
+                    "app_type": "web_service_account",
+                    "target": "Gmail (Account 2)",
+                    "url": url,
+                    "message": f"Opened secondary Gmail account in default browser ({url})"
+                }
+            elif any(k in lower_clean for k in ("account 3", "third account", "3rd account", "account three")):
+                url = "https://mail.google.com/mail/u/2/"
+                webbrowser.open(url)
+                return {
+                    "status": "launched",
+                    "app_type": "web_service_account",
+                    "target": "Gmail (Account 3)",
+                    "url": url,
+                    "message": f"Opened tertiary Gmail account in default browser ({url})"
+                }
+            elif any(k in lower_clean for k in ("gmail", "my gmail", "mail", "my mail", "email", "my email", "inbox")):
+                url = "https://mail.google.com/mail/u/0/"
+                webbrowser.open(url)
+                return {
+                    "status": "launched",
+                    "app_type": "web_service",
+                    "target": "Gmail",
+                    "url": url,
+                    "message": f"Opened Gmail in default browser ({url})"
+                }
+
+        # Known web services exact or partial matches (Never do a search for known services!)
+        if "youtube" in lower_clean or lower_clean.strip() == "yt":
+            url = "https://www.youtube.com"
+            webbrowser.open(url)
+            return {
+                "status": "launched",
+                "app_type": "web_service",
+                "target": "YouTube",
+                "url": url,
+                "message": f"Opened YouTube in default browser ({url})"
+            }
+
+        if "github" in lower_clean or lower_clean.strip() == "git":
+            url = "https://github.com"
+            webbrowser.open(url)
+            return {
+                "status": "launched",
+                "app_type": "web_service",
+                "target": "GitHub",
+                "url": url,
+                "message": f"Opened GitHub in default browser ({url})"
+            }
+
+        # 1. Web Application Dictionary Check
         if lower_clean in WEB_SERVICES:
             url = WEB_SERVICES[lower_clean]
             webbrowser.open(url)
@@ -105,8 +194,14 @@ class AppLauncherTool(BaseTool):
             }
 
         # 2. Desktop System App Check
-        if lower_clean in DESKTOP_APPS:
-            app_meta = DESKTOP_APPS[lower_clean]
+        matched_app_key = None
+        for k in DESKTOP_APPS:
+            if k == lower_clean or k in lower_clean:
+                matched_app_key = k
+                break
+
+        if matched_app_key:
+            app_meta = DESKTOP_APPS[matched_app_key]
             disp = app_meta["display"]
             proc_name = app_meta.get("proc_name", "")
             pid = None
@@ -159,7 +254,7 @@ class AppLauncherTool(BaseTool):
                 "message": f"Launched host executable '{lower_clean}'"
             }
 
-        # 5. Fallback: OS startfile or Google Search
+        # 5. Win32 Shell API
         if hasattr(os, "startfile"):
             try:
                 os.startfile(clean)
@@ -172,7 +267,7 @@ class AppLauncherTool(BaseTool):
             except Exception:
                 pass
 
-        # Final Fallback: Web search for target
+        # Final Fallback: Web search for target ONLY if no app could be identified
         search_url = f"https://www.google.com/search?q={clean}"
         webbrowser.open(search_url)
         return {
@@ -230,31 +325,51 @@ class CloseApplicationTool(BaseTool):
 
 
 class AppLauncherManager:
-    """Universal controller for desktop and web applications."""
+    """Universal controller for desktop and web applications with intelligent conversational prefix handling."""
 
     @classmethod
     def detect_app_intent(cls, prompt: str) -> Optional[Dict[str, Any]]:
         """Detect if user query is an app opening or closing request."""
         lower = prompt.lower().strip()
 
-        # Opening patterns: "open my gmail", "hey cieav open youtube", "launch vscode", "start calculator"
+        # 1. Multi-account / switch account phrases
+        if any(k in lower for k in (
+            "open another mail", "open another account", "switch gmail", "switch my mail",
+            "switch account", "open other account", "open in my another account",
+            "opening in my another account", "opening in another account"
+        )):
+            return {"action": "open", "target": "another account in gmail"}
+
+        # 2. Strip conversational pleasantries / correction prefixes:
+        # e.g. "hi open my gmail", "no open aravindh1653@gmail.com account in gmail", "hey cieav open vscode"
+        clean = re.sub(r'^(?:hi|hey|hello|yo|sup|greetings|namaste|bonjour)[\s,!.-]*', '', lower).strip()
+        clean = re.sub(r'^(?:cieav|cieva|ceiav)[\s,!.-]*', '', clean).strip()
+        clean = re.sub(r'^(?:no|nope|wait|actually|i\s+said|not\s+that)[\s,!.-]+', '', clean).strip()
+        clean = re.sub(r'^(?:please|can\s+you|could\s+you|would\s+you)[\s,!.-]*', '', clean).strip()
+
+        # 3. Opening patterns
         open_patterns = [
-            r'^(?:hey\s+)?(?:cieav\s+)?(?:please\s+)?(?:can\s+you\s+)?(?:open|launch|start|run|bring\s+up|go\s+to|navigate\s+to)\s+(.+)',
-            r'^(?:hey\s+)?(?:cieav\s+)?(?:open|launch)\s*(.+)'
+            r'^(?:open|launch|start|run|bring\s+up|go\s+to|navigate\s+to|switch\s+to)\s+(.+)',
+            r'^(?:open|launch)\s*(.+)'
         ]
         for pat in open_patterns:
-            m = re.match(pat, lower, re.IGNORECASE)
+            m = re.match(pat, clean, re.IGNORECASE)
             if m:
                 target = m.group(1).strip()
                 if target:
                     return {"action": "open", "target": target}
 
-        # Closing patterns: "close notepad", "kill calculator", "terminate vscode"
+        # 4. Check for explicit email address with gmail / mail
+        email_match = re.search(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)', clean)
+        if email_match and ("gmail" in clean or "mail" in clean or "account" in clean):
+            return {"action": "open", "target": clean}
+
+        # 5. Closing patterns: "close notepad", "kill calculator", "terminate vscode"
         close_patterns = [
-            r'^(?:hey\s+)?(?:cieav\s+)?(?:please\s+)?(?:close|kill|quit|exit|terminate|stop)\s+(.+)'
+            r'^(?:close|kill|quit|exit|terminate|stop)\s+(.+)'
         ]
         for pat in close_patterns:
-            m = re.match(pat, lower, re.IGNORECASE)
+            m = re.match(pat, clean, re.IGNORECASE)
             if m:
                 target = m.group(1).strip()
                 if target:

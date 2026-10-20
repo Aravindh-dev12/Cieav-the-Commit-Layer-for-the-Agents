@@ -100,7 +100,7 @@ class MultilingualEngine:
                 "HINDI": ["ऑफिस काम करो", "team ko bolo", "office swarm chalao"],
                 "TELUGU": ["ఆఫీస్ పనులు చేయండి", "office swarm cheyi"],
                 "KANNADA": ["ಕಚೇರಿ ಕೆಲಸ ಪ್ರಾರಂಭಿಸಿ", "office swarm madi"],
-                "MALAYALAM": ["ഓഫീസ് ജോലികൾ ചെയ്യുക"],
+                "MALAYALAM": ["ഓಫീസ് ജോലികൾ ചെയ്യുക"],
                 "FRENCH": ["lancer l'équipe bureau", "exécuter tâches bureau"],
                 "ARABIC": ["تنفيذ مهام المكتب", "بدء عمل الفريق"],
                 "CHINESE": ["执行团队任务", "办公室团队运行"],
@@ -162,10 +162,21 @@ class MultilingualEngine:
         }
 
     def is_greeting(self, text: str) -> bool:
-        """Determines if the text is a conversational greeting or polite inquiry."""
+        """Determines if the text is a pure conversational greeting or polite inquiry."""
         cleaned = re.sub(r'[^\w\s]', ' ', text.lower()).strip()
         words = cleaned.split()
         if not words:
+            return False
+
+        # If any actionable command keyword exists, this is NOT a pure greeting!
+        ACTION_STEMS = {
+            'open', 'launch', 'start', 'run', 'close', 'kill', 'check', 'search',
+            'find', 'list', 'delete', 'clean', 'heal', 'fix', 'create', 'system',
+            'note', 'send', 'switch', 'navigate', 'go', 'gmail', 'youtube', 'calc',
+            'calculator', 'chrome', 'edge', 'vscode', 'terminal', 'mail', 'email',
+            'account', 'play', 'video', 'code', 'organize', 'duplicate', 'issues'
+        }
+        if any(w in ACTION_STEMS for w in words):
             return False
 
         GREETING_ROOTS = {
@@ -219,24 +230,9 @@ class MultilingualEngine:
         lang = self.detect_language(text)
         lower = text.lower().strip()
 
-        # Check greetings across all languages including English
+        # Check pure greetings across all languages
         if self.is_greeting(text):
             return ("GREETING", lang)
-
-        GREETING_WORDS = {
-            "HINDI": ["नमस्ते", "namaste", "pranam", "kaise ho", "kya kar sakte ho"],
-            "TELUGU": ["నమస్కారం", "namaskaram", "ela unnaru"],
-            "KANNADA": ["ನಮಸ್ಕಾರ", "namaskara", "hegiddeera"],
-            "MALAYALAM": ["നമസ്കാരം", "namaskaram", "sukhamano"],
-            "FRENCH": ["bonjour", "salut", "qui es tu", "que peux tu faire"],
-            "ARABIC": ["مرحبا", "سلام", "أهلا", "من أنت", "ماذا تستطيع أن تفعل"],
-            "CHINESE": ["你好", "您好", "你是谁", "你能做什么"],
-            "JAPANESE": ["こんにちは", "おはよう", "あなたは誰", "何ができますか"],
-            "ENGLISH": ["hi", "hello", "hey", "howdy", "yo", "sup", "good morning", "good evening", "how are you"]
-        }
-        for g_lang, words in GREETING_WORDS.items():
-            if any(w in lower for w in words) and len(lower.split()) <= 4:
-                return ("GREETING", g_lang)
 
         # Check action lexicon
         for intent, lang_dict in self.action_lexicon.items():

@@ -73,3 +73,36 @@ def test_destructive_critical_intents_require_typed_commit():
     for prompt in critical_plans:
         plan = plan_intent(prompt)
         assert plan.get("requires_typed_confirmation") is True, f"Prompt '{prompt}' should require typed confirmation!"
+
+
+def test_multi_account_and_conversational_intents():
+    # 1. Greeting with action
+    res1 = app_launcher.detect_app_intent("hi open my gmail")
+    assert res1 is not None
+    assert res1["action"] == "open"
+    assert "gmail" in res1["target"].lower()
+
+    # 2. Correction prefix with email address
+    res2 = app_launcher.detect_app_intent("no open aravindh1653@gmail.com account in gmail")
+    assert res2 is not None
+    assert res2["action"] == "open"
+    assert "aravindh1653@gmail.com" in res2["target"]
+
+    # 3. Multi-account / other mail statement
+    res3 = app_launcher.detect_app_intent("i thing ur opening in my another account open another mail")
+    assert res3 is not None
+    assert res3["action"] == "open"
+    assert "another account" in res3["target"]
+
+    # 4. AppLauncherTool execution URL verification
+    tool = AppLauncherTool()
+    out1 = tool.execute({"target": "aravindh1653@gmail.com account in gmail"})
+    assert out1["status"] == "launched"
+    assert "https://mail.google.com/mail/u/?authuser=aravindh1653@gmail.com" in out1["url"]
+    assert out1["app_type"] == "web_service_account"
+
+    out2 = tool.execute({"target": "another account in gmail"})
+    assert out2["status"] == "launched"
+    assert "AccountChooser" in out2["url"]
+    assert out2["app_type"] == "web_service_account_chooser"
+

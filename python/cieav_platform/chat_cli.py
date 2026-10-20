@@ -527,7 +527,9 @@ def run_alma_general_intent_workflow(prompt: str):
     # Fast-Path: Conversational & Informational intents (Greetings, Identity, Questions, Explanations)
     # Never execute OS commands or prompt cards for conversational small-talk
     res = autonomous_agent.process_instruction(prompt)
-    if res.get("type") in ("greeting", "identity", "answer", "explanation", "capabilities", "cfo_spend", "llm_response"):
+    if res.get("type") in ("greeting", "identity", "answer", "explanation", "capabilities", "cfo_spend", "llm_response", "superintelligent_answer", "conversational", "strategic_plan", "governed_execution"):
+        if res.get("receipt_id"):
+            last_committed_receipt_id = res["receipt_id"]
         if "board" in res and res["board"]:
             print("\n" + res["board"] + "\n")
         elif "message" in res and res["message"]:
@@ -649,6 +651,8 @@ def process_user_input(text: str):
     # Hands-Free Computer Control & App Launcher (e.g. "open my gmail", "open youtube", "launch calculator", "open vscode")
     app_intent = app_launcher.detect_app_intent(cmd)
     if app_intent:
+        if any(cmd.lower().startswith(p) for p in ("hi ", "hey ", "hello ", "yo ")):
+            print("\nHey! Great to see you. Executing your request right now...")
         res = app_launcher.launch_governed(app_intent, agent_id="cieav-user-agent")
         last_committed_receipt_id = res.get("result", {}).get("receipt_id")
         print("\n" + app_launcher.render_app_card(res) + "\n")
