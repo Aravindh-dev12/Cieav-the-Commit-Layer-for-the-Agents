@@ -24,3 +24,6 @@
 
 ### [2026-10-21 13:25:28] Learned (security_policy) - by test_runner
 - Centrally controlled sandbox prevents agent escape across host.
+
+### [2026-10-21 13:26:46] Learned (security_policy) - by test_runner
+- Centrally controlled sandbox prevents agent escape across host.
