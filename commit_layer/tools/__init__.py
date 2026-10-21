@@ -31,3 +31,8 @@ from commit_layer.tools.intentional_tools import IntentionalExecuteTool, Playboo
 from commit_layer.intentional_orchestrator import intentional_orchestrator, IntentionalOrchestrator
 from commit_layer.procedural_playbooks import playbook_manager, ProceduralPlaybookManager
 from commit_layer.intentional_gai import hybrid_gai, HybridGAI
+from commit_layer.tools.reflex_tools import ReflexRunTool, ReflexSimulateTool, ReflexAskTool
+from commit_layer.reflex import (
+    extract_procedure, reflex_engine, lint_procedure, simulate_procedure,
+    certify_trusted, get_outcomes_ledger, reflex_kb, reflex_pipeline
+)

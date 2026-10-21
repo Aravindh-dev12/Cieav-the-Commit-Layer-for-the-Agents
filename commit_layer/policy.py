@@ -103,5 +103,12 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
             return RiskLevel.CRITICAL, [f"Sensitive host intentional operation matching keyword in '{target_str.strip()}'"]
         return RiskLevel.LOW, ["Direct host intentional computing & procedural UI playbook replay"]
 
+    # ── Reflex Automation & Self-Repair Engine ─────────────────
+    if tool in ('reflex_simulate_procedure', 'reflex_ask_knowledge'):
+        return RiskLevel.LOW, ["Deterministic Reflex simulation / permission-filtered documentation query"]
+
+    if tool == 'reflex_run_procedure':
+        return RiskLevel.LOW, ["Deterministic checked procedure execution under step verification"]
+
     # ── Unknown tool → HIGH ─────────────────────────────────────
     return RiskLevel.HIGH, [f"Unknown tool: {tool}"]

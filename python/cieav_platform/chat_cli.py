@@ -1254,6 +1254,75 @@ Available Governed Commands:
         elif "gmail" in intent_query.lower() or "linkedin" in intent_query.lower():
             print("\n" + intentional_overlay.render_cli_ephemeral_surface("gmail_application_views_card", {}) + "\n")
         return
+
+    # ── Reflex Automation & Self-Repair Engine ──────────────────────────────
+    elif lower in ("/reflex", "reflex", "reflex procedures", "reflex list"):
+        from commit_layer.reflex.db import get_db
+        conn = get_db()
+        procs = conn.execute("SELECT id, title, status, trusted FROM procedures").fetchall()
+        print("\n╔══════════════════════════════════════════════════════════════════════════════════════════╗")
+        print("║  ⚡ CIEAV REFLEX AUTOMATION ENGINE • DETERMINISTIC PROCEDURES & TRUST                   ║")
+        print("╠══════════════════════════════════════════════════════════════════════════════════════════╣")
+        if not procs:
+            print("  (No stored procedures found. Trace tasks once to create deterministic procedures.)")
+        for p in procs:
+            trust_icon = "\033[1;32m[TRUSTED]\033[0m" if p["trusted"] else "\033[1;33m[UNVERIFIED]\033[0m"
+            print(f"  • #{p['id']} {trust_icon} \033[1;36m{p['title']}\033[0m (Status: {p['status']})")
+        print("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n")
+        return
+
+    elif lower.startswith("reflex simulate ") or lower.startswith("reflex lint "):
+        proc_id = int(cmd.split()[-1])
+        from commit_layer.reflex import certify_trusted, lint_procedure, get_db
+        import json
+        conn = get_db()
+        row = conn.execute("SELECT * FROM procedures WHERE id = ?", (proc_id,)).fetchone()
+        if not row:
+            print(f"\n  ❌ Procedure #{proc_id} not found.\n")
+            return
+        p_data = dict(row)
+        p_data["steps"] = json.loads(p_data["steps"])
+        lint_res = lint_procedure(p_data)
+        print(f"\n[REFLEX ASSURANCE] Running Design Rule Checks (DRC) on Procedure #{proc_id}...")
+        if not lint_res["ok"]:
+            print(f"  ❌ DRC Violations: {len(lint_res['violations'])}")
+            for v in lint_res["violations"]:
+                print(f"    • Step #{v['step']}: {v['message']}")
+            print()
+            return
+        print("  ✅ DRC Lint: 100% Rules Passed. Starting Pre-Deployment Fault Injection Simulation...")
+        cert_res = certify_trusted(proc_id)
+        if cert_res["status"] == "trusted_certified":
+            print(f"  \033[1;32m✅ TRUST CERTIFIED:\033[0m Passed {cert_res['scenarios_passed']} fault scenarios. Safe for unattended local runs!\n")
+        else:
+            print(f"  ❌ Simulation Failed: {cert_res}\n")
+        return
+
+    elif lower.startswith("reflex ask "):
+        q = cmd.split("ask", 1)[1].strip()
+        from commit_layer.reflex import reflex_kb
+        print(f"\n[REFLEX KNOWLEDGE BASE] Querying permission-filtered docs: '{q}'...")
+        ans = reflex_kb.ask(q)
+        print(f"\n{ans['answer']}\n")
+        if ans.get("citations"):
+            print("--- CITATIONS ---")
+            for c in ans["citations"]:
+                print(f"  [{c['number']}] {c['title']} (v{c['version']}) -> {c['doc_key']}")
+            print()
+        return
+
+    elif lower in ("reflex outcomes", "/reflex outcomes"):
+        from commit_layer.reflex import get_outcomes_ledger
+        outcomes = get_outcomes_ledger()
+        print("\n╔══════════════════════════════════════════════════════════════════════════════════════════╗")
+        print("║  📊 CIEAV REFLEX OUTCOMES LEDGER • MODEL-FREE EXECUTION & MINUTES SAVED                 ║")
+        print("╠══════════════════════════════════════════════════════════════════════════════════════════╣")
+        for o in outcomes:
+            rate_str = f"{int(o['model_free_rate']*100)}%" if o['model_free_rate'] is not None else "N/A"
+            print(f"  • Procedure #{o['procedure_id']} '{o['title']}':")
+            print(f"    Runs: {o['total_runs']} | Completed: {o['completed']} | Model-Free: {rate_str} | Saved: {o['minutes_saved']} min")
+        print("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n")
+        return
     elif lower.startswith("browser ") or lower.startswith("/browser ") or lower.startswith("dom "):
         url = cmd.split(" ", 1)[1].strip()
         print(f"\n[LOCAL BROWSER] Headlessly inspecting '{url}' with native {local_browser.browser_name} (0% APIs)...")
