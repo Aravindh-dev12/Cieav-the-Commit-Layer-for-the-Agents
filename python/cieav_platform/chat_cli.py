@@ -109,10 +109,10 @@ def get_interactive_banner() -> str:
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
 
  {c_cyan}┌─ SUPERAGENT & DEVOPS ─────────┐ ┌─ OS MAINTENANCE & VAULT ────┐ ┌─ COMPUTER USE & APPS ───────┐{rst}
- {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}interact <url>{rst} - Active web cdp {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}run entire app{rst} - Full app + UI  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}office run{rst}     - Swarm execute  {c_cyan}│ │{rst} {c_white}organize <dir>{rst}  - Sort files   {c_cyan}│ │{rst} {c_white}run app <name>{rst} - Desktop apps   {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}issues / push{rst}   - GitHub ops    {c_cyan}│ │{rst} {c_white}duplicates{rst}      - Dedup files  {c_cyan}│ │{rst} {c_white}open <app/url>{rst}  - Launch service {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}sandbox{rst}         - Central jail {c_cyan}│ │{rst} {c_white}interact <url>{rst} - Active web cdp {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}memory{rst}          - Local MemFS  {c_cyan}│ │{rst} {c_white}run entire app{rst} - Full app + UI  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}office run{rst}     - Swarm execute  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}run app <name>{rst} - Desktop apps   {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}issues / push{rst}   - GitHub ops    {c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}open <app/url>{rst}  - Launch service {c_cyan}│{rst}
  {c_cyan}│{rst} {c_white}fix issue <#>{rst}   - Bug patch     {c_cyan}│ │{rst} {c_white}/tools{rst}          - Hermes tools {c_cyan}│ │{rst} {c_white}/undo{rst}          - Restore state  {c_cyan}│{rst}
  {c_cyan}└───────────────────────────────┘ └──────────────────────────────┘ └──────────────────────────────┘{rst}
 """
@@ -1165,6 +1165,56 @@ Available Governed Commands:
         if res.get("receipt_id"):
             last_committed_receipt_id = res["receipt_id"]
         print(f"  ✅ Launched {res.get('app')} (Process PID: {res.get('pid')})\n")
+        return
+
+    # ── Centrally Controlled Sandbox Commands ────────────────────────────────
+    elif lower in ("/sandbox", "sandbox", "sandbox status", "/sandboxes", "sandboxes", "jail"):
+        from commit_layer.sandbox_controller import central_sandbox
+        print("\n" + central_sandbox.render_sandbox_status() + "\n")
+        return
+
+    elif lower.startswith("sandbox run ") or lower.startswith("/sandbox run "):
+        cmd_to_run = cmd.split("run", 1)[1].strip()
+        from commit_layer.sandbox_controller import central_sandbox
+        print(f"\n[CENTRAL CONTROLLED SANDBOX] Executing inside jail: `{cmd_to_run}`...")
+        res = central_sandbox.run_command(cmd_to_run)
+        res_dict = res.to_dict()
+        status_color = "\033[38;2;16;185;129m" if res_dict["success"] else "\033[38;2;239;68;68m"
+        print(f"  Status : {status_color}{'SUCCESS' if res_dict['success'] else 'FAILED'}\033[0m (Exit: {res_dict['exit_code']} | Peak RAM: {res_dict['peak_memory_mb']}MB | {res_dict['elapsed_sec']}s)")
+        if res_dict["stdout"]:
+            print(f"--- STDOUT ---\n{res_dict['stdout']}")
+        if res_dict["stderr"]:
+            print(f"--- STDERR ---\n{res_dict['stderr']}")
+        print()
+        return
+
+    # ── Persistent Local Memory Hive Commands (MemFS / SOUL / MemPalace) ─────
+    elif lower in ("/memory", "memory", "/hive", "hive", "memory hive", "memory status"):
+        from commit_layer.memory_hive import memory_hive
+        print("\n" + memory_hive.render_hive_card() + "\n")
+        return
+
+    elif lower in ("/soul", "soul", "soul.md", "constitution"):
+        from commit_layer.memory_hive import memory_hive
+        print(f"\n{memory_hive.read_soul()}\n")
+        return
+
+    elif lower.startswith("memory learn ") or lower.startswith("learn "):
+        insight_text = cmd.split("learn", 1)[1].strip()
+        from commit_layer.memory_hive import memory_hive
+        learn_res = memory_hive.learn(category="user_preference", insight=insight_text, author="user")
+        print(f"\n  ✅ Learned & Persisted into MEMORY.md: '{insight_text}'\n")
+        return
+
+    elif lower.startswith("memory recall ") or lower.startswith("recall "):
+        q_text = cmd.split("recall", 1)[1].strip()
+        from commit_layer.memory_hive import memory_hive
+        recalled = memory_hive.recall(q_text, top_k=3)
+        print(f"\n\033[38;2;168;85;247m[MEMORY HIVE RECALL: '{q_text}']\033[0m ({len(recalled)} matches):")
+        for idx, r in enumerate(recalled, 1):
+            print(f"  [{idx}] \033[1;36m{r['source']}\033[0m (Relevance: {r['score']})")
+            print(f"      {r['content']}")
+        print()
         return
     elif lower.startswith("browser ") or lower.startswith("/browser ") or lower.startswith("dom "):
         url = cmd.split(" ", 1)[1].strip()

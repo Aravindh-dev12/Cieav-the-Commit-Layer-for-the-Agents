@@ -90,11 +90,11 @@ class AutonomousLocalAgent:
             target_url = url_match.group(0) if url_match else "https://www.google.com"
             actions = []
             
-            click_match = re.search(r'click\s+(?:on\s+)?["']?([^"']+)["']?', p, re.IGNORECASE)
+            click_match = re.search(r"""click\s+(?:on\s+)?["']?([^"']+)["']?""", p, re.IGNORECASE)
             if click_match:
                 actions.append({"type": "click", "target": click_match.group(1).strip()})
             
-            type_match = re.search(r'(?:type|search|enter)\s+["']?([^"']+)["']?(?:\s+(?:into|in|for)\s+["']?([^"']+)["']?)?', p, re.IGNORECASE)
+            type_match = re.search(r"""(?:type|search|enter)\s+["']?([^"']+)["']?(?:\s+(?:into|in|for)\s+["']?([^"']+)["']?)?""", p, re.IGNORECASE)
             if type_match:
                 text_to_type = type_match.group(1).strip()
                 field = type_match.group(2).strip() if type_match.group(2) else "input"
@@ -138,6 +138,68 @@ class AutonomousLocalAgent:
                     "receipt_id": res.get("receipt_id"),
                     "data": res
                 }
+
+        # ── Central Controlled Sandbox Commands ──────────────────────────────
+        if lower in ("sandbox", "sandbox status", "/sandbox", "sandbox perimeter", "sandboxes"):
+            from commit_layer.sandbox_controller import central_sandbox
+            return {
+                "type": "sandbox_status",
+                "message": central_sandbox.render_sandbox_status(),
+                "data": central_sandbox.active_sandboxes
+            }
+
+        if lower.startswith("sandbox run ") or lower.startswith("/sandbox run "):
+            from commit_layer.sandbox_controller import central_sandbox
+            cmd_to_run = p.split("run", 1)[1].strip()
+            res = central_sandbox.run_command(cmd_to_run)
+            res_dict = res.to_dict()
+            msg = (
+                f"\n[CENTRAL CONTROLLED SANDBOX RESULT]\n"
+                f"Command: {res_dict['command']}\n"
+                f"Status : {'SUCCESS' if res_dict['success'] else 'FAILED'} (Exit Code: {res_dict['exit_code']})\n"
+                f"Runtime: {res_dict['elapsed_sec']}s | Peak RAM: {res_dict['peak_memory_mb']} MB\n"
+                f"--- STDOUT ---\n{res_dict['stdout'] or '(no output)'}\n"
+            )
+            if res_dict['stderr']:
+                msg += f"--- STDERR ---\n{res_dict['stderr']}\n"
+            return {"type": "governed_execution", "message": msg, "data": res_dict}
+
+        # ── Persistent Local Memory Hive Commands (MemFS / MemPalace) ────────
+        if lower in ("memory", "memory status", "/memory", "memory hive", "hive"):
+            from commit_layer.memory_hive import memory_hive
+            return {
+                "type": "memory_hive",
+                "message": memory_hive.render_hive_card(),
+                "data": {}
+            }
+
+        if lower in ("soul", "soul.md", "/soul", "constitution"):
+            from commit_layer.memory_hive import memory_hive
+            return {
+                "type": "memory_hive",
+                "message": f"\n{memory_hive.read_soul()}\n",
+                "data": {}
+            }
+
+        if lower.startswith("memory learn ") or lower.startswith("learn "):
+            from commit_layer.memory_hive import memory_hive
+            insight_text = p.split("learn", 1)[1].strip()
+            learn_res = memory_hive.learn(category="user_preference", insight=insight_text, author="user")
+            return {
+                "type": "memory_hive",
+                "message": f"\n  ✅ Preserved into MEMORY.md & Git Hive: '{insight_text}'\n",
+                "data": learn_res
+            }
+
+        if lower.startswith("memory recall ") or lower.startswith("recall "):
+            from commit_layer.memory_hive import memory_hive
+            q_text = p.split("recall", 1)[1].strip()
+            recalled = memory_hive.recall(q_text, top_k=3)
+            lines = [f"\n[MEMORY HIVE RECALL: '{q_text}'] ({len(recalled)} matches):"]
+            for idx, r in enumerate(recalled, 1):
+                lines.append(f"  [{idx}] Source: {r['source']} (Relevance: {r['score']})")
+                lines.append(f"      {r['content']}")
+            return {"type": "memory_hive", "message": "\n".join(lines) + "\n", "data": recalled}
 
         # Grounded Telemetry & Real Audit Data (No Hallucination)
         if any(k in lower for k in ("highest latency", "slowest trace", "trace latency", "latency yesterday")):

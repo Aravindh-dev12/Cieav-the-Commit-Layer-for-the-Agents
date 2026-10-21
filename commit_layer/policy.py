@@ -15,9 +15,9 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
     if tool.startswith(('read_', 'get_', 'list_', 'headroom_')):
         return RiskLevel.LOW, ["Read-only / context optimization tool"]
 
-    # ── Application & Web Service Control (Hands-Free Computer Use) ─
-    if tool in ('open_application', 'close_application', 'launch_app', 'browser_interactive_action', 'run_desktop_app', 'run_entire_app'):
-        return RiskLevel.LOW, ["User-directed application or web service control (safe and reversible)"]
+    # ── Application, Sandbox & Web Service Control (Hands-Free Computer Use) ─
+    if tool in ('open_application', 'close_application', 'launch_app', 'browser_interactive_action', 'run_desktop_app', 'run_entire_app', 'sandbox_execute', 'sandbox_commit_worktree', 'memory_hive_action'):
+        return RiskLevel.LOW, ["User-directed application or sandboxed execution (strictly contained and reversible)"]
 
     # ── Email Intelligence & Inspection ─────────────────────────
     if tool in ('inspect_gmail_application_views', 'inspect_email', 'search_email'):
