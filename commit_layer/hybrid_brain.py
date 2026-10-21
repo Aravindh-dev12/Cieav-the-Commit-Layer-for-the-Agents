@@ -117,11 +117,12 @@ class Qwen35LocalEngine:
                 return None
         try:
             import llama_cpp
+            cpu_th = min(6, os.cpu_count() or 4)
             self._llm = llama_cpp.Llama(
                 model_path=self._model_path,
-                n_ctx=n_ctx,
-                n_threads=min(threads, os.cpu_count() or 1),
-                n_batch=256,
+                n_ctx=min(n_ctx, 1024),
+                n_threads=cpu_th,
+                n_batch=512,
                 use_mmap=True,
                 verbose=False
             )
@@ -133,7 +134,7 @@ class Qwen35LocalEngine:
         self,
         user_prompt: str,
         system_prompt: str = "You are CIEAV, an autonomous coding agent. Provide clean, production-ready code.",
-        max_tokens: int = 384
+        max_tokens: int = 180
     ) -> str:
         """Execute local in-process token generation with ChatML formatting."""
         llm = self.load()
@@ -142,7 +143,7 @@ class Qwen35LocalEngine:
         prompt = (
             f"<|im_start|>system\n{system_prompt}<|im_end|>\n"
             f"<|im_start|>user\n{user_prompt}<|im_end|>\n"
-            f"<|im_start|>assistant\n"
+            f"<|im_start|>assistant\n<think>\n</think>\n"
         )
         try:
             res = llm(

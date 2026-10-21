@@ -407,6 +407,24 @@ CIEAV answers technical, conceptual, and general inquiries using the **local Qwe
 - **Native Browser Engine**: Edge/Chrome headless DOM extraction captures real-time web content.
 - **Zero Canned Answers**: Inquiries like `cieav "do u know AGI ?"` or `cieav "define AGI ?"` produce in-depth architectural analyses without canned boilerplate strings.
 
+### 7.8. Sovereign Multi-Agent Swarm (`office run <goal>`, `swarm <goal>`)
+
+Run collaborative multi-agent missions completely offline with zero mock data and zero hardcoded seeds:
+```bash
+# Execute a full 5-agent mission via the interactive CLI:
+cieav "office run build a lightweight HTTP health check daemon in Python"
+
+# Or using the shorthand swarm command:
+cieav "swarm build an async task scheduler in Python"
+```
+
+The 5 specialized agents execute in a verified DAG under Two-Phase Commit safety:
+1. **Atlas (Systems Architect)**: Decomposes objectives into DAG blueprints dynamically via local Qwen-3.5-9B.
+2. **Codex (Software Engineer)**: Synthesizes production code, validates AST, and writes executable `.py` files into `projects/`.
+3. **Crust (Security Auditor)**: Audits AST for dynamic `eval`/`exec`, credential leaks, and safety floor invariants.
+4. **Ops (DevOps & Telemetry)**: Compiles deliverables (`py_compile`) and queries real host CPU/RAM telemetry (`psutil`).
+5. **CFO (Governance & 2PC)**: Enforces Two-Phase Commit safety, records Ed25519 hash-chained receipts, and guarantees `/undo` rollback SLA.
+
 ---
 
 ## 8. Directory Structure
@@ -415,12 +433,13 @@ CIEAV answers technical, conceptual, and general inquiries using the **local Qwe
 Cieav-the-Commit-Layer-for-the-Internet/
 ├── commit_layer/
 │   ├── hybrid_brain.py          # Native Qwen-3.5-9B GGUF local engine & Hugging Face auto-downloader
+│   ├── multi_agent_swarm.py     # 5-agent autonomous swarm runtime (Atlas, Codex, Crust, Ops, CFO)
 │   ├── autonomous_agent.py      # Claude Code & Codex class local agent reasoning loop (0% APIs)
 │   ├── agent_tool_server.py     # Universal Tool Server for Hermes, Instinct & external agents
 │   ├── web_intel.py             # Live encyclopedia grounding & real-time web intelligence
 │   ├── local_browser.py         # Native Edge/Chrome headless browser & DOM controller
 │   ├── web_commerce.py          # Autonomous e-commerce shopping agent (Amazon/Flipkart/Nike browser control)
-│   ├── virtual_office.py        # Virtual Office Kanban board & multi-agent workspace
+│   ├── virtual_office.py        # Virtual Office Kanban board & multi-agent workspace (Zero mock seeds)
 │   ├── cli_game.py              # Interactive terminal cyber simulation game engine
 │   ├── a2a.py                   # Agent-to-Agent (A2A) protocol & mutual Ed25519 attestation
 │   ├── rea.py                   # REA Economic Ontology ledger (ISO/IEC 15944-4 double-entry)

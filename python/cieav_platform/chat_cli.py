@@ -818,10 +818,43 @@ def process_user_input(text: str):
         return
 
     # 8. Virtual Office Swarm Cycle
-    if lower in ("office run", "office swarm", "run swarm", "swarm"):
-        print("\n\033[38;2;168;85;247m[VIRTUAL OFFICE SWARM]\033[0m Dispatching Atlas, Codex, CFO, Crust & Ops across pending tasks...")
-        res = virtual_office.run_swarm_cycle()
-        print(f"  ✅ Completed \033[1;32m{res['executed_count']} tasks\033[0m autonomously!\n")
+    is_swarm_cmd = (
+        lower in ("office run", "office swarm", "run swarm", "swarm", "/swarm")
+        or lower.startswith("office run ")
+        or lower.startswith("office swarm ")
+        or lower.startswith("swarm ")
+        or lower.startswith("/swarm ")
+        or lower.startswith("team ")
+        or lower.startswith("office mission ")
+        or lower.startswith("office execute ")
+    )
+    if is_swarm_cmd:
+        goal_text = ""
+        for pfx in ("office run", "office swarm", "office mission", "office execute", "run swarm", "swarm", "/swarm", "team"):
+            if lower.startswith(pfx):
+                goal_text = cmd[len(pfx):].strip()
+                break
+        target_goal = goal_text or "Perform autonomous system inspection, code synthesis, and verification"
+        print(f"\n\033[38;2;168;85;247m[VIRTUAL OFFICE SWARM • 100% LOCAL ZERO MOCK]\033[0m")
+        print(f"[*] Target Objective : \"{target_goal}\"")
+        print("[*] Dispatching Atlas, Codex, Crust, Ops, and CFO across autonomous pipeline...\n")
+
+        def swarm_progress_cb(cur, total, agent_name, desc):
+            c_agent = (
+                "\033[38;2;6;182;212m" if agent_name == "Atlas" else
+                "\033[38;2;16;185;129m" if agent_name == "Codex" else
+                "\033[38;2;245;158;11m" if agent_name == "Crust" else
+                "\033[38;2;6;182;212m" if agent_name == "Ops" else
+                "\033[38;2;168;85;247m"
+            )
+            print(f"  \033[1;37m[{cur}/{total}]\033[0m {c_agent}[{agent_name}]\033[0m {desc}...")
+
+        from commit_layer.multi_agent_swarm import swarm_orchestrator
+        res = virtual_office.run_swarm_cycle(target_goal, progress_cb=swarm_progress_cb)
+        mission = res.get("mission", {})
+        if mission.get("receipt_id"):
+            last_committed_receipt_id = mission["receipt_id"]
+        print("\n" + swarm_orchestrator.render_swarm_card(mission) + "\n")
         print(virtual_office.render_board())
         return
 
