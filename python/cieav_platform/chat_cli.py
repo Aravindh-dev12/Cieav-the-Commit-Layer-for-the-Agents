@@ -30,7 +30,15 @@ if cwd_lower.startswith(windir) or cwd_lower.startswith(system_root):
         pass
 
 if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 from commit_layer import gateway, receipts, sandbox, job_tracker
 from commit_layer.decision_model import local_decision_model
@@ -62,6 +70,7 @@ from commit_layer.hybrid_brain import hybrid_brain
 from commit_layer.agent_tool_server import agent_tool_server
 from commit_layer.tools.app_launcher import app_launcher
 from commit_layer.tools.gmail_agent import gmail_agent
+from commit_layer.knowledge_core import user_identity_resolver, technical_knowledge_resolver
 
 
 
@@ -527,7 +536,15 @@ def run_alma_general_intent_workflow(prompt: str):
     # Fast-Path: Conversational & Informational intents (Greetings, Identity, Questions, Explanations)
     # Never execute OS commands or prompt cards for conversational small-talk
     res = autonomous_agent.process_instruction(prompt)
-    if res.get("type") in ("greeting", "identity", "answer", "explanation", "capabilities", "cfo_spend", "llm_response", "superintelligent_answer", "conversational", "strategic_plan", "governed_execution"):
+    if (
+        res.get("type") in (
+            "greeting", "identity", "user_identity", "technical_explanation", "reflex_rag_answer",
+            "answer", "explanation", "capabilities", "cfo_spend", "llm_response", "superintelligent_answer",
+            "conversational", "strategic_plan", "governed_execution", "sandbox_status", "ports",
+            "file_organizer", "duplicate_finder", "hybrid_superagent"
+        )
+        or (res.get("message") and not res.get("actions"))
+    ):
         if res.get("receipt_id"):
             last_committed_receipt_id = res["receipt_id"]
         if "board" in res and res["board"]:
@@ -625,6 +642,17 @@ def process_user_input(text: str):
     if lower in ("exit", "quit", "/quit", "/exit"):
         print("Goodbye!")
         sys.exit(0)
+
+    # Fast-Path: Instant Sovereign Operator Identity & Technical Knowledge Engine (0ms CPU)
+    user_id_res = user_identity_resolver.check_user_identity_intent(cmd)
+    if user_id_res:
+        print("\n" + user_id_res["message"] + "\n")
+        return
+
+    tech_res = technical_knowledge_resolver.check_technical_intent(cmd)
+    if tech_res:
+        print("\n" + tech_res["message"] + "\n")
+        return
 
     # Autonomous Gmail LinkedIn Application Inspector & Intelligence (100% Local CPU • Zero Friction • 2PC Safety)
     gmail_intent = gmail_agent.detect_gmail_application_intent(cmd)

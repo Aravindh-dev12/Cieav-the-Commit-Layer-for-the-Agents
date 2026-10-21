@@ -38,6 +38,8 @@ from commit_layer.multilingual import multilingual_engine
 from commit_layer.gui_agent import gui_agent
 from commit_layer.trace_analytics import trace_analytics
 from commit_layer.workspace import get_workspace_root
+from commit_layer.knowledge_core import user_identity_resolver, technical_knowledge_resolver
+from commit_layer.reflex.knowledge import reflex_kb
 
 
 class AutonomousLocalAgent:
@@ -292,6 +294,16 @@ class AutonomousLocalAgent:
                 "message": trace_analytics.render_dataset_card(data),
                 "data": data
             }
+
+        # 0.0001 Sovereign Operator Identity Intent ('what is my name', 'who am i', etc.)
+        user_id_res = user_identity_resolver.check_user_identity_intent(p)
+        if user_id_res:
+            return user_id_res
+
+        # 0.0002 Technical & CS Knowledge Base Intent ('what is RAG', 'explain 2PC', etc.)
+        tech_res = technical_knowledge_resolver.check_technical_intent(p)
+        if tech_res:
+            return tech_res
 
         # 0. Conversational Friendly Greeting Intent (Short & Warm)
         stripped = re.sub(r'[^\w\s]', '', lower).strip()
@@ -1067,6 +1079,32 @@ if __name__ == "__main__":
         )
 
         if is_question:
+            # Check user identity first
+            u_id = user_identity_resolver.check_user_identity_intent(prompt)
+            if u_id:
+                return u_id
+
+            # Check technical encyclopedia
+            t_res = technical_knowledge_resolver.check_technical_intent(prompt)
+            if t_res:
+                return t_res
+
+            # Check Reflex Versioned RAG
+            try:
+                kb_res = reflex_kb.ask(prompt, clearance="restricted")
+                if kb_res and kb_res.get("confidence", 0) >= 0.15 and kb_res.get("citations"):
+                    return {
+                        "type": "reflex_rag_answer",
+                        "message": (
+                            f"\033[1;36m[REFLEX HYBRID RAG • VERSIONED & AUDITED CITATIONS]\033[0m\n"
+                            f"--------------------------------------------------------------------------\n"
+                            f"{kb_res['answer']}\n"
+                            f"--------------------------------------------------------------------------"
+                        ),
+                        "decision": dec
+                    }
+            except Exception:
+                pass
             if lower.startswith(("can you", "can u", "are you able to", "could you")):
                 task_part = re.sub(r'^(?:can\s+you|can\s+u|are\s+you\s+able\s+to|could\s+you)\s+', '', prompt, flags=re.IGNORECASE).rstrip("?").strip()
                 ans_msg = (
@@ -1134,7 +1172,7 @@ if __name__ == "__main__":
                         "decision": dec
                     }
 
-            # Fallback to grounded encyclopedia if 9B is offline
+            # Fallback to grounded encyclopedia
             if grounded_fact:
                 ans_msg = (
                     f"[BRAIN] [CIEAV KNOWLEDGE BASE • 100% GROUNDED]\n"
@@ -1146,6 +1184,24 @@ if __name__ == "__main__":
                     "message": ans_msg,
                     "decision": dec
                 }
+
+            # Guaranteed sovereign fallback for any question
+            ans_msg = (
+                f"\033[1;36m[CIEAV KNOWLEDGE BASE • 100% SOVEREIGN LOCAL]\033[0m\n"
+                f"Inquiry: '{prompt}' (Local Gate: {tier} • {lat:.2f}ms CPU)\n"
+                f"--------------------------------------------------------------------------\n"
+                f"CIEAV is operating as your local sovereign agentic operating system.\n"
+                f"All tasks, inquiries, and state mutations execute 100% locally with 0% cloud APIs.\n"
+                f"• Ask technical concepts: 'what is RAG', 'explain 2PC', 'what is an agent'\n"
+                f"• Inspect host profile   : 'what is my name', 'who am i', 'system'\n"
+                f"• Autonomous execution  : 'goal <mission>', 'interact <url>', 'clean temp'\n"
+                f"--------------------------------------------------------------------------"
+            )
+            return {
+                "type": "answer",
+                "message": ans_msg,
+                "decision": dec
+            }
 
         # 4. Actionable task evaluation via Hybrid SuperAgent Brain (Llama-3.2 + Qwen-2.5)
         from commit_layer.hybrid_brain import hybrid_brain

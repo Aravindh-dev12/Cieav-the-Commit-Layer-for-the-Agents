@@ -20,17 +20,39 @@ class WebIntelligenceEngine:
 
     USER_AGENT = "CIEAV-Autonomous-Agent/2.0 (Local In-Process AI Runtime)"
 
+    ACRONYM_MAP = {
+        "rag": "Retrieval-augmented_generation",
+        "2pc": "Two-phase_commit_protocol",
+        "llm": "Large_language_model",
+        "cdp": "Chrome_DevTools",
+        "ast": "Abstract_syntax_tree",
+        "rlhf": "Reinforcement_learning_from_human_feedback",
+        "vlm": "Vision_language_model"
+    }
+
     @classmethod
     def lookup_encyclopedia(cls, topic: str) -> Optional[Dict[str, str]]:
         """Fetch verified encyclopedia summary via open Wikipedia REST API."""
-        clean_topic = re.sub(r'^(?:what\s+is|who\s+is|define|explain|tell\s+me\s+about)\s+', '', topic, flags=re.IGNORECASE).rstrip('?').strip()
+        clean_topic = re.sub(
+            r'^(?:what\s+is|who\s+is|define|explain|tell\s+me\s+about|what\s+does|meaning\s+of|what|why|how)\s+',
+            '',
+            topic,
+            flags=re.IGNORECASE
+        )
+        clean_topic = re.sub(r'\s+(?:explain|definition|meaning)\??$', '', clean_topic, flags=re.IGNORECASE).rstrip('?').strip()
+        
+        # Check acronym mapping first
+        mapped = cls.ACRONYM_MAP.get(clean_topic.lower())
+        if mapped:
+            clean_topic = mapped
+
         encoded = urllib.parse.quote(clean_topic.replace(' ', '_'))
         url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{encoded}"
         req = urllib.request.Request(url, headers={"User-Agent": cls.USER_AGENT})
         try:
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=4) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-                if "extract" in data and data.get("type") != "disambiguation":
+                if "extract" in data and data.get("type") not in ("disambiguation", "no-extract"):
                     return {
                         "title": data.get("title", clean_topic),
                         "extract": data.get("extract", ""),
@@ -44,7 +66,7 @@ class WebIntelligenceEngine:
         try:
             search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(clean_topic)}&format=json"
             req2 = urllib.request.Request(search_url, headers={"User-Agent": cls.USER_AGENT})
-            with urllib.request.urlopen(req2, timeout=5) as resp2:
+            with urllib.request.urlopen(req2, timeout=4) as resp2:
                 sdata = json.loads(resp2.read().decode("utf-8"))
                 search_results = sdata.get("query", {}).get("search", [])
                 if search_results:

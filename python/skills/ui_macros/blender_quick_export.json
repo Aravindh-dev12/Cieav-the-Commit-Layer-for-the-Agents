@@ -1,0 +1,43 @@
+{
+  "slug": "blender_quick_export",
+  "app": "blender.exe",
+  "description": "Focus Blender 3D viewport, trigger export menu via shortcut, and confirm destination.",
+  "updated_at": 1792574876.0144188,
+  "date": "2026-10-21 14:57:56",
+  "tags": [
+    "blender",
+    "3d",
+    "viewport",
+    "export",
+    "hotkey"
+  ],
+  "step_count": 5,
+  "steps": [
+    {
+      "type": "focus_app",
+      "window_title": "Blender"
+    },
+    {
+      "type": "hotkey",
+      "keys": [
+        "f4"
+      ]
+    },
+    {
+      "type": "hotkey",
+      "keys": [
+        "e"
+      ]
+    },
+    {
+      "type": "hotkey",
+      "keys": [
+        "enter"
+      ]
+    },
+    {
+      "type": "action_diff",
+      "verify": "dialog_dismissed"
+    }
+  ]
+}

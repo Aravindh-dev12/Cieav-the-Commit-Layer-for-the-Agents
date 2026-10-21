@@ -1,0 +1,42 @@
+{
+  "slug": "gmail_search_applications",
+  "app": "Google Chrome / Microsoft Edge",
+  "description": "Open live Gmail session via CDP, search LinkedIn application views, and surface real companies.",
+  "updated_at": 1792574876.0160449,
+  "date": "2026-10-21 14:57:56",
+  "tags": [
+    "gmail",
+    "email",
+    "applications",
+    "linkedin",
+    "cdp"
+  ],
+  "step_count": 5,
+  "steps": [
+    {
+      "type": "cdp_attach",
+      "url_match": "mail.google.com",
+      "fallback_launch": "https://mail.google.com"
+    },
+    {
+      "type": "type_input",
+      "selector": "input[aria-label='Search mail'], input[name='q']",
+      "text": "LinkedIn application viewed",
+      "enter": true
+    },
+    {
+      "type": "wait_element",
+      "selector": "[role='main']",
+      "timeout_sec": 5
+    },
+    {
+      "type": "extract_dom",
+      "target": "[role='main']",
+      "field": "application_views"
+    },
+    {
+      "type": "render_surface",
+      "surface": "gmail_application_views_card"
+    }
+  ]
+}
