@@ -145,7 +145,7 @@ class SuperintelligentAgent:
             elif stg_type == "SCAFFOLD_PROJECT":
                 out_data = github_agent.scaffold_project(stg.get("project_name", "app"), template="python")
             elif stg_type == "OFFICE_SWARM":
-                out_data = virtual_office.run_swarm_cycle()
+                out_data = virtual_office.run_swarm_cycle(goal)
             elif stg_type == "VAULT_LOG":
                 summary_text = f"Autonomous Mission Completed: '{goal}' at {time.ctime()}."
                 out_data = notes_manager.take_note(summary_text)
@@ -168,14 +168,21 @@ class SuperintelligentAgent:
 
     def render_mission_card(self, res: Dict[str, Any]) -> str:
         """Render a colorful ANSI terminal summary card of the completed autonomous mission."""
-        lines = []
-        lines.append("\033[38;2;168;85;247m╔══════════════════════════════════════════════════════════════════════════════╗\033[0m")
-        lines.append("\033[38;2;168;85;247m║\033[0m  \033[38;2;6;182;212m🌟 CIEAV SUPERINTELLIGENT AUTONOMOUS MISSION ACCOMPLISHED\033[0m                   \033[38;2;168;85;247m║\033[0m")
-        lines.append("\033[38;2;168;85;247m╠══════════════════════════════════════════════════════════════════════════════╣\033[0m")
-        lines.append(f"  • Target Objective : \"\033[1;37m{res['goal']}\033[0m\"")
-        lines.append(f"  • Execution Time   : \033[1;32m{res['elapsed_sec']}s\033[0m (100% Local CPU Execution • 0% Cloud APIs)")
-        lines.append(f"  • Pipeline Stages  : \033[1;36m{res['stages_completed']}/{res['stages_completed']} verified\033[0m")
-        lines.append("\n  \033[1;37mExecuted Autonomous Operations:\033[0m")
+        c_purple = "\033[38;2;168;85;247m"
+        c_cyan = "\033[38;2;6;182;212m"
+        c_emerald = "\033[38;2;16;185;129m"
+        c_white = "\033[1;37m"
+        rst = "\033[0m"
+
+        lines = [
+            f"{c_purple}================================================================================{rst}",
+            f"{c_purple}* {c_cyan}CIEAV SUPERINTELLIGENT AUTONOMOUS MISSION ACCOMPLISHED{rst}",
+            f"{c_purple}================================================================================{rst}",
+            f"  * Target Objective : \"{c_white}{res['goal']}{rst}\"",
+            f"  * Execution Time   : {c_emerald}{res['elapsed_sec']}s{rst} (100% Local Multi-Agent Core * 0% Cloud APIs)",
+            f"  * Pipeline Stages  : {c_cyan}{res['stages_completed']}/{res['stages_completed']} verified{rst}",
+            f"\n  {c_white}Executed Autonomous Operations:{rst}"
+        ]
 
         for idx, r in enumerate(res["results"], 1):
             d = r["data"]
@@ -197,14 +204,14 @@ class SuperintelligentAgent:
             elif r["stage"] == "VAULT_LOG":
                 summary_info = f"Saved audit report to '{d.get('filename')}'"
 
-            lines.append(f"   \033[1;32m✓\033[0m [{idx}/{res['stages_completed']}] \033[1m{r['title']}\033[0m")
+            lines.append(f"   {c_emerald}*{rst} [{idx}/{res['stages_completed']}] {c_white}{r['title']}{rst}")
             if summary_info:
-                lines.append(f"       \033[38;2;148;163;184m└─ Outcome: {summary_info}\033[0m")
+                lines.append(f"       \\- Outcome: {summary_info}")
 
-        lines.append("\n  \033[1;37mSecurity & Cryptography Floor:\033[0m")
-        lines.append("   • Ed25519 Merkle Chain : Verified & committed to immutable audit ledger")
-        lines.append("   • Reversible 2PC SLA   : 100% losslessly rollback-able via /undo")
-        lines.append("\033[38;2;168;85;247m╚══════════════════════════════════════════════════════════════════════════════╝\033[0m")
+        lines.append(f"\n  {c_white}Security & Cryptography Floor:{rst}")
+        lines.append(f"   * Ed25519 Merkle Chain : {c_emerald}Verified & committed to immutable audit ledger{rst}")
+        lines.append(f"   * Reversible 2PC SLA   : {c_emerald}100% losslessly rollback-able via /undo{rst}")
+        lines.append(f"{c_purple}================================================================================{rst}")
         return "\n".join(lines)
 
 
