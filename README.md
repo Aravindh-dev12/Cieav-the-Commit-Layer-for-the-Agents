@@ -425,6 +425,32 @@ The 5 specialized agents execute in a verified DAG under Two-Phase Commit safety
 4. **Ops (DevOps & Telemetry)**: Compiles deliverables (`py_compile`) and queries real host CPU/RAM telemetry (`psutil`).
 5. **CFO (Governance & 2PC)**: Enforces Two-Phase Commit safety, records Ed25519 hash-chained receipts, and guarantees `/undo` rollback SLA.
 
+### 7.9. Universal Interactive Browser & App Runner (`interact <url>`, `run entire app`, `run app <name>`)
+
+Full-scale hands-free computer control across every website, every browser, and every desktop software:
+```bash
+# Interactively control any website in Google Chrome or Microsoft Edge via CDP:
+cieav "interact https://news.ycombinator.com"
+cieav "click 'More information'"
+cieav "type input 'artificial general intelligence'"
+
+# Run any desktop application under atomic process tracking:
+cieav "run app notepad"
+cieav "run app calc"
+cieav "run app vscode"
+
+# Run entire application pipelines (server spawn, port listener detect, browser UI verify):
+cieav "run entire app"
+cieav "run entire app projects/health_probe.py"
+```
+
+Key Interactive Capabilities:
+- **Synchronous CDP WebSocket Engine**: Works on both Google Chrome and Microsoft Edge without third-party cloud APIs.
+- **Smart Element Resolution**: Clicks and focuses elements by CSS selector, ID, or visible text label.
+- **Form & Input Automation**: Types values and triggers real input/change/submit event sequences.
+- **Pipeline Health Verification**: Spawns servers, verifies listening ports, launches the browser, and takes visual verification screenshots.
+- **Two-Phase Commit SLA**: All process spawns and browser sessions are recorded in the Ed25519 hash-chain and can be rolled back anytime via `/undo`.
+
 ---
 
 ## 8. Directory Structure
@@ -434,6 +460,7 @@ Cieav-the-Commit-Layer-for-the-Internet/
 ├── commit_layer/
 │   ├── hybrid_brain.py          # Native Qwen-3.5-9B GGUF local engine & Hugging Face auto-downloader
 │   ├── multi_agent_swarm.py     # 5-agent autonomous swarm runtime (Atlas, Codex, Crust, Ops, CFO)
+│   ├── interactive_browser.py   # Universal Interactive Browser Engine (CDP WebSocket, Chrome & Edge)
 │   ├── autonomous_agent.py      # Claude Code & Codex class local agent reasoning loop (0% APIs)
 │   ├── agent_tool_server.py     # Universal Tool Server for Hermes, Instinct & external agents
 │   ├── web_intel.py             # Live encyclopedia grounding & real-time web intelligence

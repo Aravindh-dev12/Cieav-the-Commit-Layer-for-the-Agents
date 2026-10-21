@@ -78,6 +78,67 @@ class AutonomousLocalAgent:
                 "data": res
             }
 
+        # ── Universal Interactive Browser (Every Website & Every Browser) ───
+        is_interactive_browser = (
+            any(lower.startswith(p) for p in ("browse ", "interact ", "interactive browser ", "web interact ", "click ", "type "))
+            or (any(w in lower for w in ("http://", "https://", ".com", ".org", ".io", ".net", ".dev")) and any(w in lower for w in ("click", "type", "search", "scroll", "interactive", "fill", "submit")))
+            or ("open" in lower and any(w in lower for w in ("click", "and search", "and press", "interact")))
+        )
+        if is_interactive_browser:
+            from commit_layer.interactive_browser import interactive_browser
+            url_match = re.search(r'https?://[^\s]+|(?:www\.)?[a-zA-Z0-9\-]+\.(?:com|org|io|net|dev|edu|gov)[^\s]*', p)
+            target_url = url_match.group(0) if url_match else "https://www.google.com"
+            actions = []
+            
+            click_match = re.search(r'click\s+(?:on\s+)?["']?([^"']+)["']?', p, re.IGNORECASE)
+            if click_match:
+                actions.append({"type": "click", "target": click_match.group(1).strip()})
+            
+            type_match = re.search(r'(?:type|search|enter)\s+["']?([^"']+)["']?(?:\s+(?:into|in|for)\s+["']?([^"']+)["']?)?', p, re.IGNORECASE)
+            if type_match:
+                text_to_type = type_match.group(1).strip()
+                field = type_match.group(2).strip() if type_match.group(2) else "input"
+                actions.append({"type": "type", "target": field, "text": text_to_type, "enter": True})
+
+            res = interactive_browser.execute_interactive_mission(
+                target_url=target_url,
+                actions=actions,
+                headless=False
+            )
+            return {
+                "type": "governed_execution",
+                "message": interactive_browser.render_cli_card(res),
+                "receipt_id": res.get("receipt_id"),
+                "data": res
+            }
+
+        # ── Universal Entire App & Server Runner ─────────────────────────────
+        is_app_runner = (
+            any(lower.startswith(p) for p in ("run entire app", "run app ", "run server", "launch entire app", "run application"))
+            or ("run entire" in lower and "app" in lower)
+        )
+        if is_app_runner:
+            from commit_layer.tools.app_runner import app_runner
+            if lower.startswith("run app "):
+                app_target = p[8:].strip()
+                res = app_runner.run_desktop_app(app_target)
+                msg = f"\n[APP RUNNER] Launched desktop application: {res.get('app')} (PID: {res.get('pid')}) under 2PC.\n"
+                return {"type": "governed_execution", "message": msg, "receipt_id": res.get("receipt_id"), "data": res}
+            else:
+                target_path = None
+                m_path = re.search(r'(?:app|server|pipeline)\s+([a-zA-Z0-9_\-\.\/\\]+)', p, re.IGNORECASE)
+                if m_path:
+                    cand = m_path.group(1).strip()
+                    if cand.lower() not in ("entire", "all", "pipeline", "now"):
+                        target_path = cand
+                res = app_runner.run_entire_app(target_path=target_path, open_browser=True)
+                return {
+                    "type": "governed_execution",
+                    "message": app_runner.render_app_runner_card(res),
+                    "receipt_id": res.get("receipt_id"),
+                    "data": res
+                }
+
         # Grounded Telemetry & Real Audit Data (No Hallucination)
         if any(k in lower for k in ("highest latency", "slowest trace", "trace latency", "latency yesterday")):
             data = trace_analytics.get_highest_latency_traces()

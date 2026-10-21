@@ -109,11 +109,11 @@ def get_interactive_banner() -> str:
 {c_border}══════════════════════════════════════════════════════════════════════════════{rst}
 
  {c_cyan}┌─ SUPERAGENT & DEVOPS ─────────┐ ┌─ OS MAINTENANCE & VAULT ────┐ ┌─ COMPUTER USE & APPS ───────┐{rst}
- {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}open <app/url>{rst}  - Launch app/web {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}/tools{rst}          - Hermes tools   {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}create project{rst}  - Scaffolding   {c_cyan}│ │{rst} {c_white}organize <dir>{rst}  - Sort files   {c_cyan}│ │{rst} {c_white}office run{rst}     - Swarm execute  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}issues / push{rst}   - GitHub ops    {c_cyan}│ │{rst} {c_white}duplicates{rst}      - Dedup files  {c_cyan}│ │{rst} {c_white}browser <url>{rst}  - Local browser  {c_cyan}│{rst}
- {c_cyan}│{rst} {c_white}fix issue <#>{rst}   - Bug patch     {c_cyan}│ │{rst} {c_white}note <text>{rst}     - Vault notes  {c_cyan}│ │{rst} {c_white}/undo{rst}          - Restore state  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}goal <prompt>{rst}   - Auto mission  {c_cyan}│ │{rst} {c_white}system{rst}          - OS Telemetry {c_cyan}│ │{rst} {c_white}interact <url>{rst} - Active web cdp {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}heal{rst}            - Self-heal code{c_cyan}│ │{rst} {c_white}clean temp{rst}      - Reclaim disk {c_cyan}│ │{rst} {c_white}run entire app{rst} - Full app + UI  {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}office run{rst}     - Swarm execute  {c_cyan}│ │{rst} {c_white}organize <dir>{rst}  - Sort files   {c_cyan}│ │{rst} {c_white}run app <name>{rst} - Desktop apps   {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}issues / push{rst}   - GitHub ops    {c_cyan}│ │{rst} {c_white}duplicates{rst}      - Dedup files  {c_cyan}│ │{rst} {c_white}open <app/url>{rst}  - Launch service {c_cyan}│{rst}
+ {c_cyan}│{rst} {c_white}fix issue <#>{rst}   - Bug patch     {c_cyan}│ │{rst} {c_white}/tools{rst}          - Hermes tools {c_cyan}│ │{rst} {c_white}/undo{rst}          - Restore state  {c_cyan}│{rst}
  {c_cyan}└───────────────────────────────┘ └──────────────────────────────┘ └──────────────────────────────┘{rst}
 """
     return banner_art
@@ -1100,6 +1100,71 @@ Available Governed Commands:
         return
     elif lower in ("/game", "game", "play game", "cyber commit", "/play"):
         launch_interactive_game()
+        return
+
+    # ── Universal Interactive Browser Commands ──────────────────────────────
+    elif lower.startswith("interact ") or lower.startswith("browse ") or lower.startswith("/browse ") or lower.startswith("browser interact "):
+        raw_target = cmd.split(" ", 1)[1].strip()
+        from commit_layer.interactive_browser import interactive_browser
+        print(f"\n[INTERACTIVE BROWSER] Launching native browser session at '{raw_target}'...")
+        res = interactive_browser.execute_interactive_mission(target_url=raw_target, headless=False)
+        if res.get("receipt_id"):
+            last_committed_receipt_id = res["receipt_id"]
+        print("\n" + interactive_browser.render_cli_card(res) + "\n")
+        return
+
+    elif lower.startswith("click ") or lower.startswith("/click "):
+        target = cmd.split(" ", 1)[1].strip().strip('"').strip("'")
+        from commit_layer.interactive_browser import interactive_browser
+        session = interactive_browser.get_or_create_session(headless=False)
+        if not session.is_alive() or not session.ws_url:
+            print("\n[INTERACTIVE BROWSER] Starting browser session...")
+            session.start("https://www.google.com")
+        print(f"\n[INTERACTIVE BROWSER] Clicking target: '{target}'...")
+        click_res = session.click_element(target)
+        print(f"  Outcome: {click_res.get('status')} | Tag: {click_res.get('tag')} | Text: {click_res.get('text')}\n")
+        return
+
+    elif lower.startswith("type ") or lower.startswith("/type "):
+        parts = cmd.split(" ", 2)
+        if len(parts) >= 3:
+            field = parts[1].strip()
+            text_val = parts[2].strip()
+        else:
+            field = "input"
+            text_val = parts[1].strip() if len(parts) > 1 else ""
+        from commit_layer.interactive_browser import interactive_browser
+        session = interactive_browser.get_or_create_session(headless=False)
+        if not session.is_alive() or not session.ws_url:
+            session.start("https://www.google.com")
+        print(f"\n[INTERACTIVE BROWSER] Typing '{text_val}' into '{field}'...")
+        type_res = session.type_text(field, text_val, press_enter=True)
+        print(f"  Outcome: {type_res.get('status')} | Tag: {type_res.get('tag')} | Value: {type_res.get('value')}\n")
+        return
+
+    # ── Universal App & Entire System Runner ────────────────────────────────
+    elif lower in ("run entire app", "run app", "run pipeline", "/run entire app") or lower.startswith("run entire app ") or lower.startswith("run server "):
+        target_path = None
+        if len(cmd.split(" ", 3)) > 3 and lower.startswith("run entire app "):
+            target_path = cmd.split(" ", 3)[3].strip()
+        elif lower.startswith("run server "):
+            target_path = cmd.split(" ", 2)[2].strip()
+        from commit_layer.tools.app_runner import app_runner
+        print(f"\n\033[38;2;168;85;247m[UNIVERSAL APP RUNNER]\033[0m Spawning application pipeline & launching browser verification...")
+        res = app_runner.run_entire_app(target_path=target_path, open_browser=True)
+        if res.get("receipt_id"):
+            last_committed_receipt_id = res["receipt_id"]
+        print("\n" + app_runner.render_app_runner_card(res) + "\n")
+        return
+
+    elif lower.startswith("run app ") or lower.startswith("app run "):
+        app_name = cmd.split(" ", 2)[2].strip()
+        from commit_layer.tools.app_runner import app_runner
+        print(f"\n[UNIVERSAL APP RUNNER] Launching desktop app: '{app_name}'...")
+        res = app_runner.run_desktop_app(app_name)
+        if res.get("receipt_id"):
+            last_committed_receipt_id = res["receipt_id"]
+        print(f"  ✅ Launched {res.get('app')} (Process PID: {res.get('pid')})\n")
         return
     elif lower.startswith("browser ") or lower.startswith("/browser ") or lower.startswith("dom "):
         url = cmd.split(" ", 1)[1].strip()

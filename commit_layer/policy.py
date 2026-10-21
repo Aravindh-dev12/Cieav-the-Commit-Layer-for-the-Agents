@@ -16,7 +16,7 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
         return RiskLevel.LOW, ["Read-only / context optimization tool"]
 
     # ── Application & Web Service Control (Hands-Free Computer Use) ─
-    if tool in ('open_application', 'close_application', 'launch_app'):
+    if tool in ('open_application', 'close_application', 'launch_app', 'browser_interactive_action', 'run_desktop_app', 'run_entire_app'):
         return RiskLevel.LOW, ["User-directed application or web service control (safe and reversible)"]
 
     # ── Email Intelligence & Inspection ─────────────────────────
