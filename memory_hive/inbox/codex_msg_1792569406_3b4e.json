@@ -1,0 +1,9 @@
+{
+  "id": "msg_1792569406_3b4e",
+  "timestamp": 1792569406.8306713,
+  "date": "2026-10-21 13:26:46",
+  "sender": "atlas",
+  "recipient": "codex",
+  "subject": "Task DAG Ticket #402",
+  "body": "Implement AST validator inside sandboxed worktree."
+}
