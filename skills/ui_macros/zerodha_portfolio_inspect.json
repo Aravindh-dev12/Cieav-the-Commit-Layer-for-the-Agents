@@ -1,0 +1,41 @@
+{
+  "slug": "zerodha_portfolio_inspect",
+  "app": "Google Chrome / Microsoft Edge",
+  "description": "Attach to live Zerodha Kite tab via local CDP, inspect holdings/positions and extract live P&L.",
+  "updated_at": 1792570124.496106,
+  "date": "2026-10-21 13:38:44",
+  "tags": [
+    "trading",
+    "finance",
+    "zerodha",
+    "portfolio",
+    "cdp"
+  ],
+  "step_count": 5,
+  "steps": [
+    {
+      "type": "cdp_attach",
+      "url_match": "kite.zerodha.com",
+      "fallback_launch": "https://kite.zerodha.com"
+    },
+    {
+      "type": "wait_element",
+      "selector": ".user-nav, .dashboard-container, nav",
+      "timeout_sec": 5
+    },
+    {
+      "type": "click_element",
+      "text": "Holdings",
+      "selector": "a[href*='holdings']"
+    },
+    {
+      "type": "extract_dom",
+      "target": ".holdings, .table-wrapper, body",
+      "field": "live_portfolio"
+    },
+    {
+      "type": "render_surface",
+      "surface": "zerodha_portfolio_card"
+    }
+  ]
+}

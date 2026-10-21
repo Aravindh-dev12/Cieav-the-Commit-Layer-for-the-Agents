@@ -1216,6 +1216,44 @@ Available Governed Commands:
             print(f"      {r['content']}")
         print()
         return
+
+    # ── Intentional Computing & GAI (Alma-Class Direct Host Control) ────────
+    elif lower in ("/playbooks", "playbooks", "playbook list", "/playbook list"):
+        from commit_layer.procedural_playbooks import playbook_manager
+        print("\n" + playbook_manager.render_playbooks_card() + "\n")
+        return
+
+    elif lower.startswith("playbook run ") or lower.startswith("playbook replay "):
+        slug = cmd.split(" ", 2)[2].strip()
+        from commit_layer.intentional_orchestrator import intentional_orchestrator
+        print(f"\n[MEMFOLD PLAYBOOK] Replaying procedural UI playbook: '{slug}'...")
+        res = intentional_orchestrator.run_foreground_gui_lane(intent_slug=slug)
+        print(f"  Status   : \033[1;32m{res['status'].upper()}\033[0m ({res.get('steps_executed', 0)} steps in {res.get('elapsed_sec')}s)")
+        print(f"  App      : {res.get('app', 'Universal')}")
+        print()
+        return
+
+    elif lower in ("/overlay", "overlay", "hotkey", "/hotkey", "bar"):
+        from commit_layer.intentional_overlay import intentional_overlay
+        print("\n[INTENTIONAL UI SHELL] Spawning floating ⌘K / Ctrl+K intent bar overlay...")
+        intentional_overlay.launch_floating_intent_bar(
+            on_submit=lambda query: print(f"\n[OVERLAY INTENT DISPATCHED] -> '{query}'")
+        )
+        print("  Press Enter inside the top bar to dispatch or Escape to dismiss.\n")
+        return
+
+    elif lower.startswith("alma ") or lower.startswith("/alma ") or lower.startswith("intentional "):
+        intent_query = cmd.split(" ", 1)[1].strip()
+        from commit_layer.intentional_orchestrator import intentional_orchestrator
+        from commit_layer.intentional_overlay import intentional_overlay
+        print(f"\n[INTENTIONAL GAI] Orchestrating intent: '{intent_query}' across real host apps...")
+        res = intentional_orchestrator.run_foreground_gui_lane(intent_slug=intent_query)
+        print(f"  Status   : \033[1;32m{res['status'].upper()}\033[0m (Mode: {res.get('mode')} | {res.get('elapsed_sec')}s)")
+        if "zerodha" in intent_query.lower() or "trading" in intent_query.lower():
+            print("\n" + intentional_overlay.render_cli_ephemeral_surface("zerodha_portfolio_card", {}) + "\n")
+        elif "gmail" in intent_query.lower() or "linkedin" in intent_query.lower():
+            print("\n" + intentional_overlay.render_cli_ephemeral_surface("gmail_application_views_card", {}) + "\n")
+        return
     elif lower.startswith("browser ") or lower.startswith("/browser ") or lower.startswith("dom "):
         url = cmd.split(" ", 1)[1].strip()
         print(f"\n[LOCAL BROWSER] Headlessly inspecting '{url}' with native {local_browser.browser_name} (0% APIs)...")

@@ -1,0 +1,19 @@
+{
+  "slug": "test_custom_workflow",
+  "app": "Visual Studio Code",
+  "description": "Format document and commit changes.",
+  "updated_at": 1792570124.8701353,
+  "date": "2026-10-21 13:38:44",
+  "tags": [],
+  "step_count": 1,
+  "steps": [
+    {
+      "type": "hotkey",
+      "keys": [
+        "shift",
+        "alt",
+        "f"
+      ]
+    }
+  ]
+}

@@ -27,3 +27,7 @@ from commit_layer.interactive_browser import UniversalInteractiveBrowserAgent, i
 from commit_layer.tools.sandbox_tool import SandboxExecuteTool, MemoryHiveTool
 from commit_layer.sandbox_controller import central_sandbox, CentralSandboxController
 from commit_layer.memory_hive import memory_hive, PersistentMemoryHive
+from commit_layer.tools.intentional_tools import IntentionalExecuteTool, PlaybookReplayTool
+from commit_layer.intentional_orchestrator import intentional_orchestrator, IntentionalOrchestrator
+from commit_layer.procedural_playbooks import playbook_manager, ProceduralPlaybookManager
+from commit_layer.intentional_gai import hybrid_gai, HybridGAI

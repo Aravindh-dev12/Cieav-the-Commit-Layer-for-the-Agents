@@ -95,5 +95,13 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
     if tool == 'empty_recycle_bin':
         return RiskLevel.CRITICAL, ["Host OS mutation: Permanent, irreversible purge of Windows Recycle Bin"]
 
+    # ── Intentional Computing & GAI Playbooks ──────────────────
+    if tool in ('intentional_execute', 'playbook_replay'):
+        target_str = str(args.get('intent', '')) + ' ' + str(args.get('slug', '')) + ' ' + str(args.get('target', ''))
+        target_lower = target_str.lower()
+        if any(k in target_lower for k in ('buy', 'sell', 'order', 'password', 'keychain', 'delete', 'fund', 'transfer')):
+            return RiskLevel.CRITICAL, [f"Sensitive host intentional operation matching keyword in '{target_str.strip()}'"]
+        return RiskLevel.LOW, ["Direct host intentional computing & procedural UI playbook replay"]
+
     # ── Unknown tool → HIGH ─────────────────────────────────────
     return RiskLevel.HIGH, [f"Unknown tool: {tool}"]

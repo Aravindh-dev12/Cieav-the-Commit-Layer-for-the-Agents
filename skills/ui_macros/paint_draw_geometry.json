@@ -1,0 +1,58 @@
+{
+  "slug": "paint_draw_geometry",
+  "app": "mspaint.exe",
+  "description": "Launch or focus Paint, select brush, and interpolate continuous geometric drag path.",
+  "updated_at": 1792570124.4977593,
+  "date": "2026-10-21 13:38:44",
+  "tags": [
+    "paint",
+    "canvas",
+    "drawing",
+    "continuous_drag"
+  ],
+  "step_count": 4,
+  "steps": [
+    {
+      "type": "ensure_app",
+      "command": "mspaint.exe",
+      "window_title": "Paint"
+    },
+    {
+      "type": "hotkey",
+      "keys": [
+        "ctrl",
+        "e"
+      ]
+    },
+    {
+      "type": "mouse_drag_stream",
+      "points": [
+        {
+          "x": 400,
+          "y": 300
+        },
+        {
+          "x": 600,
+          "y": 300
+        },
+        {
+          "x": 600,
+          "y": 500
+        },
+        {
+          "x": 400,
+          "y": 500
+        },
+        {
+          "x": 400,
+          "y": 300
+        }
+      ],
+      "interpolation_ms": 15
+    },
+    {
+      "type": "action_diff",
+      "verify": "canvas_pixels_changed"
+    }
+  ]
+}

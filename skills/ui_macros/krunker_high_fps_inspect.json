@@ -1,0 +1,29 @@
+{
+  "slug": "krunker_high_fps_inspect",
+  "app": "Google Chrome / Microsoft Edge",
+  "description": "High-FPS screen buffer inspection of real-time browser canvas (sub-second loop).",
+  "updated_at": 1792570124.50248,
+  "date": "2026-10-21 13:38:44",
+  "tags": [
+    "game",
+    "fps",
+    "canvas",
+    "screen_capture",
+    "sub_second"
+  ],
+  "step_count": 3,
+  "steps": [
+    {
+      "type": "focus_app",
+      "window_title": "Krunker"
+    },
+    {
+      "type": "capture_canvas_frame",
+      "buffer": "gpu_shared"
+    },
+    {
+      "type": "action_diff",
+      "verify": "frame_tick"
+    }
+  ]
+}
