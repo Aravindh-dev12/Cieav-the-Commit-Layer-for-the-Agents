@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reflex</title>
+<style>
+:root{--paper:#e4e9e1;--grid:#d2d9cc;--ink:#1d2b3a;--card:#f7f8f4;--mute:#5c6b60;--live:#e8590c;--ok:#2f7d4f;--bad:#b3261e}
+@media(prefers-color-scheme:dark){:root{--paper:#14181c;--grid:#1e2429;--ink:#dfe6df;--card:#1b2127;--mute:#8d9a90;--live:#ff8a4c;--ok:#5fbf86;--bad:#ff7b72}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{font:14px/1.4 "Helvetica Neue",Arial,sans-serif;color:var(--ink);background:var(--paper)}
+#app{display:grid;grid-template-columns:1fr 300px;grid-template-rows:auto 1fr;height:100%}
+header{grid-column:1/3;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;border-bottom:2px solid var(--ink)}
+header b{font-size:18px;letter-spacing:.5px;margin-right:8px}
+button,input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1.5px solid var(--ink);border-radius:2px;padding:4px 8px}
+button{cursor:pointer}button.go{background:var(--ink);color:var(--paper)}button.on{outline:2px solid var(--live)}
+:focus-visible{outline:2px solid var(--live);outline-offset:1px}
+#stage{position:relative;overflow:auto;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px}
+#wires{position:absolute;inset:0;width:2000px;height:900px;pointer-events:none}
+#wires path{fill:none;stroke:var(--ink);stroke-width:1.8}
+.node{position:absolute;width:150px;height:56px;background:var(--card);border:1.5px solid var(--ink);border-radius:2px;cursor:grab;user-select:none;touch-action:none}
+.node i{display:block;font-style:normal;font-size:11px;padding:1px 6px;color:#fff;background:var(--ink)}
+.node span{display:block;padding:4px 6px}
+.node.sel{outline:2px solid var(--live)}.node.ok{border-color:var(--ok);box-shadow:inset 4px 0 var(--ok)}
+.node.failed{border-color:var(--bad);box-shadow:inset 4px 0 var(--bad)}.node.waiting{border-color:var(--live);box-shadow:inset 4px 0 var(--live)}
+.t-trigger i{background:#6b7440}.t-recall i{background:#4f6679}.t-agent i{background:#6b4e71}.t-http i{background:#80602f}.t-log i{background:#6d6d6d}
+aside{overflow:auto;padding:10px 12px;border-left:2px solid var(--ink);background:var(--card)}
+aside h3{margin:14px 0 6px;font-size:13px}textarea{width:100%;height:150px;font:12px ui-monospace,monospace}
+.item{border-top:1px solid var(--grid);padding:6px 0}.warn{border-left:4px solid var(--live);padding-left:8px}
+@media(max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}aside{grid-column:1;border-left:0;border-top:2px solid var(--ink);max-height:45vh}header{grid-column:1}}
+</style></head><body><div id="app">
+<header><b>Reflex</b>
+<input id="key" type="password" placeholder="API key" size="12" aria-label="API key"><button id="save">Connect</button>
+<input id="q" placeholder="Task, e.g. friday revenue report" size="26"><input id="week" placeholder="week" size="6">
+<button id="run" class="go">Run pipeline</button>
+<input id="ask" placeholder="Ask your documents" size="22"><button id="askbtn">Ask</button>
+<select id="type" aria-label="Node type"><option>agent</option><option>recall</option><option>procedure</option><option>http</option><option>ask</option><option>log</option></select>
+<button id="add">Add node</button><button id="link">Link</button><button id="sample">Load sample trace</button><span id="msg" role="status"></span></header>
+<div id="stage"><svg id="wires"></svg><div id="nodes"></div></div>
+<aside id="side"></aside></div><script src="vendor/msal-browser.min.js"></script><script src="app.js"></script></body></html>

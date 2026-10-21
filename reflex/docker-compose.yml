@@ -1,0 +1,20 @@
+services:
+  reflex:
+    build: .
+    env_file: .env
+    environment:
+      RAG_URL: http://rag:8000
+    ports: ["3000:3000"]
+    volumes: ["reflex-data:/data"]
+    depends_on: [rag]
+    restart: unless-stopped
+  rag:
+    build:
+      context: ./rag
+      args: { WITH_OCR: "${WITH_OCR:-0}" }
+    env_file: .env
+    volumes: ["rag-data:/data"]
+    restart: unless-stopped
+volumes:
+  reflex-data:
+  rag-data:

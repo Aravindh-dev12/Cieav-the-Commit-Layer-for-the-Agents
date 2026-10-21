@@ -1,0 +1,5 @@
+{"prompt":"Friday revenue report","steps":[
+ {"app":"accounting","action":"click","class":"execute","target":{"name":"Export"},"check":{"contains":"Save dialog"}},
+ {"app":"accounting","action":"type","class":"write","target":{"name":"File name"},"value":{"param":"week"},"check":{"contains":""}},
+ {"app":"mail","action":"send","class":"send","target":{"name":"Send to owner"},"value":{"param":"week"},"check":{"contains":"Sent"}}
+]}

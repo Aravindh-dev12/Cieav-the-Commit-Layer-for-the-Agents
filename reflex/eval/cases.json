@@ -1,0 +1,8 @@
+[
+ {"as":"alice","q":"maximum battery depth of discharge","expect":"REQ-PWR-001","contains":"50 percent","absent":"60 percent"},
+ {"as":"alice","q":"merge request approval protected branch","expect":"GIT-WORKFLOW"},
+ {"as":"admin","q":"propulsion nozzle thermal margin","expect":"ITAR-GUID-7"},
+ {"as":"alice","q":"propulsion nozzle thermal margin","expect":null},
+ {"as":"bob","q":"merge request approval protected branch","expect":null},
+ {"as":"alice","q":"who won the world cup","expect":null}
+]

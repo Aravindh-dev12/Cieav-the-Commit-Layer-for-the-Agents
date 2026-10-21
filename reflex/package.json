@@ -1,0 +1,22 @@
+{
+  "name": "reflex",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/smoke.test.js test/repair.test.js test/rag.test.js test/entra.test.js test/bridge.test.js test/connectors.test.js test/assure.test.js",
+    "vendor:msal": "node scripts/vendor-msal.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.5.0",
+    "express": "^5.0.1",
+    "helmet": "^8.0.0"
+  },
+  "devDependencies": {
+    "@azure/msal-browser": "^5.25.1"
+  }
+}

@@ -1323,6 +1323,31 @@ Available Governed Commands:
             print(f"    Runs: {o['total_runs']} | Completed: {o['completed']} | Model-Free: {rate_str} | Saved: {o['minutes_saved']} min")
         print("╚══════════════════════════════════════════════════════════════════════════════════════════╝\n")
         return
+
+    elif lower in ("reflex web", "reflex dashboard", "/reflex web", "/reflex dashboard"):
+        import subprocess, webbrowser
+        from commit_layer.reflex.driver_bridge import reflex_bridge_server
+        from commit_layer.workspace import get_workspace_root
+        print("\n[REFLEX ENGINE] Starting CIEAV Driver Bridge on http://127.0.0.1:8765/driver...")
+        reflex_bridge_server.start()
+
+        print("[REFLEX ENGINE] Launching Reflex Web Dashboard on http://localhost:3000...")
+        env = os.environ.copy()
+        env["API_KEY"] = "cieav-reflex-secret"
+        env["PORT"] = "3000"
+        env["DRIVER_URL"] = "http://127.0.0.1:8765/driver"
+
+        reflex_dir = os.path.join(get_workspace_root(), "reflex")
+        subprocess.Popen(["node", "src/index.js"], cwd=reflex_dir, env=env)
+        time.sleep(1.2)
+        print("  \033[1;32m✅ Reflex Visual DAG Canvas & API Service is Live!\033[0m")
+        print("  🔑 API Key: \033[1;36mcieav-reflex-secret\033[0m")
+        print("  🌐 Opening http://localhost:3000 in your browser...\n")
+        try:
+            webbrowser.open("http://localhost:3000")
+        except Exception:
+            pass
+        return
     elif lower.startswith("browser ") or lower.startswith("/browser ") or lower.startswith("dom "):
         url = cmd.split(" ", 1)[1].strip()
         print(f"\n[LOCAL BROWSER] Headlessly inspecting '{url}' with native {local_browser.browser_name} (0% APIs)...")
