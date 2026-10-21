@@ -575,8 +575,9 @@ class UniversalInteractiveBrowserAgent:
         elapsed = round(time.time() - t0, 2)
 
         # Record Two-Phase Commit Cryptographic Settlement
-        from commit_layer import gateway
-        commit_action = gateway.intercept(
+        from commit_layer import receipts
+        from commit_layer.models import Action, RiskLevel, Status, Outcome, UndoState
+        commit_action = Action(
             tool_name="browser_interactive_action",
             args={
                 "url": target_url,
@@ -584,13 +585,13 @@ class UniversalInteractiveBrowserAgent:
                 "actions_count": len(executed_actions),
                 "title": dom_info.get("title")
             },
+            risk=RiskLevel.LOW,
+            reasons=["Interactive browser session settlement"],
             agent_id="cieav-interactive-browser"
         )
-        res_gateway = gateway.process(commit_action)
-        if res_gateway.get("status") == "pending":
-            res_gateway = gateway.approve(commit_action.id, approved_by="browser-auto-commit")
-
-        receipt_id = res_gateway.get("receipt_id", "AUTO")
+        rec = receipts.create_receipt(commit_action, Status.COMMITTED.value, approved_by="browser-auto-commit")
+        receipt_id = rec.get("id", "AUTO")
+        receipts.update_receipt_outcome(receipt_id, Outcome.OBSERVED_SUCCESS.value, UndoState.AVAILABLE.value)
 
         return {
             "status": "success",

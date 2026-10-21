@@ -98,4 +98,11 @@ def get_db(db_path: Optional[str] = None) -> sqlite3.Connection:
     );
     """)
     conn.commit()
+
+    # Ensure emb column exists if chunks table was pre-created
+    chunk_cols = [r[1] for r in conn.execute("PRAGMA table_info(chunks)").fetchall()]
+    if "emb" not in chunk_cols:
+        conn.execute("ALTER TABLE chunks ADD COLUMN emb BLOB")
+        conn.commit()
+
     return conn

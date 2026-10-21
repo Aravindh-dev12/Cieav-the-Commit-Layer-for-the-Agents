@@ -45,6 +45,8 @@ class ReflexDriverHandler(BaseHTTPRequestHandler):
 
             step = data.get("step", {})
             value = data.get("value")
+            if "value" not in step and value is not None:
+                step["value"] = value
 
             # Execute via CIEAV's real drivers
             db_conn = get_db()
