@@ -1,9 +1,21 @@
 """
 Commit Layer for the Internet package.
 """
-
+import sys
 from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
+
+# Ensure stdout and stderr handle UTF-8 cleanly on Windows CP1252 consoles
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # Ensure environment variables from project root .env are loaded reliably
 _env_path = Path(__file__).resolve().parent.parent / ".env"
