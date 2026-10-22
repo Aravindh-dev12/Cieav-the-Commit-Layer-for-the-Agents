@@ -71,6 +71,7 @@ from commit_layer.agent_tool_server import agent_tool_server
 from commit_layer.tools.app_launcher import app_launcher
 from commit_layer.tools.gmail_agent import gmail_agent
 from commit_layer.knowledge_core import user_identity_resolver, technical_knowledge_resolver
+from commit_layer.tools.morning_briefing_agent import morning_briefing_agent
 
 
 
@@ -698,6 +699,74 @@ def process_user_input(text: str):
             inspection_data = res.get('result', {})
             print('\n' + gmail_agent.render_cli_dossier(inspection_data, receipt_id=res.get('receipt_id', 'AUTO')) + '\n')
             return
+
+    # Autonomous Morning Intelligence Briefing & Scheduled Notification Agent (100% Local CPU • 2PC Safety)
+    # Aggregates: Meetings, WhatsApp, Gmail, LinkedIn, Reddit, Desktop Messages, and Daily Budget Limits.
+    is_morning_query = (
+        lower in ("morning", "/morning", "briefing", "/briefing", "morning report", "daily briefing", "daily report")
+        or lower.startswith(("morning", "briefing", "/morning", "/briefing", "schedule morning", "set limit", "set daily limit"))
+        or (("morn" in lower or "daily" in lower) and any(k in lower for k in ("meeting", "report", "update", "brief", "whtap", "whatsapp", "mail", "gmail", "reddit", "linkedin", "limit", "without asking")))
+        or (any(k in lower for k in ("whtap", "whatsapp")) and any(k in lower for k in ("mail", "gmail", "linkedin", "reddit")) and any(k in lower for k in ("report", "update", "meeting", "check")))
+    )
+    if is_morning_query:
+        # Check if automated background run triggered by Windows Scheduled Task
+        is_auto_scheduled = ("--auto" in lower or "--scheduled" in lower)
+
+        # Parse custom limit if user specified one (e.g., "set limit 1500", "limit 500", "set daily limit 2000")
+        limit_match = re.search(r'(?:set\s+)?(?:daily\s+|morning\s+)?limit\s*(?:to\s*)?(?:[₹$€£]\s*)?(\d+(?:\.\d+)?)', lower)
+        if limit_match:
+            try:
+                parsed_lim = float(limit_match.group(1))
+                morning_briefing_agent.set_daily_limit(parsed_lim)
+                if not is_auto_scheduled:
+                    print(f"\n\033[38;2;16;185;129m[CIEAV] Daily budget guardrail limit updated to {morning_briefing_agent.config['currency_symbol']}{parsed_lim:,.2f}\033[0m")
+            except Exception:
+                pass
+
+        # Parse custom schedule time if user specified one (e.g. "at 8:30am", "schedule morning 09:00", "at 8am")
+        time_match = re.search(r'(?:at\s+|time\s+)?([01]?\d|2[0-3]):([0-5]\d)', lower)
+        time_hour_match = re.search(r'at\s+(\d{1,2})\s*(am|pm)', lower)
+        if time_match:
+            sched_time = f"{int(time_match.group(1)):02d}:{time_match.group(2)}"
+            sched_res = morning_briefing_agent.setup_windows_schedule(sched_time)
+            if not is_auto_scheduled:
+                print(f"\n\033[38;2;16;185;129m[CIEAV] {sched_res.get('message')}\033[0m")
+        elif time_hour_match:
+            hr = int(time_hour_match.group(1))
+            meridiem = time_hour_match.group(2)
+            if meridiem == "pm" and hr < 12:
+                hr += 12
+            elif meridiem == "am" and hr == 12:
+                hr = 0
+            sched_time = f"{hr:02d}:00"
+            sched_res = morning_briefing_agent.setup_windows_schedule(sched_time)
+            if not is_auto_scheduled:
+                print(f"\n\033[38;2;16;185;129m[CIEAV] {sched_res.get('message')}\033[0m")
+        elif any(k in lower for k in ("every morning", "eveyr mornign", "without asking")):
+            # User explicitly requested unattended morning briefing: ensure Windows task is scheduled
+            sched_res = morning_briefing_agent.setup_windows_schedule("08:00")
+            if not is_auto_scheduled:
+                print(f"\n\033[38;2;16;185;129m[CIEAV] {sched_res.get('message')}\033[0m")
+
+        # Intercept and process through the 2PC Commit Layer
+        action = gateway.intercept(
+            tool_name="generate_morning_briefing",
+            args={"auto_notify": True},
+            agent_id="cieav-user-agent"
+        )
+        res = gateway.process(action)
+        if res.get("status") == "pending":
+            res = gateway.approve(action.id, approved_by="auto-user")
+
+        result_data = res.get("result", {})
+        receipt_id = res.get("receipt_id", "AUTO")
+
+        if not is_auto_scheduled:
+            print("\n" + morning_briefing_agent.render_cli_dossier(result_data, receipt_id=receipt_id) + "\n")
+        else:
+            # Scheduled unattended run: already delivered toast and persisted markdown dossier
+            logger.info(f"Autonomous morning briefing completed. Receipt: {receipt_id}")
+        return
 
     # Autonomous Quick-Commerce Expense & Order History Agent (Zepto, Blinkit, Swiggy, Amazon)
     if any(k in lower for k in ("expense", "expenses", "order history", "orders from zepto", "orders from blinkit", "zepto", "blinkit", "swiggy orders")) and any(k in lower for k in ("read", "track", "history", "orders", "manage", "expense", "expenses", "show", "get", "check")):

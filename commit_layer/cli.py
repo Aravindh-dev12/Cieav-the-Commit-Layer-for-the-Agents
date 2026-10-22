@@ -232,9 +232,24 @@ def main():
     p_headroom.add_argument("subaction", choices=["stats", "compress", "retrieve", "mcp"], help="Action to perform")
     p_headroom.add_argument("target", nargs="?", default="", help="Text to compress or chunk ID to retrieve")
 
+    # morning command
+    p_morning = subparsers.add_parser("morning", help="Generate autonomous morning intelligence briefing")
+    p_morning.add_argument("--time", default="", help="Schedule daily time (e.g. 08:00)")
+    p_morning.add_argument("--limit", type=float, default=None, help="Set daily budget limit")
+    p_morning.add_argument("--auto", action="store_true", help="Unattended background scheduled run")
+
     args = parser.parse_args()
 
-    if args.command == "intent":
+    if args.command == "morning":
+        from commit_layer.tools.morning_briefing_agent import morning_briefing_agent
+        if args.limit is not None:
+            morning_briefing_agent.set_daily_limit(args.limit)
+        if args.time:
+            morning_briefing_agent.setup_windows_schedule(args.time)
+        res = morning_briefing_agent.generate_full_briefing(auto_notify=True)
+        if not args.auto:
+            print(morning_briefing_agent.render_cli_dossier(res))
+    elif args.command == "intent":
         cmd_intent(args.prompt, auto_confirm=args.yes)
     elif args.command == "undo":
         cmd_undo(args.receipt_id)

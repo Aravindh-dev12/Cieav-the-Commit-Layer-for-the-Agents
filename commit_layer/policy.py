@@ -15,6 +15,10 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
     if tool.startswith(('read_', 'get_', 'list_', 'headroom_')) or tool in ('track_consumer_expenses', 'inspect_expenses'):
         return RiskLevel.LOW, ["Read-only expense tracking & order history inspection (strictly non-mutating)"]
 
+    # ── Morning Briefing & Autonomous Daily Intelligence ──────────
+    if tool in ('generate_morning_briefing', 'set_daily_budget_limit', 'setup_morning_schedule'):
+        return RiskLevel.LOW, ["Governed autonomous morning intelligence briefing & daily schedule coordination"]
+
     # ── Application, Sandbox & Web Service Control (Hands-Free Computer Use) ─
     if tool in ('open_application', 'close_application', 'launch_app', 'browser_interactive_action', 'run_desktop_app', 'run_entire_app', 'sandbox_execute', 'sandbox_commit_worktree', 'memory_hive_action'):
         return RiskLevel.LOW, ["User-directed application or sandboxed execution (strictly contained and reversible)"]

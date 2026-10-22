@@ -301,8 +301,12 @@ class TechnicalKnowledgeResolver:
         cleaned = re.sub(r'[^\w\s]', ' ', lower).strip()
         words = cleaned.split()
 
-        # 0. CIEAV Platform Identity
-        if any(w in words for w in ("cieav", "cieva", "ceiav")) or ("what is cieav" in lower or "what si cieav" in lower or "explain cieav" in lower):
+        # 0. CIEAV Platform Identity (Only when asking definition/concept, not when using as a command vocative)
+        if (
+            cleaned in ("cieav", "cieva", "ceiav")
+            or any(p in lower for p in ("what is cieav", "what is cieva", "who is cieav", "who is cieva", "what si cieav", "explain cieav", "explain cieva", "tell me about cieav", "what does cieav do", "about cieav", "cieav architecture"))
+            or (("what" in words or "explain" in words or "definition" in words or "concept" in words) and any(w in words for w in ("cieav", "cieva", "ceiav")))
+        ):
             entry = TECHNICAL_ENCYCLOPEDIA["cieav"]
             return cls._format_encyclopedia_card(entry)
 
