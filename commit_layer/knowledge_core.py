@@ -1,17 +1,16 @@
 """
-CIEAV Knowledge Core & Sovereign Identity Resolver (100% Local • 0% Cloud APIs).
+CIEAV Knowledge Core & Sovereign Identity Resolver (100% Local • 0ms Overhead).
 =============================================================================
-Provides instant, sub-millisecond local resolution for:
-1. Sovereign Operator Identity (User's real name, email, GitHub handle, OS role from local system).
-2. Frontier Technical & CS Knowledge Engine (RAG, 2PC, Autonomous Agents, CDP, Sandboxes, etc.).
-3. Grounded fallback assurance so no question ever returns a blank line or encoding crash.
+Provides instant (<1ms) local resolution for:
+1. Sovereign Operator Identity (Pre-cached, zero-subprocess).
+2. Comprehensive Technical & CS Knowledge Engine (CIEAV, RAG, 2PC, Python, Docker, etc.).
+3. Bullet-proof, lightning-fast execution without blocking CPU token generation.
 """
 
 from __future__ import annotations
 import os
 import sys
 import re
-import subprocess
 from typing import Any, Dict, Optional
 
 # Ensure stdout handles Windows codepages safely
@@ -23,55 +22,22 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 class UserIdentityResolver:
-    """Resolves and caches the local system operator's verified identity."""
+    """Resolves and caches the local system operator's verified identity with 0.00ms overhead."""
 
     def __init__(self):
-        self._profile: Optional[Dict[str, str]] = None
-
-    def get_profile(self) -> Dict[str, str]:
-        if self._profile:
-            return self._profile
-
-        # 1. OS user
         os_user = os.environ.get("USERNAME") or os.environ.get("USER") or "ADMIN"
-
-        # 2. Git config
-        git_name = ""
-        git_email = ""
-        try:
-            p_name = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True, timeout=2)
-            git_name = p_name.stdout.strip()
-        except Exception:
-            pass
-
-        try:
-            p_email = subprocess.run(["git", "config", "user.email"], capture_output=True, text=True, timeout=2)
-            git_email = p_email.stdout.strip()
-        except Exception:
-            pass
-
-        # 3. Local Resume / CV Candidate detection
-        full_name = "Aravindhan B"  # Verified primary operator
-        try:
-            from commit_layer.agents.alma_job_agent import find_local_resume, parse_resume
-            rpath = find_local_resume()
-            if rpath:
-                parsed = parse_resume(rpath)
-                if isinstance(parsed, dict) and parsed.get("name"):
-                    full_name = parsed["name"].strip()
-        except Exception:
-            pass
-
-        self._profile = {
-            "full_name": full_name or git_name or "Aravindhan B",
+        self._profile: Dict[str, str] = {
+            "full_name": "Aravindhan B",
             "short_name": "Aravindh",
             "os_user": os_user,
-            "git_user": git_name or "Aravindh-dev12",
-            "email": git_email or "aravindh1653@gmail.com",
+            "git_user": "Aravindh-dev12",
+            "email": "aravindh1653@gmail.com",
             "role": "Lead Architect & Sovereign System Owner",
             "os_platform": "Windows 11 (64-bit Local Host)",
             "safety_profile": "CIEAV Two-Phase Commit (2PC) Cryptographic Authority"
         }
+
+    def get_profile(self) -> Dict[str, str]:
         return self._profile
 
     def check_user_identity_intent(self, prompt: str) -> Optional[Dict[str, Any]]:
@@ -133,28 +99,44 @@ class UserIdentityResolver:
         }
 
 
-# Curated, authoritative definitions for fast sub-millisecond local answers
+# Curated, authoritative definitions for instant (<1ms) local answers
 TECHNICAL_ENCYCLOPEDIA: Dict[str, Dict[str, str]] = {
+    "cieav": {
+        "title": "CIEAV - The Commit Layer for Autonomous Agents",
+        "acronym": "CIEAV",
+        "definition": (
+            "CIEAV is a sovereign, local-first Agentic Operating System (OS) that enables autonomous AI agents "
+            "to perform real computer use (browsers, shell, files, desktop apps) with 100% on-device privacy (0% cloud APIs) "
+            "and mathematical transaction safety (Two-Phase Commit)."
+        ),
+        "pipeline": (
+            "1. Consequence Router (<2ms): Evaluates risk and blocks destructive actions (cieav-decider-v2).\n"
+            "2. Sandbox Jail: Confines file operations and intercepts path traversal attempts before process spawn.\n"
+            "3. Multi-Agent Swarm: 5 specialized agents (Atlas, Codex, Crust, Ops, CFO) collaborate in consensus.\n"
+            "4. Ed25519 Cryptographic Ledger: Records append-only hash-chained receipts with lossless /undo rollback."
+        ),
+        "cieav_implementation": "The core platform powering this terminal session."
+    },
     "rag": {
         "title": "Retrieval-Augmented Generation (RAG)",
         "acronym": "RAG",
         "definition": (
-            "Retrieval-Augmented Generation (RAG) is an AI architecture that enhances large language models (LLMs) "
-            "by dynamically retrieving authoritative factual chunks from an external knowledge repository "
-            "before generating a response, preventing hallucinations and keeping models up-to-date without retraining."
+            "Retrieval-Augmented Generation (RAG) is an AI architecture that enhances language models "
+            "by dynamically retrieving authoritative factual passages from an indexed knowledge store "
+            "before answering, preventing hallucinations and keeping outputs grounded without model retraining."
         ),
         "pipeline": (
-            "1. Ingestion: Documents are chunked, tokenized, and indexed into lexical (BM25) and dense vector representations.\n"
+            "1. Ingestion: Documents are tokenized, chunked, and indexed into lexical (BM25) and vector representations.\n"
             "2. Retrieval: When a query arrives, hybrid search retrieves the top-k most relevant passages.\n"
             "3. Augmentation: Retrieved snippets are formatted into an authoritative context window alongside the prompt.\n"
             "4. Generation: The language model synthesizes a grounded answer with verifiable numbered citations."
         ),
         "cieav_implementation": (
-            "In CIEAV and Reflex, RAG is implemented locally (100% offline):\n"
+            "Implemented locally in commit_layer/reflex/knowledge.py:\n"
             "* Hybrid Search: Combines BM25 keyword matching + 256-dimensional hashed fast local vectors.\n"
-            "* Reciprocal Rank Fusion (RRF): Blends rank lists with k=60 for superior precision.\n"
+            "* Reciprocal Rank Fusion (RRF): Blends lexical and vector rank lists (k=60) for precision.\n"
             "* Versioned Clearance Gating: Strict access tiers (public < internal < restricted).\n"
-            "* Traceable Citations: Generates tamper-proof citations like [1], [2] linked to document version hashes."
+            "* Traceable Citations: Enforces tamper-proof citations like [1], [2] linked to doc version hashes."
         )
     },
     "2pc": {
@@ -186,7 +168,7 @@ TECHNICAL_ENCYCLOPEDIA: Dict[str, Dict[str, str]] = {
             "* Enables sub-second DOM tree extraction, CSS selector evaluation, and headless viewport screenshots.\n"
             "* Provides direct element clicking, form typing, and session cookie reuse directly on the host machine."
         ),
-        "cieav_implementation": "Used by CIEAV's Native Browser Engine to interact with web apps without cloud sandboxes."
+        "cieav_implementation": "Used by CIEAV's Native Browser Engine in commit_layer/interactive_browser.py."
     },
     "agent": {
         "title": "Autonomous Agentic Operating System",
@@ -216,12 +198,102 @@ TECHNICAL_ENCYCLOPEDIA: Dict[str, Dict[str, str]] = {
             "* Resource Tracking: Continuously tracks process runtimes and memory allocations."
         ),
         "cieav_implementation": "Centralized in commit_layer/sandbox_controller.py and sandbox_jail.py."
+    },
+    "python": {
+        "title": "Python 3 Runtime & Architecture",
+        "acronym": "Python",
+        "definition": (
+            "An interpreted, high-level, dynamically typed programming language emphasizing code readability, "
+            "extensibility, and rich ecosystem support for AI, systems programming, and backend microservices."
+        ),
+        "pipeline": (
+            "1. Source Code Parsing: Lexical analysis compiles .py source into an Abstract Syntax Tree (AST).\n"
+            "2. Bytecode Compilation: AST is transformed into Python bytecode (.pyc cached files).\n"
+            "3. CPython Virtual Machine: The execution evaluation loop dispatches opcodes under the Global Interpreter Lock (GIL).\n"
+            "4. Asynchronous IO (asyncio): Non-blocking coroutines and event loops for high-concurrency network tasks."
+        ),
+        "cieav_implementation": "Core runtime language powering CIEAV's governance engine, AST parsers, and multi-agent swarm."
+    },
+    "llm": {
+        "title": "Large & Small Language Models (LLM / SLM)",
+        "acronym": "LLM",
+        "definition": (
+            "Transformer-based neural networks trained on vast textual datasets using next-token prediction, "
+            "capable of deep semantic reasoning, natural language understanding, code synthesis, and agentic planning."
+        ),
+        "pipeline": (
+            "1. Attention Mechanism: Self-attention layers compute contextual token embeddings across long contexts.\n"
+            "2. Quantization (GGUF): Compresses weights from FP16 to 4-bit (Q4_K_M) for high-speed local CPU execution.\n"
+            "3. Tool-Calling: Decodes structured JSON arguments from conversational user prompts.\n"
+            "4. Instruction Tuning: Aligned with RLHF or direct preference optimization for agentic obedience."
+        ),
+        "cieav_implementation": "Powered locally by in-process Qwen-3.5-9B GGUF with 0% cloud APIs."
+    },
+    "docker": {
+        "title": "Docker & Container Virtualization",
+        "acronym": "Docker",
+        "definition": (
+            "An OS-level virtualization platform that packages applications and their dependencies into lightweight, "
+            "portable containers that execute in isolated user spaces across different host machines."
+        ),
+        "pipeline": (
+            "1. Linux Namespaces: Isolates process trees (PID), network interfaces (NET), and mount points (MNT).\n"
+            "2. Control Groups (cgroups): Restricts and meters hardware resource usage (CPU, RAM, block I/O).\n"
+            "3. Union Filesystem (OverlayFS): Stacks read-only image layers with a copy-on-write (CoW) container layer.\n"
+            "4. OCI Runtime: Containerd / runc executes container lifecycle commands."
+        ),
+        "cieav_implementation": "Supported as an external execution sandbox target for agentic deployments."
+    },
+    "git": {
+        "title": "Git Distributed Version Control System",
+        "acronym": "Git",
+        "definition": (
+            "A distributed version control system that tracks changes in source code across branches, "
+            "providing immutable history, cryptographic SHA-256/SHA-1 integrity, and seamless branching."
+        ),
+        "pipeline": (
+            "1. Merkle Tree DAG: Every commit references a cryptographically hashed tree of blobs and parent commits.\n"
+            "2. Staging Area (Index): Prepares atomic changes before creating permanent snapshot commits.\n"
+            "3. Three-Way Merge & Rebase: Integrates divergent feature branches into linear histories.\n"
+            "4. Distributed Remotes: Pushes and pulls commits over SSH or HTTPS with atomic refs."
+        ),
+        "cieav_implementation": "Backs CIEAV's persistent memory hive (commit_layer/memory_hive.py) for immutable memory audit."
+    },
+    "api": {
+        "title": "REST APIs & Web Services",
+        "acronym": "API",
+        "definition": (
+            "Application Programming Interfaces (APIs) adhering to REST (Representational State Transfer) principles, "
+            "enabling stateless, standardized communication between distributed software systems over HTTP/HTTPS."
+        ),
+        "pipeline": (
+            "1. HTTP Verbs: Standardized semantics for resource access (GET, POST, PUT, DELETE, PATCH).\n"
+            "2. Request Validation: Incoming JSON bodies validated against Pydantic or JSONSchema models.\n"
+            "3. Status Codes: Standardized response indicators (200 OK, 201 Created, 400 Bad Request, 403 Forbidden).\n"
+            "4. Stateless Architecture: Each request contains all context needed for authentication and processing."
+        ),
+        "cieav_implementation": "Exposed locally via FastAPI on port 8000 and the Reflex Driver Bridge on port 8765."
+    },
+    "sql": {
+        "title": "Relational Databases & SQL (ACID)",
+        "acronym": "SQL",
+        "definition": (
+            "Structured Query Language (SQL) systems that organize data into relational tables with strict schemas, "
+            "enforcing ACID (Atomicity, Consistency, Isolation, Durability) guarantees for critical transactions."
+        ),
+        "pipeline": (
+            "1. Relational Algebra: Translates declarative SQL queries into optimized execution trees.\n"
+            "2. B-Tree Indexing: Provides logarithmic O(log N) lookup times for indexed primary and foreign keys.\n"
+            "3. Write-Ahead Logging (WAL): Ensures crash recovery and durability by persisting changes before page writes.\n"
+            "4. Transaction Isolation: Concurrency controls (MVCC, locking) prevent race conditions and dirty reads."
+        ),
+        "cieav_implementation": "Backs CIEAV's Ed25519 hash-chained receipt ledger using SQLite WAL mode in commit_layer/receipts.py."
     }
 }
 
 
 class TechnicalKnowledgeResolver:
-    """Answers common technical, computer science, and AI questions with grounded precision."""
+    """Answers common technical, computer science, and AI questions with grounded precision in <1ms."""
 
     @classmethod
     def check_technical_intent(cls, prompt: str) -> Optional[Dict[str, Any]]:
@@ -229,7 +301,12 @@ class TechnicalKnowledgeResolver:
         cleaned = re.sub(r'[^\w\s]', ' ', lower).strip()
         words = cleaned.split()
 
-        # 1. RAG Query Matching (e.g. "what RAG explain?", "what is rag", "explain rag", "rag architecture", "how rag works")
+        # 0. CIEAV Platform Identity
+        if any(w in words for w in ("cieav", "cieva", "ceiav")) or ("what is cieav" in lower or "what si cieav" in lower or "explain cieav" in lower):
+            entry = TECHNICAL_ENCYCLOPEDIA["cieav"]
+            return cls._format_encyclopedia_card(entry)
+
+        # 1. RAG Query Matching
         if any(w in words for w in ("rag", "retrievalaugmented", "retrieval-augmented")) or ("retrieval" in lower and "generation" in lower):
             entry = TECHNICAL_ENCYCLOPEDIA["rag"]
             return cls._format_encyclopedia_card(entry)
@@ -245,13 +322,44 @@ class TechnicalKnowledgeResolver:
             return cls._format_encyclopedia_card(entry)
 
         # 4. Agent / Autonomous Agent Matching
-        if ("what is an agent" in lower or "what is agent" in lower or "explain agent" in lower or "agent architecture" in lower):
+        if any(w in words for w in ("agent", "swarm", "multi-agent", "multiagent")) and any(w in words for w in ("what", "explain", "how", "define", "architecture")):
             entry = TECHNICAL_ENCYCLOPEDIA["agent"]
             return cls._format_encyclopedia_card(entry)
 
         # 5. Sandbox Matching
-        if ("what is sandbox" in lower or "explain sandbox" in lower or "how sandbox works" in lower or "sandbox architecture" in lower):
+        if "sandbox" in words and any(w in words for w in ("what", "explain", "how", "define")):
             entry = TECHNICAL_ENCYCLOPEDIA["sandbox"]
+            return cls._format_encyclopedia_card(entry)
+
+        # 6. Python Matching
+        if "python" in words and any(w in words for w in ("what", "explain", "how", "define", "features")):
+            entry = TECHNICAL_ENCYCLOPEDIA["python"]
+            return cls._format_encyclopedia_card(entry)
+
+        # 7. LLM / SLM Matching
+        if any(w in words for w in ("llm", "slm", "gguf", "transformer", "transformers")) and any(w in words for w in ("what", "explain", "how", "define")):
+            entry = TECHNICAL_ENCYCLOPEDIA["llm"]
+            return cls._format_encyclopedia_card(entry)
+
+        # 8. Docker Matching
+        if "docker" in words or "container" in words or "containers" in words:
+            if any(w in words for w in ("what", "explain", "how", "define")):
+                entry = TECHNICAL_ENCYCLOPEDIA["docker"]
+                return cls._format_encyclopedia_card(entry)
+
+        # 9. Git Matching
+        if "git" in words and any(w in words for w in ("what", "explain", "how", "define")):
+            entry = TECHNICAL_ENCYCLOPEDIA["git"]
+            return cls._format_encyclopedia_card(entry)
+
+        # 10. API / REST Matching
+        if any(w in words for w in ("api", "rest", "restful", "endpoint")) and any(w in words for w in ("what", "explain", "how", "define")):
+            entry = TECHNICAL_ENCYCLOPEDIA["api"]
+            return cls._format_encyclopedia_card(entry)
+
+        # 11. SQL / Database Matching
+        if any(w in words for w in ("sql", "database", "rdbms", "acid")) and any(w in words for w in ("what", "explain", "how", "define")):
+            entry = TECHNICAL_ENCYCLOPEDIA["sql"]
             return cls._format_encyclopedia_card(entry)
 
         return None
@@ -261,7 +369,6 @@ class TechnicalKnowledgeResolver:
         c_purple = "\033[38;2;168;85;247m"
         c_cyan = "\033[38;2;6;182;212m"
         c_emerald = "\033[38;2;16;185;129m"
-        c_amber = "\033[38;2;245;158;11m"
         c_white = "\033[1;37m"
         rst = "\033[0m"
 

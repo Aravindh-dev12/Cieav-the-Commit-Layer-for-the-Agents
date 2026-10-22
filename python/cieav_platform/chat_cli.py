@@ -75,8 +75,6 @@ from commit_layer.knowledge_core import user_identity_resolver, technical_knowle
 
 
 def get_interactive_banner() -> str:
-    rb_info = query_recycle_bin_win32()
-    rb_str = f"{rb_info.get('num_items', 0)} item(s) • {rb_info.get('size_mb', 0.0):.1f} MB"
     _, _, key_id = receipts.get_signing_key()
     
     t0 = time.perf_counter()

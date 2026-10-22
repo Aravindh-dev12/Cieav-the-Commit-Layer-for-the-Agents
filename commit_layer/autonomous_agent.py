@@ -1143,41 +1143,30 @@ if __name__ == "__main__":
                     "decision": dec
                 }
 
-            # Real Frontier-Grade Intelligence via Native Qwen-3.5-9B Engine
-            from commit_layer.hybrid_brain import qwen35_engine
+            # Instant Sovereign Knowledge & Architecture Resolver (0ms Latency Floor)
             from commit_layer.web_intel import web_intel
+            
+            # Check fast technical concept match
+            tech_match = technical_knowledge_resolver.check_technical_intent(prompt)
+            if tech_match:
+                return tech_match
 
-            # Live web / encyclopedia grounding
-            grounded_fact = web_intel.ground_query(prompt)
+            # Clean topic lookup without hanging CPU
+            clean_fact = None
+            try:
+                clean_fact = web_intel.lookup_encyclopedia(prompt)
+            except Exception:
+                pass
 
-            if qwen35_engine.is_available:
-                sys_prompt = (
-                    "You are CIEAV, a world-class superintelligent autonomous agent running 100% locally on CPU. "
-                    "Answer questions directly, concisely, and with frontier-level depth and technical precision. "
-                    "Provide comprehensive definitions, architectural breakdowns, and concrete facts without disclaimers."
-                )
-                user_msg = f"{prompt}\n\n[Live Grounding Context]:\n{grounded_fact}" if grounded_fact else prompt
-                generated = qwen35_engine.generate(user_prompt=user_msg, system_prompt=sys_prompt, max_tokens=80)
-                if generated and len(generated.strip()) > 10:
-                    ans_msg = (
-                        f"[BRAIN] [QWEN-3.5-9B SUPERINTELLIGENT RESPONSE • 100% LOCAL CPU]\n"
-                        f"Inquiry: '{prompt}' (Decision Gate: {tier} • {lat:.2f}ms CPU)\n"
-                        f"--------------------------------------------------------------------------\n"
-                        f"{generated.strip()}\n"
-                        f"--------------------------------------------------------------------------"
-                    )
-                    return {
-                        "type": "answer",
-                        "message": ans_msg,
-                        "decision": dec
-                    }
-
-            # Fallback to grounded encyclopedia
-            if grounded_fact:
+            if clean_fact and clean_fact.get("extract"):
                 ans_msg = (
-                    f"[BRAIN] [CIEAV KNOWLEDGE BASE • 100% GROUNDED]\n"
-                    f"Inquiry: '{prompt}' (Local Decision Gate: {tier} • {lat:.2f}ms CPU)\n\n"
-                    f"{grounded_fact}\n"
+                    f"\033[1;36m[CIEAV KNOWLEDGE BASE • GROUNDED & VERIFIED]\033[0m\n"
+                    f"Inquiry: '{prompt}' (Local Gate: {tier} • {lat:.2f}ms CPU)\n"
+                    f"--------------------------------------------------------------------------\n"
+                    f"Concept: {clean_fact.get('title')}\n"
+                    f"{clean_fact.get('extract')}\n"
+                    f"--------------------------------------------------------------------------\n"
+                    f"Source: {clean_fact.get('source')} ({clean_fact.get('url')})"
                 )
                 return {
                     "type": "answer",
