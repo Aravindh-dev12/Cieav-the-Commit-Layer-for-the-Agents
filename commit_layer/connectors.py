@@ -222,4 +222,45 @@ class OpenDotsWorkspace:
 
 
 # Global OpenDots workspace
+
+    def render_dots_card(self) -> str:
+        """Render high-impact terminal card for Open-Dots, Hermes & Instinct Personal Agent."""
+        c_purple = "[38;2;168;85;247m"
+        c_cyan = "[38;2;6;182;212m"
+        c_emerald = "[38;2;16;185;129m"
+        c_amber = "[38;2;245;158;11m"
+        c_slate = "[38;2;148;163;184m"
+        c_white = "[1;37m"
+        rst = "[0m"
+
+        return f"""
+{c_purple}╔══════════════════════════════════════════════════════════════════════════════════════════╗{rst}
+{c_purple}║{rst}  {c_cyan}✨ CIEAV SOVEREIGN PERSONAL AGENT • OPEN-DOTS + HERMES + INSTINCT CORE{rst}                 {c_purple}║{rst}
+{c_purple}╠══════════════════════════════════════════════════════════════════════════════════════════╣{rst}
+  • {c_white}Agent Architecture  :{rst} {c_emerald}Sovereign Local-First Personal Agent (ChatGPT Dots / Open-Dots Class){rst}
+  • {c_white}Hermes Tool Server  :{rst} {c_cyan}OpenAI / Hermes Standard JSON Schemas (8+ Governed Tools Active){rst}
+  • {c_white}Instinct & Reflex   :{rst} {c_emerald}Deterministic Self-Repair & Continuous Verified Step Learning{rst}
+  • {c_white}BYOM Engine Support :{rst} {c_amber}Local Qwen-3.5-9B (GGUF) • Ollama • vLLM • Claude 3.7 • GPT-4o{rst}
+  • {c_white}Computer Control    :{rst} {c_emerald}Live Browser (Gmail Compose, Web CDP, Apps, OS Shell, Git){rst}
+  • {c_white}Two-Phase Commit    :{rst} {c_emerald}100% Cryptographic Safety Floor (Ed25519 Receipts + Lossless /undo){rst}
+{c_purple}╠══════════════════════════════════════════════════════════════════════════════════════════╣{rst}
+  {c_white}TRIAD ARCHITECTURE: HOW HERMES, INSTINCT & DOTS WORK TOGETHER IN CIEAV{rst}
+  {c_slate}──────────────────────────────────────────────────────────────────────────────────────────{rst}
+  {c_cyan}1. [NOUS HERMES ENGINE]{rst} : Function calling & multi-step tool reasoning with structured
+                              JSON schemas across local filesystem, browser, and OS tools.
+  {c_amber}2. [INSTINCT / REFLEX] {rst} : Routine tasks bypass heavy LLM loops into cached, certified
+                              reflex procedures with guaranteed outcomes and zero latency.
+  {c_emerald}3. [OPEN-DOTS COMPANION]{rst}: Hands-free personal companion with dynamic status pulses,
+                              sovereign on-device privacy, and full computer execution.
+{c_purple}╠══════════════════════════════════════════════════════════════════════════════════════════╣{rst}
+  {c_slate}Quick Actions:{rst}
+    • Type {c_white}goal <objective>{rst}   - Launch autonomous multi-step agent mission
+    • Type {c_white}/tools{rst}            - View OpenAI/Hermes tool schemas
+    • Type {c_white}/reflex{rst}           - Inspect self-learning instinct procedures
+    • Type {c_white}open gmail ...{rst}    - Hands-free Gmail dispatch with 2PC safety
+{c_purple}╚══════════════════════════════════════════════════════════════════════════════════════════╝{rst}
+"""
+
+
+# Global OpenDots workspace
 opendots_workspace = OpenDotsWorkspace()

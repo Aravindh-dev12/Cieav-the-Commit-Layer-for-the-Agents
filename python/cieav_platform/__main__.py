@@ -92,7 +92,7 @@ def entrypoint() -> int:
 
     if first in {"chat", "code", "agent"}:
         return _get_chat_main()(args[1:])
-    if first in {"/status", "status", "/receipts", "receipts", "/undo", "undo", "/help", "help", "/reset", "reset", "/jobs", "jobs", "/report", "report", "recyclebin", "/recyclebin", "/decide", "decide", "/model", "model"}:
+    if first in {"/status", "status", "/receipts", "receipts", "/undo", "undo", "/help", "help", "/reset", "reset", "/jobs", "jobs", "/report", "report", "recyclebin", "/recyclebin", "/decide", "decide", "/model", "model", "dots", "/dots", "opendots", "/opendots", "hermes", "/hermes", "instinct", "/instinct"}:
         return _get_chat_main()(args)
     if first == "mcp":
         if __package__:
@@ -107,6 +107,8 @@ def entrypoint() -> int:
             from cieav_platform.a2a_launcher import main as a2a_main
         return a2a_main(args[1:])
     if first == "companion":
+        if len(args) == 1:
+            return _get_chat_main()(["companion"])
         if __package__:
             from .companion_cli import main as companion_main
         else:

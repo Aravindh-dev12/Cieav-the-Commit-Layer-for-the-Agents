@@ -716,6 +716,13 @@ def process_user_input(text: str):
         return
 
     # Agent Tool Server (Hermes / Instinct / Open Interop)
+    # Sovereign Personal Agent HUD (Open-Dots / ChatGPT Dots / Companion)
+    if lower in ("/dots", "dots", "opendots", "/opendots", "open-dots", "/companion", "companion", "personal agent", "chatgpt dots"):
+        from commit_layer.connectors import opendots_workspace
+        print("\n" + opendots_workspace.render_dots_card() + "\n")
+        return
+
+    # Agent Tool Server (Hermes / Instinct / Open Interop)
     if lower in ("/tools", "tools", "/hermes", "hermes", "instinct", "/instinct", "agent tools", "list tools", "/agent-tools"):
         print("\n" + agent_tool_server.render_hermes_card() + "\n")
         return
