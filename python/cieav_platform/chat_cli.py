@@ -536,101 +536,14 @@ def run_alma_job_search_workflow(query_text: str = ""):
 
 def run_alma_general_intent_workflow(prompt: str):
     global last_committed_receipt_id
-    from commit_layer import intent
-    
-    # Fast-Path: Conversational & Informational intents (Greetings, Identity, Questions, Explanations)
-    # Never execute OS commands or prompt cards for conversational small-talk
-    res = autonomous_agent.process_instruction(prompt)
-    if (
-        res.get("type") in (
-            "greeting", "identity", "user_identity", "technical_explanation", "reflex_rag_answer",
-            "answer", "explanation", "capabilities", "cfo_spend", "llm_response", "superintelligent_answer",
-            "conversational", "strategic_plan", "governed_execution", "sandbox_status", "ports",
-            "file_organizer", "duplicate_finder", "hybrid_superagent"
-        )
-        or (res.get("message") and not res.get("actions"))
-    ):
-        if res.get("receipt_id"):
-            last_committed_receipt_id = res["receipt_id"]
-        if "board" in res and res["board"]:
-            print("\n" + res["board"] + "\n")
-        elif "message" in res and res["message"]:
-            print("\n" + res["message"] + "\n")
+    from commit_layer.personal_agent import cieav_personal_agent
+
+    p_res = cieav_personal_agent.execute(prompt)
+    if p_res and p_res.get('message'):
+        if p_res.get('receipt_id') and p_res['receipt_id'] != 'AUTO':
+            last_committed_receipt_id = p_res['receipt_id']
+        print('\n' + p_res['message'] + '\n')
         return
-
-    try:
-        plan = intent.plan_intent(prompt)
-    except Exception as e:
-        print(f"  ❌ Intent planning error: {e}\n")
-        return
-
-    actions = plan.get("actions", [])
-    if not actions:
-        # Full Agentic Cycle: Dispatches to local autonomous agent running on CPU
-        res = autonomous_agent.process_instruction(prompt)
-        if "board" in res:
-            print("\n" + res["board"] + "\n")
-        elif "message" in res:
-            print("\n" + res["message"] + "\n")
-        return
-
-    print("\n============================================================================")
-    print("   ALMA COMPUTER CONTROL AGENT (CIEAV COMMIT LAYER)")
-    print("   Autonomous Multi-Domain Intent Execution")
-    print("============================================================================")
-    print(f"[*] Target Intent : \"{prompt}\"")
-    print(f"[*] Actions Planned : {len(actions)} atomic operation(s)")
-    print(f"[*] Highest Risk    : {plan.get('highest_risk')} (Safety Floor Enforced)")
-    if plan.get("recalled_from_memorable"):
-        print(f"[*] Memorable Cache : Recalled verified procedure (saved {plan.get('tokens_saved')} reasoning tokens)")
-
-    for idx, act in enumerate(actions, 1):
-        print(f"\n  [{idx}/{len(actions)}] Action: {act.get('summary', act['tool'])}")
-        print(f"      Domain     : {act.get('domain', 'general').upper()}")
-        print(f"      Tool       : {act['tool']}")
-        print(f"      Risk Level : {act['risk']}")
-        print(f"      Reasons    : {', '.join(act.get('reasons', []))}")
-        print(f"      Arguments  : {act.get('args_redacted', {})}")
-        print(f"      Rollback   : {'Available (Atomic snapshot inverse)' if act.get('can_rollback') else 'Irreversible'}")
-
-    req_typed = plan.get("requires_typed_confirmation", False)
-    
-    if req_typed:
-        prompt_txt = f"\nType 'COMMIT' to approve plan or press Enter to cancel: "
-        try:
-            choice = input(prompt_txt).strip()
-        except (KeyboardInterrupt, EOFError):
-            choice = ""
-
-        if not ("COMMIT" in choice.upper() or choice.upper() == plan.get("confirmation_phrase", "").upper()):
-            print("\n[CIEAV] Plan cancelled by operator. No state was mutated.\n")
-            for act in actions:
-                gateway.cancel(act["action_id"])
-            return
-
-        print("\n[CIEAV] Committing actions under cryptographic governance...")
-        res = intent.commit_plan(plan["plan_id"], approved_by="human-operator", typed_confirmation="COMMIT")
-    else:
-        # Autonomous 2PC execution for routine / multi-agent tasks (Reversible via /undo)
-        print("\n\033[1;32m[CIEAV 2PC AUTONOMOUS COMMIT]\033[0m Committing reversible plan under Two-Phase Commit safety...")
-        res = intent.commit_plan(plan["plan_id"], approved_by="auto-governor", typed_confirmation="COMMIT")
-
-    if "error" in res:
-        print(f"  ❌ Commit error: {res['error']}\n")
-        return
-    
-    for r in res.get("results", []):
-        rid = r.get("receipt_id", "N/A")
-        if rid and rid != "N/A":
-            last_committed_receipt_id = rid
-        print(f"  ✅ Executed: {r.get('status', '').upper()} | Outcome: {r.get('outcome', 'UNKNOWN')} | Receipt: {rid[:8] if rid != 'N/A' else 'NONE'}")
-        if "result" in r:
-            print(f"     Result  : {r.get('result')}")
-    print("\n[CIEAV] All operations committed and recorded in Ed25519 hash-chained ledger.")
-    print("  Type 'cieav /undo' to recall the committed action.\n")
-
-
-
 
 def process_user_input(text: str):
     cmd = text.strip()
@@ -647,6 +560,17 @@ def process_user_input(text: str):
     if lower in ("exit", "quit", "/quit", "/exit"):
         print("Goodbye!")
         sys.exit(0)
+
+    # Sovereign Personal Agent: Autonomous Reason-Plan-Act-Verify for ANY agentic intent
+    if any(phrase in lower for phrase in (
+        "full working personal agent", "personal agent", "agentic workings",
+        "full working", "full agent", "like personal agent", "hermes", "instinct", "chatgpt dots"
+    )) or lower in ("agent", "/agent", "personal agent", "full agent", "agentic", "capabilities"):
+        from commit_layer.personal_agent import cieav_personal_agent
+        res = cieav_personal_agent.execute(cmd)
+        if res.get("message"):
+            print("\n" + res["message"] + "\n")
+        return
 
     # Fast-Path: Instant Sovereign Operator Identity & Technical Knowledge Engine (0ms CPU)
     user_id_res = user_identity_resolver.check_user_identity_intent(cmd)
@@ -1130,7 +1054,13 @@ Available Governed Commands:
         handle_undo()
         return
     # Personal Notes Vault Commands
-    if lower.startswith("note ") or lower.startswith("/note "):
+    if lower.startswith(("note ", "/note ", "take note", "take a note", "remember ")):
+        content = re.sub(r'^(?:note|/note|take\s+(?:a\s+)?note|remember)\s*[:\-]?\s*', '', cmd, flags=re.IGNORECASE).strip()
+        res = notes_manager.take_note(content)
+        print(f"\n  ✅ Note saved locally to '{res['filename']}' ({res['char_count']} chars • Reversible via /undo)")
+        print(notes_manager.render_cli_notes(notes_manager.list_notes(), title_label="Updated Notes Vault"))
+        return
+    if False and (lower.startswith("note ") or lower.startswith("/note ")):
         content = cmd.split(" ", 1)[1].strip()
         res = notes_manager.take_note(content)
         print(f"\n  ✅ Note saved locally to '{res['filename']}' ({res['char_count']} chars • Reversible via /undo)")

@@ -25,3 +25,6 @@ else:
     load_dotenv(find_dotenv(usecwd=True))
 
 __version__ = "0.1.0"
+
+from commit_layer.personal_agent import cieav_personal_agent, CieavPersonalAgent
+
