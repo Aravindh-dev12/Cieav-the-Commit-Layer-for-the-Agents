@@ -1,5 +1,5 @@
 # CIEAV One-Line Windows Installer
-# Usage: irm https://raw.githubusercontent.com/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Agents/main/install.ps1 | iex
+# Usage: irm https://raw.githubusercontent.com/Aravindh-dev12/cieav-agent-workforce/main/install.ps1 | iex
 
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "   CIEAV: THE COMMIT LAYER FOR THE INTERNET & AGENTS        " -ForegroundColor Green
@@ -7,7 +7,7 @@ Write-Host "   One-Line Native Windows Installer                        " -Foreg
 Write-Host "============================================================" -ForegroundColor Cyan
 
 $InstallDir = Join-Path $HOME ".cieav"
-$RepoUrl = "https://github.com/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Agents.git"
+$RepoUrl = "https://github.com/Aravindh-dev12/cieav-agent-workforce.git"
 
 # Check Python
 $PythonCmd = Get-Command python -ErrorAction SilentlyContinue

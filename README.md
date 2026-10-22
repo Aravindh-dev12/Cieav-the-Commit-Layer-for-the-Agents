@@ -248,8 +248,8 @@ CIEAV is built for instant autonomous onboarding. **No multi-step installation c
 ### 1-Step Quickstart:
 ```bash
 # Clone and run - that's it!
-git clone https://github.com/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Agents.git
-cd Cieav-the-Commit-Layer-for-the-Agents
+git clone https://github.com/Aravindh-dev12/cieav-agent-workforce.git
+cd cieav-agent-workforce
 cieav
 ```
 *(On first run, `cieav` autonomously detects missing dependencies, installs them in the background, registers the global command, and launches the live terminal OS with the big ASCII banner!)*

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # CIEAV One-Line Linux / macOS Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Agents/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/Aravindh-dev12/cieav-agent-workforce/main/install.sh | bash
 
 set -e
 
@@ -10,7 +10,7 @@ echo -e "   One-Line Native Linux / macOS Installer                  "
 echo -e "============================================================\033[0m"
 
 INSTALL_DIR="$HOME/.cieav"
-REPO_URL="https://github.com/Aravindh-dev12/Cieav-the-Commit-Layer-for-the-Agents.git"
+REPO_URL="https://github.com/Aravindh-dev12/cieav-agent-workforce.git"
 
 if ! command -v python3 &> /dev/null; then
     echo -e "\033[1;31m[ERROR] Python 3.10+ is required. Please install python3.\033[0m"
