@@ -125,7 +125,13 @@ def get_interactive_banner() -> str:
 """
     return banner_art
 
-BANNER = get_interactive_banner()
+_CACHED_BANNER: Optional[str] = None
+
+def get_banner() -> str:
+    global _CACHED_BANNER
+    if _CACHED_BANNER is None:
+        _CACHED_BANNER = get_interactive_banner()
+    return _CACHED_BANNER
 
 def launch_interactive_game():
     print(cli_game.render_hud())
@@ -652,27 +658,47 @@ def process_user_input(text: str):
         print("\n" + tech_res["message"] + "\n")
         return
 
-    # Autonomous Gmail LinkedIn Application Inspector & Intelligence (100% Local CPU • Zero Friction • 2PC Safety)
-    gmail_intent = gmail_agent.detect_gmail_application_intent(cmd)
+    # Full Agentic Autonomous Gmail Agent: Compose, Send, or Inspect Views (100% Local CPU • 2PC Safety)
+    gmail_intent = gmail_agent.detect_gmail_intent(cmd)
     if gmail_intent:
         from commit_layer import gateway
-        action = gateway.intercept(
-            tool_name="inspect_gmail_application_views",
-            args={
-                "launch_browser": True,
-                "query": gmail_intent.get("query", "LinkedIn viewed your application"),
-                "company_filter": gmail_intent.get("company_filter")
-            },
-            agent_id="cieav-user-agent"
-        )
-        res = gateway.process(action)
-        if res.get("status") == "pending":
-            res = gateway.approve(action.id, approved_by="auto-user")
+        if gmail_intent.get('intent') == 'compose_and_send':
+            action = gateway.intercept(
+                tool_name='send_gmail',
+                args={
+                    'to': gmail_intent['to'],
+                    'subject': gmail_intent['subject'],
+                    'body': gmail_intent['body'],
+                    'launch_browser': True
+                },
+                agent_id='cieav-user-agent'
+            )
+            res = gateway.process(action)
+            if res.get('status') == 'pending':
+                res = gateway.approve(action.id, approved_by='auto-user')
 
-        last_committed_receipt_id = res.get("receipt_id")
-        inspection_data = res.get("result", {})
-        print("\n" + gmail_agent.render_cli_dossier(inspection_data, receipt_id=res.get("receipt_id", "AUTO")) + "\n")
-        return
+            last_committed_receipt_id = res.get('receipt_id')
+            result_data = res.get('result', {})
+            print('\n' + gmail_agent.render_compose_dossier(result_data, receipt_id=res.get('receipt_id', 'AUTO')) + '\n')
+            return
+        elif gmail_intent.get('intent') == 'inspect_views':
+            action = gateway.intercept(
+                tool_name='inspect_gmail_application_views',
+                args={
+                    'launch_browser': True,
+                    'query': gmail_intent.get('query', 'LinkedIn viewed your application'),
+                    'company_filter': gmail_intent.get('company_filter')
+                },
+                agent_id='cieav-user-agent'
+            )
+            res = gateway.process(action)
+            if res.get('status') == 'pending':
+                res = gateway.approve(action.id, approved_by='auto-user')
+
+            last_committed_receipt_id = res.get('receipt_id')
+            inspection_data = res.get('result', {})
+            print('\n' + gmail_agent.render_cli_dossier(inspection_data, receipt_id=res.get('receipt_id', 'AUTO')) + '\n')
+            return
 
     # Hands-Free Computer Control & App Launcher (e.g. "open my gmail", "open youtube", "launch calculator", "open vscode")
     app_intent = app_launcher.detect_app_intent(cmd)
@@ -1578,7 +1604,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     # Interactive REPL
-    print(BANNER)
+    print(get_banner())
     while True:
         try:
             user_input = input("\033[38;2;168;85;247mcieav\033[0m \033[38;2;6;182;212m❯\033[0m ").strip()

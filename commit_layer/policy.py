@@ -28,8 +28,8 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
         return RiskLevel.LOW, ["Personal markdown knowledge vault mutation (reversible)"]
 
     # ── Email & WhatsApp ────────────────────────────────────────
-    if tool in ('send_email', 'email_dispatch'):
-        return RiskLevel.MEDIUM, ["Sending email (outbound communication)"]
+    if tool in ('send_email', 'email_dispatch', 'send_gmail', 'gmail_compose_and_dispatch'):
+        return RiskLevel.MEDIUM, ["Governed outbound email / Gmail communication"]
 
     if tool == 'whatsapp_message':
         return RiskLevel.MEDIUM, ["Governed WhatsApp communication via native deep link"]

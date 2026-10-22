@@ -1,36 +1,13 @@
 from __future__ import annotations
 
+import os
 import sys
-
-if __package__:
-    from .a2a_launcher import main as a2a_main
-    from .approval_cli import main as approval_main
-    from .cli import main as cli_main
-    from .companion_cli import main as companion_main
-    from .lab_cli import main as lab_main
-    from .mcp_launcher import main as mcp_main
-    from .openclaw_cli import main as openclaw_main
-    from .proof_cli import main as proof_main
-    from .chat_cli import main as chat_main
-else:
-    # PyInstaller executes the configured source file as a top-level script.
-    # Import through the package namespace so relative imports inside the
-    # platform modules retain their package context in the frozen executable.
-    from cieav_platform.a2a_launcher import main as a2a_main
-    from cieav_platform.approval_cli import main as approval_main
-    from cieav_platform.cli import main as cli_main
-    from cieav_platform.companion_cli import main as companion_main
-    from cieav_platform.lab_cli import main as lab_main
-    from cieav_platform.mcp_launcher import main as mcp_main
-    from cieav_platform.openclaw_cli import main as openclaw_main
-    from cieav_platform.proof_cli import main as proof_main
-    from cieav_platform.chat_cli import main as chat_main
-
 
 def _ensure_global_registration() -> None:
     """Silently ensure repository directory and Python Scripts are in persistent User PATH."""
+    if os.environ.get("_CIEAV_PATH_VERIFIED"):
+        return
     try:
-        import os
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         if sys.platform == "win32":
             import winreg
@@ -53,8 +30,9 @@ def _ensure_global_registration() -> None:
                     WM_SETTINGCHANGE = 0x001A
                     SMTO_ABORTIFHUNG = 0x0002
                     ctypes.windll.user32.SendMessageTimeoutW(
-                        HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", SMTO_ABORTIFHUNG, 1000, None
+                        HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", SMTO_ABORTIFHUNG, 200, None
                     )
+            os.environ["_CIEAV_PATH_VERIFIED"] = "1"
         elif sys.platform in {"linux", "darwin"}:
             local_bin = os.path.expanduser("~/.local/bin")
             os.makedirs(local_bin, exist_ok=True)
@@ -65,15 +43,24 @@ def _ensure_global_registration() -> None:
                     os.symlink(src, target)
                 except OSError:
                     pass
+            os.environ["_CIEAV_PATH_VERIFIED"] = "1"
     except Exception:
         pass
+
+
+def _get_chat_main():
+    if __package__:
+        from .chat_cli import main as chat_main
+    else:
+        from cieav_platform.chat_cli import main as chat_main
+    return chat_main
 
 
 def entrypoint() -> int:
     _ensure_global_registration()
     args = sys.argv[1:]
     if not args:
-        return chat_main([])
+        return _get_chat_main()([])
     
     first = args[0].lower()
     if first in {"web", "ui", "/web", "dashboard", "console"}:
@@ -104,31 +91,63 @@ def entrypoint() -> int:
         return subprocess.call([sys.executable, "test_real_world_cieav_live.py"])
 
     if first in {"chat", "code", "agent"}:
-        return chat_main(args[1:])
+        return _get_chat_main()(args[1:])
     if first in {"/status", "status", "/receipts", "receipts", "/undo", "undo", "/help", "help", "/reset", "reset", "/jobs", "jobs", "/report", "report", "recyclebin", "/recyclebin", "/decide", "decide", "/model", "model"}:
-        return chat_main(args)
+        return _get_chat_main()(args)
     if first == "mcp":
+        if __package__:
+            from .mcp_launcher import main as mcp_main
+        else:
+            from cieav_platform.mcp_launcher import main as mcp_main
         return mcp_main(args[1:])
     if first == "a2a":
+        if __package__:
+            from .a2a_launcher import main as a2a_main
+        else:
+            from cieav_platform.a2a_launcher import main as a2a_main
         return a2a_main(args[1:])
     if first == "companion":
+        if __package__:
+            from .companion_cli import main as companion_main
+        else:
+            from cieav_platform.companion_cli import main as companion_main
         return companion_main(args[1:])
     if first == "openclaw":
+        if __package__:
+            from .openclaw_cli import main as openclaw_main
+        else:
+            from cieav_platform.openclaw_cli import main as openclaw_main
         return openclaw_main(args[1:])
     if first in {"lab", "action-lab"}:
+        if __package__:
+            from .lab_cli import main as lab_main
+        else:
+            from cieav_platform.lab_cli import main as lab_main
         return lab_main(args[1:])
     if first == "approval":
+        if __package__:
+            from .approval_cli import main as approval_main
+        else:
+            from cieav_platform.approval_cli import main as approval_main
         return approval_main(args[1:])
     if first == "proof":
+        if __package__:
+            from .proof_cli import main as proof_main
+        else:
+            from cieav_platform.proof_cli import main as proof_main
         return proof_main(args[1:])
     
     # Check if this is a legacy command (e.g. gateway, doctor, audit)
     legacy_cmds = {"gateway", "cloud", "model", "audit", "doctor", "dashboard", "test-lab"}
     if first in legacy_cmds:
+        if __package__:
+            from .cli import main as cli_main
+        else:
+            from cieav_platform.cli import main as cli_main
         return cli_main(args)
 
     # Any other prompt or natural language instruction routes directly to chat_main
-    return chat_main(args)
+    return _get_chat_main()(args)
 
 
 if __name__=="__main__":

@@ -19,7 +19,7 @@ try:
 except (ImportError, AttributeError):
     REABilateralExchangeTool = None
 from commit_layer.tools.app_launcher import AppLauncherTool, CloseApplicationTool, app_launcher, AppLauncherManager
-from commit_layer.tools.gmail_agent import GmailApplicationInspectorTool, GmailApplicationInspector, gmail_agent
+from commit_layer.tools.gmail_agent import GmailApplicationInspectorTool, GmailComposeTool, GmailApplicationInspector, GmailAgent, gmail_agent
 from commit_layer.tools.browser_interactive_tool import BrowserInteractiveTool
 from commit_layer.tools.app_runner_tool import RunDesktopAppTool, RunEntireAppTool
 from commit_layer.tools.app_runner import UniversalAppRunner, app_runner

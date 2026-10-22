@@ -347,6 +347,10 @@ class AppLauncherManager:
         clean = re.sub(r'^(?:no|nope|wait|actually|i\s+said|not\s+that)[\s,!.-]+', '', clean).strip()
         clean = re.sub(r'^(?:please|can\s+you|could\s+you|would\s+you)[\s,!.-]*', '', clean).strip()
 
+        # Email dispatch / compose requests must route to autonomous Gmail/Email Agent
+        if any(k in lower for k in ("send mail", "send email", "compose mail", "compose email", "mail to", "email to", "send a mail", "send an email", "send a email")):
+            return None
+
         # 3. Opening patterns
         open_patterns = [
             r'^(?:open|launch|start|run|bring\s+up|go\s+to|navigate\s+to|switch\s+to)\s+(.+)',
