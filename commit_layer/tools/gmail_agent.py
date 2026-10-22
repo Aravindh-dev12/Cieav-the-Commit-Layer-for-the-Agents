@@ -33,7 +33,6 @@ from commit_layer import privacy
 logger = logging.getLogger(__name__)
 
 INTEL_DIR = get_data_dir("linkedin_intelligence")
-INTEL_FILE = os.path.join(INTEL_DIR, "application_views.json")
 OUTBOX_DIR = get_data_dir("personal_outbox")
 
 # Canonical live Gmail URL bases
