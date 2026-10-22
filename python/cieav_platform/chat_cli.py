@@ -661,7 +661,6 @@ def process_user_input(text: str):
     # Full Agentic Autonomous Gmail Agent: Compose, Send, or Inspect Views (100% Local CPU • 2PC Safety)
     gmail_intent = gmail_agent.detect_gmail_intent(cmd)
     if gmail_intent:
-        from commit_layer import gateway
         if gmail_intent.get('intent') == 'compose_and_send':
             action = gateway.intercept(
                 tool_name='send_gmail',
@@ -699,6 +698,23 @@ def process_user_input(text: str):
             inspection_data = res.get('result', {})
             print('\n' + gmail_agent.render_cli_dossier(inspection_data, receipt_id=res.get('receipt_id', 'AUTO')) + '\n')
             return
+
+    # Autonomous Quick-Commerce Expense & Order History Agent (Zepto, Blinkit, Swiggy, Amazon)
+    if any(k in lower for k in ("expense", "expenses", "order history", "orders from zepto", "orders from blinkit", "zepto", "blinkit", "swiggy orders")) and any(k in lower for k in ("read", "track", "history", "orders", "manage", "expense", "expenses", "show", "get", "check")):
+        from commit_layer.tools.expense_agent import expense_agent
+        platform = expense_agent.identify_platform(cmd)
+        action = gateway.intercept(
+            tool_name="track_consumer_expenses",
+            args={"platform": platform, "launch_browser": True},
+            agent_id="cieav-user-agent"
+        )
+        res = gateway.process(action)
+        if res.get("status") == "pending":
+            res = gateway.approve(action.id, approved_by="auto-user")
+        last_committed_receipt_id = res.get("receipt_id")
+        result_data = res.get("result", {})
+        print("\n" + expense_agent.render_expense_dossier(result_data, receipt_id=res.get("receipt_id", "AUTO")) + "\n")
+        return
 
     # Hands-Free Computer Control & App Launcher (e.g. "open my gmail", "open youtube", "launch calculator", "open vscode")
     app_intent = app_launcher.detect_app_intent(cmd)

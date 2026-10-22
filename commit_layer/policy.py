@@ -12,8 +12,8 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
     args = action.args
 
     # ── Read-only & optimization tools ─────────────────────────
-    if tool.startswith(('read_', 'get_', 'list_', 'headroom_')):
-        return RiskLevel.LOW, ["Read-only / context optimization tool"]
+    if tool.startswith(('read_', 'get_', 'list_', 'headroom_')) or tool in ('track_consumer_expenses', 'inspect_expenses'):
+        return RiskLevel.LOW, ["Read-only expense tracking & order history inspection (strictly non-mutating)"]
 
     # ── Application, Sandbox & Web Service Control (Hands-Free Computer Use) ─
     if tool in ('open_application', 'close_application', 'launch_app', 'browser_interactive_action', 'run_desktop_app', 'run_entire_app', 'sandbox_execute', 'sandbox_commit_worktree', 'memory_hive_action'):
