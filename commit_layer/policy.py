@@ -15,6 +15,13 @@ def evaluate(action: Action) -> tuple[RiskLevel, list[str]]:
     if tool.startswith(('read_', 'get_', 'list_', 'headroom_')) or tool in ('track_consumer_expenses', 'inspect_expenses'):
         return RiskLevel.LOW, ["Read-only expense tracking & order history inspection (strictly non-mutating)"]
 
+    # ── Autonomous Workforce & Codebase Architecture ───────────
+    if tool in ('autonomous_file_scan', 'workforce_daemon_ctl'):
+        return RiskLevel.LOW, ["Autonomous workforce inspection & background daemon control (non-destructive)"]
+
+    if tool == 'autonomous_file_update':
+        return RiskLevel.CRITICAL, ["Autonomous AST-certified file mutation with atomic snapshot rollback"]
+
     # ── Morning Briefing & Autonomous Daily Intelligence ──────────
     if tool in ('generate_morning_briefing', 'set_daily_budget_limit', 'setup_morning_schedule'):
         return RiskLevel.LOW, ["Governed autonomous morning intelligence briefing & daily schedule coordination"]

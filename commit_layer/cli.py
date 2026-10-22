@@ -238,6 +238,14 @@ def main():
     p_morning.add_argument("--limit", type=float, default=None, help="Set daily budget limit")
     p_morning.add_argument("--auto", action="store_true", help="Unattended background scheduled run")
 
+    # workforce command
+    p_workforce = subparsers.add_parser("workforce", help="Autonomous Codebase Workforce & AST Health Scanner")
+    p_workforce.add_argument("action", nargs="?", default="scan", choices=["scan", "heal", "status"], help="Workforce action")
+
+    # daemon command
+    p_daemon = subparsers.add_parser("daemon", help="Workforce Sentinel background watcher daemon")
+    p_daemon.add_argument("action", nargs="?", default="status", choices=["start", "stop", "status"], help="Daemon control")
+
     args = parser.parse_args()
 
     if args.command == "morning":
@@ -259,6 +267,22 @@ def main():
         cmd_status()
     elif args.command == "headroom":
         cmd_headroom(args.subaction, args.target)
+    elif args.command == "workforce":
+        from commit_layer.autonomous_workforce import autonomous_workforce
+        res = autonomous_workforce.run_workforce_inspection()
+        print(res["dossier"])
+    elif args.command == "daemon":
+        from commit_layer.autonomous_workforce import autonomous_workforce
+        if args.action == "start":
+            res = autonomous_workforce.daemon.start()
+            print(f"\n[CIEAV WORKFORCE DAEMON] {res['message']}\n")
+        elif args.action == "stop":
+            res = autonomous_workforce.daemon.stop()
+            print(f"\n[CIEAV WORKFORCE DAEMON] {res['message']}\n")
+        else:
+            res = autonomous_workforce.daemon.status()
+            st_col = "ACTIVE" if res["is_running"] else "STOPPED"
+            print(f"\n[CIEAV WORKFORCE DAEMON] Status: {st_col} | Watched: {res['watched_files_count']} files\n")
     else:
         repl()
 

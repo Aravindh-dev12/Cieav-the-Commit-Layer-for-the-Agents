@@ -453,6 +453,51 @@ Key Interactive Capabilities:
 
 ---
 
+## 7.1 Autonomous Personal Agentic Workforce & Sentinel Daemon
+
+CIEAV is equipped with a complete, sovereign **Personal Agentic Workforce** running 100% locally on CPU without third-party cloud lock-in.
+
+```
++-----------------------------------------------------------------------------+
+|                 CIEAV PERSONAL AGENTIC WORKFORCE ARCHITECTURE               |
++-----------------------------------------------------------------------------+
+| 1. ATLAS (Lead Systems Architect)    : Project decomposition & dependency DAG |
+| 2. CRUST (Codebase Sentinel)         : AST syntax parsing, linter & TODO scan|
+| 3. CODEX (Autonomous File Engineer)  : AST-validated code synthesis & patch  |
+| 4. OPS (DevOps & Host OS Engine)     : py_compile, pytest smoke verification |
+| 5. CFO (Two-Phase Commit Fiduciary)  : Atomic snapshots & Ed25519 receipts   |
+| 6. SENTINEL DAEMON (Background)      : Continuous file watcher & auto-healer  |
++-----------------------------------------------------------------------------+
+```
+
+### Key Capabilities
+- **Sub-Second AST Codebase Scans**: Recursively audits entire repository trees, parses AST syntax on Python and JSON, reports codebase health score (0-100), lines of code, and pending TODO/FIXME markers in **< 1 second**.
+- **Two-Phase Commit (2PC) File Mutations**: All file modifications take byte-for-byte pre-mutation snapshots in `.repo_snapshots/`, undergo AST pre-validation, receive Ed25519 cryptographic signatures, and can be reverted anytime via `/undo <receipt_id>`.
+- **Continuous Sentinel Daemon**: A background monitoring thread (`cieav daemon start`) watching project directories for syntax errors, logging events to `daemon_events.jsonl`, delivering native Windows Toast alerts, and autonomously self-repairing syntax faults.
+
+### Terminal & Natural Language Commands
+```bash
+# Codebase Health Inspection & Audit
+cieav "autonomously check and update files"
+cieav workforce
+
+# Background File Watcher & Auto-Healing Daemon
+cieav daemon start
+cieav daemon status
+cieav daemon stop
+
+# Morning Intelligence Briefing
+cieav morning
+cieav "every morning check my meetings, whatsapp, and mails"
+
+# Governed Computer & Browser Control
+cieav "open gmail and send email to alex@gmail.com about tomorrow's sync"
+cieav "check my zepto expenses"
+cieav "open notepad"
+```
+
+---
+
 ## 8. Directory Structure
 
 ```text

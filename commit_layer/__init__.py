@@ -27,4 +27,4 @@ else:
 __version__ = "0.1.0"
 
 from commit_layer.personal_agent import cieav_personal_agent, CieavPersonalAgent
-
+from commit_layer.autonomous_workforce import autonomous_workforce, AutonomousWorkforceOrchestrator

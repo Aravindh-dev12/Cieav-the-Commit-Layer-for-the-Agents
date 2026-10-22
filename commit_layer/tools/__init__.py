@@ -41,3 +41,8 @@ from commit_layer.reflex import (
     extract_procedure, reflex_engine, lint_procedure, simulate_procedure,
     certify_trusted, get_outcomes_ledger, reflex_kb, reflex_pipeline
 )
+from commit_layer.autonomous_workforce import (
+    AutonomousWorkforceOrchestrator, autonomous_workforce,
+    AutonomousFileScanTool, AutonomousFileUpdateTool, WorkforceDaemonTool,
+    CodebaseSentinel, AutonomousFileEngineer, WorkforceDaemon
+)

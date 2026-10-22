@@ -572,6 +572,19 @@ def process_user_input(text: str):
             print("\n" + res["message"] + "\n")
         return
 
+    # Autonomous Personal Agentic Workforce: Codebase Inspection, File Updates, Sentinel Daemon
+    if lower in ("workforce", "/workforce", "workforce scan", "/workforce scan", "scan files", "check files", "inspect files") or any(phrase in lower for phrase in (
+        "agentic workforce", "autonomously check and update", "check and update files",
+        "workforce daemon", "daemon start", "daemon stop", "daemon status", "daemon"
+    )):
+        from commit_layer.personal_agent import cieav_personal_agent
+        res = cieav_personal_agent.execute(cmd)
+        if res.get("message"):
+            if res.get("receipt_id") and res["receipt_id"] != "AUTO":
+                last_committed_receipt_id = res["receipt_id"]
+            print("\n" + res["message"] + "\n")
+        return
+
     # Fast-Path: Instant Sovereign Operator Identity & Technical Knowledge Engine (0ms CPU)
     user_id_res = user_identity_resolver.check_user_identity_intent(cmd)
     if user_id_res:

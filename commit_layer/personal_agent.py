@@ -49,6 +49,7 @@ from commit_layer.memory_hive import memory_hive
 from commit_layer.interactive_browser import interactive_browser
 from commit_layer.local_browser import local_browser
 from commit_layer.workspace import get_workspace_root, get_data_dir
+from commit_layer.autonomous_workforce import autonomous_workforce, CodebaseSentinel, AutonomousFileEngineer, WorkforceDaemon
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,17 @@ class CieavPersonalAgent:
         clean = re.sub(r'^(?:hey|hi|hello|yo|please|can\s+you|could\s+you|would\s+you)[\s,!.-]*', '', lower).strip()
         clean = re.sub(r'^(?:cieav|cieva|ceiav)[\s,!.-]*', '', clean).strip()
         clean = re.sub(r'^(?:please|can\s+you|could\s+you|would\s+you)[\s,!.-]*', '', clean).strip()
+
+        # ── Domain 0: Autonomous Codebase Workforce & File Operations Engine ───
+        is_workforce_request = (
+            any(k in lower for k in ("workforce", "agentic workforce", "daemon", "watch files", "file watcher"))
+            or (any(k in lower for k in ("check", "chekc", "inspect", "audit", "scan", "health", "heal")) and any(w in lower for w in ("file", "files", "fiule", "codebase", "repo", "project", "architecture")))
+            or (any(k in lower for k in ("autonomusly", "autonomously")) and any(w in lower for w in ("update", "fupdate", "check", "chekc", "file", "fiule", "workforce")))
+            or (any(k in lower for k in ("update", "fupdate")) and any(w in lower for w in ("file", "files", "fiule", "codebase", "repo", "project")))
+            or ("full architecture" in lower or "not just script" in lower)
+        )
+        if is_workforce_request:
+            return self._handle_file_workforce(p, lower)
 
         # ── Domain 1: Personal Agent Status & Architecture Overview ───────────
         if clean in (
@@ -171,6 +183,88 @@ class CieavPersonalAgent:
     # Domain Handlers
     # ──────────────────────────────────────────────────────────────────────────
 
+    def _handle_file_workforce(self, prompt: str, lower: str) -> Dict[str, Any]:
+        """
+        Orchestrate the Autonomous Agentic Workforce:
+        - Inspects files and directories with AST syntax validation
+        - Discovers code issues, TODO markers, and file statistics
+        - Autonomously heals or updates files with Two-Phase Commit snapshots
+        - Manages the continuous background Sentinel daemon
+        """
+        # 1. Background Sentinel Daemon Management
+        if any(k in lower for k in ("daemon start", "start daemon", "start background workforce", "watch files", "start watcher")):
+            res = autonomous_workforce.daemon.start(interval_sec=45, auto_heal=True)
+            msg = f"\n\033[38;2;16;185;129m[CIEAV WORKFORCE]\033[0m {res['message']}\n"
+            scan = autonomous_workforce.sentinel.scan_workspace()
+            card = autonomous_workforce.render_inspection_card(scan)
+            return {"status": "success", "domain": "workforce_daemon", "message": msg + "\n" + card, "data": res}
+
+        if any(k in lower for k in ("daemon stop", "stop daemon", "kill daemon")):
+            res = autonomous_workforce.daemon.stop()
+            msg = f"\n\033[38;2;245;158;11m[CIEAV WORKFORCE]\033[0m {res['message']}\n"
+            return {"status": "success", "domain": "workforce_daemon", "message": msg, "data": res}
+
+        if any(k in lower for k in ("daemon status", "daemon", "watcher status")):
+            res = autonomous_workforce.daemon.status()
+            st_col = "\033[38;2;16;185;129mACTIVE\033[0m" if res["is_running"] else "\033[38;2;245;158;11mSTOPPED\033[0m"
+            msg = f"\n[CIEAV WORKFORCE DAEMON] Status: {st_col} | Watched: {res['watched_files_count']} files | Events: {res['events_logged']} logged\n"
+            return {"status": "success", "domain": "workforce_daemon", "message": msg, "data": res}
+
+        # 2. Targeted File Update / Healing Request
+        m_heal = re.search(r"(?:heal|fix)\s+(?:syntax\s+(?:in\s+)?)?([^\s]+\.py)", prompt, re.IGNORECASE)
+        if m_heal:
+            target_f = m_heal.group(1).strip()
+            full_f = os.path.abspath(target_f)
+            if os.path.exists(full_f):
+                insp = autonomous_workforce.engineer.inspect_file(full_f)
+                if not insp.get("ast_valid"):
+                    m_line = re.search(r'Line\s+(\d+)', insp.get("ast_error", ""))
+                    l_no = int(m_line.group(1)) if m_line else 1
+                    heal_res = autonomous_workforce.engineer.heal_syntax_error(full_f, l_no, insp.get("ast_error", ""))
+                    msg = f"\n[CIEAV WORKFORCE] AST syntax healing applied to {target_f} (Receipt: {heal_res.get('receipt_id')})\n"
+                    return {"status": "success", "domain": "workforce_heal", "message": msg, "data": heal_res}
+                else:
+                    return {"status": "success", "domain": "workforce_heal", "message": f"\n[CIEAV WORKFORCE] {target_f} is already syntactically valid (0 AST errors).\n"}
+
+        # 3. Targeted File Modification / Creation Request
+        m_modify = re.search(r"(?:create|modify|update|write)\s+file\s+([^\s]+)\s+(?:with|saying|content)?\s*(.*)", prompt, re.IGNORECASE | re.DOTALL)
+        if m_modify:
+            target_f = m_modify.group(1).strip()
+            content = m_modify.group(2).strip()
+            if content.startswith(('"', "'")) and content.endswith(('"', "'")):
+                content = content[1:-1]
+            res = autonomous_workforce.execute_file_update_mission(
+                file_path=target_f,
+                update_instruction=f"Update requested via personal agent: {prompt[:50]}",
+                new_content=content if content else None
+            )
+            return {"status": "success", "domain": "workforce_update", "message": res.get("message", "File updated"), "receipt_id": res.get("receipt_id", "AUTO"), "data": res}
+
+        # 4. Comprehensive Workspace Inspection & Autonomous Workforce Operation
+        scan = autonomous_workforce.sentinel.scan_workspace()
+        syntax_errors = scan.get("syntax_errors", [])
+        healed_count = 0
+
+        if syntax_errors and any(k in lower for k in ("update", "fupdate", "fix", "heal")):
+            for err in syntax_errors:
+                fpath = os.path.join(scan["root"], err["file"])
+                h_res = autonomous_workforce.engineer.heal_syntax_error(fpath, err["line"], err["msg"])
+                if h_res.get("status") == "committed":
+                    healed_count += 1
+            scan = autonomous_workforce.sentinel.scan_workspace()
+
+        card = autonomous_workforce.render_inspection_card(scan)
+        if healed_count > 0:
+            card = f"\n\033[38;2;16;185;129m[CIEAV WORKFORCE] Autonomously repaired {healed_count} syntax fault(s) under Two-Phase Commit governance!\033[0m\n" + card
+
+        return {
+            "status": "success",
+            "domain": "workforce",
+            "message": card,
+            "receipt_id": "AUTO",
+            "data": scan
+        }
+
     def _handle_agent_overview(self, prompt: str) -> Dict[str, Any]:
         """Display the complete personal agent dashboard and live status."""
         sched_st = morning_briefing_agent.get_schedule_status()
@@ -192,6 +286,7 @@ class CieavPersonalAgent:
   \033[38;2;16;185;129m[✓] 8. Shell & Sandboxed Code Runner  \033[0m   : Run commands, write scripts, AST code healing, pytest repair
   \033[38;2;16;185;129m[✓] 9. Memory Hive & Personal Vault   \033[0m   : Persistent MEMORY.md, knowledge vault, preferences recall
   \033[38;2;16;185;129m[✓] 10. 2PC Safety & Merkle Ledger    \033[0m   : Ed25519 signed append-only audit receipts with lossless /undo
+  \033[38;2;16;185;129m[✓] 11. Autonomous Agentic Workforce  \033[0m   : Deep AST codebase health scanner, auto-healer & Sentinel background daemon
 
 \033[38;2;168;85;247m╟────────────────────────────────────────────────────────────────────────────────────────────╢\033[0m
   \033[38;2;245;158;11m⚡  What you can tell me right now (I will execute it immediately):\033[0m
